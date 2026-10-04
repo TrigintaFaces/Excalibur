@@ -107,12 +107,13 @@ public sealed class TenantScopedTieredReadThroughShould
         // Archival TOMBSTONES: the hot store keeps the rows (version and position intact) with the
         // payload moved to cold and an ArchivedAt stamp. That stamp -- not an empty hot result -- is
         // what tells the decorator to read through, so this is the shape production actually produces.
-        var tombstoned = CreateEvents("agg-1", 1, 2, 3)
+        var original = CreateEvents("agg-1", 1, 2, 3);
+        var tombstoned = original
             .Select(e => e with { EventData = null, ArchivedAt = DateTimeOffset.UnixEpoch })
             .ToList();
         _ = A.CallTo(() => hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._)).Returns(tombstoned);
-        _ = A.CallTo(() => coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._)).Returns(true);
-        _ = A.CallTo(() => coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._)).Returns(CreateEvents("agg-1", 1, 2, 3));
+        _ = A.CallTo(() => coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", "Order", A<CancellationToken>._)).Returns(true);
+        _ = A.CallTo(() => coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", "Order", A<CancellationToken>._)).Returns(original);
 
         using var provider = BuildTieredTenantProvider(hotStore, coldStore);
         var wired = provider.GetRequiredKeyedService<IEventStore>("default");
@@ -152,6 +153,11 @@ public sealed class TenantScopedTieredReadThroughShould
     // — which reserves the private hot key so tenant scoping wraps the OUTER "default" Tiered store.
     private static ServiceProvider BuildTieredTenantProvider(IEventStore hotStore, IColdEventStore coldStore)
     {
+        A.CallTo(() => hotStore.GetService(typeof(IEventStoreAuthoritativeReader))).Returns(new TestEventStateReader(hotStore));
+        if (hotStore is IEventStoreArchive archive)
+        {
+            A.CallTo(() => hotStore.GetService(typeof(IEventStoreArchive))).Returns(archive);
+        }
         var services = new ServiceCollection();
         _ = services.AddKeyedSingleton("default", hotStore);
         _ = services.AddSingleton(coldStore);
@@ -190,7 +196,7 @@ public sealed class TenantScopedTieredReadThroughShould
             EventData: Array.Empty<byte>(),
             Metadata: null,
             Version: v,
-            Timestamp: DateTimeOffset.UtcNow)).ToList();
+            Timestamp: DateTimeOffset.UtcNow) { TenantId = "tenant-A" }).ToList();
 
     /// <summary>
     /// A minimal event store registered only to emit the <c>ITenantScopingCapability&lt;IEventStore&gt;</c> marker
@@ -223,20 +229,20 @@ public sealed class TenantScopedTieredReadThroughShould
     private sealed class ColdStoreScopingMarkerCarrier(ITenantContext tenantContext) : IColdEventStore
     {
         public Task<long> WriteAsync(
-            KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events,
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, IReadOnlyList<StoredEvent> events,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Unreachable — this type is never resolved.");
 
         public Task<IReadOnlyList<StoredEvent>> ReadAsync(
-            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Unreachable — this type is never resolved.");
 
         public Task<IReadOnlyList<StoredEvent>> ReadAsync(
-            KeyedTenantPartition tenant, string aggregateId, long fromVersion, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, long fromVersion, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Unreachable — this type is never resolved.");
 
         public Task<bool> HasArchivedEventsAsync(
-            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Unreachable — this type is never resolved.");
     }
 }

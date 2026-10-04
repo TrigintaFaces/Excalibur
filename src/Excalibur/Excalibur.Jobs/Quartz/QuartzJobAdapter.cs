@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Jobs.Core;
 using Excalibur.Jobs.Diagnostics;
@@ -31,68 +32,61 @@ public sealed partial class QuartzJobAdapter(
 	private readonly ILogger<QuartzJobAdapter> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public async Task Execute(IJobExecutionContext context)
+	public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		// Handle both Type objects and string type names
-		var jobTypeData = context.JobDetail.JobDataMap["JobType"];
-		var jobType = jobTypeData switch
-		{
-			Type type => type,
-			string typeName => ResolveJobType(typeName),
-			_ => null,
-		};
-
-		if (jobType == null)
-		{
-			LogJobTypeNotFoundOrInvalid(context.JobDetail.Key, jobTypeData);
-			throw new InvalidOperationException(string.Format(
-				CultureInfo.InvariantCulture,
-				"Job type not found or invalid for job '{0}'.",
-				context.JobDetail.Key));
-		}
-
-		await using var scope = _scopeFactory.CreateAsyncScope();
-		var job = scope.ServiceProvider.GetService(jobType);
-
-		if (job == null)
-		{
-			LogCouldNotResolveJobType(jobType);
-			throw new InvalidOperationException(string.Format(
-				CultureInfo.InvariantCulture,
-				"Could not resolve job type '{0}'.",
-				jobType));
-		}
-
-		LogExecutingJob(jobType.Name, context.JobDetail.Key);
-
 		try
 		{
-			if (job is IBackgroundJob backgroundJob)
-			{
-				await backgroundJob.ExecuteAsync(context.CancellationToken).ConfigureAwait(false);
-			}
-			else
-			{
-				LogJobDoesNotImplementInterface(jobType);
-				throw new InvalidOperationException(
-					string.Format(CultureInfo.InvariantCulture, "Job type '{0}' does not implement required interface.", jobType));
-			}
-
-			// Record a heartbeat on successful completion, keyed by the Quartz job name (== JobOptions.JobName,
-			// the same key JobHealthCheck reads). Without this, every IBackgroundJob routed through this adapter
-			// never reported a heartbeat and its JobHealthCheck stayed Unhealthy forever — only the Quartz-native
-			// jobs (OutboxJob/CdcJob/DataProcessingJob) recorded one directly.
-			scope.ServiceProvider.GetService<JobHeartbeatTracker>()?.RecordHeartbeat(context.JobDetail.Key.Name);
-
+			var (jobType, heartbeat) = await ExecuteInScopeAsync(context, cancellationToken).ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
+			heartbeat?.RecordHeartbeat(context.JobDetail.Key.Name);
 			LogJobCompletedSuccessfully(jobType.Name, context.JobDetail.Key);
 		}
 		catch (Exception ex)
 		{
-			LogErrorExecutingJob(jobType.Name, context.JobDetail.Key, ex);
+			LogErrorExecutingJob(nameof(QuartzJobAdapter), context.JobDetail.Key, ex);
 			throw;
 		}
+	}
+
+	private async Task<(Type JobType, JobHeartbeatTracker? Heartbeat)> ExecuteInScopeAsync(
+		IJobExecutionContext context, CancellationToken cancellationToken)
+	{
+		await using var scope = _scopeFactory.CreateAsyncScope();
+		var jobTypeData = context.JobDetail.JobDataMap["JobType"];
+		var jobType = jobTypeData switch
+		{
+			Type type => type,
+			string typeName => ResolveRegisteredType(scope.ServiceProvider, typeName)
+				?? (RuntimeFeature.IsDynamicCodeSupported ? ResolveJobType(typeName) : null),
+			_ => null,
+		};
+		if (jobType is null)
+		{
+			LogJobTypeNotFoundOrInvalid(context.JobDetail.Key, jobTypeData);
+			throw new InvalidOperationException($"Job type not found or invalid for job '{context.JobDetail.Key}'.");
+		}
+		var job = scope.ServiceProvider.GetService(jobType);
+		if (job is not IBackgroundJob backgroundJob)
+		{
+			throw new InvalidOperationException($"Could not resolve background job type '{jobType}'.");
+		}
+		LogExecutingJob(jobType.Name, context.JobDetail.Key);
+		cancellationToken.ThrowIfCancellationRequested();
+		await backgroundJob.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+		return (jobType, scope.ServiceProvider.GetService<JobHeartbeatTracker>());
+	}
+
+	private static Type? ResolveRegisteredType(IServiceProvider services, string identity)
+	{
+		var matches = services.GetServices<RegisteredJobType>().Where(r => r.Matches(identity)).Select(r => r.Type).Distinct().ToArray();
+		return matches.Length switch
+		{
+			0 => null,
+			1 => matches[0],
+			_ => throw new InvalidOperationException($"Ambiguous registered job identity '{identity}'."),
+		};
 	}
 
 	// Source-generated logging methods
@@ -229,5 +223,13 @@ public sealed partial class QuartzJobAdapter(
 		{
 			return null;
 		}
+	}
+	/// <summary>Executes using the cancellation token supplied by the execution context.</summary>
+	/// <param name="context">The Quartz execution context.</param>
+	/// <returns>The asynchronous execution.</returns>
+	public Task Execute(IJobExecutionContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+		return Execute(context, context.CancellationToken).AsTask();
 	}
 }

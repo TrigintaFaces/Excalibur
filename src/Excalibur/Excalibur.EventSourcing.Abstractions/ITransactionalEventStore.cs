@@ -22,9 +22,9 @@ namespace Excalibur.EventSourcing;
 /// <b>Store-owned unit of work.</b> Unlike a "hand out a raw transaction" design, the store owns the
 /// connection and transaction lifetime end to end. The caller supplies a <c>stageOutbox</c>
 /// callback that enlists the outbox writes on the <em>same</em> transaction the store uses for the
-/// append. Because the transaction never escapes the store, appending events and staging outbox rows
-/// on two different transactions is structurally impossible — the atomicity guarantee cannot be
-/// accidentally broken by a caller.
+/// append. Atomicity requires the callback to enlist all staging writes on that supplied transaction.
+/// The callback receives the transaction and must not commit it or perform independently committed
+/// writes or external effects; the interface cannot enforce that discipline.
 /// </para>
 /// <para>
 /// When the injected <see cref="IEventStore"/> does not also implement this interface, the repository
@@ -41,11 +41,12 @@ public interface ITransactionalEventStore : IEventStore
 	/// <para>
 	/// The store opens one connection and one transaction, performs the optimistic-concurrency
 	/// version check, invokes <paramref name="stageOutbox"/> on the same transaction, appends the
-	/// events, then commits. On a concurrency conflict the store rolls back and does
-	/// <b>not</b> invoke <paramref name="stageOutbox"/>. On any failure (a conflict or a throw from
-	/// <paramref name="stageOutbox"/>) the entire transaction is rolled back, so neither the events
-	/// nor the outbox rows persist. The store owns the connection and transaction lifetime
-	/// (begin/commit/rollback/dispose).
+	/// events, then commits. A failed version pre-check does not invoke <paramref name="stageOutbox"/>.
+	/// A later conflict can occur after staging; a proven rollback discards both events and staged rows.
+	/// Lost commit acknowledgement can leave both durable and must be reported as Unknown unless
+	/// reconciliation establishes the complete operation. Callback faults before commit propagate and
+	/// abort the store-owned transaction. The callback must not commit it, open independent writes or
+	/// perform external effects; the supplied transaction does not enforce that discipline by itself.
 	/// </para>
 	/// <para>
 	/// <b>Staging runs before the events are appended, and the callback must not depend on anything
@@ -64,10 +65,12 @@ public interface ITransactionalEventStore : IEventStore
 	/// pre-check, then race at insert/commit — the database's own uniqueness constraint on the stream
 	/// key decides the loser). Either shape yields
 	/// <see cref="AppendResult.CreateConcurrencyConflict(long, long?)"/>, matching
-	/// <see cref="IEventStore.AppendAsync"/>'s contract on the same provider. A failure that is
-	/// <em>not</em> a lost race — including a throw from <paramref name="stageOutbox"/> — propagates
-	/// as a thrown exception rather than a returned failure result, so the caller sees the original
-	/// cause instead of a generic wrapper.
+	/// <see cref="IEventStore.AppendAsync"/>'s contract on the same provider. A changed stream version
+	/// after a lost commit acknowledgement does not establish a conflict: it may include this append.
+	/// An inconclusive commit outcome is <see cref="AppendOutcome.Unknown"/>. Callback faults before
+	/// commit propagate as their original exceptions. Cancellation propagates as cancellation, but
+	/// cancellation after commit dispatch does not establish rollback; callers must reconcile the
+	/// original operation before retrying or issuing dependent effects.
 	/// </para>
 	/// </remarks>
 	/// <param name="aggregateId">The aggregate identifier.</param>

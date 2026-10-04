@@ -32,8 +32,11 @@ public sealed class HandlerInvokerAot : IHandlerInvoker, IValueTaskHandlerInvoke
 		ArgumentNullException.ThrowIfNull(handler);
 		ArgumentNullException.ThrowIfNull(message);
 
-		var invoker = HandlerInvokerRegistry.GetInvoker(handler.GetType())
-			?? throw new InvalidOperationException($"No invoker registered for handler type {handler.GetType().FullName}");
+		if (!HandlerInvokerRegistry.TryGetRegisteredInvoker(handler.GetType(), message.GetType(), out var invoker))
+		{
+			throw new InvalidOperationException(
+				$"No AOT invoker registered for handler '{handler.GetType().FullName}' and message '{message.GetType().FullName}'. Register this pair or reference Excalibur.Dispatch.SourceGenerators.");
+		}
 
 		return invoker(handler, message, cancellationToken);
 	}

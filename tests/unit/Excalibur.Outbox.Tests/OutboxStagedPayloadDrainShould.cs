@@ -318,7 +318,7 @@ public sealed class OutboxStagedPayloadDrainShould : UnitTestBase
 
 		public async ValueTask DisposeAsync()
 		{
-			Outbox.Dispose();
+			await Outbox.DisposeAsync().ConfigureAwait(false);
 			await Processor.DisposeAsync().ConfigureAwait(false);
 			await _provider.DisposeAsync().ConfigureAwait(false);
 		}

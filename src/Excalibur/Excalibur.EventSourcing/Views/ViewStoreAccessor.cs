@@ -4,6 +4,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Views;
 
 /// <summary>
@@ -15,6 +17,17 @@ namespace Excalibur.EventSourcing.Views;
 /// </summary>
 internal abstract class ViewStoreAccessor
 {
+	/// <summary>Gets the declared view name through the builder interface.</summary>
+	public abstract string GetViewName(object builder);
+	/// <summary>Gets handled event types through the builder interface.</summary>
+	public abstract IReadOnlyList<Type> GetHandledEventTypes(object builder);
+	/// <summary>Gets an event's target view identifier through the builder interface.</summary>
+	public abstract string? GetViewId(object builder, IDomainEvent domainEvent);
+	/// <summary>Creates a view, honoring default and explicit interface implementations.</summary>
+	public abstract object CreateNew(object builder);
+	/// <summary>Applies an event through the builder interface.</summary>
+	public abstract object Apply(object builder, object view, IDomainEvent domainEvent);
+
 	/// <summary>Loads a view from the store (returns <see langword="null"/> if not found).</summary>
 	[RequiresUnreferencedCode("The store serializes TView reflectively.")]
 	[RequiresDynamicCode("The store serializes TView reflectively.")]
@@ -41,8 +54,20 @@ internal abstract class ViewStoreAccessor
 /// <summary>Generic <see cref="ViewStoreAccessor"/> bound to a concrete <typeparamref name="TView"/>.</summary>
 /// <typeparam name="TView">The materialized view type.</typeparam>
 internal sealed class ViewStoreAccessor<TView> : ViewStoreAccessor
-	where TView : class
+	where TView : class, new()
 {
+	/// <inheritdoc />
+	public override string GetViewName(object builder) => ((IMaterializedViewBuilder<TView>)builder).ViewName;
+	/// <inheritdoc />
+	public override IReadOnlyList<Type> GetHandledEventTypes(object builder) => ((IMaterializedViewBuilder<TView>)builder).HandledEventTypes;
+	/// <inheritdoc />
+	public override string? GetViewId(object builder, IDomainEvent domainEvent) => ((IMaterializedViewBuilder<TView>)builder).GetViewId(domainEvent);
+	/// <inheritdoc />
+	public override object CreateNew(object builder) => ((IMaterializedViewBuilder<TView>)builder).CreateNew();
+	/// <inheritdoc />
+	public override object Apply(object builder, object view, IDomainEvent domainEvent) =>
+		((IMaterializedViewBuilder<TView>)builder).Apply((TView)view, domainEvent);
+
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("The store serializes TView reflectively.")]
 	[RequiresDynamicCode("The store serializes TView reflectively.")]

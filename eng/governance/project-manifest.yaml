@@ -17,7 +17,7 @@ governed_directories:
 
 exclusions:
   - path: templates/**
-    reason: "dotnet new templates - isolated Directory.Build.props, separate CI (eng/test-templates.ps1)"
+    reason: "Raw template projects are solution items, validated after instantiation; template package is explicitly governed"
   - path: labs/**
     reason: "Experimental - not governed"
   - path: tools/**
@@ -1159,11 +1159,6 @@ projects:
     tier: Hosting
     framework_owner: Excalibur
 
-    classification: Shipping
-    in_solution: true
-    tier: Hosting
-    framework_owner: Excalibur
-
   - path: src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/Excalibur.Hosting.GoogleCloudFunctions.csproj
     classification: Shipping
     in_solution: true
@@ -2131,10 +2126,15 @@ projects:
     framework_owner: Excalibur
 
   - path: tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj
-  - path: tests/property/Excalibur.EventSourcing.Properties/Excalibur.EventSourcing.Properties.csproj
     classification: Test
     in_solution: true
     category: Unit
+    framework_owner: Excalibur
+
+  - path: tests/property/Excalibur.EventSourcing.Properties/Excalibur.EventSourcing.Properties.csproj
+    classification: Test
+    in_solution: true
+    category: Property
     framework_owner: Excalibur
 
   - path: tests/unit/Excalibur.Hosting.Tests/Excalibur.Hosting.Tests.csproj
@@ -2257,3 +2257,8 @@ projects:
     category: Unit
     framework_owner: Excalibur
 
+
+  - path: templates/Excalibur.Dispatch.Templates.csproj
+    classification: Template
+    in_solution: true
+    framework_owner: Dispatch

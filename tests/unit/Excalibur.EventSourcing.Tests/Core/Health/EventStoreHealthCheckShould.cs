@@ -1,3 +1,4 @@
+using Excalibur.Data.Sharding;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Health;
 
@@ -40,7 +41,12 @@ public sealed class EventStoreHealthCheckShould
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Healthy);
 		result.Description.ShouldNotBeNull();
-		result.Description.ShouldContain("reachable");
+
+		// Strengthened from a substring match on the word "reachable", which a bare connectivity probe
+		// satisfies just as well. The check's claim is that it SERVED A READ OF THE EVENT TABLE, so the
+		// description must say which table was read, and no fault may be attached.
+		result.Description.ShouldContain("event table");
+		result.Exception.ShouldBeNull();
 	}
 
 	[Fact]
@@ -60,8 +66,57 @@ public sealed class EventStoreHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Description.ShouldContain("unreachable");
+
+		// Strengthened: "unreachable" was the wrong diagnosis as well as a weak assertion. A read the
+		// store refused may mean the table is missing a column the read statement binds, which is not an
+		// unreachable database, and the description must not send an operator to check the network.
+		result.Description.ShouldContain("refused a read");
+		result.Description.ShouldContain("missing a column");
 		result.Exception!.ShouldBeOfType<InvalidOperationException>();
+	}
+
+	[Fact]
+	public async Task PropagateCancellation_RatherThanReportingAHostShutdownAsUnhealthy()
+	{
+		// A rolling deploy cancels in-flight probes. Converting that into Unhealthy pages someone for a
+		// clean shutdown, so cancellation must leave the check rather than become a verdict.
+#pragma warning disable CA2012
+		A.CallTo(() => _eventStore.LoadAsync(
+			ProbeAggregateId,
+			ProbeAggregateType,
+			A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(
+				Task.FromException<IReadOnlyList<StoredEvent>>(new OperationCanceledException())));
+#pragma warning restore CA2012
+
+		_ = await Should.ThrowAsync<OperationCanceledException>(
+			() => _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task ReportDegraded_WhenNoTenantOrShardIsResolvableSoNothingWasVerified()
+	{
+		// A health check runs with no ambient tenant, so a tenant-routing store cannot resolve a shard
+		// unless a default is configured. That is a configuration state, not a store fault: Unhealthy
+		// would mark a working store broken (and a permanently-red check gets deleted from the readiness
+		// probe, leaving nothing), while Healthy would claim a verification that never happened.
+#pragma warning disable CA2012
+		A.CallTo(() => _eventStore.LoadAsync(
+			ProbeAggregateId,
+			ProbeAggregateType,
+			A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(
+				Task.FromException<IReadOnlyList<StoredEvent>>(
+					new TenantShardNotFoundException("__untenanted__"))));
+#pragma warning restore CA2012
+
+		var result = await _sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None)
+			.ConfigureAwait(false);
+
+		result.Status.ShouldBe(HealthStatus.Degraded,
+			"an unprobeable store is neither verified nor known-broken, and reporting either would be a "
+			+ "claim the check cannot support");
+		result.Description.ShouldContain("nothing about the store's schema was verified");
 	}
 
 	[Fact]

@@ -1,181 +1,112 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Validate package composition locally (mirrors CI job).
-
+    Build a candidate feed, verify cross-family package consumption, and run the DispatchOnly scenario.
 .DESCRIPTION
-    This script replicates the CI package-composition job for local testing.
-    Use this before pushing to catch composition issues early.
-
-.PARAMETER Version
-    Package version override. Defaults to 0.0.0-local.
-    Passed to MinVer as MinVerVersionOverride so build + pack produce consistent metadata.
-
+    Nightly and local runs use the same required checks. Logs, candidate hashes and separate build,
+    restore and scenario outcomes remain beneath artifacts/package-composition/<run>/.
+    Shared caches are never cleared. This does not replace the complete release test suite.
 .PARAMETER SkipBuild
-    Skip the Dispatch build step (use if already built).
-
+    Legacy compatibility argument. The candidate is rebuilt to establish build provenance.
 .PARAMETER SkipSample
-    Skip sample validation.
-
-.EXAMPLE
-    .\validate-package-composition.ps1
-
-.EXAMPLE
-    .\validate-package-composition.ps1 -Version 0.2.0-test
-
-.EXAMPLE
-    .\validate-package-composition.ps1 -SkipBuild
+    Refused: an omitted required scenario cannot produce a passing composition verdict.
 #>
-
 [CmdletBinding()]
 param(
-    [string]$Version = "0.0.0-local",
+    [string]$Version = '0.0.0-local',
     [switch]$SkipBuild,
-    [switch]$SkipSample
+    [switch]$SkipSample,
+    [ValidateRange(1,600)][int]$SampleTimeoutSeconds = 120
 )
-
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
-
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Package Composition Validation" -ForegroundColor Cyan
-Write-Host "========================================`n" -ForegroundColor Cyan
-
-$stepNum = 0
-
-# Step 1: Build Dispatch projects
-$stepNum++
-if (-not $SkipBuild) {
-    Write-Host "[$stepNum/4] Building Dispatch projects..." -ForegroundColor Yellow
-    if (-not (Test-Path $ShippingSolutionFilter)) {
-        throw "Shipping solution filter not found: $ShippingSolutionFilter"
-    }
-
-    dotnet restore $ShippingSolutionFilter --verbosity quiet
-    if ($LASTEXITCODE -ne 0) {
-        throw "Restore failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
-    }
-
-    dotnet build $ShippingSolutionFilter -c Release --no-restore --verbosity quiet
-    if ($LASTEXITCODE -ne 0) {
-        throw "Build failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
-    }
-
-    $projectCount = (Get-Content $ShippingSolutionFilter | Select-String -Pattern '\.csproj"').Count
-    Write-Host "  Dispatch build successful ($projectCount projects)" -ForegroundColor Green
-}
-else {
-    Write-Host "[$stepNum/4] Skipping Dispatch build (--SkipBuild specified)..." -ForegroundColor Yellow
-}
-
-# Step 2: Pack to local feed
-$stepNum++
-Write-Host "`n[$stepNum/4] Packing to local feed..." -ForegroundColor Yellow
-Push-Location $RepoRoot
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/package-composition.functions.ps1"
+if ($SkipSample) { throw 'The DispatchOnly scenario is required; -SkipSample cannot certify composition.' }
+if ($SkipBuild) { Write-Warning '-SkipBuild is retained for compatibility, but the candidate is rebuilt before certification.' }
+$repo = Split-Path -Parent $PSScriptRoot
+$run = Join-Path $repo ('artifacts/package-composition/' + [guid]::NewGuid().ToString('N'))
+$feed = Join-Path $run 'feed'
+$cache = Join-Path $run 'consumer-cache'
+New-Item -ItemType Directory -Path $run,$cache -Force | Out-Null
+$dotnet = (Get-Command dotnet -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$previous = @{}
+foreach ($name in @('NUGET_PACKAGES','NUGET_HTTP_CACHE_PATH','NUGET_SCRATCH')) { $previous[$name] = [Environment]::GetEnvironmentVariable($name) }
+$verdict = [ordered]@{ status='incomplete'; candidateSha=''; version=$Version; production='incomplete'; packageBuilds=@(); scenario='incomplete'; evidenceDirectory=$run }
 try {
-    & "$PSScriptRoot/pack-local.ps1" -Version $Version -NoBuild -Clean
-    if ($LASTEXITCODE -ne 0) {
-        throw "Pack failed with exit code $LASTEXITCODE"
+    $env:NUGET_PACKAGES = Join-Path $run 'producer-cache'
+    $env:NUGET_HTTP_CACHE_PATH = Join-Path $run 'http-cache'
+    $env:NUGET_SCRATCH = Join-Path $run 'scratch'
+    & "$PSScriptRoot/pack-local.ps1" -Version $Version -OutputDirectory $feed -EvidenceDirectory (Join-Path $run 'production')
+    $manifest = Get-Content (Join-Path $run 'production/candidate-packages.json') -Raw | ConvertFrom-Json -AsHashtable
+    if ($manifest.status -ne 'passed' -or -not $manifest.buildVerified) { throw 'Candidate production did not pass.' }
+    $verdict.candidateSha = $manifest.candidateSha
+    $verdict.sourceSha256 = $manifest.sourceSha256
+    $verdict.production = 'passed'
+    $packages = Get-CompositionPackages $feed $Version
+    $shell = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+    Invoke-PackageCommand $shell @('-NoProfile','-File',"$PSScriptRoot/smoke-test-packages.ps1",'-CandidateManifest',(Join-Path $run 'production/candidate-packages.json'),'-CandidateFeed',$feed,'-EvidenceDirectory',(Join-Path $run 'smoke')) (Join-Path $run 'smoke') $repo -TimeoutSeconds 3600
+    $env:NUGET_PACKAGES = $cache
+    $escapedFeed = [Security.SecurityElement]::Escape($feed)
+    $config = Join-Path $run 'NuGet.Config'
+    @"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <fallbackPackageFolders><clear/></fallbackPackageFolders>
+  <packageSources><clear/><add key="candidate" value="$escapedFeed"/><add key="nuget.org" value="https://api.nuget.org/v3/index.json"/></packageSources>
+  <packageSourceMapping><clear/><packageSource key="candidate"><package pattern="Excalibur*"/></packageSource><packageSource key="nuget.org"><package pattern="*"/></packageSource></packageSourceMapping>
+</configuration>
+"@ | Set-Content -LiteralPath $config -Encoding utf8
+    $properties = @('-p:UsePackageReferences=true',"-p:DispatchPackageVersion=$Version","-p:ExcaliburPackageVersion=$Version", "-p:MinVerVersionOverride=$Version",'-p:BuildExamplesAndTests=true','-p:Configuration=Release',"-p:RestoreConfigFile=$config","-p:RestorePackagesPath=$cache",'-p:RestoreForce=true','-p:RestoreNoCache=true')
+    $lockProperties = @(Get-CompositionLockProperties -RunId (Split-Path $run -Leaf))
+    $properties += $lockProperties
+    $lockPath = $lockProperties[0].Substring('-p:NuGetLockFilePath='.Length)
+    $failures = [Collections.Generic.List[string]]::new()
+    # The producer evaluated every source project independently of the shipping filter.
+    $projects = @($manifest.projects | Where-Object { $_.project.StartsWith('src/Excalibur/') })
+    if ($projects.Count -eq 0) { throw 'No Excalibur projects selected for package composition.' }
+    foreach ($project in $projects) {
+        $path = Join-Path $repo $project.project
+        $name = [IO.Path]::GetFileNameWithoutExtension($path)
+        $outcome = [ordered]@{ project=$project.project; build='incomplete'; consumedPackages=@() }
+        try {
+            Write-Host "Validating package composition: $name"
+            Invoke-PackageCommand $dotnet (@('build',$path,'-c','Release','--verbosity','minimal','--disable-build-servers') + $properties) (Join-Path $run "$name.build") $repo
+            $outcome.build = 'passed'
+            $evaluation = Join-Path $run "$name.assets-path"
+            Invoke-PackageCommand $dotnet (@('msbuild',$path,'-nologo','-getProperty:ProjectAssetsFile') + $properties) $evaluation $repo
+            $assets = (Get-Content "$evaluation.stdout.log" -Raw).Trim()
+            $outcome.consumedPackages = Assert-CompositionAssets $assets $packages $cache -RequiredByTarget $project.dispatchDependencies
+            Copy-Item -LiteralPath $assets -Destination (Join-Path $run "$name.project.assets.json")
+            Copy-Item -LiteralPath (Join-Path (Split-Path $path) $lockPath) -Destination (Join-Path $run "$name.packages.lock.json")
+        }
+        catch { $failures.Add($_.Exception.Message); Write-Warning $_ }
+        $verdict.packageBuilds += $outcome
     }
-    Write-Host "  Pack successful" -ForegroundColor Green
+    if ($failures.Count -gt 0) { throw "$($failures.Count) required package-mode validation(s) failed. See $run" }
+
+    $sample = Join-Path $repo 'samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj'
+    Invoke-PackageCommand $dotnet (@('build',$sample,'-c','Release','--verbosity','minimal','--disable-build-servers') + $properties) (Join-Path $run 'sample.build') $repo
+    $sampleAssets = Join-Path (Split-Path $sample) 'obj/project.assets.json'
+    $null = Assert-CompositionAssets $sampleAssets $packages $cache -PackageOnly -RequiredPackages @('Excalibur.Dispatch','Excalibur.Dispatch.Abstractions')
+    Copy-Item -LiteralPath $sampleAssets -Destination (Join-Path $run 'sample.project.assets.json')
+    Copy-Item -LiteralPath (Join-Path (Split-Path $sample) $lockPath) -Destination (Join-Path $run 'sample.packages.lock.json')
+    Invoke-PackageCommand $dotnet @((Join-Path (Split-Path $sample) 'bin/Release/net10.0/Excalibur.DispatchOnly.dll')) (Join-Path $run 'sample.scenario') $repo -TimeoutSeconds $SampleTimeoutSeconds
+    $verdict.scenario = 'passed'
+    Invoke-PackageCommand $shell @('-NoProfile','-File',"$PSScriptRoot/validate-package-composition.test.ps1",'-CandidateFeed',$feed,'-CandidateManifest',(Join-Path $run 'production/candidate-packages.json'),'-Version',$Version) (Join-Path $run 'scenario-controls') $repo -TimeoutSeconds 600
+
+    # Detect candidate replacement during the run, even when id/version remain unchanged.
+    $finalPackages = Get-CompositionPackages $feed $Version
+    if ($finalPackages.Count -ne $manifest.packages.Count) { throw 'Candidate package population changed during validation.' }
+    foreach ($package in $manifest.packages) {
+        if (-not $finalPackages.ContainsKey($package.id) -or $finalPackages[$package.id].sha256 -cne $package.sha256) {
+            throw "Candidate package changed during validation: $($package.id)"
+        }
+    }
+    if ((Get-CompositionSourceIdentity $repo).sha256 -cne $manifest.sourceSha256) { throw 'Candidate source changed during composition validation.' }
+    $verdict.status = 'passed'
+    Write-Host "Package composition passed. DispatchOnly command, both event handlers and document scenario passed. Evidence: $run"
 }
 finally {
-    Pop-Location
+    $verdict | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $run 'composition-verdict.json') -Encoding utf8
+    foreach ($name in $previous.Keys) { [Environment]::SetEnvironmentVariable($name,$previous[$name]) }
 }
-
-# Step 3: Clear NuGet cache/packages to avoid stale same-version local packages
-$stepNum++
-Write-Host "`n[$stepNum/4] Clearing NuGet cache..." -ForegroundColor Yellow
-
-# SHUT THE BUILD SERVERS DOWN FIRST. This is not hygiene -- without it this script fails on any
-# machine that has already built, and it fails in a way that blames the tree.
-#
-# MSBuild and the VB/C# compiler run as PERSISTENT SERVER PROCESSES that outlive the build which
-# started them, and they hold open handles to assemblies inside the global-packages folder. Clearing
-# that folder underneath them leaves the directory half-emptied with live handles into it, so the very
-# next restore cannot re-extract the files it just deleted and dies with
-#
-#   NuGet.targets: error : Access to the path 'MSBuild.Caching.dll' is denied.
-#
-# minver is the usual casualty because it ships an MSBuild task assembly that every project loads.
-#
-# WHAT IT LOOKS LIKE WHEN THIS BITES, because the symptom points at the wrong thing entirely: step 4
-# reports "146/150 projects failed to build", and the two steps AFTER this script -- the NuSpec
-# dependency check and the public-API baseline audit -- fail too. All three pass when run on their own.
-# Measured 2026-10-01: two full rehearsal runs failed identically, the second with nothing else running,
-# and 31 orphaned server processes were holding the cache each time. "dotnet build-server shutdown"
-# dropped the process count from 37 to 6 and the next restore succeeded with 0 errors.
-#
-# CI NEVER SAW THIS. A fresh runner has no pre-existing servers, so the clear is harmless there -- which
-# is exactly why a gate that is green in CI can be unrunnable for every developer.
-dotnet build-server shutdown 2>&1 | Out-Null
-
-dotnet nuget locals http-cache --clear 2>&1 | Out-Null
-dotnet nuget locals temp --clear 2>&1 | Out-Null
-dotnet nuget locals global-packages --clear 2>&1 | Out-Null
-Write-Host "  NuGet cache cleared (build servers shut down first)" -ForegroundColor Green
-
-# Step 4: Build Excalibur with PackageReference
-$stepNum++
-Write-Host "`n[$stepNum/4] Building Excalibur with PackageReference mode..." -ForegroundColor Yellow
-$ExcaliburSrc = Join-Path $RepoRoot "src/Excalibur"
-$ExcaliburProjects = Get-ChildItem -Path $ExcaliburSrc -Filter "*.csproj" -Recurse
-$projectCount = $ExcaliburProjects.Count
-$built = 0
-$failed = 0
-foreach ($proj in $ExcaliburProjects) {
-    $built++
-    Write-Host "  [$built/$projectCount] Building $($proj.Name)..." -ForegroundColor Gray
-    dotnet build $proj.FullName -c Release `
-        -p:UsePackageReferences=true `
-        -p:DispatchPackageVersion=$Version `
-        -p:ExcaliburPackageVersion=$Version `
-        -p:RestoreForce=true `
-        -p:RestoreNoCache=true 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        $failed++
-        Write-Host "    Warning: $($proj.Name) failed to build" -ForegroundColor Yellow
-    }
-}
-if ($failed -gt ($projectCount / 2)) {
-    throw "Too many Excalibur projects failed ($failed/$projectCount)"
-}
-Write-Host "  Excalibur build complete ($($projectCount - $failed)/$projectCount successful)" -ForegroundColor Green
-
-# Optional: Validate sample
-if (-not $SkipSample) {
-    Write-Host "`n[Optional] Validating sample builds..." -ForegroundColor Yellow
-    $samplePath = Join-Path $RepoRoot "samples/01-getting-started/DispatchOnly"
-    if (Test-Path $samplePath) {
-        dotnet build $samplePath -c Release `
-            -p:UsePackageReferences=true `
-            -p:DispatchPackageVersion=$Version `
-            -p:ExcaliburPackageVersion=$Version 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  Sample validation successful" -ForegroundColor Green
-        }
-        else {
-            Write-Host "  Sample validation failed (non-blocking)" -ForegroundColor Yellow
-        }
-    }
-    else {
-        Write-Host "  Sample path not found: $samplePath" -ForegroundColor Yellow
-    }
-}
-
-# Summary
-Write-Host "`n========================================" -ForegroundColor Green
-Write-Host "Package Composition Validation PASSED" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "  Version: $Version" -ForegroundColor White
-Write-Host "  Dispatch: Built and packed to local feed" -ForegroundColor White
-Write-Host "  Excalibur: Built with PackageReference mode" -ForegroundColor White
-Write-Host "`nThis validates that:" -ForegroundColor Cyan
-Write-Host "  1. Dispatch packages can be created successfully" -ForegroundColor White
-Write-Host "  2. Excalibur can consume Dispatch via PackageReference" -ForegroundColor White
-Write-Host "  3. Package composition is correct" -ForegroundColor White
-
-exit 0

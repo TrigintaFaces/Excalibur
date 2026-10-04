@@ -42,68 +42,127 @@ public sealed class GetArchiveCandidatesRequest
 		CancellationToken cancellationToken,
 		string schema = "public",
 		string table = "event_store_events")
+		: this(policy, batchSize, utcNow, null, null, schema, table, cancellationToken)
+	{
+	}
+
+	internal (string TenantId, string AggregateId, string AggregateType)? LastExamined { get; private set; }
+
+	internal GetArchiveCandidatesRequest(
+		ArchivePolicy policy, int batchSize, DateTimeOffset utcNow, long? scanHorizon,
+		(string TenantId, string AggregateId, string AggregateType)? after,
+		string schema, string table, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(policy);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
 		var qualifiedTable = PgTableName.Format(schema, table);
 
-		// Each policy term narrows the archivable ceiling; an unset term contributes nothing. When no term is
-		// set the eligibility expression is constant-false, so a policy that enables nothing yields no
-		// candidates rather than proposing every event for deletion.
+		// Age and global-position triggers are alternatives. Retention overrides both and can stand alone.
 		var conditions = new List<string>();
 		var parameters = new DynamicParameters();
-
 		if (policy.MaxAge is { } maxAge)
 		{
-			conditions.Add("timestamp < @MaxAgeCutoff");
+			conditions.Add("EventTimestamp < @MaxAgeCutoff");
 			parameters.Add("@MaxAgeCutoff", utcNow - maxAge);
 		}
-
 		if (policy.MaxPosition is { } maxPosition)
 		{
-			conditions.Add("version <= @MaxPosition");
+			conditions.Add("GlobalPosition < @MaxPosition");
 			parameters.Add("@MaxPosition", maxPosition);
 		}
+		var retain = policy.RetainRecentCount.GetValueOrDefault();
+		var eligibility = conditions.Count > 0 ? "(" + string.Join(" OR ", conditions) + ")"
+			: retain > 0 ? "1 = 1" : "1 = 0";
+		parameters.Add("@RetainRecentCount", retain);
+		parameters.Add("@ErasedEventType", ErasedEventMarker.EventType);
 
-		var eligibility = conditions.Count > 0
-			? string.Join(" AND ", conditions)
-			: "false";
-
-		// RetainRecentCount keeps the newest N versions per aggregate out of the archivable range. It is
-		// applied against the aggregate's true maximum version, computed per (tenant, aggregate) group — the
-		// tenant is part of the grouping key, so two tenants sharing an aggregate identifier are never
-		// folded into one candidate.
-		var retainClause = string.Empty;
-		if (policy.RetainRecentCount is { } retain && retain > 0)
+		if (scanHorizon.HasValue)
 		{
-			retainClause =
-				"HAVING MAX(version) - MAX(CASE WHEN " + eligibility + " THEN version ELSE -1 END) >= @RetainRecentCount";
-			parameters.Add("@RetainRecentCount", retain);
+			parameters.Add("@ScanHorizon", scanHorizon);
+			parameters.Add("@HasAfter", after.HasValue ? 1 : 0);
+			parameters.Add("@AfterTenant", after?.TenantId);
+			parameters.Add("@AfterId", after?.AggregateId);
+			parameters.Add("@AfterType", after?.AggregateType);
 		}
-
 		parameters.Add("@BatchSize", batchSize);
 		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
-		// Folds every value that cannot name a real tenant — NULL, empty, and whitespace-only, all of which
-		// occur on schemas predating the NOT NULL/CHECK constraints — onto the one reserved sentinel, so the
-		// untenanted rows form a single group instead of one group per blank spelling. A real tenant term is
-		// projected verbatim: the trim is the emptiness *test* only, never a normalization of the identifier.
-		const string TenantTerm =
+		// The scanner matches raw reads/tombstoning: only NULL maps to untenanted; malformed blank
+		// identities fail below. Preserve legacy one-shot normalization for its existing callers.
+		var tenantTerm = scanHorizon.HasValue ? "COALESCE(tenant_id, @UntenantedSentinel)" :
 			"CASE WHEN BTRIM(COALESCE(tenant_id, '')) = '' THEN @UntenantedSentinel ELSE tenant_id END";
 
+		var fullProjection = $"{tenantTerm} AS TenantId, aggregate_id AS AggregateId, aggregate_type AS AggregateType, version AS Version, event_type AS EventType, event_data AS EventData, archived_at AS ArchivedAt, timestamp AS EventTimestamp, position AS GlobalPosition";
+		var initialProjection = scanHorizon.HasValue ? $"{tenantTerm} AS TenantId, aggregate_id AS AggregateId, aggregate_type AS AggregateType, position AS GlobalPosition" : fullProjection;
+
+		var scanSelection = scanHorizon.HasValue ? $"""
+			, scan_keys AS (
+			    SELECT TenantId, AggregateId, AggregateType
+			    FROM stream_rows
+			    WHERE GlobalPosition <= @ScanHorizon AND
+			        (@HasAfter = 0 OR TenantId > @AfterTenant
+			         OR (TenantId = @AfterTenant AND AggregateId > @AfterId)
+			         OR (TenantId = @AfterTenant AND AggregateId = @AfterId AND AggregateType > @AfterType))
+			    GROUP BY TenantId, AggregateId, AggregateType
+			    ORDER BY TenantId, AggregateId, AggregateType
+			    LIMIT @BatchSize
+			), selected_rows AS (
+			    SELECT s.* FROM (SELECT {fullProjection} FROM {qualifiedTable}) s INNER JOIN scan_keys k
+			      ON s.TenantId = k.TenantId AND s.AggregateId = k.AggregateId AND s.AggregateType = k.AggregateType
+			)
+			""" : string.Empty;
+		var rankingSource = scanHorizon.HasValue ? "selected_rows" : "stream_rows";
+		var legacySelection = $"""
+			SELECT TenantId, AggregateId, AggregateType,
+			       MAX(Version) AS ArchivableUpToVersion,
+			       SUM(CASE WHEN EventData IS NOT NULL THEN 1 ELSE 0 END) AS EventCount
+			FROM bounded
+			WHERE FirstBlockedVersion IS NULL OR Version < FirstBlockedVersion
+			GROUP BY TenantId, AggregateId, AggregateType
+			HAVING SUM(CASE WHEN EventData IS NOT NULL THEN 1 ELSE 0 END) > 0
+			ORDER BY TenantId ASC, AggregateId ASC, AggregateType ASC
+			    LIMIT @BatchSize
+			""";
+		var selection = scanHorizon.HasValue ? """
+			, eligible AS (
+			    SELECT TenantId, AggregateId, AggregateType, MAX(Version) AS ArchivableUpToVersion,
+			           SUM(CASE WHEN EventData IS NOT NULL THEN 1 ELSE 0 END) AS EventCount
+			    FROM bounded WHERE FirstBlockedVersion IS NULL OR Version < FirstBlockedVersion
+			    GROUP BY TenantId, AggregateId, AggregateType
+			)
+			SELECT k.TenantId, k.AggregateId, k.AggregateType,
+			       COALESCE(e.ArchivableUpToVersion, -1) AS ArchivableUpToVersion,
+			       COALESCE(e.EventCount, 0) AS EventCount
+			FROM scan_keys k LEFT JOIN eligible e
+			  ON k.TenantId = e.TenantId AND k.AggregateId = e.AggregateId AND k.AggregateType = e.AggregateType
+			ORDER BY k.TenantId, k.AggregateId, k.AggregateType
+			""" : legacySelection;
+
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
+		// A maximum eligible version alone is unsafe when event timestamps are not monotonic.
+		// Find the first barrier, then select only the prefix before it. Already archived markers
+		// can be crossed but do not consume the batch's work budget. Ranking handles sparse versions.
 		var sql = $"""
-			SELECT {TenantTerm} AS TenantId,
-			       aggregate_id AS AggregateId,
-			       aggregate_type AS AggregateType,
-			       MAX(CASE WHEN {eligibility} THEN version ELSE -1 END) AS ArchivableUpToVersion,
-			       SUM(CASE WHEN {eligibility} THEN 1 ELSE 0 END) AS EventCount
-			FROM {qualifiedTable}
-			GROUP BY {TenantTerm}, aggregate_id, aggregate_type
-			{retainClause}
-			ORDER BY aggregate_id ASC
-			LIMIT @BatchSize
+			WITH stream_rows AS (
+			    SELECT {initialProjection}
+			    FROM {qualifiedTable}
+			)
+			{scanSelection}
+			, ranked AS (
+			    SELECT *, ROW_NUMBER() OVER (
+			        PARTITION BY TenantId, AggregateId, AggregateType ORDER BY Version DESC) AS RetentionRank
+			    FROM {rankingSource}
+			), bounded AS (
+			    SELECT *, MIN(CASE
+			        WHEN EventType = @ErasedEventType
+			          OR (EventData IS NULL AND ArchivedAt IS NULL)
+			          OR (EventData IS NOT NULL AND (CASE WHEN {eligibility} THEN 1 ELSE 0 END = 0 OR RetentionRank <= @RetainRecentCount))
+			        THEN Version ELSE NULL END) OVER (
+			            PARTITION BY TenantId, AggregateId, AggregateType) AS FirstBlockedVersion
+			    FROM ranked
+			)
+			{selection}
 			""";
 #pragma warning restore CA2100
 
@@ -116,19 +175,7 @@ public sealed class GetArchiveCandidatesRequest
 			var candidates = new List<ArchiveCandidate>();
 			foreach (var row in rows)
 			{
-				// A group with nothing eligible yields -1 / 0 from the CASE aggregates; skip it rather than
-				// proposing a candidate whose archivable range is empty.
-				if (row.EventCount <= 0 || row.ArchivableUpToVersion < 0)
-				{
-					continue;
-				}
-
-				// An ABSENT column and an untenanted ROW are different failures and must not converge. The
-				// projection above folds null/empty/whitespace onto the sentinel, so it can never yield a
-				// blank tenant term — therefore a blank one here means the column was not supplied at all
-				// (an alias dropped, a GROUP BY refactored) and Dapper left the property untouched. That is
-				// a broken query, not a legacy row: fail loud rather than silently archiving every tenant's
-				// events under the untenanted key and deleting them from hot.
+				// Missing projections and malformed legacy identities are errors, never an implicit tenant.
 				if (string.IsNullOrWhiteSpace(row.TenantId))
 				{
 					throw new InvalidOperationException(
@@ -140,6 +187,11 @@ public sealed class GetArchiveCandidatesRequest
 
 				// Total by construction for every value the store can actually produce, sentinel included.
 				var tenant = KeyedTenantPartition.FromStoredValue(row.TenantId);
+				LastExamined = (row.TenantId, row.AggregateId, row.AggregateType);
+				if (row.EventCount <= 0 || row.ArchivableUpToVersion < 0)
+				{
+					continue;
+				}
 
 				candidates.Add(new ArchiveCandidate(
 					tenant,

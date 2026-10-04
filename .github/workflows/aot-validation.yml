@@ -170,8 +170,10 @@ jobs:
 
       - name: Run AOT publish validation
         shell: pwsh
+        env:
+          AOT_RUNTIME: ${{ inputs.runtime }}
         run: |
-          $runtime = '${{ inputs.runtime }}'
+          $runtime = $env:AOT_RUNTIME
           if (-not $runtime) { $runtime = 'linux-x64' }
           ./eng/ci/Invoke-AotPublishValidation.ps1 `
             -Configuration Release `

@@ -23,6 +23,11 @@ namespace Excalibur.EventSourcing.AzureBlob;
 /// </remarks>
 public interface IEventSourcingAzureBlobBuilder
 {
+	/// <summary>Selects the archive layout, frozen when the provider is constructed. Defaults to Legacy.</summary>
+	/// <remarks>TypedV2 requires explicit namespace activation and migration; configuration never performs either.</remarks>
+	IEventSourcingAzureBlobBuilder Layout(ColdArchiveLayout layout) =>
+		throw new NotSupportedException("This builder does not support archive layout selection. Use a provider builder that implements Layout.");
+
 	/// <summary>Sets the Azure Blob Storage connection string.</summary>
 	IEventSourcingAzureBlobBuilder ConnectionString(string connectionString);
 

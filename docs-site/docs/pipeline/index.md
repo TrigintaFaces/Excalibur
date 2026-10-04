@@ -270,3 +270,41 @@ Middleware is then ordered by their `Stage` value.
 - [Middleware](../middleware/index.md) - Built-in and custom middleware components
 - [Handlers](../handlers.md) - Action and event handlers that the pipeline wraps
 - [Performance](../performance/index.md) - Optimize pipeline throughput
+
+## Continuations, Scopes and Dynamic Selection
+
+Pass the message, context and cancellation token you want downstream middleware to receive to
+`next`. Replacement arguments are honored. When calling a continuation concurrently, supply separate
+mutable contexts for independent branches; sharing an application-owned mutable object still requires
+application synchronization.
+
+Middleware factories resolve against the dispatch scope. A required factory that returns no middleware
+fails the dispatch; an optional registration may be skipped. Do not retain scoped services after the
+scope ends. Routing predicates and profile matchers are evaluated per message, including consecutive
+messages of the same CLR type with different data or tenant context.
+
+Source-generated call-site forwarding preserves the dispatcher contract; it does not inline the
+configured middleware chain or guarantee allocation-free dispatch. See
+[Source Generators](../advanced/source-generators.md#staticpipelinegenerator) and the
+[background middleware ownership contract](../middleware/built-in.md#background-execution-middleware).
+
+### Async-only Disposable Middleware
+
+The ordinary `Use`/profile path probes middleware during synchronous composition to discover its
+stage and applicable kinds. That path requires synchronously disposable probe dependencies. For
+async-only disposable dependencies, supply metadata explicitly and defer activation:
+
+```csharp
+// Register MyMiddleware as scoped in DI before building the pipeline.
+pipeline.UseDeferred(
+    services => services.GetRequiredService<MyMiddleware>(),
+    DispatchMiddlewareStage.PreProcessing,
+    MessageKinds.Action);
+```
+
+`UseDeferred<TMiddleware>` never invokes the factory during composition. The stock builder supplies
+the dispatch scope and awaits disposal when it owns that scope. A caller-provided scope is borrowed.
+The factory must resolve a DI-owned instance of exactly the declared concrete type; null and derived
+types are rejected before invocation. Explicit stage/kinds override instance metadata. Activation
+errors therefore occur on applicable dispatch, not startup. Custom builder implementations remain
+responsible for supplying valid request services. Do not block on async disposal from a DI factory.

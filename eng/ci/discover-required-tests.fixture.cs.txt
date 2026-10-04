@@ -1,0 +1,33 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using Xunit;
+public sealed class CensusCases
+{
+    [Fact(DisplayName="same name"), Trait("Group","valid"), Trait("Group","shared")]
+    public void First() { }
+    [Fact(DisplayName="same name"), Trait("Group","valid")]
+    public void Second() { }
+    [Theory, InlineData(1), InlineData(2), Trait("Group","valid")]
+    public void Rows(int value) => Assert.True(value > 0);
+    public sealed class Opaque { }
+    public static IEnumerable<object[]> DeferredData() { yield return new object[] { new Opaque() }; }
+    [Theory, MemberData(nameof(DeferredData))]
+    public void Deferred(Opaque value) => Assert.NotNull(value);
+    public static IEnumerable<object[]> UnstableData() { yield return new object[] { Guid.NewGuid().ToString() }; }
+    [Theory, MemberData(nameof(UnstableData))]
+    public void Unstable(string value) => Assert.NotNull(value);
+    [Theory, InlineData(1), InlineData(1)]
+    public void Duplicated(int value) => Assert.Equal(1,value);
+    public static IEnumerable<object[]> FaultData() {
+        if (Environment.GetEnvironmentVariable("CI02_DISCOVERY_FAULT") == "mutate")
+            System.IO.File.AppendAllText(Environment.GetEnvironmentVariable("CI02_MUTATE_FILE"), "\n");
+        if (Environment.GetEnvironmentVariable("CI02_DISCOVERY_FAULT") == "throw") throw new InvalidOperationException("intentional discovery fault");
+        if (Environment.GetEnvironmentVariable("CI02_DISCOVERY_FAULT") == "hang") Thread.Sleep(Timeout.Infinite);
+        yield return new object[] { 1 };
+    }
+    [Theory, MemberData(nameof(FaultData))]
+    public void DiscoveryFault(int value) => Assert.Equal(1,value);
+}

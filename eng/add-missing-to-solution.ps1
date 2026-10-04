@@ -1,10 +1,11 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Adds missing projects to Excalibur.sln
 .DESCRIPTION
-    Reads the project manifest and adds any projects marked as in_solution=false
-    to the solution file using dotnet sln add.
+    Compares governed filesystem projects with exact solution paths and adds missing
+    buildable projects using dotnet sln add. Raw template payloads remain solution items;
+    use validate-solution.ps1 to check those items and the manifest after a repair.
 .PARAMETER DryRun
     If set, only shows what would be added without making changes
 #>
@@ -14,7 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Load manifest to get missing projects
+# Require the governance manifest before performing a repair.
 $manifestPath = "eng/governance/project-manifest.yaml"
 if (-not (Test-Path $manifestPath)) {
     Write-Error "Manifest not found at $manifestPath. Run inventory-projects.ps1 first."
@@ -22,32 +23,35 @@ if (-not (Test-Path $manifestPath)) {
 }
 
 # Get projects currently in solution
-$slnOutput = dotnet sln Excalibur.sln list 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to read solution: $slnOutput"
-    exit 1
-}
-$slnProjects = $slnOutput | Select-Object -Skip 2 | ForEach-Object { $_.Trim() -replace '\\','/' }
-$slnProjectsSet = @{}
+$slnProjects = @(Get-Content -LiteralPath Excalibur.sln | ForEach-Object {
+    if ($_.Trim() -match '^Project\("[^"]+"\) = "[^"]+", "([^"]+\.csproj)", "\{[^}]+\}"$') { $Matches[1].Replace([char]92, '/') }
+})
+$slnProjectsSet = [Collections.Generic.Dictionary[string,bool]]::new([StringComparer]::Ordinal)
 foreach ($p in $slnProjects) {
-    $slnProjectsSet[$p] = $true
+    $slnProjectsSet.Add($p, $true)
 }
 
 # Find all governed csproj files
-$GovernedDirectories = @("src", "tests", "samples", "benchmarks")
+$GovernedDirectories = @("src", "tests", "samples", "benchmarks", "load-tests")
 $allProjects = @()
 foreach ($dir in $GovernedDirectories) {
     if (Test-Path $dir) {
-        $projects = Get-ChildItem -Path $dir -Recurse -Filter "*.csproj" -File
+        $projects = Get-ChildItem -Path $dir -Recurse -Filter "*.csproj" -File | Where-Object {
+            $relative = [IO.Path]::GetRelativePath((Get-Location).Path, $_.FullName).Replace([char]92, '/')
+            -not @($relative.Split('/') | Where-Object {
+                $_.StartsWith('.') -or $_ -cin @('bin','obj','node_modules','labs','tools','BenchmarkDotNet.Artifacts')
+            }).Count
+        }
         $allProjects += $projects
     }
 }
+$allProjects += Get-Item -LiteralPath 'templates/Excalibur.Dispatch.Templates.csproj'
 
 $repoRoot = (Get-Location).Path
 $missingProjects = @()
 
 foreach ($proj in $allProjects) {
-    $relativePath = $proj.FullName.Replace($repoRoot + "\", "").Replace("\", "/")
+    $relativePath = [IO.Path]::GetRelativePath($repoRoot, $proj.FullName).Replace([char]92, '/')
     if (-not $slnProjectsSet.ContainsKey($relativePath)) {
         $missingProjects += $relativePath
     }

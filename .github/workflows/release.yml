@@ -67,33 +67,12 @@ jobs:
 
       - name: Determine version
         id: version
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          DISPATCH_PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-            PRERELEASE="${{ github.event.inputs.prerelease }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-            if [[ "$VERSION" =~ -[a-zA-Z] ]]; then
-              PRERELEASE="true"
-            else
-              PRERELEASE="false"
-            fi
-          fi
-
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "prerelease=${PRERELEASE}" >> $GITHUB_OUTPUT
-          echo "Release version: ${VERSION}"
-          echo "Pre-release: ${PRERELEASE}"
-
-      - name: Validate version format
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-]+(\.[0-9]+)?)?$ ]]; then
-            echo "Invalid version format: $VERSION"
-            echo "Expected format: X.Y.Z or X.Y.Z-prerelease"
-            exit 1
-          fi
-          echo "✅ Version format is valid"
+          bash eng/ci/resolve-release-version.sh release
 
       # An official release must be reproducible from an identified commit. Two ways it silently is
       # not, neither previously checked:
@@ -107,9 +86,11 @@ jobs:
       # Checked here, in pre-release-validation, so it refuses BEFORE any side effect.
       - name: Assert the source is releasable (clean tree, tag at HEAD)
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
 
           dirty="$(git status --porcelain)"
           if [ -n "$dirty" ]; then
@@ -158,9 +139,11 @@ jobs:
       - name: Establish publication state
         id: publication_state
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
           ids="$(grep -oE '"[^"]*\.csproj"' eng/ci/shards/ShippingOnly.slnf | tr -d '"' | xargs -n1 basename | sed 's/\.csproj$//' | sort -u)"
           [ -n "$ids" ] || { echo "::error::REFUSE: no shipping project ids resolved; publication state is unknowable."; exit 1; }
 
@@ -266,8 +249,10 @@ jobs:
 
       - name: Build release-blocking projects
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
           # MinVer auto-detects version from git tags; override ensures correctness for workflow_dispatch.
           dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity minimal \
             -p:MinVerVersionOverride="$VERSION"
@@ -304,9 +289,11 @@ jobs:
             -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Release readiness check
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           echo "🔍 Checking release readiness..."
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
 
           # Check for any TODO/FIXME/HACK comments in core libraries.
           #
@@ -615,11 +602,12 @@ jobs:
         id: official
         shell: bash
         env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
           GH_TOKEN: ${{ github.token }}
           EXPLICIT_RUN_ID: ${{ github.event.inputs.official_build_run_id }}
         run: |
           set -euo pipefail
-          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
           SHA="$(git rev-parse HEAD)"
           WORKFLOW="official-build.yml"
 
@@ -953,6 +941,8 @@ jobs:
 
       - name: Summarise the admission
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
           set -euo pipefail
           {
@@ -962,7 +952,7 @@ jobs:
             echo "| --- | --- |"
             echo "| official build run | \`${{ steps.official.outputs.run_id }}\` |"
             echo "| commit | \`$(git rev-parse HEAD)\` |"
-            echo "| version | \`${{ needs.pre-release-validation.outputs.version }}\` |"
+            echo "| version | \`${RELEASE_VERSION}\` |"
             echo "| packages | $(find packages -name '*.nupkg' | wc -l) |"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1110,8 +1100,10 @@ jobs:
 
       - name: Create git tag
         if: github.event.inputs.create_tag == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
-          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -1135,8 +1127,10 @@ jobs:
 
       - name: Generate release notes
         id: release_notes
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
-          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
 
           # Get the last tag for comparison
           LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
@@ -1221,15 +1215,22 @@ jobs:
             sbom/**/*.xml
 
       - name: Upload release assets
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
+          RELEASE_UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           # Create a combined package archive
-          tar -czf excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz -C all-packages .
+          archive="excalibur-dispatch-v${RELEASE_VERSION}-packages.tar.gz"
+          tar -czf "$archive" -C all-packages .
 
           # Upload the archive
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          upload_url="${RELEASE_UPLOAD_URL%%\{*}"
+          curl --fail-with-body -H "Authorization: token ${GH_TOKEN}" \
                -H "Content-Type: application/gzip" \
-               --data-binary @excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz \
-               "${{ steps.create_release.outputs.upload_url }}?name=excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz&label=All+NuGet+Packages"
+               --data-binary "@$archive" \
+               "${upload_url}?name=${archive}&label=All+NuGet+Packages"
 
   # Publish to NuGet.org
   # Publication to NuGet.org is IRREVERSIBLE -- a version, once pushed, cannot be replaced. This job
@@ -1283,6 +1284,7 @@ jobs:
       - name: Stage the packages and prove they install from the feed
         shell: pwsh
         env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
           STAGING_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./eng/ci/staging-feed-validate.ps1 `
@@ -1291,7 +1293,7 @@ jobs:
             -FeedName "staging" `
             -FeedUser "${{ github.actor }}" `
             -FeedToken "$env:STAGING_TOKEN" `
-            -Version "${{ needs.pre-release-validation.outputs.version }}"
+            -Version "$env:RELEASE_VERSION"
 
   publish-nuget:
     # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
@@ -1493,10 +1495,12 @@ jobs:
       # the resumed state working correctly. A FRESH release finding a package present is version
       # reuse. Nothing can tell those apart after the fact, so the question is asked beforehand.
       - name: Record pre-publish registry state
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
           python3 eng/ci/release-receipt.py \
             --packages-dir packages \
-            --version "${{ needs.pre-release-validation.outputs.version }}" \
+            --version "${RELEASE_VERSION}" \
             --prestate push-prestate.tsv
 
       # THE LAST THING CHECKED BEFORE THE IRREVERSIBLE ACT, and deliberately the same check
@@ -1665,10 +1669,12 @@ jobs:
       # ignored the first time it matters. An unanswerable registry is reported as UNKNOWN -- never
       # as success, never as absence.
       - name: Emit the release receipt
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
           python3 eng/ci/release-receipt.py \
             --packages-dir packages \
-            --version "${{ needs.pre-release-validation.outputs.version }}" \
+            --version "${RELEASE_VERSION}" \
             --outcomes push-outcomes.tsv \
             --prestate-in push-prestate.tsv \
             --out release-receipt.json
@@ -1795,11 +1801,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Release summary
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
-          echo "# 🎉 Release v${{ needs.pre-release-validation.outputs.version }} Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "# 🎉 Release v${RELEASE_VERSION} Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Release Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** ${{ needs.pre-release-validation.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${RELEASE_VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "- **Pre-release:** ${{ needs.pre-release-validation.outputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Release ID:** ${{ needs.create-release.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1814,13 +1822,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
           echo "- 📦 Packages are available on [NuGet.org](https://www.nuget.org/profiles/TrigintaFaces)" >> $GITHUB_STEP_SUMMARY
-          echo "- 🏷️ GitHub release created: [v${{ needs.pre-release-validation.outputs.version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.pre-release-validation.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ GitHub release created: [v${RELEASE_VERSION}](https://github.com/${{ github.repository }}/releases/tag/v${RELEASE_VERSION})" >> $GITHUB_STEP_SUMMARY
           echo "- 📚 Update documentation and announce release" >> $GITHUB_STEP_SUMMARY
 
       - name: Notify stakeholders
         if: needs.pre-release-validation.outputs.prerelease == 'false' # Only for stable releases
+        env:
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
         run: |
-          echo "🚀 Stable release v${{ needs.pre-release-validation.outputs.version }} has been published!"
+          echo "🚀 Stable release v${RELEASE_VERSION} has been published!"
           echo "Consider updating:"
           echo "- Documentation website"
           echo "- Example projects"

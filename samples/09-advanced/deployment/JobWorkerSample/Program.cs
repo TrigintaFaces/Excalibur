@@ -83,7 +83,7 @@ public static class Program
 					q.UseDefaultThreadPool(tp => tp.MaxConcurrency = 10);
 
 					// Configure job data map handling
-					q.UseMicrosoftDependencyInjectionJobFactory();
+					// Quartz 4 uses the dependency-injection job factory by default.
 
 					// NOTE: The built-in CdcJob / OutboxJob / DataProcessingJob are intentionally
 					// NOT scheduled here. This sample demonstrates the job HOST and distributed

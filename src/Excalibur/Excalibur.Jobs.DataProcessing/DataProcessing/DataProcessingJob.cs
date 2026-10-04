@@ -56,7 +56,7 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 	/// </summary>
 	/// <param name="configurator"> The Quartz configurator. </param>
 	/// <param name="configuration"> The application configuration. </param>
-	public static void ConfigureJob(IServiceCollectionQuartzConfigurator configurator, IConfiguration configuration)
+	public static void ConfigureJob(IQuartzBuilder configurator, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -79,14 +79,14 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 			return;
 		}
 
-		_ = configurator.AddJob<DataProcessingJob>(jobKey, job => job
+		_ = configurator.AddJob<DataProcessingJob>(job => job
 			.WithIdentity(jobKey)
 			.WithDescription("Process data tasks"));
 
 		_ = configurator.AddTrigger(trigger => trigger
 			.ForJob(jobKey)
 			.WithIdentity($"{jobConfig.JobName}Trigger")
-			.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15)))
+			.StartAt(DateTimeOffset.UtcNow.AddSeconds(15))
 			.WithCronSchedule(jobConfig.CronSchedule)
 			.WithDescription("A cron based trigger for data processing."));
 	}
@@ -125,8 +125,9 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 	/// Executes the job, orchestrating data processing tasks.
 	/// </summary>
 	/// <param name="context"> The Quartz job execution context. </param>
-	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-	public async Task Execute(IJobExecutionContext context)
+	/// <param name="cancellationToken">The cancellation token for this firing.</param>
+	/// <returns>The asynchronous execution.</returns>
+	public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -137,26 +138,26 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 		{
 			try
 			{
+				cancellationToken.ThrowIfCancellationRequested();
 				LogJobStarting(jobGroup, jobName);
 
-				await _dataOrchestrationManager.ProcessDataTasksAsync(context.CancellationToken).ConfigureAwait(false);
+				await _dataOrchestrationManager.ProcessDataTasksAsync(cancellationToken).ConfigureAwait(false);
 
+				cancellationToken.ThrowIfCancellationRequested();
 				_heartbeatTracker.RecordHeartbeat(jobName);
 				LogJobCompleted(jobGroup, jobName);
 			}
-#pragma warning disable CA1031 // Intentional: Quartz jobs must catch all exceptions to prevent immediate re-execution
-			catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// Graceful shutdown requested — propagate so Quartz respects the cancellation
 				throw;
 			}
 			catch (Exception ex)
-#pragma warning restore CA1031
 			{
-				// Quartz best practices state that exceptions in jobs should not be rethrown as the job will subsequently process again
-				// immediately and likely encounter the same exception. So swallow the exception and log the error to be investigated. If
-				// this is an issue that does not resolve with time then the heartbeat will also never recover and alerts should be sent.
 				LogJobError(ex.GetType().Name, jobGroup, jobName, ex.Message, ex);
+				cancellationToken.ThrowIfCancellationRequested();
+				// Preserve the next scheduled firing while reporting this failure to listeners.
+				throw new JobExecutionException(ex) { RefireImmediately = false };
 			}
 		}
 	}
@@ -173,4 +174,12 @@ public sealed partial class DataProcessingJob : IJob, IConfigurableJob<DataProce
 	[LoggerMessage(JobsEventId.DataProcessingJobError, LogLevel.Error,
 		"{Error} executing {JobGroup}:{JobName}: {Message}")]
 	private partial void LogJobError(string error, string jobGroup, string jobName, string message, Exception ex);
+	/// <summary>Executes using the cancellation token supplied by the execution context.</summary>
+	/// <param name="context">The Quartz execution context.</param>
+	/// <returns>The asynchronous execution.</returns>
+	public Task Execute(IJobExecutionContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+		return Execute(context, context.CancellationToken).AsTask();
+	}
 }

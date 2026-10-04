@@ -28,6 +28,9 @@ namespace Excalibur.EventSourcing.Postgres;
 /// <para>
 /// Provides atomic event appends with optimistic concurrency control.
 /// Uses database transactions to ensure consistency.
+/// Appends require a store-owned local transaction and reject an ambient
+/// <see cref="System.Transactions.TransactionScope"/> before database access. Use
+/// <see cref="AppendWithOutboxStagingAsync"/> to enlist outbox writes in the store-owned transaction.
 /// </para>
 /// <para>
 /// This class supports two constructor patterns:
@@ -47,6 +50,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	private const byte EnvelopeFormatMarker = 0x01;
 
 	private readonly NpgsqlDataSource _dataSource;
+	private readonly PostgresEventStoreCapabilities _capabilities;
 	private readonly ILogger<PostgresEventStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
 
@@ -121,7 +125,11 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// <see cref="ArchivePolicy.MaxAge"/> deterministically instead of racing wall-clock time; internal
 	/// because the production path always uses the system clock.
 	/// </summary>
-	internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+	internal TimeProvider TimeProvider
+	{
+		get => _capabilities.ArchiveTimeProvider;
+		init => _capabilities.ArchiveTimeProvider = value;
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresEventStore"/> class.
@@ -227,8 +235,24 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		string schema = "public",
 		string table = "events",
 		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver = null)
+		: this(dataSource, logger, tenantContext, internalSerializer, payloadSerializer, schema, table,
+			eventTypeInfoResolver, new PostgresEventStoreCapabilities(dataSource, schema, table, tenantContext))
+	{
+	}
+
+	internal PostgresEventStore(
+		NpgsqlDataSource dataSource,
+		ILogger<PostgresEventStore> logger,
+		ITenantContext tenantContext,
+		ISerializer? internalSerializer,
+		IPayloadSerializer? payloadSerializer,
+		string schema,
+		string table,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver,
+		PostgresEventStoreCapabilities capabilities)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+		_capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 		_hasEventTypeInfoResolver = EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, eventTypeInfoResolver);
@@ -239,6 +263,21 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		_positionTable = table + "_position";
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
+	}
+
+	/// <summary>Resolves an optional capability using this store's connection source and tenant boundary.</summary>
+	/// <param name="serviceType">The requested capability type.</param>
+	/// <returns>The supported capability, or null when unavailable.</returns>
+	/// <remarks>
+	/// Authoritative rechecks own a separate connection from this store's data source, suppress ambient
+	/// transactions and reject replica observations. The configured source must route to the same logical
+	/// event store and must not serve cached query results. Authorization is checked on every invocation.
+	/// Resolve through the final decorated store so decorators can mediate or deny this capability.
+	/// </remarks>
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+		return _capabilities.GetService(serviceType) ?? (serviceType.IsInstanceOfType(this) ? this : null);
 	}
 
 	/// <inheritdoc/>
@@ -295,11 +334,21 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<AppendResult> AppendAsync(
+	public ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
 		IEnumerable<IDomainEvent> events,
 		long expectedVersion,
+		CancellationToken cancellationToken) =>
+		AppendCommitBoundary.ExecuteAsync(state => AppendCoreAsync(
+			aggregateId, aggregateType, events, expectedVersion, state, cancellationToken));
+
+	private async ValueTask<AppendResult> AppendCoreAsync(
+		string aggregateId,
+		string aggregateType,
+		IEnumerable<IDomainEvent> events,
+		long expectedVersion,
+		AppendCommitBoundary state,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
@@ -323,7 +372,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		try
 		{
 			var appendResult = await ExecuteAppendTransactionAsync(
-					aggregateId, aggregateType, eventList, expectedVersion, activity, cancellationToken)
+					aggregateId, aggregateType, eventList, expectedVersion, activity, state, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -340,9 +389,10 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		// the first time something new appears and silently converts the newcomer into an ordinary append
 		// failure. That is how a cancelled append came to be reported as a store fault and retried inside
 		// a cancelled scope. Everything else -- cancellation, an event type the configured resolver does
-		// not declare, a programming error -- propagates, because a returned failure means "this could
-		// succeed if you try again" and none of those can.
-		catch (Exception ex) when (ex is NpgsqlException or OperationFailedException)
+		// not declare, a programming error -- propagates. A returned failure establishes rejection;
+		// whether another attempt is useful is a separate policy. After commit dispatch, the outer
+		// boundary handles uncertainty and this pre-dispatch classification must not run.
+		catch (Exception ex) when (!state.Dispatched && (ex is NpgsqlException or OperationFailedException))
 		{
 			// Nothing was written: the append's transaction and connection are scoped to the method that
 			// raised, so both are disposed -- and an uncommitted transaction rolled back -- while the
@@ -364,11 +414,11 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
 			activity.RecordException(ex);
 			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			return AppendResult.CreateFailure(GetFullExceptionMessage(ex));
+			return AppendResult.CreateFailure(AppendCommitBoundary.DescribeFailure(ex));
 		}
 		finally
 		{
-			RecordAppendTelemetry(result, stopwatch.Elapsed);
+			RecordAppendTelemetry(state.Dispatched && state.Acknowledged is null ? "unknown" : result, stopwatch.Elapsed);
 		}
 	}
 
@@ -376,24 +426,35 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// <remarks>
 	/// <para>
 	/// The store owns ONE connection and ONE transaction for the whole unit of work, so a
-	/// two-connection split — events committed independently of the outbox rows that announce them — is
-	/// structurally impossible rather than merely avoided.
+	/// callback must use that transaction for all staging writes and must not commit, roll back,
+	/// dispose or retain it for background use. Independent writes cannot be made atomic by this API.
 	/// </para>
 	/// <para>
 	/// <b>Staging runs BEFORE the events are appended.</b> The global position is allocated from a
 	/// counter row whose lock is held until COMMIT, and staging costs one round trip per integration
 	/// event; performing it after the allocation would place all of those round trips inside the window
 	/// in which every other appender is blocked. The ordering is a throughput property, not a
-	/// correctness one — atomicity is identical either way — and it is only available because the
+	/// correctness one â€” atomicity is identical either way â€” and it is only available because the
 	/// callback receives the transaction and nothing else.
 	/// </para>
 	/// </remarks>
-	public async ValueTask<AppendResult> AppendWithOutboxStagingAsync(
+	public ValueTask<AppendResult> AppendWithOutboxStagingAsync(
 		string aggregateId,
 		string aggregateType,
 		IEnumerable<IDomainEvent> events,
 		long expectedVersion,
 		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+		CancellationToken cancellationToken) =>
+		AppendCommitBoundary.ExecuteAsync(state => AppendWithOutboxStagingCoreAsync(
+			aggregateId, aggregateType, events, expectedVersion, stageOutbox, state, cancellationToken));
+
+	private async ValueTask<AppendResult> AppendWithOutboxStagingCoreAsync(
+		string aggregateId,
+		string aggregateType,
+		IEnumerable<IDomainEvent> events,
+		long expectedVersion,
+		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
+		AppendCommitBoundary state,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
@@ -436,7 +497,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 					{
 						// RECOGNISED, not written by this call. Reporting plain success here would be true
 						// about the append and silently false about the call: these rows are durable, but
-						// they are a prior attempt's, and anything may have happened to them since — an
+						// they are a prior attempt's, and anything may have happened to them since â€” an
 						// erasure included.
 						return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 					}
@@ -450,13 +511,15 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 						connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 					.ConfigureAwait(false);
 
-				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+				state.Dispatched = true;
+				await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+				state.Acknowledged = AppendResult.CreateSuccess(version, firstPosition);
 
 				_logger.LogDebug(
 					"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
 					eventList.Count, aggregateType, aggregateId, version);
 
-				return AppendResult.CreateSuccess(version, firstPosition);
+				return state.Acknowledged;
 			}
 			catch
 			{
@@ -464,7 +527,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				throw;
 			}
 		}
-		catch (Exception ex) when (ex is NpgsqlException or OperationFailedException)
+		catch (Exception ex) when (!state.Dispatched && (ex is NpgsqlException or OperationFailedException))
 		{
 			var currentVersion = await ReadCurrentVersionAfterFailedAppendAsync(
 				aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
@@ -475,7 +538,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			}
 
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
-			return AppendResult.CreateFailure(GetFullExceptionMessage(ex));
+			return AppendResult.CreateFailure(AppendCommitBoundary.DescribeFailure(ex));
 		}
 	}
 
@@ -499,6 +562,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		IReadOnlyCollection<IDomainEvent> eventList,
 		long expectedVersion,
 		System.Diagnostics.Activity? activity,
+		AppendCommitBoundary state,
 		CancellationToken cancellationToken)
 	{
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -527,7 +591,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			{
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 
-				// RECOGNISED, not written by this call — see the staging overload's pre-check branch.
+				// RECOGNISED, not written by this call â€” see the staging overload's pre-check branch.
 				return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
 			}
 
@@ -539,15 +603,22 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 			.ConfigureAwait(false);
 
-		await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		state.Dispatched = true;
+		await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+		state.Acknowledged = AppendResult.CreateSuccess(version, firstPosition);
 
 		_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
 			eventList.Count, aggregateType, aggregateId, version);
 
 		_ = (activity?.SetTag(EventSourcingTags.Version, version));
 		activity.SetOperationResult(EventSourcingTagValues.Success);
-		return AppendResult.CreateSuccess(version, firstPosition);
+		return state.Acknowledged;
 	}
+
+	// Internal fault-injection boundary: tests can lose the acknowledgement around a real commit.
+	internal Func<NpgsqlTransaction, CancellationToken, Task> CommitTransactionAsync { get; init; } =
+		static (transaction, token) => transaction.CommitAsync(token);
+
 
 	/// <summary>
 	/// Determines whether the exception is the stream unique-constraint violation used for optimistic
@@ -619,7 +690,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// <para>
 	/// <b>The re-read is authoritative whenever it succeeds; the SQLSTATE is only a FALLBACK for when it
 	/// does not.</b> The ordering is load-bearing. <c>23505</c> was a total discriminator while
-	/// <c>position</c> came from a sequence — the database chose it, so the stream key was the only unique
+	/// <c>position</c> came from a sequence â€” the database chose it, so the stream key was the only unique
 	/// constraint an append could violate. <c>position</c> is now a primary key whose value the
 	/// APPLICATION supplies, from a counter row with an independent lifecycle, so a position collision (a
 	/// counter restored from an older backup than the events table, a hand-seeded counter that skipped the
@@ -629,13 +700,13 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 	/// <para>
 	/// Reporting that as a concurrency conflict is harmful rather than merely imprecise: the documented
 	/// remedy is reload-and-retry, the reloaded version still satisfies the precondition because the
-	/// version was never the problem, and the caller retries into the same collision — or appends a
+	/// version was never the problem, and the caller retries into the same collision â€” or appends a
 	/// duplicate once the counter passes the obstruction. The re-read separates them cleanly: a position
 	/// collision leaves the stream exactly where the append required it; a lost race does not.
 	/// </para>
 	/// <para>
 	/// When the re-read itself fails there is nothing better than the SQLSTATE, and the original reasoning
-	/// holds there — a lost race whose follow-up read also failed would otherwise be demoted to an
+	/// holds there â€” a lost race whose follow-up read also failed would otherwise be demoted to an
 	/// ordinary failure. That residual window mis-reports a position collision, which is accepted because
 	/// it requires both faults at once.
 	/// </para>
@@ -729,7 +800,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		var version = currentVersion;
 
 		// Build all event rows up front (assigning sequential versions), then insert them with one
-		// multi-row INSERT ... RETURNING per chunk inside the caller's transaction — replacing the former
+		// multi-row INSERT ... RETURNING per chunk inside the caller's transaction â€” replacing the former
 		// per-event round-trip loop. The whole append remains atomic (single transaction), now with far
 		// fewer round-trips.
 		var rows = new List<EventInsertRow>(eventList.Count);
@@ -774,7 +845,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 					_positionTable))
 			.ConfigureAwait(false);
 
-		// Any REMAINING chunks — only for an append larger than one statement — are written with positions
+		// Any REMAINING chunks â€” only for an append larger than one statement â€” are written with positions
 		// derived from the block already reserved above, so the counter row is taken exactly once per
 		// append no matter how many statements the append needs.
 		//
@@ -835,30 +906,6 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		return NpgsqlDataSource.Create(connectionString);
 	}
 
-	/// <summary>
-	/// Gets the full exception message chain for better error diagnostics.
-	/// </summary>
-	private static string GetFullExceptionMessage(Exception ex)
-	{
-		// Performance optimization: - use StringBuilder to avoid List allocation
-		// Most exception chains are short (1-3 levels), so this is efficient
-		var current = ex;
-		if (current.InnerException == null)
-		{
-			return current.Message;
-		}
-
-		var sb = new System.Text.StringBuilder(current.Message);
-		current = current.InnerException;
-		while (current != null)
-		{
-			_ = sb.Append(" -> ");
-			_ = sb.Append(current.Message);
-			current = current.InnerException;
-		}
-
-		return sb.ToString();
-	}
 
 	private static string? ExtractCorrelationId(IEnumerable<IDomainEvent> events)
 	{
@@ -991,6 +1038,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			new Requests.IsErasedRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
+
 
 	/// <inheritdoc />
 	/// <remarks>

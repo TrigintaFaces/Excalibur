@@ -249,7 +249,7 @@ Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.WithSearchTe
 Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>
 Excalibur.EventSourcing.Projections.IProjectionConfiguration<TProjection>.Configure(Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>! builder) -> void
 Excalibur.EventSourcing.Projections.IProjectionLagReadModel
-Excalibur.EventSourcing.Projections.IProjectionLagReadModel.GetLagAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Projections.ProjectionLag>!>
+Excalibur.EventSourcing.Projections.IProjectionLagReadModel.GetLagAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Projections.ProjectionLagReport>
 Excalibur.EventSourcing.Projections.IProjectionRebuildService
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetAllStatusesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!>!
 Excalibur.EventSourcing.Projections.IProjectionRebuildService.GetStatusAsync<TProjection>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Projections.ProjectionRebuildStatus!>!
@@ -265,6 +265,17 @@ Excalibur.EventSourcing.Projections.ProjectionLag.ProjectionLag() -> void
 Excalibur.EventSourcing.Projections.ProjectionLag.ProjectionLag(string! SubscriptionName, long CheckpointPosition, long HeadPosition, long Lag) -> void
 Excalibur.EventSourcing.Projections.ProjectionLag.SubscriptionName.get -> string!
 Excalibur.EventSourcing.Projections.ProjectionLag.SubscriptionName.init -> void
+Excalibur.EventSourcing.Projections.ProjectionLagAvailability
+Excalibur.EventSourcing.Projections.ProjectionLagAvailability.CheckpointAheadOfHead = 1 -> Excalibur.EventSourcing.Projections.ProjectionLagAvailability
+Excalibur.EventSourcing.Projections.ProjectionLagAvailability.Measured = 0 -> Excalibur.EventSourcing.Projections.ProjectionLagAvailability
+Excalibur.EventSourcing.Projections.ProjectionLagAvailability.NoHeadSource = 2 -> Excalibur.EventSourcing.Projections.ProjectionLagAvailability
+Excalibur.EventSourcing.Projections.ProjectionLagReport
+Excalibur.EventSourcing.Projections.ProjectionLagReport.Availability.get -> Excalibur.EventSourcing.Projections.ProjectionLagAvailability
+Excalibur.EventSourcing.Projections.ProjectionLagReport.Availability.init -> void
+Excalibur.EventSourcing.Projections.ProjectionLagReport.ProjectionLagReport() -> void
+Excalibur.EventSourcing.Projections.ProjectionLagReport.ProjectionLagReport(Excalibur.EventSourcing.Projections.ProjectionLagAvailability Availability, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Projections.ProjectionLag>! Streams) -> void
+Excalibur.EventSourcing.Projections.ProjectionLagReport.Streams.get -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Projections.ProjectionLag>!
+Excalibur.EventSourcing.Projections.ProjectionLagReport.Streams.init -> void
 Excalibur.EventSourcing.Projections.ProjectionOptions
 Excalibur.EventSourcing.Projections.ProjectionOptions.ProjectionOptions() -> void
 Excalibur.EventSourcing.Projections.ProjectionOptions.WarningThreshold.get -> System.TimeSpan

@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\tests\unit\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Directory.Build.props" Link="Directory.Build.props" />
     <None Include="..\Directory.Build.targets" Link="Directory.Build.targets" />
   </ItemGroup>

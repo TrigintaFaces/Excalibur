@@ -834,9 +834,17 @@ On the three server engines the store fails loudly if the table is missing, rath
 projection silently from zero.
 
 Advancing a checkpoint is a compare-and-set: the caller states the position it believes is current, and
-the store reports `Advanced` or `Superseded`. That is what makes it safe to run two instances of the same
-projection — the loser of a race is told its progress was not recorded instead of overwriting the
-winner's.
+the store reports `Advanced` or `Superseded`. Positions must be nonnegative, and a proposed position
+must be at least the supplied expected position. Invalid arguments throw before storage access;
+`Superseded` means a valid proposal did not match the stored checkpoint state. Together, validation and
+atomic comparison prevent a checkpoint from moving backward within its lifetime. External writes,
+deletion, and restoration require separate operational controls.
+
+An equal-position proposal still compares the stored value and may return `Advanced`; this means
+accepted, not necessarily moved. Multiple equal-position proposals may succeed. Checkpoint comparison
+does **not** grant exclusive ownership or fence projection effects: two instances can both apply an
+event before competing to save its checkpoint. Use the projection's concurrency and idempotency
+mechanisms, and reconcile processing state after `Superseded` before continuing.
 
 
 ---

@@ -22,8 +22,6 @@ namespace Excalibur.Compliance.Portability;
 /// </remarks>
 public sealed partial class DataPortabilityService : IDataPortabilityService
 {
-	private readonly IDataInventoryService? _dataInventoryService;
-	private readonly IOptions<DataPortabilityOptions> _options;
 	private readonly ILogger<DataPortabilityService> _logger;
 
 	/// <summary>
@@ -37,9 +35,8 @@ public sealed partial class DataPortabilityService : IDataPortabilityService
 		ILogger<DataPortabilityService> logger,
 		IDataInventoryService? dataInventoryService = null)
 	{
-		_options = options ?? throw new ArgumentNullException(nameof(options));
+		ArgumentNullException.ThrowIfNull(options);
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_dataInventoryService = dataInventoryService;
 	}
 
 	/// <inheritdoc />

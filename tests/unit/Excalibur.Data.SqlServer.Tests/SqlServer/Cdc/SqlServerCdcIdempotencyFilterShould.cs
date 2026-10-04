@@ -30,7 +30,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 {
 	/// <summary>The asking consumer. These arms are not about consumer isolation, so one identity is used
 	/// throughout; CdcIdempotencyConsumerCollisionShould is where two identities are contrasted.</summary>
-	private const string TestConsumer = "test-consumer";
+	private static readonly CdcConsumerIdentity TestConsumer = new("test-consumer", "test-db");
 
 	private static readonly byte[] SampleLsn = [0x00, 0x00, 0x00, 0x01];
 	private static readonly byte[] SampleSeqVal = [0x00, 0x01];
@@ -47,7 +47,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new SqlServerCdcIdempotencyFilter(null!, options, logger));
+			() => new SqlServerCdcIdempotencyFilter((Func<IDbConnection>)null!, options, logger));
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, null!, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, null!, logger));
 	}
 
 	[Fact]
@@ -71,7 +71,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, null!));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, null!));
 	}
 
 	[Fact]
@@ -88,7 +88,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -105,7 +105,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -122,7 +122,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -138,7 +138,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -154,7 +154,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -170,7 +170,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -186,7 +186,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(
-			() => new SqlServerCdcIdempotencyFilter(connection, options, logger));
+			() => new SqlServerCdcIdempotencyFilter(() => connection, options, logger));
 	}
 
 	[Fact]
@@ -198,7 +198,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 		var logger = NullLogger<SqlServerCdcIdempotencyFilter>.Instance;
 
 		// Act
-		var filter = new SqlServerCdcIdempotencyFilter(connection, options, logger);
+		var filter = new SqlServerCdcIdempotencyFilter(() => connection, options, logger);
 
 		// Assert
 		filter.ShouldNotBeNull();
@@ -319,7 +319,7 @@ public sealed class SqlServerCdcIdempotencyFilterShould : UnitTestBase
 		var connection = A.Fake<IDbConnection>();
 		var options = CreateValidOptions();
 		var logger = NullLogger<SqlServerCdcIdempotencyFilter>.Instance;
-		return new SqlServerCdcIdempotencyFilter(connection, options, logger);
+		return new SqlServerCdcIdempotencyFilter(() => connection, options, logger);
 	}
 
 	private static IOptions<SqlServerCdcIdempotencyFilterOptions> CreateValidOptions()

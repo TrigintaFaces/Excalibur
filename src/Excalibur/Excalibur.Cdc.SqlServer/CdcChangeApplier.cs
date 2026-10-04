@@ -32,6 +32,11 @@ internal sealed partial class CdcChangeApplier
 	private readonly ILogger _logger;
 	private readonly CdcFatalErrorHandler<DataChangeEvent>? _onFatalError;
 	private readonly ICdcIdempotencyFilter? _idempotencyFilter;
+
+	// Computed once from the configuration this applier is bound to. Held as a field rather than built at
+	// each call so the two uses below cannot drift apart, and so the dedupe identity is derived in exactly
+	// one place.
+	private readonly CdcConsumerIdentity _consumer;
 	private readonly IMessageFailureClassifier? _failureClassifier;
 
 	private static readonly Counter<long> EventsProcessedCounter = CdcTelemetryConstants.Meter.CreateCounter<long>(
@@ -65,6 +70,7 @@ internal sealed partial class CdcChangeApplier
 		IMessageFailureClassifier? failureClassifier = null)
 	{
 		_dbConfig = dbConfig;
+		_consumer = new CdcConsumerIdentity(dbConfig.DatabaseConnectionIdentifier, dbConfig.DatabaseName);
 		_policyFactory = policyFactory;
 		_checkpointManager = checkpointManager;
 		_orderedEventProcessor = orderedEventProcessor;
@@ -73,6 +79,11 @@ internal sealed partial class CdcChangeApplier
 		_idempotencyFilter = idempotencyFilter;
 		_failureClassifier = failureClassifier;
 	}
+
+    // Read only after joining this attempt. Retains completed-batch accounting on fault/cancellation.
+    internal int CompletedBatchEventCount { get; private set; }
+
+    internal void ResetBatchAccounting() => CompletedBatchEventCount = 0;
 
 	/// <summary>
 	/// Runs the consumer loop that processes CDC events in batches.
@@ -90,6 +101,7 @@ internal sealed partial class CdcChangeApplier
 		LogConsumerLoopStarted();
 
 		var totalProcessedCount = 0;
+        CompletedBatchEventCount = 0;
 
 		// The failed-table barrier belongs to the RUN, not to one dequeued batch. Its job is to stop a
 		// durable checkpoint moving past a change that was handed to the fatal-error callback and swallowed,
@@ -148,6 +160,7 @@ internal sealed partial class CdcChangeApplier
 				LogProcessedBatch(batch.Length, stopwatch.Elapsed.TotalMilliseconds);
 
 				totalProcessedCount += batch.Length;
+                CompletedBatchEventCount = totalProcessedCount;
 			}
 			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 			{
@@ -203,7 +216,7 @@ internal sealed partial class CdcChangeApplier
 					changeEvent.TableName,
 					changeEvent.Lsn,
 					changeEvent.SeqVal,
-					_dbConfig.DatabaseConnectionIdentifier,
+					_consumer,
 					cancellationToken)
 					.ConfigureAwait(false))
 			{
@@ -237,16 +250,19 @@ internal sealed partial class CdcChangeApplier
 				// Mark event as processed for idempotency tracking.
 				if (_idempotencyFilter is not null)
 				{
-					// SAME identity the checkpoint advances under (CdcCheckpointManager passes
-					// _dbConfig.DatabaseConnectionIdentifier to the state store, and CdcStateStore records that
-					// "DatabaseConnectionIdentifier = consumerId"). Sourcing both from one field means the
-					// dedupe filter and the position it guards cannot disagree about who is asking -- a
-					// mismatch there would resurrect the very suppression this parameter closes.
+					// The SAME TUPLE the checkpoint advances under -- connection identifier AND database
+					// name. This comment previously claimed that sourcing both from one field meant the
+					// filter and the position it guards could not disagree about who is asking. Sourcing
+					// them from ONE field is what made them disagree: the checkpoint store matches on
+					// (DatabaseConnectionIdentifier, DatabaseName, TableName), three axes, while the dedupe
+					// key carried two of them. The dedupe namespace was therefore strictly coarser than the
+					// namespace of the position it guards, and a coarser dedupe namespace SUPPRESSES -- the
+					// first consumer to reach a position marks it done for everyone sharing the coarser key.
 					await _idempotencyFilter.MarkProcessedAsync(
 						changeEvent.TableName,
 						changeEvent.Lsn,
 						changeEvent.SeqVal,
-						_dbConfig.DatabaseConnectionIdentifier,
+						_consumer,
 						cancellationToken)
 						.ConfigureAwait(false);
 				}

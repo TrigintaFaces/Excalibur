@@ -27,7 +27,7 @@ public sealed class OpenSearchPersistenceProviderContainerFixture : ContainerFix
 	/// Gets the base address of the running OpenSearch node.
 	/// </summary>
 	public Uri Endpoint => _container is not null
-		? new Uri($"http://localhost:{_container.GetMappedPublicPort(9200)}")
+		? new Uri($"http://{_container.Hostname}:{_container.GetMappedPublicPort(9200)}")
 		: throw new InvalidOperationException("Container not initialized");
 
 	/// <inheritdoc/>

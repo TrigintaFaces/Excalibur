@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "scope": "Exact privileged finalizer job and inherited execution environment; changes require independent review. CI must never regenerate this approval input.",
+  "sha256": "be6613d22d1b7754fc5eddc84ad2c43b81691d8b50f0ecc7dfa942c664271161",
+  "steps": [
+    "Verify the handoff artifact identity",
+    "Download the verified unsigned handoff",
+    "Verify unsigned handoff contents",
+    "Setup the pinned signing SDK",
+    "Decide whether this build must be signed",
+    "Verify signing environment protections",
+    "Sign the shipping packages",
+    "Verify signing preserved package payloads",
+    "Record package hashes",
+    "Emit the build receipt",
+    "Attest build provenance for the canonical package set",
+    "Attest the SBOM against the packages it describes",
+    "Upload the official SBOM",
+    "Upload the canonical package set"
+  ]
+}

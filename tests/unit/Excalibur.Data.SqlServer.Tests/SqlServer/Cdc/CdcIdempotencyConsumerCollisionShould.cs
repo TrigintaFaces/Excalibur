@@ -43,8 +43,9 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcIdempotencyConsumerCollisionShould : UnitTestBase
 {
-	private const string ConsumerA = "orders-projector";
-	private const string ConsumerB = "audit-forwarder";
+	// Same source database, different consumers: the axis this class is about.
+	private static readonly CdcConsumerIdentity ConsumerA = new("orders-projector", "shared-db");
+	private static readonly CdcConsumerIdentity ConsumerB = new("audit-forwarder", "shared-db");
 	private const string SharedTable = "dbo.Orders";
 
 	private static readonly byte[] Lsn = [0x00, 0x00, 0x00, 0x01];
@@ -131,5 +132,73 @@ public sealed class CdcIdempotencyConsumerCollisionShould : UnitTestBase
 		laterChangeSeen.ShouldBeFalse(
 			"a later position on the same table is a different change and must not be suppressed by the "
 			+ "earlier one");
+	}
+
+	/// <summary>
+	/// SAFETY. Two configured sources that SHARE a connection identifier and differ only in database name
+	/// must not share a dedupe namespace.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The axis the key was missing.</b> The checkpoint store matches on
+	/// <c>(DatabaseConnectionIdentifier, DatabaseName, TableName)</c> — three axes — while the dedupe key
+	/// carried the connection identifier and the table and omitted the database. The dedupe namespace was
+	/// therefore strictly COARSER than the namespace of the position it guards, and a coarser dedupe
+	/// namespace suppresses rather than duplicates: the first source to reach a given position marks it
+	/// done for every other source sharing the coarser key.
+	/// </para>
+	/// <para>
+	/// Nothing elsewhere prevents the configuration. The job options validator checks only that the
+	/// collection is non-empty; the fan-out de-duplicates configurations by reference over a class with no
+	/// equality members, so two value-identical entries both run; and the dedupe table's own database is
+	/// chosen independently of any source, so one table can be shared by unrelated ones. The key therefore
+	/// has to carry the axis outright rather than rely on identifiers happening to differ.
+	/// </para>
+	/// <para>
+	/// The named red input: drop <c>DatabaseName</c> from the key composition and this arm fails, because
+	/// the second source reads the first source's marker as its own.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task NotSuppressAChangeForADifferentSourceDatabaseUnderOneConnectionIdentifier()
+	{
+		var sharedStore = new InMemoryCdcIdempotencyFilter(NullLogger<InMemoryCdcIdempotencyFilter>.Instance);
+
+		// One connection identifier, two source databases -- a shape the configuration permits and
+		// nothing rejects.
+		var onLegacy = new CdcConsumerIdentity("shared-identifier", "Legacy");
+		var onBilling = new CdcConsumerIdentity("shared-identifier", "Billing");
+
+		await sharedStore.MarkProcessedAsync(SharedTable, Lsn, SeqVal, onLegacy, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var alreadySeenOnBilling = await sharedStore
+			.IsProcessedAsync(SharedTable, Lsn, SeqVal, onBilling, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		alreadySeenOnBilling.ShouldBeFalse(
+			"the Billing source has never processed this change. SQL Server log sequence numbers are "
+			+ "per-database, so an identical position in a different database is a DIFFERENT change -- "
+			+ "treating it as processed skips it permanently and reports nothing.");
+	}
+
+	/// <summary>
+	/// LIVENESS. The same source must still be deduplicated against its own progress, so the arm above
+	/// cannot be satisfied by a filter that simply stopped deduplicating.
+	/// </summary>
+	[Fact]
+	public async Task StillSuppressARepeatFromTheSameSourceDatabase()
+	{
+		var sharedStore = new InMemoryCdcIdempotencyFilter(NullLogger<InMemoryCdcIdempotencyFilter>.Instance);
+		var onLegacy = new CdcConsumerIdentity("shared-identifier", "Legacy");
+
+		await sharedStore.MarkProcessedAsync(SharedTable, Lsn, SeqVal, onLegacy, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		var seenAgain = await sharedStore
+			.IsProcessedAsync(SharedTable, Lsn, SeqVal, onLegacy, CancellationToken.None)
+			.ConfigureAwait(false);
+
+		seenAgain.ShouldBeTrue("adding an axis must not stop the filter deduplicating what it should");
 	}
 }

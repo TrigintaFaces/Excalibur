@@ -76,7 +76,7 @@ public sealed class JobOptionsHostedWatcherServiceShould : IDisposable
 	{
 		// Arrange — factory resolves a null scheduler; StartAsync must tolerate it (no-op job state).
 		var nullSchedulerFactory = A.Fake<ISchedulerFactory>();
-		A.CallTo(() => nullSchedulerFactory.GetScheduler(A<CancellationToken>._)).Returns(Task.FromResult<IScheduler>(null!));
+		A.CallTo(() => nullSchedulerFactory.GetScheduler(A<CancellationToken>._)).Returns(new ValueTask<IScheduler>((IScheduler)null!));
 
 		var config = new WatcherTestJobOptions();
 		var monitor = new WatcherTestOptionsMonitor<WatcherTestJobOptions>(config);
@@ -121,6 +121,7 @@ public sealed class JobOptionsHostedWatcherServiceShould : IDisposable
 	public void Dispose()
 	{
 		_service.Dispose();
+		(_scheduler as IDisposable)?.Dispose();
 	}
 }
 

@@ -12,7 +12,6 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Routing;
-using Excalibur.Dispatch.Routing.Builder;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -76,13 +75,6 @@ internal sealed class Dispatcher(
 	[ThreadStatic] private static Type? s_cachedDispatchInfoType;
 	[ThreadStatic] private static MessageDispatchInfo s_cachedDispatchInfo;
 	[ThreadStatic] private static bool s_cachedDispatchInfoInitialized;
-
-	// PERF-T5: Per-type routing decision cache for deterministic routers.
-	// When the router is DefaultDispatchRouter (static rules), routing decisions are identical
-	// for the same message type across dispatches. Caching eliminates ~1-2μs of router invocation
-	// per dispatch after the first call for each type.
-	private readonly ConcurrentDictionary<Type, RoutingDecision> _cachedRoutingDecisions = new();
-	private readonly bool _canCacheRoutingDecisions = dispatchRouter is DefaultDispatchRouter;
 
 	/// <summary>
 	/// Combined per-type dispatch info cache used across dispatch paths to avoid repeated type checks
@@ -1057,32 +1049,17 @@ internal sealed class Dispatcher(
 			return ValueTask.FromResult<RoutingDecision?>(existingDecision);
 		}
 
-		// PERF-T5: Check per-type routing decision cache for deterministic routers.
-		// For DefaultDispatchRouter with static rules, the routing decision for a given
-		// message type is always the same. Pre-seeding the context allows TryGetUsableRoutingDecision
-		// to fast-exit on subsequent dispatches without invoking the router.
-		if (_canCacheRoutingDecisions)
-		{
-			var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
-				? typeof(TMessage)
-				: message.GetType();
-
-			if (_cachedRoutingDecisions.TryGetValue(messageType, out var cachedDecision))
-			{
-				RoutingDecisionAccessor.SetRoutingDecision(context, cachedDecision);
-				return ValueTask.FromResult<RoutingDecision?>(cachedDecision);
-			}
-		}
-
 		if (dispatchRouter is null)
 		{
 			return ValueTask.FromResult<RoutingDecision?>(null);
 		}
 
-		return ResolveAndCacheRoutingDecisionAsync(dispatchRouter, message, context, cancellationToken);
+		// The router may depend on message values or request identity. Only the selectors
+		// know whether an individual rule is safe to cache by message type.
+		return ResolveRoutingDecisionAsync(dispatchRouter, message, context, cancellationToken);
 	}
 
-	private async ValueTask<RoutingDecision?> ResolveAndCacheRoutingDecisionAsync<TMessage>(
+	private async ValueTask<RoutingDecision?> ResolveRoutingDecisionAsync<TMessage>(
 		IDispatchRouter router,
 		TMessage message,
 		IMessageContext context,
@@ -1095,17 +1072,6 @@ internal sealed class Dispatcher(
 			: await routeTask.ConfigureAwait(false);
 
 		RoutingDecisionAccessor.SetRoutingDecision(context, decision);
-
-		// PERF-T5: Cache successful routing decisions for deterministic routers.
-		// Only cache when router is DefaultDispatchRouter (static transport selection + endpoint routing).
-		if (_canCacheRoutingDecisions && decision.IsSuccess)
-		{
-			var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
-				? typeof(TMessage)
-				: message.GetType();
-
-			_ = _cachedRoutingDecisions.TryAdd(messageType, decision);
-		}
 
 		return decision;
 	}

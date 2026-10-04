@@ -27,7 +27,6 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 	private readonly IProjectionRegistry _registry;
 	private readonly IDistributedCache? _cache;
 	private readonly JsonSerializerOptions _jsonOptions;
-	private readonly ILogger<EphemeralProjectionEngine> _logger;
 
 	public EphemeralProjectionEngine(
 		IEventStore eventStore,
@@ -45,7 +44,6 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		_eventStore = eventStore;
 		_eventSerializer = eventSerializer;
 		_registry = registry;
-		_logger = logger;
 		_cache = cache;
 		_jsonOptions = jsonOptions ?? DefaultJsonOptions;
 	}
@@ -102,21 +100,14 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 			// attempt, and skip it. A fully erased aggregate therefore projects to its empty initial state,
 			// which is the faithful answer once the subject's data is gone -- not an exception that makes the
 			// projection permanently unreadable. Only the reserved marker is skipped.
-			if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+			if (ErasedEventMarker.IsErased(storedEvent.EventType))
 			{
 				continue;
 			}
 
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-			var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
-
-			if (domainEvent is null)
-			{
-				_logger.LogWarning(
-					"Skipping event {EventId} ({EventType}) during ephemeral build — deserialization returned null.",
-					storedEvent.EventId, storedEvent.EventType);
-				continue;
-			}
+			var domainEvent = StoredEventPayload.RequireDecoded(
+				_eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType), storedEvent);
 
 			// Built by replaying the aggregate's stored history, so isReplay is true and the identity is
 			// the aggregate being projected.

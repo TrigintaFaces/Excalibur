@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.EventSourcing;
@@ -117,9 +117,9 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var events = CreateEvents("blob-agg-1", 1, 2, 3);
-		await _store!.WriteAsync(Tenant, "blob-agg-1", events, CancellationToken.None);
+		await _store!.WriteAsync(Tenant, "blob-agg-1", "Test", events, CancellationToken.None);
 
-		var read = await _store.ReadAsync(Tenant, "blob-agg-1", CancellationToken.None);
+		var read = await _store.ReadAsync(Tenant, "blob-agg-1", "Test", CancellationToken.None);
 		read.Count.ShouldBe(3);
 		read[0].Version.ShouldBe(1);
 		read[2].Version.ShouldBe(3);
@@ -130,9 +130,9 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
-		await _store!.WriteAsync(Tenant, "blob-agg-v", CreateEvents("blob-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
+		await _store!.WriteAsync(Tenant, "blob-agg-v", "Test", CreateEvents("blob-agg-v", 1, 2, 3, 4, 5), CancellationToken.None);
 
-		var fromV3 = await _store.ReadAsync(Tenant, "blob-agg-v", 3, CancellationToken.None);
+		var fromV3 = await _store.ReadAsync(Tenant, "blob-agg-v", "Test", 3, CancellationToken.None);
 		fromV3.Count.ShouldBe(2);
 		fromV3[0].Version.ShouldBe(4);
 	}
@@ -142,10 +142,11 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
-		await _store!.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 1, 2, 3), CancellationToken.None);
-		await _store.WriteAsync(Tenant, "blob-agg-m", CreateEvents("blob-agg-m", 3, 4, 5), CancellationToken.None);
+		var original = CreateEvents("blob-agg-m", 1, 2, 3);
+		await _store!.WriteAsync(Tenant, "blob-agg-m", "Test", original, CancellationToken.None);
+		await _store.WriteAsync(Tenant, "blob-agg-m", "Test", [original[2], .. CreateEvents("blob-agg-m", 4, 5)], CancellationToken.None);
 
-		var all = await _store.ReadAsync(Tenant, "blob-agg-m", CancellationToken.None);
+		var all = await _store.ReadAsync(Tenant, "blob-agg-m", "Test", CancellationToken.None);
 		all.Count.ShouldBe(5);
 	}
 
@@ -154,22 +155,40 @@ public sealed class AzureBlobColdEventStoreIntegrationShould : IAsyncLifetime
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
-		await _store!.WriteAsync(Tenant, "blob-agg-h", CreateEvents("blob-agg-h", 1), CancellationToken.None);
-		(await _store.HasArchivedEventsAsync(Tenant, "blob-agg-h", CancellationToken.None)).ShouldBeTrue();
+		await _store!.WriteAsync(Tenant, "blob-agg-h", "Test", CreateEvents("blob-agg-h", 1), CancellationToken.None);
+		(await _store.HasArchivedEventsAsync(Tenant, "blob-agg-h", "Test", CancellationToken.None)).ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
-		(await _store!.HasArchivedEventsAsync(Tenant, "blob-nonexistent", CancellationToken.None)).ShouldBeFalse();
+		(await _store!.HasArchivedEventsAsync(Tenant, "blob-nonexistent", "Test", CancellationToken.None)).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Azure Blob (Azurite/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
-		(await _store!.ReadAsync(Tenant, "blob-no-such", CancellationToken.None)).Count.ShouldBe(0);
+		(await _store!.ReadAsync(Tenant, "blob-no-such", "Test", CancellationToken.None)).Count.ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task RequireAnIdentityConsistentPrefixBeforeAcknowledgingDurability()
+	{
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Cold-storage integration infrastructure unavailable."));
+		var id = "receipt-" + Guid.NewGuid().ToString("N");
+		var original = CreateEvents(id, 0, 1, 2);
+		(await _store!.WriteAsync(Tenant, id, "Test", [original[2]], CancellationToken.None)).ShouldBe(-1);
+		(await _store.WriteAsync(Tenant, id, "Test", [original[0], original[1]], CancellationToken.None)).ShouldBe(2);
+		(await _store.WriteAsync(Tenant, id, "Test", [original[2] with { EventData = original[2].EventData!.ToArray() }], CancellationToken.None)).ShouldBe(2);
+		await Should.ThrowAsync<InvalidOperationException>(() => _store.WriteAsync(Tenant, id, "Test",
+			[original[2] with { EventData = [99] }], CancellationToken.None));
+		(await _store.ReadAsync(Tenant, id, "Test", CancellationToken.None))[2].EventData.ShouldBe(original[2].EventData);
+		var erasedId = "erased-" + Guid.NewGuid().ToString("N");
+		await Should.ThrowAsync<InvalidOperationException>(() => _store.WriteAsync(Tenant, erasedId, "Test",
+			[CreateEvents(erasedId, 0)[0] with { EventType = "$erased" }], CancellationToken.None));
+		(await _store.HasArchivedEventsAsync(Tenant, erasedId, "Test", CancellationToken.None)).ShouldBeFalse();
 	}
 
 	private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions) =>

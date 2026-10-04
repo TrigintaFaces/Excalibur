@@ -1,439 +1,279 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Validates solution governance, solution path casing, and src project membership.
+    Validates exact filesystem, manifest, solution, build configurations and CI filters.
 .DESCRIPTION
-    Ensures all governed projects are tracked in the manifest, all required projects are in
-    Excalibur.sln, and .sln project paths use the exact repository casing.
-    Designed for CI enforcement (exit 1 on failure).
-.PARAMETER ManifestPath
-    Path to project-manifest.yaml (default: eng/governance/project-manifest.yaml)
+    Run from the repository root. Inputs are never regenerated during validation.
+    Manifest v2 accepts block collections and plain or JSON-quoted string scalars only.
+    Unsupported syntax fails rather than silently dropping an entry.
 #>
-param(
-    [string]$ManifestPath = "eng/governance/project-manifest.yaml"
-)
-
-$ErrorActionPreference = "Stop"
+param([string]$ManifestPath = 'eng/governance/project-manifest.yaml')
+$ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-
-$exitCode = 0
-$errors = @()
-$warnings = @()
 $repoRoot = (Get-Location).Path
-$slnPath = "Excalibur.sln"
-# Named non-shipping roots; every DOT-directory is excluded by rule in Test-IsExcludedPath,
-# so internal tooling directories need not be enumerated here and cannot go stale.
-$ExcludedDirectories = @("labs", "tools", "node_modules", "bin", "obj")
+$requiredRoots = @('src', 'tests', 'samples', 'benchmarks', 'load-tests')
+$templatePackage = 'templates/Excalibur.Dispatch.Templates.csproj'
 
-function Convert-ToRepoPath {
-    param(
-        [Parameter(Mandatory = $true)][string]$FullPath,
-        [Parameter(Mandatory = $true)][string]$RepoRootPath
-    )
-
-    $normalizedFull = [System.IO.Path]::GetFullPath($FullPath)
-    $normalizedRoot = [System.IO.Path]::GetFullPath($RepoRootPath)
-
-    if ($normalizedFull.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $relative = $normalizedFull.Substring($normalizedRoot.Length).TrimStart('\', '/')
-        return $relative.Replace('\', '/')
+function New-Set { return ,([Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)) }
+function New-Map { return ,([Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)) }
+function Convert-RepoPath([string]$Path) {
+    $path = $Path.Replace([char]92, '/')
+    if ([string]::IsNullOrWhiteSpace($path) -or $path.StartsWith('/') -or $path.Contains(':') -or
+        @($path.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count) {
+        throw "Non-canonical repository path: '$Path'"
     }
-
-    return $FullPath.Replace('\', '/')
+    return $path
+}
+function Get-Projects([string]$Directory) {
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { return }
+    Get-ChildItem -LiteralPath $Directory -Recurse -File -Filter '*.csproj' | ForEach-Object {
+        $relative = [IO.Path]::GetRelativePath($repoRoot, $_.FullName).Replace([char]92, '/')
+        $excluded = @($relative.Split('/') | Where-Object {
+            $_.StartsWith('.') -or $_ -cin @('bin','obj','node_modules','labs','tools','BenchmarkDotNet.Artifacts')
+        }).Count -gt 0
+        if (-not $excluded) { $relative }
+    }
+}
+function Read-Scalar([string]$Value) {
+    if ($Value.StartsWith('"')) {
+        $json = [System.Text.Json.JsonDocument]::Parse($Value)
+        try { return $json.RootElement.GetString() } finally { $json.Dispose() }
+    }
+    if ($Value -notmatch '^[A-Za-z0-9_./*\\-]+$') { throw "Unsupported manifest scalar: $Value" }
+    return $Value
+}
+function Add-Field($Map, [string]$Key, [string]$Value) {
+    if ($Map.ContainsKey($Key)) { throw "Duplicate manifest key: $Key at $($Map['path'])" }
+    if ($Key -ceq 'in_solution' -and $Value -cnotin @('true','false')) { throw "Expected literal manifest boolean: $Value" }
+    $Map.Add($Key, (Read-Scalar $Value))
+}
+function Assert-Fields($Map, [string[]]$Required, [string[]]$Allowed) {
+    foreach ($key in $Required) { if (-not $Map.ContainsKey($key)) { throw "Missing manifest key: $key at $($Map['path'])" } }
+    foreach ($key in $Map.Keys) { if ($key -cnotin $Allowed) { throw "Unexpected manifest key: $key" } }
+}
+function Assert-SameSet($Expected, $Actual, [string]$Label) {
+    $expectedSet = New-Set
+    foreach ($path in $Expected) { [void]$expectedSet.Add($path) }
+    foreach ($path in $Expected) { if (-not $Actual.Contains($path)) { throw "$Label missing: $path" } }
+    foreach ($path in $Actual) { if (-not $expectedSet.Contains($path)) { throw "$Label unexpected: $path" } }
 }
 
-function Test-IsExcludedPath {
-    param(
-        [Parameter(Mandatory = $true)][string]$PathToCheck,
-        [Parameter(Mandatory = $true)][string[]]$Exclusions
-    )
-
-    # Any dot-directory segment: build metadata and internal tooling both live under one, and
-    # neither holds a shipping project. A segment test rather than a regex, so no escaping is
-    # involved -- the regex form of this check was written wrong twice before it was replaced.
-    foreach ($seg in $PathToCheck.Replace([char]92, '/').Split('/')) {
-        if ($seg.Length -gt 1 -and $seg[0] -eq '.') {
-            return $true
+function Assert-SolutionStructure([string[]]$Lines) {
+    $header = 0
+    while ($header -lt $Lines.Count -and [string]::IsNullOrWhiteSpace($Lines[$header])) { $header++ }
+    if ($header -ge $Lines.Count -or $Lines[$header] -cne 'Microsoft Visual Studio Solution File, Format Version 12.00') { throw 'Invalid solution structure: header' }
+    $block = ''; $section = ''; $globalSeen = $false; $globalClosed = $false
+    $globalSections = New-Set
+    foreach ($line in $Lines | Select-Object -Skip ($header + 1)) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+        if ($trimmed.StartsWith('Project(')) {
+            if ($block -ne '' -or $globalSeen -or $trimmed -notmatch '^Project\("(\{[^}]+\})"\)') { throw 'Invalid solution structure: Project' }
+            if ($Matches[1].ToUpperInvariant() -cnotin @('{2150E333-8FDC-42A3-9474-1A3956D46DE8}','{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}','{9A19103F-16F7-4668-BE54-9A1E7A4F7556}')) { throw 'Invalid solution structure: project type GUID' }
+            $block = 'Project'; continue
         }
-    }
-
-    foreach ($ex in $Exclusions) {
-        if ($PathToCheck -match "[/\\]$([regex]::Escape($ex))[/\\]") {
-            return $true
+        if ($trimmed -ceq 'Global') {
+            if ($block -ne '' -or $globalSeen) { throw 'Invalid solution structure: Global' }
+            $block = 'Global'; $globalSeen = $true; continue
         }
-    }
-
-    return $false
-}
-
-function Get-ProjectClassification {
-    param([string]$Path)
-
-    if ($Path -match "^src/") { return "Shipping" }
-    if ($Path -match "^tests/benchmarks/") { return "Benchmark" }
-    if ($Path -match "^tests/") { return "Test" }
-    if ($Path -match "^benchmarks/") { return "Benchmark" }
-    if ($Path -match "^load-tests/") { return "Test" }
-    if ($Path -match "^samples/") { return "Sample" }
-    return "Unknown"
-}
-
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Solution Governance Validation" -ForegroundColor Cyan
-Write-Host "========================================`n" -ForegroundColor Cyan
-
-# --- 1. Verify manifest exists ---
-if (-not (Test-Path $ManifestPath)) {
-    Write-Host "FAIL: Manifest not found at $ManifestPath" -ForegroundColor Red
-    Write-Host "Run: pwsh eng/inventory-projects.ps1" -ForegroundColor Yellow
-    exit 1
-}
-
-# --- 2. Parse manifest ---
-Write-Host "[1/7] Parsing manifest..." -ForegroundColor Yellow
-
-$manifestLines = Get-Content $ManifestPath
-
-$version = ($manifestLines | Where-Object { $_ -match '^version:\s*"(.+)"' } | ForEach-Object { $Matches[1] }) | Select-Object -First 1
-if (-not $version) {
-    $warnings += "Manifest missing version field (legacy format detected)"
-}
-Write-Host "  Manifest version: $version"
-
-$governedDirs = @()
-$inGoverned = $false
-foreach ($line in $manifestLines) {
-    if ($line -match '^governed_directories:') { $inGoverned = $true; continue }
-    if ($inGoverned -and $line -match '^\s+-\s+(.+)/\*\*') {
-        $governedDirs += $Matches[1]
-    }
-    elseif ($inGoverned -and $line -notmatch '^\s+-' -and $line -notmatch '^\s*$') {
-        $inGoverned = $false
-    }
-}
-Write-Host "  Governed directories: $($governedDirs -join ', ')"
-
-if ($governedDirs.Count -eq 0) {
-    $governedDirs = @("src", "tests", "samples", "benchmarks", "load-tests")
-    $warnings += "Manifest missing governed_directories; using default governed directories"
-    Write-Host "  Using fallback governed directories: $($governedDirs -join ', ')" -ForegroundColor Yellow
-}
-
-$manifestProjects = @{}
-$currentProject = $null
-$inProjects = $false
-
-foreach ($line in $manifestLines) {
-    if ($line -match '^projects:') { $inProjects = $true; continue }
-    if (-not $inProjects) { continue }
-
-    if ($line -match '^\s+-\s+path:\s+(.+)') {
-        $currentProject = $Matches[1].Trim().Replace('\', '/')
-        $manifestProjects[$currentProject] = @{
-            classification = $null
-            in_solution = $null
-            framework_owner = $null
+        if ($trimmed -cin @('EndProject','EndGlobal')) {
+            if ($section -ne '' -or $trimmed -cne ('End' + $block)) { throw 'Invalid solution structure: block terminator' }
+            if ($block -ceq 'Global') { $globalClosed = $true }
+            $block = ''; continue
         }
-        continue
+        if ($trimmed -match '^(Project|Global)Section\(([^)]+)\) = (preProject|postProject|preSolution|postSolution)$') {
+            if ($section -ne '' -or $block -cne $Matches[1]) { throw 'Invalid solution structure: section' }
+            $section = $Matches[1]
+            if ($section -ceq 'Global' -and -not $globalSections.Add($Matches[2])) { throw 'Invalid solution structure: duplicate global section' }
+            continue
+        }
+        if ($trimmed -cin @('EndProjectSection','EndGlobalSection')) {
+            if ($section -eq '' -or $trimmed -cne ('End' + $section + 'Section')) { throw 'Invalid solution structure: section terminator' }
+            $section = ''; continue
+        }
+        if ($section -eq '' -and ($block -ne '' -or $globalSeen -or $trimmed -notmatch '^(VisualStudioVersion|MinimumVisualStudioVersion) = [0-9.]+$')) { throw "Invalid solution structure: $trimmed" }
     }
-    if (-not $currentProject) { continue }
-
-    if ($line -match '^\s+classification:\s+(.+)') {
-        $manifestProjects[$currentProject].classification = $Matches[1].Trim()
-    }
-    elseif ($line -match '^\s+in_solution:\s+(.+)') {
-        $manifestProjects[$currentProject].in_solution = $Matches[1].Trim() -eq 'true'
-    }
-    elseif ($line -match '^\s+framework_owner:\s+(.+)') {
-        $manifestProjects[$currentProject].framework_owner = $Matches[1].Trim()
-    }
+    if ($block -ne '' -or $section -ne '' -or -not $globalClosed) { throw 'Invalid solution structure: missing terminator' }
 }
 
-Write-Host "  Manifest entries: $($manifestProjects.Count)"
-
-foreach ($path in $manifestProjects.Keys) {
-    if (-not $manifestProjects[$path].classification) {
-        $manifestProjects[$path].classification = Get-ProjectClassification -Path $path
-    }
-}
-
-# --- 3. Parse solution and validate path casing ---
-Write-Host "`n[2/7] Validating solution project paths..." -ForegroundColor Yellow
-
-if (-not (Test-Path $slnPath)) {
-    Write-Host "FAIL: Solution file not found: $slnPath" -ForegroundColor Red
-    exit 1
-}
-
-$slnProjectPaths = @()
-foreach ($line in Get-Content $slnPath) {
-    if ($line -match '^Project\("[^"]+"\)\s*=\s*"[^"]+",\s*"([^"]+\.csproj)"') {
-        $slnProjectPaths += $Matches[1].Replace('\', '/')
-    }
-}
-
-if ($slnProjectPaths.Count -eq 0) {
-    $exitCode = 1
-    $errors += "No .csproj entries found in $slnPath"
-}
-else {
-    Write-Host "  Projects in solution: $($slnProjectPaths.Count)"
-}
-
-$duplicates = @($slnProjectPaths | Group-Object { $_.ToLowerInvariant() } | Where-Object { $_.Count -gt 1 })
-if ($duplicates.Count -gt 0) {
-    $exitCode = 1
-    $errors += "Duplicate .sln project entries that differ only by path casing: $($duplicates.Count)"
-    foreach ($d in $duplicates) {
-        Write-Host "  DUPLICATE CASE PATH: $($d.Group -join ', ')" -ForegroundColor Red
-    }
-}
-
-$canonicalByLower = @{}
-$gitPaths = @()
 try {
-    $gitPaths = @(git ls-files '*.csproj' 2>$null)
+    $top = New-Map; $governance = New-Map; $roots = New-Set
+    $entries = [Collections.Generic.List[object]]::new()
+    $exclusions = [Collections.Generic.List[object]]::new()
+    $section = ''; $entry = $null
+    foreach ($line in Get-Content -LiteralPath $ManifestPath) {
+        if ($line -match '^\s*(#.*)?$') { continue }
+        if ($line -match '^([a-z_]+):(?: (.+))?$') {
+            $section = $Matches[1]; $entry = $null
+            if ($top.ContainsKey($section)) { throw "Duplicate manifest section: $section" }
+            $value = if ($Matches.ContainsKey(2)) { Read-Scalar $Matches[2] } else { '' }
+            $top.Add($section, $value)
+            continue
+        }
+        if ($section -ceq 'governance' -and $line -match '^  ([a-z_]+): (.+)$') { Add-Field $governance $Matches[1] $Matches[2]; continue }
+        if ($section -ceq 'governed_directories' -and $line -match '^  - ([a-z-]+)/\*\*$') {
+            if (-not $roots.Add($Matches[1])) { throw 'Duplicate governed directory' }; continue
+        }
+        if ($section -cin @('projects','exclusions')) {
+            if ($line -match '^  - path: (.+)$') {
+                $entry = New-Map; Add-Field $entry 'path' $Matches[1]
+                if ($section -ceq 'projects') { $entries.Add($entry) } else { $exclusions.Add($entry) }
+                continue
+            }
+            if ($null -ne $entry -and $line -match '^    ([a-z_]+): (.+)$') { Add-Field $entry $Matches[1] $Matches[2]; continue }
+        }
+        throw "Unsupported manifest syntax: $line"
+    }
+    $fields = @('version','generated_at','governance','governed_directories','exclusions','projects')
+    Assert-Fields $top $fields $fields
+    if ($top['version'] -cne '2.0') { throw 'Unsupported manifest version' }
+    foreach ($name in @('governance','governed_directories','exclusions','projects')) {
+        if ($top[$name] -cne '') { throw "Expected block section: $name" }
+    }
+    Assert-Fields $governance @('solution_file') @('solution_file')
+    if ($governance['solution_file'] -cne 'Excalibur.sln') { throw 'Manifest must govern Excalibur.sln' }
+    Assert-SameSet $requiredRoots $roots 'Governed directories'
+    $excludedPaths = New-Set
+    foreach ($item in $exclusions) {
+        Assert-Fields $item @('path','reason') @('path','reason')
+        $path = Convert-RepoPath $item['path']
+        if (-not $excludedPaths.Add($path)) { throw "Duplicate exclusion: $path" }
+        if ($path.Split('/')[0] -cin $requiredRoots) { throw "Cannot exclude governed project tree: $path" }
+    }
+
+    $disk = New-Set
+    foreach ($root in $requiredRoots) { foreach ($path in Get-Projects $root) { [void]$disk.Add($path) } }
+    if (-not (Test-Path -LiteralPath $templatePackage -PathType Leaf)) { throw "Missing template package: $templatePackage" }
+    [void]$disk.Add($templatePackage)
+    $manifest = New-Set
+    foreach ($item in $entries) {
+        Assert-Fields $item @('path','classification','in_solution') @('path','classification','in_solution','framework_owner','tier','category','variant','notes','reason')
+        $path = Convert-RepoPath $item['path']
+        if (-not $manifest.Add($path)) { throw "Duplicate manifest project: $path" }
+        if ($item['in_solution'] -cne 'true') { throw "Governed project must have literal in_solution: true: $path" }
+        $classification = if ($path -ceq $templatePackage) { 'Template' }
+            elseif ($path.StartsWith('src/', [StringComparison]::Ordinal)) { 'Shipping' }
+            elseif ($path.StartsWith('samples/', [StringComparison]::Ordinal)) { 'Sample' }
+            elseif ($path.StartsWith('benchmarks/', [StringComparison]::Ordinal) -or $path.StartsWith('tests/benchmarks/', [StringComparison]::Ordinal)) { 'Benchmark' }
+            else { 'Test' }
+        if ($item['classification'] -cne $classification) { throw "Incorrect classification: $path" }
+    }
+    Assert-SameSet $disk $manifest 'Manifest'
+
+    $projects = New-Map; $guids = New-Set; $configs = New-Set; $mappings = New-Map; $items = New-Set
+    $names = New-Map; $folders = New-Set; $parents = New-Map
+    $section = ''; $isFolder = $false
+    $solutionLines = @(Get-Content -LiteralPath 'Excalibur.sln')
+    Assert-SolutionStructure $solutionLines
+    foreach ($sourceLine in $solutionLines) {
+        $line = $sourceLine.Trim()
+        if ($line -match '^Project\("\{[^}]+\}"\) = "([^"]+)", "([^"]+)", "(\{[^}]+\})"$') {
+            $name = $Matches[1]; $path = $Matches[2]; $guid = $Matches[3].ToUpperInvariant()
+            $parsedGuid = [guid]::Empty
+            if (-not [guid]::TryParse($guid, [ref]$parsedGuid)) { throw "Invalid project GUID: $guid" }
+            if (-not $guids.Add($guid)) { throw "Duplicate solution GUID: $guid" }
+            $isFolder = $line.StartsWith('Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}")', [StringComparison]::OrdinalIgnoreCase)
+            $effectiveName = if ($isFolder) { $name } else { [IO.Path]::GetFileNameWithoutExtension($path.Replace([char]92, '/')) }
+            $names.Add($guid, $effectiveName)
+            if ($isFolder) { [void]$folders.Add($guid) }
+            if (-not $isFolder) {
+                $path = Convert-RepoPath $path
+                if (-not $path.EndsWith('.csproj', [StringComparison]::Ordinal)) { throw "Unsupported solution project: $path" }
+                if ($projects.ContainsKey($path)) { throw "Duplicate solution path: $path" }
+                $projects.Add($path, $guid)
+            }
+        }
+        elseif ($line.StartsWith('Project(')) { throw "Malformed solution project: $line" }
+        elseif ($line -match '^\s*GlobalSection\((SolutionConfigurationPlatforms|ProjectConfigurationPlatforms|NestedProjects)\)') { $section = $Matches[1] }
+        elseif ($line -match '^\s*ProjectSection\(SolutionItems\)') {
+            if (-not $isFolder) { throw 'SolutionItems must belong to a solution folder' }; $section = 'SolutionItems'
+        }
+        elseif ($line -match '^\s*End(?:Global|Project)Section') { $section = '' }
+        elseif ($section -ceq 'SolutionConfigurationPlatforms') {
+            if ($line -notmatch '^\s*([^=]+?)\s*=\s*(.+?)\s*$' -or $Matches[1] -cne $Matches[2] -or -not $configs.Add($Matches[1])) { throw "Invalid or duplicate solution configuration: $line" }
+        }
+        elseif ($section -ceq 'ProjectConfigurationPlatforms') {
+            if ($line -notmatch '^\s*(\{[^}]+\})\.(.+)\.(ActiveCfg|Build\.0) = (.+?)\s*$') { throw "Invalid project configuration: $line" }
+            $key = $Matches[1].ToUpperInvariant() + '.' + $Matches[2] + '.' + $Matches[3]
+            if ($mappings.ContainsKey($key)) { throw "Duplicate project configuration: $key" }
+            $mappings.Add($key, $Matches[4])
+        }
+        elseif ($section -ceq 'NestedProjects') {
+            if ($line -notmatch '^\s*(\{[^}]+\}) = (\{[^}]+\})\s*$') { throw 'Invalid solution nesting' }
+            $child = $Matches[1].ToUpperInvariant(); $parent = $Matches[2].ToUpperInvariant()
+            if ($parents.ContainsKey($child)) { throw 'Duplicate solution nesting' }
+            $parents.Add($child, $parent)
+        }
+        elseif ($section -ceq 'SolutionItems') {
+            if ($line -notmatch '^\s*(.+?) = (.+?)\s*$') { throw "Invalid solution item: $line" }
+            $left = Convert-RepoPath $Matches[1]; $right = Convert-RepoPath $Matches[2]
+            if ($left -cne $right) { throw "Solution item path mismatch: $line" }
+            if ($left.EndsWith('.csproj', [StringComparison]::Ordinal) -and -not $items.Add($left)) { throw "Duplicate project solution item: $left" }
+        }
+    }
+    foreach ($parent in $parents.GetEnumerator()) {
+        if (-not $guids.Contains($parent.Key) -or -not $folders.Contains($parent.Value)) { throw 'Invalid solution folder reference' }
+        $visited = New-Set; $node = $parent.Key
+        while ($parents.ContainsKey($node)) {
+            if (-not $visited.Add($node)) { throw 'Cyclic solution folder nesting' }
+            $node = $parents[$node]
+        }
+    }
+    $scopedNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in $names.GetEnumerator()) {
+        $parent = if ($parents.ContainsKey($name.Key)) { $parents[$name.Key] } else { '<root>' }
+        $kind = if ($folders.Contains($name.Key)) { 'folder/' } else { 'project/' }
+        if (-not $scopedNames.Add($kind + $parent + '/' + $name.Value)) { throw "Duplicate solution display name in one folder: $($name.Value)" }
+    }
+    Assert-SameSet $disk $projects.Keys 'Solution'
+    $requiredConfigs = foreach ($configuration in @('Debug','Release')) { foreach ($platform in @('Any CPU','x64','x86')) { "$configuration|$platform" } }
+    Assert-SameSet $requiredConfigs $configs 'Solution configurations'
+    foreach ($project in $projects.GetEnumerator()) {
+        foreach ($config in $configs) {
+            $key = $project.Value + '.' + $config
+            if (-not $mappings.ContainsKey("$key.ActiveCfg") -or -not $mappings.ContainsKey("$key.Build.0")) { throw "Missing ActiveCfg/Build.0: $($project.Key) $config" }
+            if ($mappings["$key.ActiveCfg"] -cne $mappings["$key.Build.0"]) { throw "Mismatched ActiveCfg/Build.0: $($project.Key) $config" }
+            if ($mappings["$key.ActiveCfg"] -cnotmatch ('^' + [regex]::Escape($config.Split('|')[0]) + '\|[^|]+$')) { throw "Invalid configuration target: $($project.Key) $config" }
+        }
+    }
+    if ($mappings.Count -ne $projects.Count * $configs.Count * 2) { throw 'Unexpected project configuration entries' }
+    $payloads = New-Set
+    foreach ($path in Get-Projects 'templates') { if ($path -cne $templatePackage) { [void]$payloads.Add($path) } }
+    Assert-SameSet $payloads $items 'Template solution items'
+
+    $filterRoot = Join-Path $repoRoot 'eng/ci/shards'
+    $filters = @(Get-ChildItem -LiteralPath $filterRoot -Filter '*.slnf' -File -Recurse)
+    if ($filters.Count -eq 0) { throw 'No CI solution filters found' }
+    $filterSets = New-Map
+    foreach ($filter in $filters) {
+        $content = Get-Content -LiteralPath $filter.FullName -Raw | ConvertFrom-Json -NoEnumerate
+        if ($content -isnot [pscustomobject] -or $null -eq $content.PSObject.Properties['solution'] -or
+            $content.solution -isnot [pscustomobject] -or $null -eq $content.solution.PSObject.Properties['path'] -or
+            $content.solution.path -isnot [string] -or $null -eq $content.solution.PSObject.Properties['projects'] -or
+            $content.solution.projects -isnot [array] -or @($content.solution.projects | Where-Object { $_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_) }).Count) {
+            throw "Invalid filter shape: $($filter.Name)"
+        }
+        $solutionPath = $content.solution.path.Replace([char]92, [IO.Path]::DirectorySeparatorChar)
+        $solution = [IO.Path]::GetFullPath((Join-Path $filter.DirectoryName $solutionPath))
+        if ($solution -cne (Join-Path $repoRoot 'Excalibur.sln')) { throw "Filter references another solution: $($filter.Name)" }
+        $members = New-Set
+        foreach ($member in $content.solution.projects) {
+            $path = Convert-RepoPath $member
+            if (-not $members.Add($path)) { throw "Duplicate filter project: $($filter.Name) $path" }
+            if (-not $projects.ContainsKey($path)) { throw "Filter project absent from solution: $($filter.Name) $path" }
+        }
+        if ($members.Count -eq 0) { throw "Empty solution filter: $($filter.Name)" }
+        $filterSets.Add([IO.Path]::GetRelativePath($filterRoot, $filter.FullName).Replace([char]92, '/'), $members)
+    }
+    # ShippingOnly intentionally lists package roots; bundled analyzer projects build transitively.
+    # The package producer validates that packability-based population. SamplesOnly is exhaustive.
+    if (-not $filterSets.ContainsKey('SamplesOnly.slnf')) { throw 'Missing complete filter: SamplesOnly.slnf' }
+    $expectedSamples = @($disk | Where-Object { $_.StartsWith('samples/', [StringComparison]::Ordinal) })
+    Assert-SameSet $expectedSamples $filterSets['SamplesOnly.slnf'] 'SamplesOnly.slnf'
+    Write-Host "PASSED: $($disk.Count) exact project paths, $($configs.Count) build configurations, $($payloads.Count) template items, $($filters.Count) CI filters."
+    exit 0
 }
 catch {
-    $gitPaths = @()
+    Write-Host "FAILED: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
 }
-
-if ($gitPaths.Count -gt 0) {
-    foreach ($path in $gitPaths) {
-        $normalized = $path.Trim().Replace('\', '/')
-        if (-not [string]::IsNullOrWhiteSpace($normalized)) {
-            $canonicalByLower[$normalized.ToLowerInvariant()] = $normalized
-        }
-    }
-}
-else {
-    Write-Host "  WARNING: git ls-files unavailable, falling back to filesystem scan for casing checks" -ForegroundColor Yellow
-    foreach ($proj in Get-ChildItem -Path "." -Recurse -Filter "*.csproj" -File) {
-        if (Test-IsExcludedPath -PathToCheck $proj.FullName -Exclusions $ExcludedDirectories) { continue }
-        $normalized = Convert-ToRepoPath -FullPath $proj.FullName -RepoRootPath $repoRoot
-        $canonicalByLower[$normalized.ToLowerInvariant()] = $normalized
-    }
-}
-
-$caseMismatches = @()
-$missingSlnTargets = @()
-foreach ($projectPath in $slnProjectPaths) {
-    $key = $projectPath.ToLowerInvariant()
-    if (-not $canonicalByLower.ContainsKey($key)) {
-        $missingSlnTargets += $projectPath
-        continue
-    }
-
-    $canonical = $canonicalByLower[$key]
-    if ($canonical -cne $projectPath) {
-        $caseMismatches += [PSCustomObject]@{
-            SlnPath = $projectPath
-            CanonicalPath = $canonical
-        }
-    }
-}
-
-if (@($missingSlnTargets).Count -gt 0) {
-    $exitCode = 1
-    $errors += "Solution references missing/non-tracked .csproj paths: $($missingSlnTargets.Count)"
-    foreach ($p in ($missingSlnTargets | Sort-Object)) {
-        Write-Host "  MISSING FROM REPO: $p" -ForegroundColor Red
-    }
-}
-
-if (@($caseMismatches).Count -gt 0) {
-    $exitCode = 1
-    $errors += "Solution path casing mismatches: $($caseMismatches.Count)"
-    foreach ($m in $caseMismatches | Sort-Object SlnPath) {
-        Write-Host "  CASE MISMATCH: $($m.SlnPath) -> $($m.CanonicalPath)" -ForegroundColor Red
-    }
-}
-else {
-    Write-Host "  Solution path casing matches repository casing" -ForegroundColor Green
-}
-
-$slnProjectsSet = @{}
-foreach ($p in $slnProjectPaths) {
-    $slnProjectsSet[$p] = $true
-}
-
-# --- 4. Scan filesystem for governed projects ---
-Write-Host "`n[3/7] Scanning governed projects on disk..." -ForegroundColor Yellow
-
-$diskPaths = @()
-foreach ($dir in $governedDirs) {
-    if (-not (Test-Path $dir)) { continue }
-
-    $projects = Get-ChildItem -Path $dir -Recurse -Filter "*.csproj" -File | Where-Object {
-        -not (Test-IsExcludedPath -PathToCheck $_.FullName -Exclusions $ExcludedDirectories)
-    }
-
-    foreach ($proj in $projects) {
-        $diskPaths += (Convert-ToRepoPath -FullPath $proj.FullName -RepoRootPath $repoRoot)
-    }
-}
-
-$diskPaths = $diskPaths | Sort-Object -Unique
-Write-Host "  Projects on disk (governed dirs): $($diskPaths.Count)"
-
-# --- 5. Check manifest completeness + stale entries ---
-Write-Host "`n[4/7] Checking manifest completeness..." -ForegroundColor Yellow
-
-$missingFromManifest = @()
-foreach ($path in $diskPaths) {
-    if (-not $manifestProjects.ContainsKey($path)) {
-        $missingFromManifest += $path
-    }
-}
-
-if (@($missingFromManifest).Count -gt 0) {
-    $exitCode = 1
-    $errors += "Projects on disk but not in manifest: $($missingFromManifest.Count)"
-    foreach ($p in ($missingFromManifest | Sort-Object)) {
-        Write-Host "  MISSING IN MANIFEST: $p" -ForegroundColor Red
-    }
-}
-else {
-    Write-Host "  All governed projects are in manifest" -ForegroundColor Green
-}
-
-Write-Host "`n[5/7] Checking stale manifest entries..." -ForegroundColor Yellow
-
-$staleEntries = @()
-foreach ($path in $manifestProjects.Keys) {
-    if ($diskPaths -notcontains $path) {
-        $staleEntries += $path
-    }
-}
-
-if (@($staleEntries).Count -gt 0) {
-    $exitCode = 1
-    $errors += "Stale manifest entries (missing on disk): $($staleEntries.Count)"
-    foreach ($p in ($staleEntries | Sort-Object)) {
-        Write-Host "  STALE: $p" -ForegroundColor Red
-    }
-}
-else {
-    Write-Host "  No stale manifest entries" -ForegroundColor Green
-}
-
-# --- 6. Check solution membership ---
-Write-Host "`n[6/7] Checking solution membership..." -ForegroundColor Yellow
-
-$mustBeInSln = @("Shipping", "Test", "Benchmark")
-$notInSlnByClassification = @()
-foreach ($path in $manifestProjects.Keys) {
-    $entry = $manifestProjects[$path]
-    if ($mustBeInSln -contains $entry.classification) {
-        if (-not $slnProjectsSet.ContainsKey($path)) {
-            $notInSlnByClassification += "$path ($($entry.classification))"
-        }
-    }
-}
-
-if (@($notInSlnByClassification).Count -gt 0) {
-    $exitCode = 1
-    $errors += "Governed Shipping/Test/Benchmark projects not in solution: $($notInSlnByClassification.Count)"
-    foreach ($p in ($notInSlnByClassification | Sort-Object)) {
-        Write-Host "  NOT IN SLN: $p" -ForegroundColor Red
-    }
-}
-else {
-    Write-Host "  All governed Shipping/Test/Benchmark projects are in solution" -ForegroundColor Green
-}
-
-$srcPaths = @()
-if (Test-Path "src") {
-    $srcProjects = Get-ChildItem -Path "src" -Recurse -Filter "*.csproj" -File | Where-Object {
-        -not (Test-IsExcludedPath -PathToCheck $_.FullName -Exclusions $ExcludedDirectories)
-    }
-    foreach ($proj in $srcProjects) {
-        $srcPaths += (Convert-ToRepoPath -FullPath $proj.FullName -RepoRootPath $repoRoot)
-    }
-}
-$srcPaths = $srcPaths | Sort-Object -Unique
-
-$srcNotInSln = @()
-foreach ($path in $srcPaths) {
-    if (-not $slnProjectsSet.ContainsKey($path)) {
-        $srcNotInSln += $path
-    }
-}
-
-if (@($srcNotInSln).Count -gt 0) {
-    $exitCode = 1
-    $errors += "src projects missing from Excalibur.sln: $($srcNotInSln.Count)"
-    foreach ($p in ($srcNotInSln | Sort-Object)) {
-        Write-Host "  SRC NOT IN SLN: $p" -ForegroundColor Red
-    }
-}
-else {
-    Write-Host "  All src/**/*.csproj projects are included in Excalibur.sln" -ForegroundColor Green
-}
-
-# --- 7. Check framework ownership ---
-Write-Host "`n[7/7] Checking framework ownership metadata..." -ForegroundColor Yellow
-
-$hasOwnershipMetadata = (@($manifestProjects.Values | Where-Object { -not [string]::IsNullOrWhiteSpace($_.framework_owner) })).Count -gt 0
-if (-not $hasOwnershipMetadata) {
-    $governanceMatrixPath = Join-Path $repoRoot "eng/governance/framework-governance.json"
-    if (Test-Path $governanceMatrixPath) {
-        Write-Host "  framework_owner metadata not present in manifest; ownership governed by framework-governance.json" -ForegroundColor Green
-    }
-    else {
-        $warnings += "Manifest does not include framework_owner metadata; ownership check skipped"
-        Write-Host "  framework_owner metadata not present in manifest; skipping check" -ForegroundColor Yellow
-    }
-}
-else {
-    $missingOwner = @()
-    foreach ($path in $manifestProjects.Keys) {
-        $entry = $manifestProjects[$path]
-        if ($entry.classification -eq "Shipping" -and -not $entry.framework_owner) {
-            $missingOwner += $path
-        }
-    }
-
-    if (@($missingOwner).Count -gt 0) {
-        $warnings += "Shipping projects without framework_owner: $($missingOwner.Count)"
-        foreach ($p in ($missingOwner | Sort-Object)) {
-            Write-Host "  WARNING: $p (no framework_owner)" -ForegroundColor Yellow
-        }
-    }
-    else {
-        Write-Host "  All Shipping projects have framework_owner" -ForegroundColor Green
-    }
-}
-
-# --- Summary ---
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Validation Summary" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Manifest entries: $($manifestProjects.Count)"
-Write-Host "  Projects on disk (governed): $($diskPaths.Count)"
-Write-Host "  Projects in solution: $($slnProjectPaths.Count)"
-Write-Host "  Errors: $($errors.Count)" -ForegroundColor $(if ($errors.Count -gt 0) { "Red" } else { "Green" })
-Write-Host "  Warnings: $($warnings.Count)" -ForegroundColor $(if ($warnings.Count -gt 0) { "Yellow" } else { "Green" })
-
-if ($errors.Count -gt 0) {
-    Write-Host "`nERRORS:" -ForegroundColor Red
-    foreach ($e in $errors) {
-        Write-Host "  - $e" -ForegroundColor Red
-    }
-}
-
-if ($warnings.Count -gt 0) {
-    Write-Host "`nWARNINGS:" -ForegroundColor Yellow
-    foreach ($w in $warnings) {
-        Write-Host "  - $w" -ForegroundColor Yellow
-    }
-}
-
-if ($exitCode -eq 0) {
-    Write-Host "`nPASSED: Solution governance validation succeeded" -ForegroundColor Green
-}
-else {
-    Write-Host "`nFAILED: Fix errors above, then re-run: pwsh eng/validate-solution.ps1" -ForegroundColor Red
-}
-
-exit $exitCode

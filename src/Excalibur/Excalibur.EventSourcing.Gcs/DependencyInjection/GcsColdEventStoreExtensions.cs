@@ -71,6 +71,11 @@ public static class GcsColdEventStoreExtensions
 		// Configure options from builder state
 		_ = builder.Services.Configure<GcsColdEventStoreOptions>(opt =>
 		{
+			if (gcsBuilder.LayoutValue.HasValue)
+			{
+				opt.Layout = gcsBuilder.LayoutValue.Value;
+			}
+
 			if (gcsBuilder.BucketNameValue is not null)
 			{
 				opt.BucketName = gcsBuilder.BucketNameValue;
@@ -110,29 +115,44 @@ public static class GcsColdEventStoreExtensions
 
 			// Resolve or create StorageClient
 			var storageClient = sp.GetService<StorageClient>();
+			var ownsClient = storageClient is null;
 			if (storageClient is null)
 			{
+				GoogleCredential? credential = null;
 				if (gcsBuilder.CredentialsPathValue is not null)
 				{
-					var credential = GoogleCredential.FromFile(gcsBuilder.CredentialsPathValue);
-					storageClient = StorageClient.Create(credential);
+					credential = GoogleCredential.FromFile(gcsBuilder.CredentialsPathValue);
 				}
 				else if (gcsBuilder.CredentialsJsonValue is not null)
 				{
-					var credential = GoogleCredential.FromJson(gcsBuilder.CredentialsJsonValue);
-					storageClient = StorageClient.Create(credential);
+					credential = GoogleCredential.FromJson(gcsBuilder.CredentialsJsonValue);
 				}
-				else
+
+				storageClient = new GcsRawStorageClientBuilder
 				{
-					storageClient = StorageClient.Create();
-				}
+					Credential = credential?.CreateScoped(Google.Apis.Storage.v1.StorageService.Scope.DevstorageFullControl),
+				}.Build();
 			}
 
-			return new GcsColdEventStore(
-				storageClient,
-				options.BucketName!,
-				options.ObjectPrefix,
-				sp.GetRequiredService<ILogger<GcsColdEventStore>>());
+			try
+			{
+				return new GcsColdEventStore(
+					storageClient,
+					options.BucketName!,
+					options.ObjectPrefix,
+					sp.GetRequiredService<ILogger<GcsColdEventStore>>(),
+					options.Layout,
+					ownsClient);
+			}
+			catch
+			{
+				if (ownsClient)
+				{
+					storageClient.Dispose();
+				}
+
+				throw;
+			}
 		});
 	}
 

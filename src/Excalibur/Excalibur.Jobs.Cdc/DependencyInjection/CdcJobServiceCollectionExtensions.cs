@@ -31,7 +31,7 @@ public static class CdcJobServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// Call this once during startup, then schedule the job with
-	/// <see cref="CdcJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator, IConfiguration)"/>:
+	/// <see cref="CdcJob.ConfigureJob(Quartz.IQuartzBuilder, IConfiguration)"/>:
 	/// </para>
 	/// <code>
 	/// builder.Services.AddSqlServerCdcJob(builder.Configuration);

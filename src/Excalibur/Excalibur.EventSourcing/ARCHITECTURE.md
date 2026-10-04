@@ -1147,6 +1147,85 @@ and permanently lost — committed, durable, and below a mark that has already p
 downstream able to detect the omission. Making holes impossible removes the choice rather than answering
 it.
 
+### The full property set, because two of these existed nowhere
+
+**The intended safety and liveness properties are listed here.** Their mechanisms and evidence must
+be assessed separately; a dense numerical order alone does not prove every property. Any proposal
+to re-scope positions — per partition, per tenant or per stream bucket — must identify which
+guarantees remain global, how they are preserved and which require an explicitly different contract.
+
+Notation: `committed` is the set of positions of durably committed rows; `cp[s]` is subscription `s`'s
+checkpoint; `e1 -> e2` means `e1` happens-before `e2`.
+
+| | property | stated in falsifiable terms | status |
+|---|---|---|---|
+| **S1** | density | at every instant `committed` is a contiguous prefix `1..k` | transactional allocation, ordered commit visibility and retention of committed positions |
+| **S2** | uniqueness | no position hosts two event rows | **enforced by the engine**, not by the allocation lock: `PRIMARY KEY CLUSTERED (Position)` |
+| **S3** | no rewind | `cp[s]` never decreases | enforced within a checkpoint lifetime by nonnegative/nondecreasing argument validation plus atomic compare-and-set; external writes or restoration are outside this guarantee |
+| **S4** | no silent skip | no committed event remains undelivered below `cp[s]` | the correction above is precisely about this; a contiguous scan is required, a high-water mark is not sufficient |
+| **S5** | replay honesty | an event delivered with `IsReplay = false` committed **after** the subscription started | **NEWLY STATED.** Relied upon by `AsyncProjectionProcessingHost.cs`, which captures a head position at start and classifies against it |
+| **S6** | causal delivery | if `e1 -> e2` then every projection applies `e1` before `e2` | **NEWLY STATED.** Rests on the allocation being SERIALISED to commit, not on density — see below |
+| **L1** | allocation liveness | every allocated block is eventually committed or returned, and the counter lock is eventually released | the allocation is inside the appending transaction, so it ends when that transaction does |
+| **L2** | delivery liveness | every committed event is eventually delivered to every subscription | requires the contiguous scan to make progress |
+
+**S6 is the one to read twice, because the obvious test for it does not work.** A projection need not
+*compare* two positions to be harmed by a delivery order that violates causality — it only has to fold
+events in the order delivered. So an audit that enumerates consumers and finds none of them comparing
+positions across aggregates has **not** established that S6 is unused; it has established that no
+consumer would *detect* its loss. Those are different findings, and the second is worse: it means a
+violation would corrupt derived state silently, and no test in this repository would go red.
+
+**Consequently S6 is a consumer-visible promise even though no consumer names it.** It is the property
+that makes "fold the global stream" a correct way to build a read model across aggregates at all.
+
+**S6 rests on the mutual exclusion, and that attribution is load-bearing.** A total order over positions
+does NOT by itself give causal delivery, and the counterexample is short: writer B reserves position 1;
+writer A commits `e1` at position 2; B observes `e1`, derives `e2` from it, and commits `e2` into its
+reserved position 1. Ascending consumption then applies `e2` before `e1`. Positions are totally ordered
+and dense, and S6 is violated.
+
+**That interleaving is unreachable here, and the reason is the row lock.** The allocation is serialised to
+COMMIT, so no writer can allocate while another holds an uncommitted block — allocation order therefore
+equals commit order, and a position cannot be reserved before an event it causally follows. So the three
+guarantees have three different sources. The causal argument assumes observations of committed
+events, causal ordering within each append batch, and projection application in the supplied order.
+The counter orders transactions; it cannot establish those application obligations by itself:
+
+```
+density        <- transactional allocation plus ordered commit visibility and retained positions
+uniqueness     <- PRIMARY KEY CLUSTERED (Position), independently of any lock
+causal delivery <- transaction ordering plus committed observations, ordered batches and ordered application
+```
+
+**The current counter's serialization supplies commit ordering used by the S6 argument.** Any design
+that removes it owes a replacement argument for causal delivery rather than only for density.
+This does not establish that every correct dense design needs one durability operation per append:
+a coordinator can commit several appends as one dense batch, with different acknowledgement,
+conflict and failure semantics that require their own review and measurement.
+
+**S6 is UNVERIFIED, and more precisely so than the paragraph above admits.** It is already stated here
+that no test would go red on a violation. The stronger and more useful statement is that **the premise the
+unreachability argument rests on has no engine-level arm either, on any provider.** The arms that read the
+global stream in position order assert that ordering by position works; none asserts that position order
+agrees with *causal* order, which is the property. And an arm whose only predicate is a count of positions
+cannot establish it even in principle, because no count observes order. So S6 rests on an argument from the
+lock's semantics, and the argument is sound as far as it goes — but nothing here measures it. Treat it as a
+reasoned expectation rather than a verified guarantee, and do not read a green suite as covering it.
+
+**S5 and S6 are obligations a sparse or partitioned design must establish separately**; sparsity alone
+neither proves nor disproves them. A published watermark establishing "everything at or below W is resolved" is *not* sufficient on its
+own: it does not give S4 without a read protocol that captures a bound whose committed contents are already
+visible (a reader holding an older snapshot can deliver position 2, checkpoint it, and skip a position 1
+that commits meanwhile); it does not give S5 if W is used as the replay boundary, because an event that
+committed before a subscription started can sit below a watermark that only advances afterwards — the
+replay boundary must be a freshly read committed head, which is a different quantity from W; and it does
+not give S6 without a separate guarantee that causal order implies position order. It also needs explicit
+liveness obligations, because no safety predicate makes W advance: an unresolved reservation must
+eventually be committed or *fenced*, and a timeout without fencing is not that protocol.
+
+**None of that makes a sparse design wrong — it makes it a design with its own proof obligations**, and
+they are enumerated here so that anyone proposing one knows what they have taken on.
+
 ## How it is achieved (the seam)
 
 Positions are **not** assigned by an identity column or a sequence. Every provider allocates a contiguous
@@ -1172,14 +1251,35 @@ decision rather than an omission.** Do not "fix" it for consistency without meas
   — a large rewrite to recover one round trip, and unmeasured. Oracle still benefits from the other
   window-narrowing change: outbox staging runs before the allocation.
 
-Two properties of that row do the work, and both belong to the *transaction* rather than to the counter:
-its exclusive lock is released only at COMMIT, so no second append can allocate while one is in flight;
-and its increment **rolls back with the transaction**, so an aborted append consumes nothing.
+Two properties of that row do the work, both belong to the *transaction* rather than to the counter, and
+**they buy different guarantees — which matters, because conflating them misprices every proposal to
+change this seam:**
 
-Neither the relative ordering of two independent counters nor the lifetime of any transaction enters the
-correctness argument, and that is deliberate. An identity column and a sequence each hand their number out
-at INSERT and let it escape the transaction; on Oracle a sequence additionally defaults to `CACHE 20`, so a
-pooled session can issue a *low* position long after another session committed a *higher* one.
+| property | what it buys |
+|---|---|
+| the increment **rolls back with the transaction**, so an aborted append consumes nothing | Prevents abandoned allocations from burning positions in the current protocol. Density also needs ordered commit visibility and retained positions. |
+| its exclusive lock is released only at COMMIT, so no second append can allocate while one is in flight | Orders allocation and commit visibility in the current protocol. **S2, uniqueness**, is independently enforced by `PRIMARY KEY CLUSTERED (Position)`. |
+
+**Rollback alone does not establish density.** If independent writers could allocate 1 and 2, and
+writer 2 committed while writer 1 remained unresolved, the committed set would be `{2}`, not a prefix.
+An eventual rollback of writer 1 does not repair the violated state predicate. In the current design,
+the counter transaction orders those commits, rolls back abandoned allocation and retains committed
+positions. Alternative protocols must account for all three obligations.
+
+**Do not read that as "the counter's exclusion can be removed."** Concurrent updates of the same
+transactional counter cannot independently commit conflicting allocations. The `ROWLOCK` hint is
+not the correctness mechanism. The shipped design serializes each append's allocation-to-commit
+interval; changing an isolation hint is not a replacement protocol. However, this is a property of
+this implementation, not a proof that density requires a separate log flush per append. Coordinated
+multi-append transactions can retain a dense prefix while sharing durability work. Their batching
+latency, acknowledgement, expected-version, retry and failure-coupling costs must be included in any
+comparison. The [watermark spike](../../../management/specs/arb-2026-10-02-watermark-spike.md)
+records these alternatives without changing the supported contract.
+
+The current proof uses one counter's transactional ordering. It does not establish a global order
+between independent counters. Transaction completion is necessary for liveness, and a stalled
+counter owner stalls other allocations. Sequence-based alternatives must account for allocations
+that survive rollback and for any cached values that can be issued after higher positions.
 
 Allocation is the **last** step before the rows are written. Correctness does not depend on that; sustained
 append throughput does, because every other appender blocks on the counter row until this transaction
@@ -1189,8 +1289,11 @@ commits.
 
 Archival **tombstones**; it does not delete. The payload moves to cold storage and the row stays, carrying
 its version, its position and an `ArchivedAt` stamp (`Excalibur.EventSourcing.SqlServer/Requests/TombstoneArchivedEventsRequest.cs:72`,
-and identically in `Excalibur.EventSourcing.Postgres`). The tiered
-decorator restores archived payloads on read (`TieredEventStoreDecorator.cs:95`).
+and identically in `Excalibur.EventSourcing.Postgres`). The tiered aggregate-store
+decorator restores archived payloads on `IEventStore.LoadAsync` reads (`TieredEventStoreDecorator.cs:95`).
+That does not establish restoration through the separately registered `IGlobalStreamQuery`; global
+rebuilds must verify archived payload retrieval on their actual read path rather than treating every
+null payload as erased. Preserving positions alone proves neither payload availability nor a complete fold.
 
 This is what keeps the guarantee true for the whole lifecycle rather than only until the first archive run.
 Deleting the rows would leave archived events perfectly readable per-aggregate and **invisible to every
@@ -1204,12 +1307,42 @@ missing" will resurrect data a data-subject request removed.
 
 | Property | Arm |
 |---|---|
-| An aborted append burns no position (SQL Server, real engine) | `SqlServerEventStoreGaplessPositionShould` |
+| An aborted append burns no position — **UNVERIFIED on SQL Server**, see below | `SqlServerEventStoreGaplessPositionShould` **does not establish this** |
 | Same on PostgreSQL, where sequence advancement is *documented* as non-transactional | `PostgresGlobalStreamPositionShould` |
 | Same on Oracle, plus positional parameter binding and the OUT-bind allocation | `OracleGlobalStreamPositionShould` |
 | Same on SQLite (embedded, so inherently non-skipped), plus counter seeding on a populated database | `SqliteGlobalStreamPositionShould` |
 | Every appended event carries a distinct ascending position; paging never repeats or skips | `InMemoryGlobalStreamQueryShould` |
 | Archived payloads are restored and erased ones are not | `TieredEventStoreDecoratorShould` |
+
+**The SQL Server row is UNVERIFIED and the arm named beside it cannot establish the property.** Stated
+here rather than quietly corrected, because this document is the guarantee contract and an evidence claim
+it cannot support is worse than an admitted gap: a reader who trusts the row stops looking.
+
+Both arms in that class abort an append by throwing from the outbox-staging callback. That callback runs
+*before* the allocation, so the aborting append never reaches the allocator and never holds a position to
+abandon. "An aborted append must not consume a position" is then satisfied by an append that never asked
+for one, and the arms stay green even under the design they were written to refute — an IDENTITY column,
+where the first arm still sees `first + 1` and the second still sees a span equal to its row count,
+because an append that issues no INSERT consumes no identity value either.
+
+The staging call was moved above the allocation deliberately, and that reorder is correct: it takes one
+round trip per integration event out of the window during which every appender framework-wide is blocked
+on the counter row. What the reorder also did, silently, was remove the only post-allocation abort this
+store exposes through its public seam.
+
+**The property itself is not in doubt, and the distinction matters.** The three sibling providers verify
+it against their real engines, each using a same-version race in which the loser passes the version
+pre-check and fails at INSERT *after* allocating. Density on SQL Server rests on the same mechanism those
+arms exercise — an `UPDATE` to the counter inside the appending transaction — so this is a missing
+measurement, not a known defect. It is nonetheless missing, and on this engine it is the one most
+consumers will run.
+
+**Why it is awkward to fix, so the next person does not assume it was laziness.** The counter increment
+rolls back with its transaction, which is precisely the guarantee; so after the fact an abandoned
+allocation is indistinguishable from one that never happened. And the store reports both a pre-check
+conflict and an INSERT-collision conflict as `ConcurrencyConflict`, so a caller cannot tell which it got.
+An arm for this must therefore force an abort at a point it can prove is after the allocation, and assert
+that it reached that state — otherwise the next reorder makes it vacuous again without failing.
 
 ## Consumer obligations
 
@@ -1219,32 +1352,67 @@ missing" will resurrect data a data-subject request removed.
   row — the schema's `CHECK` constraint makes the latter unrepresentable on purpose.
 - **Do not DELETE rows from the events table.** Positions form a contiguous prefix because nothing removes
   them; a retention job that deletes rows reintroduces exactly the hole this design removes.
-- **Expect appends to serialize, and size for it.** Concurrent appends contend on the counter row, which
-  is the intrinsic price of a single global total order over concurrent writers rather than an artifact
-  of this implementation — an identity column only appears to avoid the cost because it does not, in
-  fact, produce a total order.
+- **Keep append transactions short.** The current counter update excludes conflicting allocation
+  until the transaction finishes, so a
+  single slow append delays every other appender in the process — the cost is paid by writers that did
+  nothing wrong.
 
-  Measured, rather than estimated, by `AppendAllocationStrategyBenchmarks`, which runs the same append
-  against tables differing ONLY in how the position is produced:
+  Sparse alternatives also need delayed-writer tests, but their contention mechanism must be
+  measured rather than inferred. Ascending-key page contention does not establish that a writer
+  holds a page latch until commit. Distinguish transaction locks, short-lived physical-operation
+  latches, durability waits and a subscriber frontier blocked behind unresolved work. No slowdown
+  ratio or equivalence between these mechanisms is asserted here without reproducible evidence.
 
-  | concurrent writers | vs an identity column |
-  |---|---|
-  | 8 | **3.9x** slower (±0.4) |
-  | 32 | **4.9x** slower (±0.5) |
+  Concretely: no remote call, no user-interactive step, and nothing of unbounded duration inside an
+  append. If you use the atomic append-plus-outbox overload, note that your staging callback runs *inside*
+  the append transaction — deliberately, so the events and the outbox rows commit together — but it runs
+  **before** the position is allocated, so a slow callback delays its own append and holds its own outbox
+  rows without holding the global counter row. That ordering is why it is safe to stage there at all; it
+  is not a licence for the callback to be slow.
 
-  **The cost RISES with concurrency**, which is the shape a serialization bottleneck has: the counter
-  row's lock is held to COMMIT, so appends proceed one commit at a time while an identity column lets the
-  database group-commit them. In the same run the identity baseline absorbed 32 concurrent appends in
-  28 ms; this store took 138 ms.
+- **Expect the current append implementation to serialize its counter interval, and size for it.**
+  Concurrent appends contend on that row. An identity column supplies a numerical total order, but
+  that order alone supplies neither commit order nor a safe subscriber frontier. Replacing the
+  counter requires a complete read, recovery and causal-order protocol, not just another allocator.
+
+  The counter interval can limit scaling as concurrency rises. The following is a simplified
+  capacity model for one append per counter transaction, not a measured throughput law or a
+  guarantee that a sparse replacement scales linearly:
+
+  ```
+  current counter design: append rate bounded by serialized allocation-to-commit service time
+  sparse candidate:       possible durability overlap, subject to its full protocol and engine costs
+  coordinated batches:   several appends per transaction, subject to batching and conflict costs
+  ```
+
+  **This document deliberately quotes no ratio and no appends/sec figure.** It used to carry a table of
+  slowdowns labelled "measured, rather than estimated"; those numbers came from a harness whose own
+  documentation says not to quote them, and they have since been withdrawn. What was wrong with them is
+  instructive: the arms were compared across a time gap on storage whose commit latency drifted by more
+  than a factor of two within half an hour, and outlier trimming had been applied unequally between arms.
+  A later instrument that interleaves the arms and gates on between-run agreement has not yet produced a
+  reproducible figure on developer hardware.
+
+  **Separate uncontended cost from concurrency limits.** Historical developer-machine experiments
+  could not reliably distinguish the uncontended allocation overhead from storage variance. That
+  does not prove that allocation is free, that commit dominates every deployment, or that all dense
+  protocols have the same cost. Measure the complete protocol, including subscriber visibility and
+  recovery, against the deployment's durability settings and workload.
+
+  **To size a deployment, measure the actual append path** under representative load. Isolated
+  single-row commit latency is a diagnostic input, not a sufficient capacity estimate for batched
+  events, outbox work, retries, connection management or subscriber processing.
 
   Two things reduce it, and both are the same idea — **narrow the window the lock is held across**, since
   work inside it is paid by every blocked appender rather than only by the one holding the lock:
 
   - The allocation is issued **in the same command as the first insert** rather than as a round trip of
-    its own. Measured separately: 5.2x → 3.9x at 8 writers, 6.8x → 4.9x at 32.
+    its own. The single-command form sustained measurably higher throughput than the two-round-trip form
+    in every cell of every run, which is the one arm-to-arm comparison that has reproduced; no ratio is
+    quoted because the harness's between-run agreement gate has not yet passed. SQL Server and Postgres
+    both ship the single-command form.
   - Outbox staging, which is one round trip per integration event, runs **before** the allocation rather
-    than after. Measured separately: an append emitting three integration events is **2x faster** under
-    concurrency (0.51x at 8 writers, 0.49x at 32).
+    than after, so an append carrying integration events holds the lock for fewer round trips.
 
   A multi-event append also allocates its whole block in ONE counter update, so the allocation cost
   amortizes across the batch rather than being paid per event.
@@ -1277,7 +1445,9 @@ missing" will resurrect data a data-subject request removed.
   those providers has no tiered storage, so the archival half of this document does not apply.
 - **A subscriber checkpoint is durable only if one is registered.** The advance is a compare-and-set —
   the caller states the position it believes is current and the store answers `Advanced` or `Superseded`,
-  so the loser of a race is told rather than silently overwriting the winner. SQL Server, PostgreSQL,
+  so a comparison mismatch is reported rather than silently overwriting another value. Negative or
+  descending proposals throw before storage access. Equal-position proposals still compare atomically;
+  acceptance does not grant ownership or fence projection effects. SQL Server, PostgreSQL,
   Oracle and SQLite each implement it, and each is bound by the shipped checkpoint conformance kit
   against a real engine. **Registering an event store does not register a checkpoint store**: absent an
   explicit registration the checkpoint is held in memory, so it is lost on restart and every projection
@@ -1526,10 +1696,27 @@ Stated per rung so nothing here reads as more than it is:
   schedule that still breaks and prints its seed. It is non-vacuous: changing the already-folded
   filter from `<=` to `<` reddens both arms and shrinks to a two-batch counterexample. **This covers
   ONE guarantee of the seam, not the seam**, so the seam's R3 remains unmet and is not claimed.
-- **R4 — UNVERIFIED, and not dischargeable in this repository today.** There is no model checker and
-  no model. The properties that would justify one are temporal and concurrent — exactly TLA+'s
-  subject — and the interleavings that matter here are the ones a generated schedule samples rather
-  than searches. Nothing in this document should be read as a proof.
+- **R4 — UNVERIFIED, and the reason is ADEQUACY rather than absence.** A TLA+ model of the global
+  position exists, is checked, and passes: the checker runs, a deliberately-wrong self-test arm is
+  confirmed to go red, and three refuted designs each fail on the invariant they are meant to fail on.
+  So the implication it establishes — *given mutual exclusion on the allocation, advancing the counter
+  only at commit yields a contiguous prefix* — is machine-checked and holds.
+
+  **What it does not do is exercise concurrency, and the model says so itself.** Mutual exclusion is
+  GRANTED to it as a constant rather than derived from modelled lock state, so additional writers
+  contribute name permutations instead of depth, and the checker's own adequacy probe reports an
+  unchanged search diameter at one writer and at three. **The premise does the work, and the premise
+  is the part the implementation could get wrong.** That premise is a property of the database engine,
+  not of this design, so no model can discharge it — it needs a real-engine concurrency arm, and the
+  one that exists for this engine does not establish it (see the density note above).
+
+  Nothing in this document should be read as a proof. R4 stays unmet, and the honest statement of why
+  is that the model is sound and narrow — not that there is no model.
+
+  *(Superseded wording, quoted so a reader who absorbed it recognises it: "There is no model checker
+  and no model." That was true when written and became false without anyone noticing, which is the
+  hazard of stating a tooling fact in a document nobody re-measures. Prefer running the checker over
+  reading any claim about it, including this one.)*
 
 **The boundary that applies to all of it:** the generated suite draws from the state space; it does not
 search it. A schedule shape the generator cannot produce is a defect it cannot find, and that limit is

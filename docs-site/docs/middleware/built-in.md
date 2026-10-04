@@ -742,6 +742,26 @@ services.AddDispatch(dispatch =>
 
 ## Background Execution Middleware
 
+### Ownership at Acceptance
+
+In-process background acceptance is not durable completion. The worker receives its own context and,
+when an `IServiceScopeFactory` is available, a newly created asynchronously disposed service scope.
+The caller's execution context does not flow to the worker. Message identity, correlation/causation,
+supported identity/routing/processing features, and tenant identity are copied explicitly.
+
+Metadata supports null, strings, primitive numeric/boolean/character values, `Guid`, date/time values,
+`TimeSpan`, and copied `ClaimsPrincipal` identities, claims and actor delegation (up to 32 identity levels).
+Mutable identity bootstrap metadata is refused; null and string bootstrap values are supported. Other metadata objects and features
+are rejected before acceptance. Active ambient transactions and transaction features cannot be detached.
+An enabled inbox also rejects `IExecuteInBackground` before claiming the message: acceptance cannot
+safely mark an inbox message processed before its handler finishes. Use an awaited dispatch or a durable
+outbox handoff for those workflows.
+
+The message object itself is shared, not deep-cloned. Treat it as immutable after acceptance. Scoped
+services, custom mutable metadata and transaction objects must not be carried in the message payload.
+A failed downstream result follows the configured background failure policy, just like a thrown exception.
+
+
 Offloads message processing to a background thread, freeing the caller:
 
 ```csharp

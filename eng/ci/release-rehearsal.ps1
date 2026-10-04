@@ -136,7 +136,7 @@ Run-Step 'Pack (local feed)' {
     if (-not (Test-Path $packScript)) {
         throw "pack-local.ps1 not found at: $packScript"
     }
-    $packArgs = @()
+    $packArgs = @('-Clean')
     if ($NoBuild) { $packArgs += '-NoBuild' }
     & $packScript @packArgs
     if ($LASTEXITCODE -ne 0) {
@@ -150,7 +150,7 @@ Run-Step 'Validate package composition' {
     if (-not (Test-Path $compScript)) {
         throw "validate-package-composition.ps1 not found at: $compScript"
     }
-    & $compScript -SkipBuild
+    & $compScript
     if ($LASTEXITCODE -ne 0) {
         throw "validate-package-composition.ps1 failed (exit code $LASTEXITCODE)"
     }

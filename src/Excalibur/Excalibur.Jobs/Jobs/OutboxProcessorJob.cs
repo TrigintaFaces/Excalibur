@@ -19,6 +19,7 @@ public sealed class OutboxProcessorJob(
 	ILogger<OutboxProcessorJob> logger)
 	: IBackgroundJob
 {
+	private static readonly string DispatcherId = $"job-{Environment.MachineName}-{Guid.NewGuid():N}";
 	private readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 	private readonly ILogger<OutboxProcessorJob> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -27,36 +28,24 @@ public sealed class OutboxProcessorJob(
 	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but IBackgroundJob.ExecuteAsync has 13 implementations of which only this one touches the outbox, so annotating the interface would mislabel twelve unrelated jobs. Tracked for a source-generated outbox serialization seam.")]
 	public async Task ExecuteAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
 		OutboxProcessorJobLog.JobStarting(_logger);
-
-		await using var scope = _scopeFactory.CreateAsyncScope();
-		var outbox = scope.ServiceProvider.GetService<IOutboxDispatcher>();
-
-		if (outbox == null)
-		{
-			OutboxProcessorJobLog.OutboxMissing(_logger);
-			return;
-		}
-
-		// Fail-closed leadership gate. When an IProcessingGate is registered (e.g. via WithLeaderElection),
-		// only the instance the gate authorizes runs the dispatch cycle; the ILeaderProcessingGate impl
-		// fail-closes on a null leadership snapshot, so a lost/absent tenure never dispatches. Absent a gate
-		// (single-instance / no leader election) the job dispatches unconditionally, exactly as before.
-		var gate = scope.ServiceProvider.GetService<IProcessingGate>();
-		if (gate is not null && !gate.ShouldProcess)
-		{
-			OutboxProcessorJobLog.SkippedNotLeader(_logger);
-			return;
-		}
-
 		try
 		{
-			// Generate a unique dispatcher ID for this job instance
-			var dispatcherId = $"job-{Environment.MachineName}-{Guid.NewGuid():N}";
-
-			// Run the outbox dispatch process
-			var processedCount = await outbox.RunOutboxDispatchAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
-
+			int processedCount;
+			await using (var scope = _scopeFactory.CreateAsyncScope())
+			{
+				var gate = scope.ServiceProvider.GetService<IProcessingGate>();
+				if (gate is not null && !gate.ShouldProcess)
+				{
+					OutboxProcessorJobLog.SkippedNotLeader(_logger);
+					return;
+				}
+				var outbox = scope.ServiceProvider.GetRequiredService<IOutboxDispatcher>();
+				processedCount = await outbox.RunOutboxDispatchAsync(
+					DispatcherId, cancellationToken).ConfigureAwait(false);
+			}
+			cancellationToken.ThrowIfCancellationRequested();
 			if (processedCount > 0)
 			{
 				OutboxProcessorJobLog.JobCompleted(_logger, processedCount);

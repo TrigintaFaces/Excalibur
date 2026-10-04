@@ -25,7 +25,8 @@ internal sealed class DispatchPipeline(
 	/// <summary>
 	/// Strategy for determining middleware applicability.
 	/// </summary>
-	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy = applicabilityStrategy;
+	private readonly IMiddlewareApplicabilityStrategy _applicabilityStrategy = applicabilityStrategy ?? new DefaultMiddlewareApplicabilityStrategy();
+	private readonly ConcurrentDictionary<MessageKinds, IDispatchMiddleware[]> _customFilteredMiddlewareCache = new();
 
 	/// <summary>
 	/// Cache filtered middleware arrays per message type to avoid repeated filtering.
@@ -58,7 +59,10 @@ internal sealed class DispatchPipeline(
 		}
 
 		// Get filtered middleware for this message type (cached for performance)
-		var applicableMiddleware = GetApplicableMiddleware(message.GetType());
+		var applicableMiddleware = _applicabilityStrategy is DefaultMiddlewareApplicabilityStrategy
+			? GetApplicableMiddleware(message.GetType())
+			: _customFilteredMiddlewareCache.GetOrAdd(_applicabilityStrategy.DetermineMessageKinds(message),
+				static (kinds, self) => FilterMiddlewareByApplicability(self._ordered, self._applicabilityStrategy, kinds), this);
 
 		// Optimize for no applicable middleware
 		if (applicableMiddleware.Length == 0)
@@ -66,7 +70,7 @@ internal sealed class DispatchPipeline(
 			return nextDelegate(message, context, cancellationToken);
 		}
 
-		// Use struct-based state machine to avoid closure allocations
+		// Each continuation receives its own state copy, including retry branches.
 		var state = new PipelineState
 		{
 			Middlewares = applicableMiddleware,
@@ -77,7 +81,7 @@ internal sealed class DispatchPipeline(
 			Index = 0,
 		};
 
-		return ExecuteNextAsync(state, cancellationToken);
+		return ExecuteNextAsync(state);
 	}
 
 	/// <summary>
@@ -87,16 +91,16 @@ internal sealed class DispatchPipeline(
 	/// This method is primarily intended for testing scenarios where the cache needs to be reset. In production, the cache improves
 	/// performance by avoiding repeated filtering operations.
 	/// </remarks>
-	public void ClearCache() => _filteredMiddlewareCache.Clear();
+	public void ClearCache()
+	{
+		_filteredMiddlewareCache.Clear();
+		_customFilteredMiddlewareCache.Clear();
+	}
 
 	/// <summary>
 	/// Executes the next middleware in the pipeline using a state machine approach.
 	/// </summary>
-	[SuppressMessage("Style", "RCS1163:Unused parameter",
-			Justification = "CancellationToken parameter required for signature compatibility with state machine pattern")]
-	[SuppressMessage("Style", "IDE0060:Remove unused parameter",
-			Justification = "CancellationToken parameter required for signature compatibility with state machine pattern")]
-	private static async ValueTask<IMessageResult> ExecuteNextAsync(PipelineState state, CancellationToken cancellationToken)
+	private static async ValueTask<IMessageResult> ExecuteNextAsync(PipelineState state)
 	{
 		// Check if we've reached the end of the pipeline
 		if (state.Index >= state.Middlewares.Length)
@@ -114,9 +118,11 @@ internal sealed class DispatchPipeline(
 			state.Context,
 			(msg, ctx, ct) =>
 			{
-				_ = msg;
-				_ = ctx;
-				return ExecuteNextAsync(state, ct);
+				var nextState = state;
+				nextState.Message = msg;
+				nextState.Context = ctx;
+				nextState.CancellationToken = ct;
+				return ExecuteNextAsync(nextState);
 			},
 			state.CancellationToken).ConfigureAwait(false);
 	}
@@ -158,7 +164,7 @@ internal sealed class DispatchPipeline(
 			messageType,
 			static (key, self) =>
 			{
-				if (self._applicabilityStrategy is null)
+				if (self._ordered.All(static middleware => middleware.ApplicableMessageKinds == MessageKinds.All))
 				{
 					return self._ordered;
 				}
@@ -169,7 +175,7 @@ internal sealed class DispatchPipeline(
 			this);
 
 	/// <summary>
-	/// State structure for pipeline execution to avoid closure allocations.
+	/// Per-continuation state. The continuation captures this value; it is not allocation-free.
 	/// </summary>
 	private struct PipelineState
 	{

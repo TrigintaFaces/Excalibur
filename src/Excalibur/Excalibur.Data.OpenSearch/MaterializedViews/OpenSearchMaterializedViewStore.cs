@@ -299,7 +299,7 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask SavePositionAsync(
+	public async ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
 		string viewName,
 		long position,
 		CancellationToken cancellationToken)
@@ -309,49 +309,61 @@ public sealed partial class OpenSearchMaterializedViewStore : IMaterializedViewS
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var now = DateTimeOffset.UtcNow;
-
-		var document = new MaterializedViewPositionDocument
-		{
-			TenantId = CurrentTenantPartition.TenantId,
-			ViewName = viewName,
-			Position = position,
-			CreatedAt = now,
-			UpdatedAt = now
-		};
-
-		// Monotonic advance, enforced by the store rather than by the caller. The checkpoint is written under
-		// external versioning: OpenSearch accepts the write only when the supplied version is greater than or
-		// equal to the stored one, and answers 409 otherwise. A delayed or retried write carrying an older
-		// position is therefore rejected instead of rewinding the checkpoint and replaying applied events.
+		// The monotonic comparison happens in a Painless script, NOT in the document version. The earlier
+		// form used the position itself as an external version with ExternalGte, which refuses a lower
+		// value -- and a projection checkpoint must be resettable, so that was the wrong mechanism. It also
+		// did not survive a delete: a delete increments the version and keeps a tombstone, so a low write
+		// stayed refused even after the document was gone. Measured on real OpenSearch 2.16 and real
+		// Elasticsearch alike.
 		//
-		// The version is the position offset by one because external versions must be positive, and position
-		// zero is a legitimate starting checkpoint. Versioning is index metadata, so this does not depend on
-		// how the document's fields happen to be serialized.
-		var response = await _client!.IndexAsync(
-			document,
-			idx => idx
-				.Index(_options.PositionsIndexName)
-				.Id(CreatePositionDocumentId(viewName))
-				.Version(position + 1)
-				.VersionType(VersionType.ExternalGte)
-				.Refresh(GetRefresh()),
+		// Painless reports `noop` when the script declines to change the document, which is exactly a
+		// refused advance -- so the response carries the outcome and no second round trip is needed.
+		var outcome = await OpenSearchViewPositionWriter.AdvanceAsync(
+			_client!,
+			_options.PositionsIndexName,
+			CreatePositionDocumentId(viewName),
+			viewName,
+			CurrentTenantPartition.TenantId,
+			position,
+			GetRefresh(),
 			cancellationToken).ConfigureAwait(false);
 
-		if (!response.IsValid)
+		if (outcome == ViewPositionSaveOutcome.RefusedAsStale)
 		{
-			// A stale write losing the race is the guard working, not a failure: a higher checkpoint is
-			// already durable, and re-applying this one would move it backwards.
-			if (response.ApiCall?.HttpStatusCode == 409)
-			{
-				return;
-			}
-
-			throw new InvalidOperationException(
-				$"Failed to save position for {viewName}: {response.DebugInformation}");
+			return ViewPositionSaveOutcome.RefusedAsStale;
 		}
 
 		LogPositionSaved(viewName, position);
+		return ViewPositionSaveOutcome.Advanced;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Deleting the position document is the reset, and it is the only form that works here: an indexing
+		// write cannot lower an external version, which is precisely what the monotonic guard above is for.
+		// Absence is already how GetPositionAsync reports "no checkpoint", so nothing new is encoded.
+		// Deleting the position document is the reset. It is unconditional by contract, and since the
+		// monotonic comparison now lives in a script rather than in the document version, a subsequent LOW
+		// advance is accepted immediately -- verified against real OpenSearch 2.16. Absence is already how
+		// GetPositionAsync reports "no checkpoint", so nothing new is encoded.
+		var response = await _client!.DeleteAsync<MaterializedViewPositionDocument>(
+			CreatePositionDocumentId(viewName),
+			d => d.Index(_options.PositionsIndexName),
+			cancellationToken).ConfigureAwait(false);
+
+		// NotFound is success: a view with no checkpoint is already in the requested state. Anything else
+		// is a real failure and must not be swallowed -- that is the defect this member exists to fix.
+		if (!response.IsValid && response.ApiCall?.HttpStatusCode != 404)
+		{
+			throw new InvalidOperationException(
+				$"Failed to reset position for {viewName}: {response.DebugInformation}");
+		}
 	}
 
 	/// <inheritdoc/>

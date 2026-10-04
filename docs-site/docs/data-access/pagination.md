@@ -76,14 +76,20 @@ return new PagedResult<OrderDto>(items, pageNumber: 2, pageSize: 25, totalItems:
 
 ```csharp
 [HttpGet]
-public async Task<PagedResult<OrderDto>> GetOrders(
+public async Task<ActionResult<PagedResult<OrderDto>>> GetOrders(
+    CancellationToken cancellationToken,
     [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 25,
-    CancellationToken cancellationToken = default)
+    [FromQuery] int pageSize = 25)
 {
-    return await dispatcher.DispatchAsync(
+    var result = await dispatcher.DispatchAsync<GetOrdersQuery, PagedResult<OrderDto>>(
         new GetOrdersQuery(page, pageSize),
         cancellationToken);
+    if (!result.Succeeded || result.ReturnValue is null)
+    {
+        return Problem("The order query could not be completed.");
+    }
+
+    return result.ReturnValue;
 }
 ```
 
@@ -200,11 +206,11 @@ using Excalibur.EventSourcing;
 
 [HttpGet("orders")]
 public async Task<CursorPagedResult<OrderSearchProjection>> SearchOrders(
+    CancellationToken cancellationToken,
     [FromQuery] string? query,
     [FromQuery] int pageSize = 20,
     [FromQuery] string? cursor = null,
-    [FromQuery] PageNavigation navigation = PageNavigation.Next,
-    CancellationToken cancellationToken = default)
+    [FromQuery] PageNavigation navigation = PageNavigation.Next)
 {
     // 1. Decode cursor (null on first request). First/Last navigate without a cursor.
     var searchAfter = ElasticSearchCursorHelper.DecodeCursor(cursor);

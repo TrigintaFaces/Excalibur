@@ -5,6 +5,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 
@@ -12,21 +13,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Benchmarks.Aot;
 
-/// <summary>
-/// AOT vs JIT pipeline orchestration benchmarks.
-/// </summary>
+/// <summary>Managed-process comparison of expression and container handler activation.</summary>
 /// <remarks>
-/// <para>
-/// Compares full pipeline dispatch (middleware chain + handler activation + invocation)
-/// through both the JIT path (expression-compiled delegates) and AOT path
-/// (service-provider resolution). Measures end-to-end pipeline overhead.
-/// </para>
-/// <para>
-/// Phase D1 requirement R-D1: AOT-specific benchmarks for pipeline orchestration.
-/// Target: AOT path pipeline throughput >= 90% of JIT path.
-/// </para>
+/// Both arms run under HostProcess with the same runtime-selected handler invoker. The second arm
+/// selects AotHandlerActivator, but this is not a Native AOT versus JIT runtime comparison.
+/// Warm-up validates actual handler/context execution before timing; owned contexts are returned.
+/// Publish and execute a native consumer separately to establish Native AOT compatibility.
 /// </remarks>
-[BenchmarkCategory("AOT")]
+[BenchmarkCategory("ManagedActivatorComparison")]
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class AotPathPipelineBenchmarks
@@ -60,6 +54,13 @@ public class AotPathPipelineBenchmarks
         _aotDispatcher = _aotProvider.GetRequiredService<IDispatcher>();
         _aotContextFactory = _aotProvider.GetRequiredService<IMessageContextFactory>();
 
+        if (_jitProvider.GetRequiredService<IHandlerActivator>() is not HandlerActivator
+            || _aotProvider.GetRequiredService<IHandlerActivator>() is not AotHandlerActivator
+            || _jitProvider.GetRequiredService<IHandlerInvoker>().GetType() != _aotProvider.GetRequiredService<IHandlerInvoker>().GetType())
+        {
+            throw new InvalidOperationException("Activator comparison selected unexpected activation or invocation services.");
+        }
+
         // Warm up both paths
         WarmUp(_jitDispatcher, _jitContextFactory).GetAwaiter().GetResult();
         WarmUp(_aotDispatcher, _aotContextFactory).GetAwaiter().GetResult();
@@ -73,36 +74,33 @@ public class AotPathPipelineBenchmarks
     }
 
     /// <summary>
-    /// JIT path: Pipeline with 3 middleware layers (baseline).
+    /// Expression activator: Pipeline with 3 middleware layers (baseline).
     /// </summary>
     [Benchmark(Baseline = true)]
-    public Task<IMessageResult> JitPath_Pipeline3Middleware()
+    public Task<IMessageResult> ExpressionActivator_Pipeline3Middleware()
     {
-        var context = _jitContextFactory.CreateContext();
-        return _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+        return DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
     }
 
     /// <summary>
-    /// AOT path: Pipeline with 3 middleware layers.
+    /// Container activator: Pipeline with 3 middleware layers.
     /// </summary>
     [Benchmark]
-    public Task<IMessageResult> AotPath_Pipeline3Middleware()
+    public Task<IMessageResult> ContainerActivator_Pipeline3Middleware()
     {
-        var context = _aotContextFactory.CreateContext();
-        return _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+        return DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
     }
 
     /// <summary>
-    /// JIT path: 50 sequential pipeline dispatches.
+    /// Expression activator: 50 sequential pipeline dispatches.
     /// </summary>
     [Benchmark]
-    public async Task<int> JitPath_PipelineThroughput50()
+    public async Task<int> ExpressionActivator_PipelineThroughput50()
     {
         var count = 0;
         for (var i = 0; i < 50; i++)
         {
-            var context = _jitContextFactory.CreateContext();
-            var result = await _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            var result = await DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
             if (result.Succeeded)
             {
                 count++;
@@ -113,16 +111,15 @@ public class AotPathPipelineBenchmarks
     }
 
     /// <summary>
-    /// AOT path: 50 sequential pipeline dispatches.
+    /// Container activator: 50 sequential pipeline dispatches.
     /// </summary>
     [Benchmark]
-    public async Task<int> AotPath_PipelineThroughput50()
+    public async Task<int> ContainerActivator_PipelineThroughput50()
     {
         var count = 0;
         for (var i = 0; i < 50; i++)
         {
-            var context = _aotContextFactory.CreateContext();
-            var result = await _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            var result = await DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
             if (result.Succeeded)
             {
                 count++;
@@ -133,18 +130,17 @@ public class AotPathPipelineBenchmarks
     }
 
     /// <summary>
-    /// JIT path: Mixed concurrent + sequential pipeline.
+    /// Expression activator: Mixed concurrent + sequential pipeline.
     /// </summary>
     [Benchmark]
-    public async Task<int> JitPath_MixedWorkload()
+    public async Task<int> ExpressionActivator_MixedWorkload()
     {
         var count = 0;
 
         // Sequential batch
         for (var i = 0; i < 25; i++)
         {
-            var context = _jitContextFactory.CreateContext();
-            var result = await _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            var result = await DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
             if (result.Succeeded)
             {
                 count++;
@@ -155,8 +151,7 @@ public class AotPathPipelineBenchmarks
         var tasks = new Task<IMessageResult>[25];
         for (var i = 0; i < 25; i++)
         {
-            var context = _jitContextFactory.CreateContext();
-            tasks[i] = _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            tasks[i] = DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
         }
 
         var results = await Task.WhenAll(tasks);
@@ -166,18 +161,17 @@ public class AotPathPipelineBenchmarks
     }
 
     /// <summary>
-    /// AOT path: Mixed concurrent + sequential pipeline.
+    /// Container activator: Mixed concurrent + sequential pipeline.
     /// </summary>
     [Benchmark]
-    public async Task<int> AotPath_MixedWorkload()
+    public async Task<int> ContainerActivator_MixedWorkload()
     {
         var count = 0;
 
         // Sequential batch
         for (var i = 0; i < 25; i++)
         {
-            var context = _aotContextFactory.CreateContext();
-            var result = await _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            var result = await DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
             if (result.Succeeded)
             {
                 count++;
@@ -188,8 +182,7 @@ public class AotPathPipelineBenchmarks
         var tasks = new Task<IMessageResult>[25];
         for (var i = 0; i < 25; i++)
         {
-            var context = _aotContextFactory.CreateContext();
-            tasks[i] = _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            tasks[i] = DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
         }
 
         var results = await Task.WhenAll(tasks);
@@ -204,12 +197,12 @@ public class AotPathPipelineBenchmarks
         services.AddLogging();
         services.AddTransient<PipelineBenchHandler>();
         services.AddTransient<IActionHandler<PipelineBenchCommand>, PipelineBenchHandler>();
-        services.AddDispatch();
-
-        // Add representative middleware stack (3 layers)
-        services.AddMiddleware<PreProcessMiddleware>();
-        services.AddMiddleware<ValidationMiddleware>();
-        services.AddMiddleware<PostProcessMiddleware>();
+        services.AddDispatch(dispatch =>
+        {
+            dispatch.UseMiddleware<PreProcessMiddleware>();
+            dispatch.UseMiddleware<ValidationMiddleware>();
+            dispatch.UseMiddleware<PostProcessMiddleware>();
+        });
 
         if (useAotActivator)
         {
@@ -219,13 +212,43 @@ public class AotPathPipelineBenchmarks
         return services;
     }
 
+    private static async Task<IMessageResult> DispatchAndReturnAsync(IDispatcher dispatcher,
+        IMessageContextFactory factory, PipelineBenchCommand command, bool verifyExecution = false)
+    {
+        var context = factory.CreateContext();
+        try
+        {
+            var result = await dispatcher.DispatchAsync(command, context, CancellationToken.None).ConfigureAwait(false);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(result.ErrorMessage ?? "Benchmark dispatch failed.");
+            }
+            if (verifyExecution)
+            {
+                if (!context.Items.ContainsKey("benchmark-handler"))
+                {
+                    throw new InvalidOperationException("Benchmark did not execute its handler.");
+                }
+                if (!context.Items.ContainsKey("benchmark-pre") || !context.Items.ContainsKey("benchmark-validation")
+                    || !context.Items.ContainsKey("benchmark-post"))
+                {
+                    throw new InvalidOperationException("Benchmark did not execute all three middleware.");
+                }
+            }
+            return result;
+        }
+        finally
+        {
+            factory.Return(context);
+        }
+    }
+
     private static async Task WarmUp(IDispatcher dispatcher, IMessageContextFactory contextFactory)
     {
         var cmd = new PipelineBenchCommand { OrderId = Guid.NewGuid(), Amount = 1.00m };
         for (var i = 0; i < 5; i++)
         {
-            var ctx = contextFactory.CreateContext();
-            await dispatcher.DispatchAsync(cmd, ctx, CancellationToken.None);
+            await DispatchAndReturnAsync(dispatcher, contextFactory, cmd, verifyExecution: true);
         }
     }
 
@@ -237,12 +260,16 @@ public class AotPathPipelineBenchmarks
         public decimal Amount { get; init; }
     }
 
-    internal sealed class PipelineBenchHandler : IActionHandler<PipelineBenchCommand>
+    internal sealed class PipelineBenchHandler : IActionHandler<PipelineBenchCommand>, IMessageContextAware
     {
         public IMessageContext? Context { get; set; }
 
+        public void SetContext(IMessageContext context) => Context = context;
+
         public Task HandleAsync(PipelineBenchCommand command, CancellationToken cancellationToken)
         {
+            var context = Context ?? throw new InvalidOperationException("Handler did not receive the message context.");
+            context.Items["benchmark-handler"] = true;
             _ = command.OrderId;
             return Task.CompletedTask;
         }
@@ -261,6 +288,7 @@ public class AotPathPipelineBenchmarks
         {
             // Minimal pre-processing simulation
             _ = message.GetType().Name;
+            context.Items["benchmark-pre"] = true;
             return nextDelegate(message, context, cancellationToken);
         }
     }
@@ -276,6 +304,7 @@ public class AotPathPipelineBenchmarks
             DispatchRequestDelegate nextDelegate,
             CancellationToken cancellationToken)
         {
+            context.Items["benchmark-validation"] = true;
             return nextDelegate(message, context, cancellationToken);
         }
     }
@@ -291,6 +320,7 @@ public class AotPathPipelineBenchmarks
             DispatchRequestDelegate nextDelegate,
             CancellationToken cancellationToken)
         {
+            context.Items["benchmark-post"] = true;
             return nextDelegate(message, context, cancellationToken);
         }
     }

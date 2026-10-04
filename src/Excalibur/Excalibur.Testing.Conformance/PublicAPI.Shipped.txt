@@ -1251,6 +1251,8 @@ virtual Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamC
 virtual Excalibur.Testing.Conformance.StreamingHandlerConformanceTestKit.StreamConsumer_SingleDocument_ProcessedCorrectly() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_ExpectingNoCheckpoint_WhenOneExists_ShouldBeSuperseded() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_FromNoCheckpoint_ShouldBeAcceptedAndPersist() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithInvalidPositions_ShouldThrowAndChangeNothing() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithMatchingExpectedPosition_ShouldBeAccepted() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithStaleExpectedPosition_ShouldBeSupersededAndChangeNothing() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne() -> System.Threading.Tasks.Task!

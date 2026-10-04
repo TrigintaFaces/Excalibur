@@ -35,22 +35,48 @@
 param(
     # Runs the gate's own arms instead of the smoke test, and proves this gate can FAIL.
     # A gate never shown to reject anything is indistinguishable from one that cannot.
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    [string]$CandidateManifest = '',
+    [string]$CandidateFeed = '',
+    [string]$EvidenceDirectory = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/package-composition.functions.ps1"
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
 $Script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$Script:Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$Script:Timestamp = [guid]::NewGuid().ToString('N')
 $Script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "excalibur-smoke-test-$Script:Timestamp"
 $Script:PackagesDir = Join-Path $Script:TempDir 'packages'
 $Script:ConsumerDir = Join-Path $Script:TempDir 'consumer'
 $Script:SmokeTestVersion = "99.0.0-smoketest"  # Use prerelease version for all packages
+$Script:CandidatePackages = @{}
+$Script:Dotnet = (Get-Command dotnet -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+if ($CandidateManifest -or $CandidateFeed -or $EvidenceDirectory) {
+    if (-not $CandidateManifest -or -not $CandidateFeed -or -not $EvidenceDirectory) { throw 'Candidate manifest, feed and evidence directory must be supplied together.' }
+    $candidate = Get-Content -LiteralPath $CandidateManifest -Raw | ConvertFrom-Json -AsHashtable
+    if ($candidate.status -ne 'passed' -or -not $candidate.buildVerified) { throw 'Candidate lacks successful build and pack evidence.' }
+    $Script:SmokeTestVersion = $candidate.version
+    $Script:PackagesDir = (Resolve-Path -LiteralPath $CandidateFeed).Path
+    $Script:CandidatePackages = Get-CompositionPackages $Script:PackagesDir $Script:SmokeTestVersion
+    if ($Script:CandidatePackages.Count -ne $candidate.packages.Count) { throw 'Candidate package population differs from manifest.' }
+    foreach ($package in $candidate.packages) {
+        if (-not $Script:CandidatePackages.ContainsKey($package.id) -or $Script:CandidatePackages[$package.id].sha256 -cne $package.sha256) { throw "Candidate package differs from manifest: $($package.id)" }
+    }
+    $Script:TempDir = [IO.Path]::GetFullPath($EvidenceDirectory)
+    if (Test-Path -LiteralPath $Script:TempDir) { throw 'Smoke evidence directory must be new.' }
+    New-Item -ItemType Directory -Path $Script:TempDir -Force | Out-Null
+    # Candidate evidence lives inside artifacts; consumers must not inherit repository build policy.
+    Set-Content "$Script:TempDir/Directory.Build.props" '<Project />'
+    Set-Content "$Script:TempDir/Directory.Build.targets" '<Project />'
+    Set-Content "$Script:TempDir/Directory.Packages.props" '<Project><PropertyGroup><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup></Project>'
+    $Script:ConsumerDir = Join-Path $Script:TempDir 'consumer'
+}
 
 # Set by the SURFACE phase; read by the coverage ratchet. Initialised here because StrictMode makes
 # reading an unassigned variable a terminating error, and the ratchet must still be able to report
@@ -243,7 +269,6 @@ function Invoke-ConsumerPhase {
   <ItemGroup>
     <!-- Core Dispatch packages ONLY - no Excalibur references -->
     <PackageReference Include="Excalibur.Dispatch" Version="$Script:SmokeTestVersion" />
-    <PackageReference Include="Excalibur.Dispatch.Abstractions" Version="$Script:SmokeTestVersion" />
   </ItemGroup>
 </Project>
 "@
@@ -321,11 +346,13 @@ Environment.Exit(0);
     $nugetConfigContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
+  <fallbackPackageFolders><clear/></fallbackPackageFolders>
   <packageSources>
     <clear />
-    <add key="LocalSmokeTest" value="$Script:PackagesDir" />
+    <add key="LocalSmokeTest" value="$([Security.SecurityElement]::Escape($Script:PackagesDir))" />
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
   </packageSources>
+  <packageSourceMapping><clear/><packageSource key="LocalSmokeTest"><package pattern="Excalibur*"/></packageSource><packageSource key="nuget.org"><package pattern="*"/></packageSource></packageSourceMapping>
 </configuration>
 "@
 
@@ -334,7 +361,7 @@ Environment.Exit(0);
     Write-Success "Created NuGet.Config with local feed"
 
     Write-Info "Consumer app created with:"
-    Write-Host "    - SmokeTest.csproj (references Excalibur.Dispatch, Excalibur.Dispatch.Abstractions)" -ForegroundColor DarkGray
+    Write-Host "    - SmokeTest.csproj (references Excalibur.Dispatch)" -ForegroundColor DarkGray
     Write-Host "    - Program.cs (exercises dispatcher creation)" -ForegroundColor DarkGray
     Write-Host "    - NuGet.Config (uses local package feed)" -ForegroundColor DarkGray
 }
@@ -344,90 +371,24 @@ Environment.Exit(0);
 # ============================================================================
 
 function Invoke-ValidationPhase {
-    Write-StepHeader "VALIDATE" "Building and running consumer application"
-
-    # A FRESH PACKAGE CACHE, because the smoke version never changes.
-    #
-    # Every run packs 99.0.0-smoketest, and NuGet caches by id AND version -- so once a copy of that
-    # version is in the global cache, every later run resolves the CACHED bytes and never contacts
-    # the feed the test just built. The test then validates whatever was packed the first time it
-    # ever ran.
-    #
-    # Not hypothetical. Found 2026-08-07: the global cache held four 99.0.0-smoketest packages, one
-    # of them named excalibur.dispatch.compliance.abstractions -- an id from before a rename. Locally
-    # that surfaced as CS0246 on types the current assembly plainly has, because the assembly being
-    # compiled against was months old. It passed in CI only because a fresh runner has no cache.
-    #
-    # The failure direction that matters is the other one: a stale copy that still compiles would
-    # report a PASS about bytes nobody built. Redirecting the cache makes the run measure what it
-    # packed, and the emptiness check below is the positive control that it did.
-    $cacheDir = Join-Path $Script:TempDir 'consumer-cache'
-    if (Test-Path $cacheDir) { Remove-Item -Path $cacheDir -Recurse -Force }
+    Write-StepHeader 'VALIDATE' 'Restoring, building and running the Dispatch consumer'
+    $cache = Join-Path $Script:TempDir 'consumer-cache'
+    if (Test-Path $cache) { throw 'Consumer cache must start empty.' }
     $previousCache = $env:NUGET_PACKAGES
-    $env:NUGET_PACKAGES = $cacheDir
-
-    Push-Location $Script:ConsumerDir
+    $env:NUGET_PACKAGES = $cache
     try {
-        # Restore packages from local feed
-        Write-Info "Restoring packages from local feed (fresh cache)..."
-        $restoreResult = & dotnet restore --verbosity quiet 2>&1
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Failure "Package restore failed"
-            Write-Host $restoreResult
-            throw "Restore failed with exit code $LASTEXITCODE"
-        }
-        $restoredCount = @(Get-ChildItem -Path $cacheDir -Directory -ErrorAction SilentlyContinue).Count
-        if ($restoredCount -eq 0) {
-            throw "Restore reported success but the fresh cache is EMPTY, so nothing was resolved from the feed. A restore that left no trace did not happen."
-        }
-        Write-Success "Packages restored successfully ($restoredCount into a fresh cache)"
-
-        # Build consumer app
-        Write-Info "Building consumer application..."
-        $buildResult = & dotnet build --configuration Release --no-restore --verbosity quiet 2>&1
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Failure "Consumer build failed"
-            Write-Host $buildResult
-            throw "Consumer build failed with exit code $LASTEXITCODE"
-        }
-        Write-Success "Consumer built successfully"
-
-        # Run consumer app
-        Write-Info "Running consumer application..."
-        Write-Host ""
-
-        $runResult = & dotnet run --configuration Release --no-build 2>&1
-        $runExitCode = $LASTEXITCODE
-
-        # Display output
-        Write-Host $runResult
-        Write-Host ""
-
-        if ($runExitCode -ne 0) {
-            Write-Failure "Consumer app exited with code $runExitCode"
-            throw "Consumer validation failed"
-        }
-
-        Write-Success "Consumer validation passed"
-
-        # Additional check: Verify no Excalibur references in deps.json
-        Write-Info "Verifying dependency isolation..."
-        $depsJsonPath = Join-Path $Script:ConsumerDir 'bin/Release/net10.0/SmokeTest.deps.json'
-        if (Test-Path $depsJsonPath) {
-            $depsContent = Get-Content -Path $depsJsonPath -Raw
-            if ($depsContent -match 'Excalibur\.(?!Dispatch)') {
-                Write-Failure "Found non-Dispatch Excalibur reference in deps.json!"
-                throw "Dependency isolation violation: non-Dispatch Excalibur dependency found in consumer app"
-            }
-            Write-Success "No non-Dispatch Excalibur dependencies in deps.json"
+        $project = Join-Path $Script:ConsumerDir 'SmokeTest.csproj'
+        Invoke-PackageCommand $Script:Dotnet @('restore',$project,'--verbosity','minimal') (Join-Path $Script:TempDir 'consumer.restore') $Script:ConsumerDir
+        Invoke-PackageCommand $Script:Dotnet @('build',$project,'-c','Release','--no-restore','--verbosity','minimal','--disable-build-servers') (Join-Path $Script:TempDir 'consumer.build') $Script:ConsumerDir
+        Invoke-PackageCommand $Script:Dotnet @('run','--project',$project,'-c','Release','--no-build','--no-restore') (Join-Path $Script:TempDir 'consumer.run') $Script:ConsumerDir -TimeoutSeconds 120
+        $packages = Get-CompositionPackages $Script:PackagesDir $Script:SmokeTestVersion
+        $null = Assert-CompositionAssets (Join-Path $Script:ConsumerDir 'obj/project.assets.json') $packages $cache -PackageOnly -RequiredPackages 'Excalibur.Dispatch'
+        $deps = Get-Content (Join-Path $Script:ConsumerDir 'bin/Release/net10.0/SmokeTest.deps.json') -Raw | ConvertFrom-Json -AsHashtable
+        foreach ($id in $deps.libraries.Keys) {
+            if ($id -match '^Excalibur\.(?!Dispatch)') { throw "Dispatch isolation violation: $id" }
         }
     }
-    finally {
-        Pop-Location
-        $env:NUGET_PACKAGES = $previousCache
-    }
+    finally { $env:NUGET_PACKAGES = $previousCache }
 }
 
 # ============================================================================
@@ -472,7 +433,7 @@ function Invoke-SurfacePhase {
     $referenced = @()
     $tools = @()
     foreach ($pkg in Get-ChildItem -Path $Script:PackagesDir -Filter '*.nupkg') {
-        if ($pkg.Name -notmatch '^(.*?)\.(\d+\.\d+\.\d+.*)\.nupkg$') { continue }
+        if ($pkg.Name -notmatch '^(.*?)\.(\d+\.\d+\.\d+.*)\.nupkg$') { throw "Unrecognized package filename: $($pkg.Name)" }
         $id = $Matches[1]
         $version = $Matches[2]
 
@@ -526,9 +487,10 @@ $refLines
     Set-Content -Path (Join-Path $surfaceDir 'nuget.config') -Encoding UTF8 -Value @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
+  <fallbackPackageFolders><clear/></fallbackPackageFolders>
   <packageSources>
     <clear />
-    <add key="local" value="$Script:PackagesDir" />
+    <add key="local" value="$([Security.SecurityElement]::Escape($Script:PackagesDir))" />
     <add key="nuget" value="https://api.nuget.org/v3/index.json" />
   </packageSources>
   <packageSourceMapping>
@@ -541,18 +503,40 @@ $refLines
 
     Write-Info "Referencing $($referenced.Count) shipping package(s); $($tools.Count) tool package(s) excluded by package type."
 
-    if (Test-Path $cacheDir) { Remove-Item -Path $cacheDir -Recurse -Force }
+    if (Test-Path $cacheDir) { throw 'Surface cache must start empty.' }
     $previousCache = $env:NUGET_PACKAGES
     $env:NUGET_PACKAGES = $cacheDir
     Push-Location $surfaceDir
     try {
-        $buildResult = & dotnet build --configuration Release --verbosity quiet --nologo 2>&1
-        $buildExit = $LASTEXITCODE
-
-        if ($buildExit -ne 0) {
-            Write-Failure "The shipping surface does not restore and compile from the feed"
-            Write-Host $buildResult
-            throw "Surface consumption failed with exit code $buildExit"
+        Invoke-PackageCommand $Script:Dotnet @('build','Surface.csproj','-c','Release','--verbosity','minimal','--disable-build-servers') (Join-Path $Script:TempDir 'surface.build') $surfaceDir
+        $packages = Get-CompositionPackages $Script:PackagesDir $Script:SmokeTestVersion
+        $null = Assert-CompositionAssets (Join-Path $surfaceDir 'obj/project.assets.json') $packages $cacheDir -PackageOnly -RequiredPackages @($referenced.Id)
+        if ($CandidateManifest) {
+            # Each root restores independently. The combined consumer cannot supply a missing edge.
+            foreach ($package in $referenced) {
+                $roots = @($candidate.projects | Where-Object { $_.packable -and $_.id -ceq $package.Id })
+                if ($roots.Count -ne 1 -or -not $roots[0].internalDependencies) { throw "Missing independent source closure: $($package.Id)" }
+                $requiredTargets = @{}
+                foreach ($target in $roots[0].internalDependencies.Keys) {
+                    if ($target.Contains('/')) { throw "RID-specific source closure needs an explicit consumer: $($package.Id)/$target" }
+                    $requiredTargets[$target] = @($roots[0].internalDependencies[$target]) + @($package.Id)
+                }
+                $frameworks = ($requiredTargets.Keys | Sort-Object) -join ';'
+                $directory = Join-Path $Script:TempDir ("closures/" + $package.Id)
+                New-Item -ItemType Directory -Path $directory -Force | Out-Null
+                Copy-Item (Join-Path $surfaceDir 'nuget.config') (Join-Path $directory 'NuGet.Config')
+                $project = Join-Path $directory 'Consumer.csproj'
+                @"
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFrameworks>$frameworks</TargetFrameworks></PropertyGroup><ItemGroup><PackageReference Include="$($package.Id)" Version="$($package.Version)"/></ItemGroup></Project>
+"@ | Set-Content -LiteralPath $project -Encoding utf8
+                Invoke-PackageCommand $Script:Dotnet @('build',$project,'-c','Release','--verbosity','minimal','--disable-build-servers') (Join-Path $directory 'build') $directory
+                $null = Assert-CompositionAssets (Join-Path $directory 'obj/project.assets.json') $packages $cacheDir -PackageOnly -RequiredByTarget $requiredTargets
+            }
+            foreach ($tool in $tools) {
+                $directory = Join-Path $Script:TempDir ("tools/" + $tool)
+                Invoke-PackageCommand $Script:Dotnet @('tool','install',$tool,'--version',$Script:SmokeTestVersion,'--tool-path',$directory,'--configfile',(Join-Path $surfaceDir 'nuget.config')) (Join-Path $Script:TempDir ($tool + '.install')) $surfaceDir
+                # Tool installation is reported separately from executable business scenarios.
+            }
         }
 
         $restored = @(Get-ChildItem -Path $cacheDir -Directory -ErrorAction SilentlyContinue).Count
@@ -739,11 +723,15 @@ try {
     Write-Host ""
 
     # Execute phases
-    $packedCount = Invoke-PackPhase
+    $packedCount = if ($CandidateManifest) { $Script:CandidatePackages.Count } else { Invoke-PackPhase }
     Invoke-ConsumerPhase
     Invoke-ValidationPhase
     $Script:SurfaceCovered = Invoke-SurfacePhase
 
+    if ($CandidateManifest) {
+        $measured = @($Script:SurfaceReferenced) + @($Script:SurfaceTools)
+        if (@(Compare-Object @($Script:CandidatePackages.Keys | Sort-Object) @($measured | Sort-Object)).Count -gt 0) { throw 'Candidate smoke coverage is incomplete.' }
+    }
     $Script:TestPassed = $true
 }
 catch {
@@ -754,7 +742,10 @@ catch {
 }
 finally {
     # Always cleanup, so a later job cannot pass on this one's leftovers
-    Invoke-CleanupPhase -Success $Script:TestPassed
+    if ($CandidateManifest -or -not $Script:TestPassed) {
+        Write-Info "Evidence retained: $Script:TempDir"
+    }
+    else { Invoke-CleanupPhase -Success $Script:TestPassed }
 }
 
 # ============================================================================
@@ -789,7 +780,7 @@ if (Test-Path $shippingFilter) {
     # Derived from the feed rather than restated, so the number cannot drift from the thing it
     # describes. If the surface phase did not run (an early throw), this falls back to the isolation
     # list, which reports LESS coverage than was achieved -- the safe direction for a ratchet.
-    $covered = if ($Script:SurfaceReferenced.Count -gt 0) { @($Script:SurfaceReferenced) } else { @($Script:DispatchPackages) }
+    $covered = if ($Script:SurfaceReferenced.Count -gt 0) { @($Script:SurfaceReferenced) + $(if ($CandidateManifest) { @($Script:SurfaceTools) }) } else { @($Script:DispatchPackages) }
     $uncovered = @($shipping | Where-Object { $covered -notcontains $_ })
 
     # The DECISION lives in Test-SmokeCoverage so that -SelfTest can exercise it with synthetic
@@ -827,7 +818,7 @@ if (Test-Path $shippingFilter) {
 Write-Host ""
 if ($Script:TestPassed) {
     Write-Banner "SMOKE TEST PASSED"
-    Write-Host "The smoke-tested packages work correctly in isolation." -ForegroundColor Green
+    Write-Host "Package restore/build checks and Dispatch initialization passed; these do not certify provider runtime behavior." -ForegroundColor Green
     Write-Host "This is NOT a statement about the packages it does not cover -- see the coverage line above." -ForegroundColor Yellow
     Write-Host ""
     exit 0

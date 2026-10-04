@@ -14,8 +14,8 @@ The contract these assertions bind:
   A1  The release workflow cannot rebuild what it publishes.
   A2  A separate producing workflow exists and is complete: it packs, hashes, generates an
       SBOM, and attests BOTH provenance and SBOM over the packages it just made.
-  A3  Attestation happens in the producing workflow and never in a workflow that downloaded
-      the artifact. Attesting a downloaded copy is provenance about a journey, not an origin.
+  A3  Attestation happens in the producing workflow. The sole download exception is its
+      verified internal build-to-finalizer handoff; release workflows never re-attest.
   A4  The admission job verifies hashes AND attestation AND version, refuses when no official
       build exists, and every consumer of the package set is gated behind it.
   A5  The draft-until-published ordering still holds.
@@ -24,6 +24,8 @@ The contract these assertions bind:
   A8  Nothing rewrites the promoted bytes after they have been measured: the producing
       workflow signs BEFORE it hashes and attests, the release workflow signs nowhere at
       all, and the push is preceded by a provenance re-check.
+  A9  The isolated finalizer follows the reviewed executable contract, and source/rehearsal
+      execution receives no author-signing credentials.
 
 WHAT IT CANNOT PROVE
 --------------------
@@ -42,7 +44,10 @@ EXIT CODES -- distinct on purpose.
 
 import argparse
 import copy
+import hashlib
+import json
 import os
+from pathlib import Path
 import re
 import sys
 import tempfile
@@ -205,6 +210,11 @@ def check(workflows):
     problems = []
     release = workflows.get(RELEASE_WF)
     official = workflows.get(OFFICIAL_WF)
+    split_source = jobs_of(official).get("build-packages")
+    split_final = jobs_of(official).get("packages")
+    split = split_source is not None and split_final is not None
+    if split:
+        problems.extend(check_signing_isolation(official))
 
     # -- A1: the release workflow cannot rebuild what it publishes -----------------------
     if not release:
@@ -254,7 +264,7 @@ def check(workflows):
             "downstream verification would be checking an artifact against itself"))
     else:
         for name, job in jobs_of(official).items():
-            if uploads_artifact(job, CANONICAL_ARTIFACT) and not any_download(job):
+            if uploads_artifact(job, CANONICAL_ARTIFACT) and (not any_download(job) or (split and name == "packages")):
                 producer = (name, job)
                 break
         if not producer:
@@ -265,14 +275,15 @@ def check(workflows):
         else:
             pname, pjob = producer
             text = job_text(pjob)
-            if not RE_DOTNET_PACK.search(text):
+            build_text = job_text(split_source) if split else text
+            if not RE_DOTNET_PACK.search(build_text):
                 problems.append(Problem("A2", f"producer job '{pname}' never runs `dotnet pack`"))
             if not RE_SHA_PRODUCE.search(text):
                 problems.append(Problem(
                     "A2",
                     f"producer job '{pname}' records no hash manifest; without one, "
                     "'the same packages' is an assertion nobody can check after the fact"))
-            if not RE_SBOM_TOOL.search(text):
+            if not RE_SBOM_TOOL.search(build_text):
                 problems.append(Problem("A2", f"producer job '{pname}' generates no SBOM"))
             uses = " ".join(step_uses(s) for s in steps_of(pjob))
             if "attest-build-provenance" not in uses:
@@ -297,7 +308,8 @@ def check(workflows):
     originators = [(wf_name, job_name)
                    for wf_name, workflow in workflows.items()
                    for job_name, job in jobs_of(workflow).items()
-                   if uploads_artifact(job, CANONICAL_ARTIFACT) and not any_download(job)]
+                   if uploads_artifact(job, CANONICAL_ARTIFACT) and (not any_download(job) or
+                       (split and wf_name == OFFICIAL_WF and job_name == "packages"))]
     if len(originators) > 1:
         where = ", ".join(f"{w} job '{j}'" for w, j in originators)
         problems.append(Problem(
@@ -313,7 +325,7 @@ def check(workflows):
     # -- A3: attestation only where the bytes were made ----------------------------------
     for wf_name, workflow in workflows.items():
         for job_name, job in jobs_of(workflow).items():
-            if attest_steps(job) and any_download(job):
+            if attest_steps(job) and any_download(job) and not (split and wf_name == OFFICIAL_WF and job_name == "packages"):
                 problems.append(Problem(
                     "A3",
                     f"{wf_name} job '{job_name}' attests an artifact it DOWNLOADED; that is "
@@ -402,7 +414,10 @@ def check(workflows):
                 if "upload-artifact" not in step_uses(step):
                     continue
                 name = str(step_with(step).get("name") or "")
-                if ".nupkg" in upload_paths(step) and name != CANONICAL_ARTIFACT:
+                internal = (split and wf_name == OFFICIAL_WF and job_name == "build-packages" and
+                            name == "official-build-handoff-${{ github.run_id }}-${{ github.run_attempt }}" and
+                            step.get("id") == "handoff")
+                if ".nupkg" in upload_paths(step) and name != CANONICAL_ARTIFACT and not internal:
                     problems.append(Problem(
                         "A6",
                         f"{wf_name} job '{job_name}' uploads .nupkg under the name '{name}'; a second "
@@ -425,6 +440,8 @@ def check(workflows):
     # -- A7: this gate's workflow fires on the workflows it asserts about ------------------
     rehearsal = workflows.get(REHEARSAL_WF)
     if rehearsal:
+        if "NUGET_SIGNING_CERT" in str(rehearsal):
+            problems.append(Problem("A9", "rehearsal must not reference author-signing credentials"))
         trig = triggers_of(rehearsal)
         for event in ("push", "pull_request"):
             block = trig.get(event)
@@ -503,6 +520,76 @@ def check(workflows):
                     f"at step {push_at}; a registry version is immutable, so a check that runs "
                     "after the push cannot stop anything"))
 
+    return problems
+
+
+def check_signing_isolation(official):
+    """One explicit intra-workflow handoff; downloaded inputs are data, never tools."""
+    problems = []
+    def require(ok, message):
+        if not ok:
+            problems.append(Problem("A9", message))
+    source = jobs_of(official)["build-packages"]
+    final = jobs_of(official)["packages"]
+    # Deliberate executable allowlist. Updating this contract is a reviewed change,
+    # never something CI regenerates to make a changed privileged job pass.
+    contract_path = Path(__file__).with_name("official-finalizer-contract.json")
+    try:
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        executable = {"job": final, "workflow_env": official.get("env", {}),
+                      "workflow_defaults": official.get("defaults", {})}
+        digest = hashlib.sha256(json.dumps(executable, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        require(contract.get("schema") == 1 and digest == contract.get("sha256"), "privileged executable contract changed; independent review and explicit contract update required")
+    except (OSError, ValueError) as exc:
+        require(False, f"cannot read privileged executable contract: {exc}")
+    require(official.get("permissions") == {}, "official workflow must deny inherited authority")
+    require(source.get("permissions") == {"contents": "read"}, "source execution must have read-only permissions")
+    require(source.get("if") == "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')", "official source must restrict dispatch refs")
+    require("secrets." not in str(source), "source execution must not reference secrets")
+    require(not attest_steps(source), "source execution must not attest")
+    require(needs_of(final) == ["build-packages"], "finalizer must require successful source build")
+    require(not final.get("if") and not final.get("continue-on-error"), "finalizer cannot bypass dependency success")
+    require(final.get("environment") == "package-signing", "finalizer must use the signing environment")
+    require(final.get("runs-on") == "ubuntu-latest", "finalizer requires a fresh hosted runner")
+    require("secrets." not in str(final.get("env", {})), "signing secrets must be step-scoped")
+    for step in steps_of(final):
+        use, run = step_uses(step), step_run(step)
+        if use:
+            require(bool(re.fullmatch(r"actions/(setup-dotnet|download-artifact|attest-build-provenance|attest-sbom|upload-artifact)@[a-f0-9]{40}", use)), "finalizer action must be an approved pinned tool")
+        require(not any(token in use for token in ("checkout", "cache", "./")), "finalizer cannot checkout source, restore caches, or invoke local actions")
+        require(not re.search(r"\bdotnet\s+(?:build|pack|restore|tool\s+restore)\b", run), "finalizer cannot execute source/build tooling")
+        require(not re.search(r"\b(?:bash|pwsh|python3?)\s+[\"']?(?:\./)?official-handoff", run), "finalizer cannot execute downloaded helpers")
+        require(not step.get("continue-on-error"), "finalizer checks cannot soften failure")
+    downloads = any_download(final)
+    require(len(downloads) == 1, "finalizer must download exactly one internal handoff")
+    if len(downloads) == 1:
+        settings = step_with(downloads[0])
+        require(settings.get("artifact-ids") == "${{ needs.build-packages.outputs.handoff-id }}", "handoff must be selected by producer artifact ID")
+        require(settings.get("digest-mismatch") == "error", "handoff digest mismatch must fail")
+        require(not any(key in settings for key in ("name", "pattern", "run-id", "repository", "github-token")), "handoff cannot select another run or repository")
+    names = [step.get("name") for step in steps_of(final)]
+    ordered = ["Verify the handoff artifact identity", "Download the verified unsigned handoff",
+               "Verify unsigned handoff contents", "Decide whether this build must be signed",
+               "Verify signing environment protections", "Sign the shipping packages",
+               "Verify signing preserved package payloads", "Record package hashes", "Emit the build receipt",
+               "Attest build provenance for the canonical package set", "Attest the SBOM against the packages it describes",
+               "Upload the canonical package set"]
+    require(all(names.count(name) == 1 for name in ordered), "finalizer must contain every unique verification/publication step")
+    if all(names.count(name) == 1 for name in ordered):
+        positions = [names.index(name) for name in ordered]
+        require(positions == sorted(positions), "handoff, signing, payload verification and final attestation order is invalid")
+    for step in steps_of(final):
+        if step.get("name") in ordered:
+            permitted = "steps.signing.outputs.sign == 'true'" if step.get("name") in (
+                "Verify signing environment protections", "Sign the shipping packages") else None
+            require(step.get("if") == permitted, "required finalization step has an unexpected skip condition")
+    transfers = uploads_artifact(source, "official-build-handoff-${{ github.run_id }}-${{ github.run_attempt }}")
+    require(len(transfers) == 1 and transfers[0].get("id") == "handoff", "source must upload one run/attempt-specific handoff")
+    require([step for step in steps_of(source) if "upload-artifact" in step_uses(step)] == transfers, "source must not publish rival package artifacts")
+    outputs = source.get("outputs", {})
+    require(outputs.get("handoff-id") == "${{ steps.handoff.outputs.artifact-id }}" and
+            outputs.get("handoff-digest") == "${{ steps.handoff.outputs.artifact-digest }}" and
+            outputs.get("manifest-sha256") == "${{ steps.transfer.outputs.manifest-sha256 }}", "source must export immutable transfer evidence")
     return problems
 
 
@@ -811,8 +898,8 @@ def main(argv=None):
     print("PROMOTION CONTRACT: PASSED -- checked that the release workflow neither packs nor "
           "builds the shipping set (A1); that the producing workflow packs, hashes, generates an "
           "SBOM and attests both provenance and SBOM over the artifact it uploads, carrying the "
-          "hash manifest and build receipt with it (A2); that no workflow attests an artifact it "
-          "downloaded and the release workflow mints no attestation at all (A3); that admission "
+          "hash manifest and build receipt with it (A2); that only the isolated official finalizer "
+          "may attest its verified internal handoff, and release never re-attests (A3); that admission "
           "pulls the set cross-run and verifies hashes, attestation and version, refuses without "
           "an official build, and gates every consumer behind itself (A4); that the release is "
           "created as a draft and finalized only on a successful publish, without always() (A5); "
@@ -820,7 +907,8 @@ def main(argv=None):
           "(A6); that the rehearsal fires on edits to both workflows it asserts about (A7); and "
           "that nothing rewrites the promoted bytes after they are measured -- the producer signs "
           "before it hashes, the release workflow signs nowhere, and the push is preceded by a "
-          "provenance re-check (A8).")
+          "provenance re-check (A8). Split finalizers additionally enforce the reviewed executable "
+          "and authority contract; rehearsal cannot reference signing credentials (A9).")
     return EXIT_PASS
 
 

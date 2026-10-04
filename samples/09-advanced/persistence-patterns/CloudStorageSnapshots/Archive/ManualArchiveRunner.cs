@@ -19,14 +19,14 @@ namespace CloudStorageSnapshots.Archive;
 /// Production systems typically rely on <c>EventArchiveService</c> running in
 /// the background with its configured <see cref="ArchivePolicy"/>. This runner
 /// uses the same primitives (<see cref="IEventStoreArchive"/>,
-/// <see cref="IEventStore"/>, <see cref="IColdEventStore"/>) but lets a caller
+/// <see cref="IEventStoreArchiveReader"/>, <see cref="IColdEventStore"/>) but lets a caller
 /// force a single cycle so the archival behaviour can be observed immediately.
 /// </para>
 /// </remarks>
 public sealed class ManualArchiveRunner
 {
 	private readonly IEventStoreArchive _archiveSource;
-	private readonly IEventStore _hotStore;
+	private readonly IEventStoreArchiveReader _archiveReader;
 	private readonly IColdEventStore _coldStore;
 	private readonly IOptionsMonitor<ArchivePolicy> _policyMonitor;
 	private readonly ILogger<ManualArchiveRunner> _logger;
@@ -35,8 +35,8 @@ public sealed class ManualArchiveRunner
 	/// The tenant partition every cold-storage key is composed with, resolved <strong>once at
 	/// construction</strong> rather than read per call. Cold keys written under one partition are
 	/// unreachable from another, so resolving the scope in the query path would let a mid-cycle context
-	/// change split one archive run across two key spaces. A single-tenant host registers no
-	/// <c>ITenantContext</c> and gets the explicit untenanted sentinel — never an empty term.
+	/// change split one archive run across two key spaces. The registered sample uses the default
+	/// single-tenant context. Explicit construction without a context uses the untenanted sentinel.
 	/// </summary>
 	private readonly KeyedTenantPartition _tenant;
 
@@ -45,14 +45,14 @@ public sealed class ManualArchiveRunner
 	/// </summary>
 	public ManualArchiveRunner(
 		IEventStoreArchive archiveSource,
-		IEventStore hotStore,
+		IEventStoreArchiveReader archiveReader,
 		IColdEventStore coldStore,
 		IOptionsMonitor<ArchivePolicy> policyMonitor,
 		ITenantContext? tenantContext,
 		ILogger<ManualArchiveRunner> logger)
 	{
 		_archiveSource = archiveSource;
-		_hotStore = hotStore;
+		_archiveReader = archiveReader;
 		_coldStore = coldStore;
 		_policyMonitor = policyMonitor;
 		// No ambient context means this host is not multi-tenant, so every archived row belongs to the
@@ -84,22 +84,36 @@ public sealed class ManualArchiveRunner
 
 		foreach (var candidate in candidates)
 		{
+			if (!string.Equals(candidate.Tenant.TenantId, _tenant.TenantId, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException("This sample's archive runner can only process its configured tenant.");
+			}
+
 			// Load the archivable events from the hot store.
-			var stored = await _hotStore
-				.LoadAsync(candidate.AggregateId, candidate.AggregateType, cancellationToken)
+			var stored = await _archiveReader
+				.LoadArchiveEventsAsync(candidate.Tenant, candidate.AggregateId, candidate.AggregateType, candidate.ArchivableUpToVersion, cancellationToken)
 				.ConfigureAwait(false);
-			var archivable = stored.Where(e => e.Version <= candidate.ArchivableUpToVersion).ToList();
+			var selected = stored.Where(e => e.Version <= candidate.ArchivableUpToVersion).ToList();
+			if (selected.Any(e => ErasedEventMarker.IsErased(e.EventType)))
+			{
+				throw new InvalidOperationException("Archival cannot process erased events without cold-tier erasure support.");
+			}
+
+			var archivable = selected.Where(e => e.EventData is not null || e.ArchivedAt is null).ToList();
+			if (archivable.Any(e => e.EventData is null))
+			{
+				throw new InvalidOperationException("An unresolved event payload cannot be acknowledged as archived.");
+			}
 			if (archivable.Count == 0)
 			{
 				continue;
 			}
 
 			// Write to cold storage (blob / S3 / GCS). The returned value is the durable
-			// low-water mark: the highest version the cold tier has actually committed, or
-			// -1 when this call durably added nothing. It is NOT necessarily the version we
-			// asked it to archive -- a partial or deferred cold write returns less.
+			// low-water mark: the highest proven contiguous durable prefix starting at version 0.
+			// A -1 receipt means no such prefix is proven, even if a suffix was durably stored.
 			var durableUpToVersion = await _coldStore
-				.WriteAsync(_tenant, candidate.AggregateId, archivable, cancellationToken)
+				.WriteAsync(candidate.Tenant, candidate.AggregateId, candidate.AggregateType, archivable, cancellationToken)
 				.ConfigureAwait(false);
 
 			// Delete from hot ONLY up to what cold has durably confirmed -- never up to the
@@ -109,12 +123,12 @@ public sealed class ManualArchiveRunner
 			var deleteUpToVersion = Math.Min(candidate.ArchivableUpToVersion, durableUpToVersion);
 
 			// Nothing at or above the first archivable version was durably stored (including the
-			// -1 "durably added nothing" case), so nothing may be deleted from hot -- the hot copy
+			// -1 "no prefix proven" case), so nothing may be deleted from hot -- the hot copy
 			// is the only surviving one. Retry on the next cycle.
 			if (deleteUpToVersion < archivable[0].Version)
 			{
 				_logger.LogWarning(
-					"Cold write for aggregate {AggregateId} ({AggregateType}) durably stored nothing at or above "
+					"Cold write for aggregate {AggregateId} ({AggregateType}) proved no durable prefix reaching "
 						+ "v{FirstVersion} (watermark v{Watermark}); keeping all hot events and retrying next cycle",
 					candidate.AggregateId,
 					candidate.AggregateType,
@@ -128,7 +142,7 @@ public sealed class ManualArchiveRunner
 			// transparently stitch hot + cold on the next read.
 			var tombstoned = await _archiveSource
 				.TombstoneArchivedEventsUpToVersionAsync(
-					_tenant,
+					candidate.Tenant,
 					candidate.AggregateId,
 					candidate.AggregateType,
 					deleteUpToVersion,

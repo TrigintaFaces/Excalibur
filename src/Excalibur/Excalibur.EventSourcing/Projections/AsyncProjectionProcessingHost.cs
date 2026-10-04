@@ -175,7 +175,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 					// stream, not a poison event. Halting here would let an erasure request stop the projection
 					// host permanently. It is never handed to a projection handler, so it cannot populate state.
 					// Only the reserved marker is skipped: any other unresolvable event is still poison below.
-					if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+					if (ErasedEventMarker.IsErased(storedEvent.EventType))
 					{
 						LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
 						lastProcessed = storedEvent;
@@ -202,7 +202,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 					processedCount++;
 				}
 
-				// Dispatch the good prefix (events before any poison) as ONE call, in GLOBAL ORDER.
+				// Dispatch the good prefix in GLOBAL ORDER, splitting only at replay/live boundaries.
 				//
 				// It used to be grouped by aggregate, which was wrong for any projection not keyed by the
 				// aggregate. A keyed projection maps events from many aggregates onto one projection id,
@@ -212,19 +212,31 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 				// non-advancing write would then reject the second and drop the event entirely, which is
 				// the worse failure: grouping had to go before the position could be enforced.
 				//
-				// Delivering the batch whole is only correct because the apply path now derives the
+				// Delivering each run whole is correct because the apply path derives the
 				// projection id and the handler context PER EVENT rather than per call.
 				var applyFaultEncountered = false;
-				if (deserialized.Count > 0)
+				for (var runStart = 0; runStart < deserialized.Count && !applyFaultEncountered;)
 				{
-					var batch = new List<ProjectionEvent>(deserialized.Count);
-					foreach (var item in deserialized)
+					stoppingToken.ThrowIfCancellationRequested();
+					var isReplay = deserialized[runStart].Stored.GlobalPosition <= headAtStart;
+					var runEnd = runStart + 1;
+					while (runEnd < deserialized.Count
+						&& (deserialized[runEnd].Stored.GlobalPosition <= headAtStart) == isReplay)
 					{
+						runEnd++;
+					}
+
+					// A batch spanning the startup head needs two contexts. Using its final event's
+					// replay flag for the whole batch would label pre-start events as live.
+					var batch = new List<ProjectionEvent>(runEnd - runStart);
+					for (var index = runStart; index < runEnd; index++)
+					{
+						var item = deserialized[index];
 						batch.Add(new ProjectionEvent(
 							item.Domain, item.Stored.AggregateId, item.Stored.GlobalPosition));
 					}
 
-					var last = deserialized[^1].Stored;
+					var last = deserialized[runEnd - 1].Stored;
 
 					// The batch-level context describes the LAST event in the batch. Its aggregate-scoped
 					// members are no longer used for identity -- every apply reads those off the event --
@@ -234,11 +246,12 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 						last.AggregateType,
 						last.Version,
 						last.Timestamp,
-						IsReplay: last.GlobalPosition <= headAtStart,
+						IsReplay: isReplay,
 						GlobalPosition: last.GlobalPosition);
 
 					applyFaultEncountered = await DispatchToProjectionsAsync(
 						asyncRegistrations, batch, context, stoppingToken).ConfigureAwait(false);
+					runStart = runEnd;
 				}
 
 				// HALT-at-failure: when any projection's apply faulted, DO NOT advance the checkpoint past
@@ -372,15 +385,8 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
 	private IDomainEvent DeserializeOrThrow(StoredEvent storedEvent)
 	{
-		if (storedEvent.EventData is null)
-		{
-			throw new InvalidOperationException(
-				$"Event '{storedEvent.EventId}' carries no payload, so it is a tombstone and must be skipped "
-				+ "before deserialization rather than deserialized.");
-		}
-
 		var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-		return _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
+		return _eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType)
 			?? throw new InvalidOperationException(
 				$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null; refusing to skip it.");
 	}

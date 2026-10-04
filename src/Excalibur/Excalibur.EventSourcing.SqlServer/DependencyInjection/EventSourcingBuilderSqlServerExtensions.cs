@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
+using Excalibur.EventSourcing.TieredStorage;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -151,7 +152,8 @@ public static class EventSourcingBuilderSqlServerExtensions
 		return sp =>
 		{
 			var opts = sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>();
-			return () => new SqlConnection(opts.Value.ConnectionString);
+			var connectionString = opts.Value.ConnectionString;
+			return () => new SqlConnection(connectionString);
 		};
 	}
 
@@ -211,10 +213,20 @@ public static class EventSourcingBuilderSqlServerExtensions
 			new SqlServerEventSourcingOptionsValidator { HasBuilderConnection = hasBuilderConnection });
 		builder.Services.AddOptions<SqlServerEventSourcingOptions>().ValidateOnStart();
 
-		// Register stores using resolved connection factory
-		RegisterEventStore(builder.Services, connectionFactory, options.EventStoreSchema, options.EventStoreTable);
-		RegisterSnapshotStore(builder.Services, connectionFactory, options.SnapshotStoreSchema, options.SnapshotStoreTable);
-		RegisterGlobalStreamQuery(builder.Services, connectionFactory);
+		// Resolve the selected source and final locations once for this service provider.
+		// Re-running an outer factory can route the global reader to a different database.
+		var ownsPrimaryConnections = sqlBuilder.ConnectionFactoryFunc is null || sqlBuilder.HasOwnedPrimaryConnectionFactory;
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var resolved = sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>().Value;
+			return new ProviderBinding(connectionFactory(sp), ownsPrimaryConnections, resolved.EventStoreSchema, resolved.EventStoreTable,
+				resolved.SnapshotStoreSchema, resolved.SnapshotStoreTable, resolved.EventTypeInfoResolver);
+		});
+
+		// Register stores using the shared immutable binding
+		RegisterEventStore(builder.Services);
+		RegisterSnapshotStore(builder.Services);
+		RegisterGlobalStreamQuery(builder.Services);
 
 		// Register materialized view store if enabled via UseMaterializedViewStore()
 		if (sqlBuilder.EnableMaterializedViewStore)
@@ -230,48 +242,43 @@ public static class EventSourcingBuilderSqlServerExtensions
 		if (options.HealthChecks.RegisterHealthChecks && !string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
 			_ = builder.Services.AddHealthChecks()
-				.AddSqlServer(
-					options.ConnectionString,
+				.AddEventStoreHealthCheck(
 					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "sqlserver", "eventsourcing"])
-				.AddSqlServer(
-					options.ConnectionString,
+				.AddSnapshotStoreHealthCheck(
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"]);
 		}
 	}
 
 	private static void RegisterEventStore(
-		IServiceCollection services,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
-		string schema,
-		string table)
+		IServiceCollection services)
 	{
 		services.AddDefaultTenantContext();
 		// AddTenantAwareStore builds the store (injecting ITenantContext, since this store's constructor
 		// declares one) AND emits the ITenantScopingCapability<IEventStore> marker inseparably.
 		services.AddTenantAwareStore<IEventStore, SqlServerEventStore>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var binding = sp.GetRequiredService<ProviderBinding>();
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
 			return new SqlServerEventStore(
-				factory,
+				binding.ConnectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tenantContext: tenantContext,
 				internalSerializer: sp.GetService<ISerializer>(),
 				payloadSerializer: sp.GetService<IPayloadSerializer>(),
-				schema: schema,
-				table: table,
-				eventTypeInfoResolver: sp.GetService<IOptions<SqlServerEventSourcingOptions>>()?.Value.EventTypeInfoResolver);
+				schema: binding.EventStoreSchema,
+				table: binding.EventStoreTable,
+				eventTypeInfoResolver: binding.EventTypeInfoResolver,
+				capabilities: new SqlServerEventStoreCapabilities(binding.ConnectionFactory, binding.EventStoreSchema,
+					binding.EventStoreTable, tenantContext, binding.OwnsPrimaryConnections, binding.SourceIdentity));
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterEventStoreTelemetryWrapper(services);
 	}
 
 	private static void RegisterSnapshotStore(
-		IServiceCollection services,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
-		string schema,
-		string table)
+		IServiceCollection services)
 	{
 		// Self-sufficient rather than order-dependent: this method resolves ITenantContext as a REQUIRED
 		// service, so it wires the default itself instead of relying on a sibling registration having run
@@ -284,40 +291,54 @@ public static class EventSourcingBuilderSqlServerExtensions
 		// that attested nothing, and RowDiscriminator rejected the whole host at startup.
 		_ = services.AddTenantAwareStore<ISnapshotStore, SqlServerSnapshotStore>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var binding = sp.GetRequiredService<ProviderBinding>();
 			// The tenant context is a required dependency, so the partition this store writes to is
 			// decided the same way on every registration path. It was previously optional, and omitting
 			// it here collapsed every tenant onto one untenanted row per aggregate id -- a silent
 			// cross-tenant overwrite. That state is no longer expressible.
 			return new SqlServerSnapshotStore(
-				factory,
+				binding.ConnectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
-				schema: schema,
-				table: table);
+				schema: binding.SnapshotStoreSchema,
+				table: binding.SnapshotStoreTable);
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);
 	}
 
 	private static void RegisterGlobalStreamQuery(
-		IServiceCollection services,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactory)
+		IServiceCollection services)
 	{
 		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var binding = sp.GetRequiredService<ProviderBinding>();
 			// The provider is wrapped in ContiguousGlobalStreamQuery HERE rather than left to the
 			// consumer, because a decorator a host can forget to add is a guarantee that silently is
 			// not there. Wrapping is also the assertion that THIS provider allocates positions inside
 			// the appending transaction, which is the precondition that makes waiting on a gap sound.
 			var provider = new SqlServerGlobalStreamQuery(
-				factory,
-				sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>());
+				binding.ConnectionFactory,
+				Options.Create(new SqlServerEventSourcingOptions
+				{
+					EventStoreSchema = binding.EventStoreSchema,
+					EventStoreTable = binding.EventStoreTable,
+				}));
 
-			return new ContiguousGlobalStreamQuery(
+			IGlobalStreamQuery global = new ContiguousGlobalStreamQuery(
 				provider,
 				sp.GetRequiredService<ILogger<ContiguousGlobalStreamQuery>>());
+			var cold = TieredStorageServiceCollectionExtensions.ResolveGlobalColdStore(sp, binding.SourceIdentity);
+			if (cold is null)
+			{
+				return global;
+			}
+			if (!binding.OwnsPrimaryConnections)
+			{
+				throw new InvalidOperationException("Global archive hydration requires an owned primary SQL Server connection factory.");
+			}
+			return new TieredGlobalStreamQuery(global, cold, new SqlServerAuthoritativeEventReader(
+				binding.ConnectionFactory, binding.EventStoreSchema, binding.EventStoreTable, authorizedTenant: null));
 		});
 	}
 
@@ -343,4 +364,16 @@ public static class EventSourcingBuilderSqlServerExtensions
 				positionTableName);
 		});
 	}
+	private sealed record ProviderBinding(
+		Func<SqlConnection> ConnectionFactory,
+		bool OwnsPrimaryConnections,
+		string EventStoreSchema,
+		string EventStoreTable,
+		string SnapshotStoreSchema,
+		string SnapshotStoreTable,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? EventTypeInfoResolver)
+	{
+		internal EventStoreSourceIdentity SourceIdentity { get; } = new();
+	}
+
 }

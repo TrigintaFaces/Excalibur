@@ -269,7 +269,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask SavePositionAsync(
+	public async ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
 		string viewName,
 		long position,
 		CancellationToken cancellationToken)
@@ -302,14 +302,45 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
+		// The MERGE matches no row when the stored checkpoint is already at or beyond `position`, so the
+		// affected-row count IS the outcome. It used to be discarded and the save logged unconditionally,
+		// which reported a write that the monotonic guard had refused.
+		var affected = await connection.ExecuteAsync(
 			new CommandDefinition(
 				sql,
 				new { TenantId = ResolveTenantKey(), ViewName = viewName, Position = position, UpdatedAt = now },
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
+		if (affected == 0)
+		{
+			return ViewPositionSaveOutcome.RefusedAsStale;
+		}
+
 		LogPositionSaved(viewName, position);
+		return ViewPositionSaveOutcome.Advanced;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+
+		// Deletes rather than zeroes: GetPositionAsync already reports null for a view with no checkpoint,
+		// and a stored zero would be indistinguishable from a view legitimately checkpointed at zero.
+		// Unconditional by contract -- the monotonic guard on SavePositionAsync exists to refuse exactly
+		// this, which is why clearing is a separate statement rather than a lower position.
+		var sql = $"DELETE FROM [{_positionTableName}] WHERE TenantId = @TenantId AND ViewName = @ViewName;";
+
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		_ = await connection.ExecuteAsync(
+			new CommandDefinition(
+				sql,
+				new { TenantId = ResolveTenantKey(), ViewName = viewName },
+				cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

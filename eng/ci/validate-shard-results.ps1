@@ -1,34 +1,14 @@
 <#
 .SYNOPSIS
-  Honest aggregation gate for sharded test runs.
-
+  Reject incomplete or non-passing raw test results before distinct reporting.
 .DESCRIPTION
-  The prior aggregation (ci.yml integration verify) summed per-trx `failed` counters and
-  treated "no trx" as zero failures. Two defects follow:
-
-    * A project that does NOT compile (or is silently dropped from a run)
-      emits no trx, contributes 0 to the sum, and reads as CLEAN. The gate never asserts the
-      EXPECTED assembly set actually compiled and produced results.
-    * An assembly that is a member of more than one shard .slnf produces a trx per
-      shard; a naive sum double-counts it, so no cross-shard total is a count of DISTINCT tests.
-
-  This gate fixes both by aggregating at ASSEMBLY granularity:
-
-    1. Joins each test result to its owning assembly (trx <UnitTest storage="...dll"> + testId).
-    2. Dedupes by assembly across all trx — an assembly in N shards is counted ONCE. If a test
-       passes in one shard and fails in another, the merged outcome is FAILED (fail-closed).
-    3. Asserts every EXPECTED assembly produced results — a missing one is RED ("did not compile
-       or was not run"), NOT summed-clean.
-    4. RED on any distinct-assembly failure or any missing expected assembly; GREEN only when the
-       full expected set ran and zero distinct tests failed.
-
-  Exit codes (three-value, falsifiable per testing-patterns §3):
-    0  GREEN — full expected set present, zero distinct failures.
-    1  RED   — a missing/non-compiling assembly, or a distinct-test failure (enforced).
-    2  ERROR — the gate could not compute a sound result (no trx, unreadable trx). A total that
-               cannot be computed soundly is refused, not printed as zero.
-
-  Proving self-test (safety + liveness arms) lives beside this script, unpublished.
+  Every invocation must have a supported, internally consistent TRX with only passing
+  executed results. Skips, aborts, duplicate artifacts/identities, runner errors, malformed
+  counters and unexecuted definitions are refused before any cross-shard deduplication.
+  ExpectedAssemblies additionally rejects absent assemblies. This assembly-presence check
+  alone does not prove the independently expected test set, TFM, OS or provider coverage.
+  Exit 0 means raw evidence passed these checks; exit 1 means an expected assembly is absent;
+  exit 2 means absent, malformed, unsupported, or non-passing execution evidence.
 #>
 [CmdletBinding()]
 param(
@@ -41,6 +21,9 @@ param(
   # Supply the union of the shard .slnf test projects. Empty = set assertion skipped (NOT
   # recommended in CI — the set assertion is the missing-assembly guard).
   [string[]]$ExpectedAssemblies = @(),
+
+  # JSON string array for process-boundary callers (PowerShell -File cannot pass array argv).
+  [string]$ExpectedAssembliesFile = '',
 
   # When true (default), a RED result throws (non-zero exit). When false, report only.
   [bool]$Enforce = $true,
@@ -57,6 +40,14 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if ($ExpectedAssembliesFile) {
+  if ($ExpectedAssemblies.Count -gt 0) { throw 'Specify expected assemblies directly or by file, not both.' }
+  $expectedFromFile = Get-Content -LiteralPath $ExpectedAssembliesFile -Raw | ConvertFrom-Json -NoEnumerate
+  if ($expectedFromFile -isnot [array] -or @($expectedFromFile | Where-Object { $_ -isnot [string] }).Count -gt 0) {
+    throw 'Expected assemblies file must contain a JSON string array.'
+  }
+  $ExpectedAssemblies = $expectedFromFile
+}
 
 # Emit to stderr WITHOUT raising a terminating error (Write-Error under `Stop` throws and pre-empts the
 # explicit `exit N`, collapsing the three-value exit to 1). This keeps ERROR=2 / RED=1 distinguishable.
@@ -86,64 +77,122 @@ if ($trxFiles.Count -eq 0) {
 # assemblyKey -> @{ Tests = @{ testName -> $true(failed)/$false(passed) }; Trx = [set of trx names] }
 $assemblies = @{}
 
+$runIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$trxHashes = [System.Collections.Generic.HashSet[string]]::new()
+
+function Required-Attribute([System.Xml.XmlElement]$node, [string]$name) {
+  if ($null -eq $node -or [string]::IsNullOrWhiteSpace($node.GetAttribute($name))) {
+    throw "Missing required TRX attribute '$name'."
+  }
+  return $node.GetAttribute($name)
+}
+
 foreach ($trx in $trxFiles) {
   try {
-    [xml]$xml = Get-Content -LiteralPath $trx.FullName -Raw
+    $hash = (Get-FileHash -LiteralPath $trx.FullName -Algorithm SHA256).Hash
+    if (-not $trxHashes.Add($hash)) { throw "Duplicate TRX content." }
+    $settings = [System.Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $reader = [System.Xml.XmlReader]::Create($trx.FullName, $settings)
+    try {
+      $xml = [System.Xml.XmlDocument]::new()
+      $xml.XmlResolver = $null
+      $xml.Load($reader)
+    }
+    finally { $reader.Dispose() }
+    $run = $xml.DocumentElement
+    if ($run.LocalName -ne 'TestRun' -or $run.NamespaceURI -ne 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010') {
+      throw "Expected supported TRX TestRun root and namespace."
+    }
+    $runId = Required-Attribute $run 'id'
+    if (-not $runIds.Add($runId)) { throw "Duplicate TestRun identity '$runId'." }
+    $ns = [System.Xml.XmlNamespaceManager]::new($xml.NameTable)
+    $ns.AddNamespace('t', $run.NamespaceURI)
+    foreach ($element in @('ResultSummary', 'Results', 'TestDefinitions')) {
+      if ($run.SelectNodes("t:$element", $ns).Count -ne 1) { throw "Expected exactly one $element element." }
+    }
+    $summary = $run.SelectSingleNode('t:ResultSummary', $ns)
+    $runOutcome = Required-Attribute $summary 'outcome'
+    if ($runOutcome -notin @('Completed', 'Passed')) {
+      throw "Run did not complete successfully: $runOutcome."
+    }
+    foreach ($info in $summary.SelectNodes('t:RunInfos/t:RunInfo', $ns)) {
+      # Observed on completed passing runs with the SDK's blame collector. This diagnostic
+      # means no hang occurred; it does not excuse any failed/skipped test or other warning.
+      if ($info.GetAttribute('outcome') -cne 'Warning' -or $info.InnerText.Trim() -cne
+          "Data collector 'Blame' message: All tests finished running, Sequence file will not be generated.") {
+        throw "Run reported unrecognized diagnostics; investigate before accepting results."
+      }
+    }
+    $results = @($run.SelectNodes('t:Results/t:UnitTestResult', $ns))
+    $resultNodes = @($run.SelectNodes('t:Results/*', $ns))
+    if ($results.Count -ne $resultNodes.Count) { throw "Unsupported result shape." }
+    if ($run.SelectNodes('.//t:UnitTestResult', $ns).Count -ne $results.Count -or
+        $run.SelectNodes('.//t:InnerResults', $ns).Count -gt 0) { throw "Unsupported nested result shape." }
+    if ($summary.SelectNodes('t:Counters', $ns).Count -ne 1) { throw "Expected exactly one Counters element." }
+    $counterNode = $summary.SelectSingleNode('t:Counters', $ns)
+    $counts = @{}
+    foreach ($attribute in @('total', 'executed', 'passed', 'failed', 'notExecuted')) {
+      $value = Required-Attribute $counterNode $attribute
+      $number = 0L
+      if (-not [long]::TryParse($value, [ref]$number) -or $number -lt 0) {
+        throw "Invalid counter '$attribute'."
+      }
+      $counts[$attribute] = $number
+    }
+    foreach ($attribute in $counterNode.Attributes) {
+      if ($attribute.Name -in @('total', 'executed', 'passed')) { continue }
+      if ($attribute.Name -cnotin @('failed', 'error', 'timeout', 'aborted', 'inconclusive',
+          'passedButRunAborted', 'notRunnable', 'notExecuted', 'disconnected', 'warning',
+          'completed', 'inProgress', 'pending')) { throw "Unsupported counter '$($attribute.Name)'." }
+      $number = 0L
+      if (-not [long]::TryParse($attribute.Value, [ref]$number) -or $number -ne 0) {
+        throw "Non-passing run counter '$($attribute.Name)=$($attribute.Value)'."
+      }
+    }
+    if ($counts.total -ne $results.Count -or $counts.executed -ne $results.Count -or
+        $counts.passed -ne $results.Count) {
+      throw "Total/executed/passed counters do not match complete passing result population."
+    }
+
+    $testIdToAssembly = @{}
+    if ($run.SelectNodes('t:TestDefinitions/*', $ns).Count -ne $run.SelectNodes('t:TestDefinitions/t:UnitTest', $ns).Count) {
+      throw 'Unsupported test definition shape.'
+    }
+    foreach ($def in $run.SelectNodes('t:TestDefinitions/t:UnitTest', $ns)) {
+      $id = Required-Attribute $def 'id'
+      $key = ConvertTo-AssemblyKey (Required-Attribute $def 'storage')
+      if ($testIdToAssembly.ContainsKey($id)) { throw "Duplicate test definition '$id'." }
+      $testIdToAssembly[$id] = $key
+    }
+    $resultIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $executionIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($res in $results) {
+      $id = Required-Attribute $res 'testId'
+      $executionId = Required-Attribute $res 'executionId'
+      $testName = Required-Attribute $res 'testName'
+      $outcome = Required-Attribute $res 'outcome'
+      if ($outcome -ne 'Passed') { throw "Required test '$testName' did not pass: $outcome." }
+      if (-not $resultIds.Add($id) -or -not $executionIds.Add($executionId)) {
+        throw "Duplicate test/result execution identity for '$testName'."
+      }
+      if (-not $testIdToAssembly.ContainsKey($id)) { throw "Orphan result '$testName' ($id)." }
+      $key = $testIdToAssembly[$id]
+      if (-not $assemblies.ContainsKey($key)) {
+        $assemblies[$key] = @{ Tests = @{}; Trx = [System.Collections.Generic.HashSet[string]]::new() }
+      }
+      [void]$assemblies[$key].Trx.Add($trx.FullName)
+      # Preserve distinct adapter IDs even if two cases share a display name.
+      $assemblies[$key].Tests["$id|$testName"] = $false
+    }
+    if ($resultIds.Count -ne $testIdToAssembly.Count) {
+      throw "Test definitions without executed results."
+    }
   }
   catch {
-    Write-GateError "Unreadable TRX '$($trx.Name)': $($_.Exception.Message) (cannot compute a sound total)."
+    Write-GateError "TRX '$($trx.Name)' cannot establish complete passing execution: $($_.Exception.Message)"
     exit 2
-  }
-
-  # testId -> assemblyKey  (from <TestDefinitions><UnitTest id="" storage="">)
-  #
-  # BOTH property hops are guarded because a TRX from a run that matched NO tests contains a
-  # ResultSummary and nothing else -- no <TestDefinitions>, no <Results>. Under
-  # Set-StrictMode -Version Latest (line 58) reading an absent property is a TERMINATING error, so
-  # one such file aborted the whole aggregation with "The property 'TestDefinitions' cannot be found
-  # on this object" and the shard reported failure without validating anything.
-  #
-  # Zero-test TRX files are normal here: an assembly with no test matching the shard's Category
-  # filter still runs and still writes a TRX. Excalibur.Dispatch.Compat.MediatR.Tests.DupFixtures
-  # produces one on every run by design -- it supplies fixture types and declares no tests.
-  #
-  # Skipping is correct rather than lenient: such a file contributes no definitions and no results,
-  # so it cannot change any total. The expected-assembly count below is what catches an assembly that
-  # SHOULD have produced results and did not -- that check stays untouched.
-  $testIdToAssembly = @{}
-  $defsNode = if ($xml.TestRun.PSObject.Properties.Name -contains 'TestDefinitions') { $xml.TestRun.TestDefinitions } else { $null }
-  $defs = if ($null -ne $defsNode -and $defsNode.PSObject.Properties.Name -contains 'UnitTest') { @($defsNode.UnitTest) } else { @() }
-  foreach ($def in $defs) {
-    if ($null -eq $def) { continue }
-    $key = ConvertTo-AssemblyKey $def.storage
-    if ($key -ne "" -and $null -ne $def.id) {
-      $testIdToAssembly[$def.id] = $key
-    }
-  }
-
-  # Same guard, same reason as TestDefinitions above: a zero-test TRX has no <Results> element either,
-  # and under StrictMode that absent property is a terminating error rather than an empty set.
-  $resultsNode = if ($xml.TestRun.PSObject.Properties.Name -contains 'Results') { $xml.TestRun.Results } else { $null }
-  $results = if ($null -ne $resultsNode -and $resultsNode.PSObject.Properties.Name -contains 'UnitTestResult') { @($resultsNode.UnitTestResult) } else { @() }
-  foreach ($res in $results) {
-    if ($null -eq $res) { continue }
-    $key = if ($res.testId -and $testIdToAssembly.ContainsKey($res.testId)) { $testIdToAssembly[$res.testId] } else { "" }
-    if ($key -eq "") { continue }   # result with no resolvable assembly — skip (set-check catches drops)
-
-    if (-not $assemblies.ContainsKey($key)) {
-      $assemblies[$key] = @{ Tests = @{}; Trx = New-Object System.Collections.Generic.HashSet[string] }
-    }
-    [void]$assemblies[$key].Trx.Add($trx.Name)
-
-    $testName = "$($res.testName)"
-    $failed = ($res.outcome -ne "Passed" -and $res.outcome -ne "NotExecuted")
-    if ($assemblies[$key].Tests.ContainsKey($testName)) {
-      # Same test seen in another shard — fail-closed: FAILED if it failed anywhere (multi-shard edge).
-      if ($failed) { $assemblies[$key].Tests[$testName] = $true }
-    }
-    else {
-      $assemblies[$key].Tests[$testName] = $failed
-    }
   }
 }
 

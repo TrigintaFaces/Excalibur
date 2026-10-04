@@ -79,14 +79,14 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 		string tableName,
 		byte[] lsn,
 		byte[] seqVal,
-		string consumerId,
+		CdcConsumerIdentity consumer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
 
-		var key = BuildKey(tableName, lsn, seqVal, consumerId);
+		var key = BuildKey(tableName, lsn, seqVal, consumer);
 		var isProcessed = _processedEvents.ContainsKey(key);
 
 		if (isProcessed)
@@ -115,7 +115,7 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 		string tableName,
 		byte[] lsn,
 		byte[] seqVal,
-		string consumerId,
+		CdcConsumerIdentity consumer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
@@ -133,7 +133,7 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 			return Task.CompletedTask;
 		}
 
-		var key = BuildKey(tableName, lsn, seqVal, consumerId);
+		var key = BuildKey(tableName, lsn, seqVal, consumer);
 		_ = _processedEvents.TryAdd(key, DateTimeOffset.UtcNow);
 
 		return Task.CompletedTask;
@@ -165,13 +165,26 @@ internal sealed partial class InMemoryCdcIdempotencyFilter : ICdcIdempotencyFilt
 	/// The key is in-process only and is never persisted, so no stored state is keyed by the old shape.
 	/// </para>
 	/// </remarks>
-	private static CdcEventKey BuildKey(string tableName, byte[] lsn, byte[] seqVal, string consumerId)
-		=> new(consumerId, tableName, Convert.ToHexString(lsn), Convert.ToHexString(seqVal));
+	private static CdcEventKey BuildKey(string tableName, byte[] lsn, byte[] seqVal, CdcConsumerIdentity consumer)
+		=> new(
+			consumer.ConnectionIdentifier,
+			consumer.DatabaseName,
+			tableName,
+			Convert.ToHexString(lsn),
+			Convert.ToHexString(seqVal));
 
 	/// <summary>
-	/// The four terms that together identify one CDC event for one consumer.
+	/// The five terms that together identify one CDC event for one consumer.
 	/// </summary>
-	private readonly record struct CdcEventKey(string ConsumerId, string TableName, string LsnHex, string SeqValHex);
+	// Carries the database name for the same reason the SQL key does: without it this key is coarser
+	// than the checkpoint it guards, and a coarser dedupe namespace suppresses rather than duplicates.
+	// This is the TryAdd default filter, so a host that registers no durable one gets this key.
+	private readonly record struct CdcEventKey(
+		string ConsumerId,
+		string DatabaseName,
+		string TableName,
+		string LsnHex,
+		string SeqValHex);
 
 	[LoggerMessage(Excalibur.Data.SqlServer.Diagnostics.DataSqlServerEventId.CdcIdempotencyDuplicateSkipped, LogLevel.Debug,
 		"Duplicate CDC event skipped: table={TableName}, LSN={Lsn}, SeqVal={SeqVal}")]

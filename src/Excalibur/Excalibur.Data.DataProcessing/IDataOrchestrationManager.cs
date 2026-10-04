@@ -18,9 +18,12 @@ public interface IDataOrchestrationManager
 	Task<Guid> AddDataTaskForRecordTypeAsync(string recordType, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Processes all pending data tasks.
+	/// Processes pending data tasks, continuing independent tasks after individual failures.
+	/// Successful tasks may complete before the operation reports a failure.
 	/// </summary>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
+	/// <exception cref="AggregateException">One or more tasks failed processing or cleanup.</exception>
+	/// <exception cref="OperationCanceledException">The caller requested cancellation.</exception>
 	ValueTask ProcessDataTasksAsync(CancellationToken cancellationToken);
 }

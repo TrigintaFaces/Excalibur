@@ -10,8 +10,8 @@ using System.Reflection;
 namespace Excalibur.Dispatch.Delivery.Handlers;
 
 /// <summary>
-/// Manual handler invoker registry implementation for development/testing. This is a temporary workaround while the build environment issue
-/// prevents the source generator from running. Once the generator works, this file should be integrated with the generated version.
+/// Stores explicit and source-generated invokers keyed by exact handler and message type.
+/// The separate reflection cache supports managed fallback; it does not supply registrations to Native AOT invocation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,6 +27,9 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// </remarks>
 public static partial class HandlerInvokerRegistry
 {
+	private static readonly Lock RegistrationLock = new();
+	private static ConcurrentDictionary<(Type Handler, Type Message), Func<object, IDispatchMessage, CancellationToken, Task<object?>>> _registrations = new();
+	private static volatile FrozenDictionary<(Type Handler, Type Message), Func<object, IDispatchMessage, CancellationToken, Task<object?>>>? _frozenRegistrations;
 	/// <summary>
 	/// Delegate type for invoker functions.
 	/// </summary>
@@ -69,19 +72,12 @@ public static partial class HandlerInvokerRegistry
 		where THandler : class
 		where TMessage : IDispatchMessage
 	{
-		var warmup = _warmupCache;
-		if (_isFrozen || warmup is null)
-		{
-			throw new InvalidOperationException(
-				$"Cannot register invoker for {typeof(THandler).Name} after cache has been frozen. " +
-				"Register all handlers before calling FreezeCache().");
-		}
-
-		warmup[typeof(THandler)] = async (handler, message, ct) =>
+		ArgumentNullException.ThrowIfNull(invoker);
+		Register(typeof(THandler), typeof(TMessage), async (handler, message, ct) =>
 		{
 			await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return null;
-		};
+		});
 	}
 
 	/// <summary>
@@ -93,19 +89,37 @@ public static partial class HandlerInvokerRegistry
 		where THandler : class
 		where TMessage : IDispatchMessage
 	{
-		var warmup = _warmupCache;
-		if (_isFrozen || warmup is null)
-		{
-			throw new InvalidOperationException(
-				$"Cannot register invoker for {typeof(THandler).Name} after cache has been frozen. " +
-				"Register all handlers before calling FreezeCache().");
-		}
-
-		warmup[typeof(THandler)] = async (handler, message, ct) =>
+		ArgumentNullException.ThrowIfNull(invoker);
+		Register(typeof(THandler), typeof(TMessage), async (handler, message, ct) =>
 		{
 			var result = await invoker((THandler)handler, (TMessage)message, ct).ConfigureAwait(false);
 			return result;
-		};
+		});
+	}
+
+	private static void Register(Type handlerType, Type messageType,
+		Func<object, IDispatchMessage, CancellationToken, Task<object?>> invoker)
+	{
+		lock (RegistrationLock)
+		{
+			if (_isFrozen || _warmupCache is null)
+			{
+				throw new InvalidOperationException(
+					$"Cannot register invoker for {handlerType.Name} after cache has been frozen. Register all handlers before calling FreezeCache().");
+			}
+			_registrations[(handlerType, messageType)] = invoker;
+			// Preserve the legacy handler-only lookup; dispatch uses the exact pair below.
+			_warmupCache[handlerType] = invoker;
+		}
+	}
+
+	internal static bool TryGetRegisteredInvoker(Type handlerType, Type messageType,
+		[NotNullWhen(true)] out Func<object, IDispatchMessage, CancellationToken, Task<object?>>? invoker)
+	{
+		var frozen = _frozenRegistrations;
+		return frozen is not null
+			? frozen.TryGetValue((handlerType, messageType), out invoker)
+			: _registrations.TryGetValue((handlerType, messageType), out invoker);
 	}
 
 	/// <summary>
@@ -256,21 +270,25 @@ public static partial class HandlerInvokerRegistry
 	/// </remarks>
 	public static void FreezeCache()
 	{
-		if (_isFrozen)
+		lock (RegistrationLock)
 		{
-			return;
-		}
+			if (_isFrozen)
+			{
+				return;
+			}
 
-		var warmup = _warmupCache;
-		if (warmup is null)
-		{
-			return;
-		}
+			var warmup = _warmupCache;
+			if (warmup is null)
+			{
+				return;
+			}
 
-		// Phase 2 (freeze transition): Convert to FrozenDictionary
-		_frozenCache = warmup.ToFrozenDictionary();
-		_isFrozen = true;
-		_warmupCache = null; // Allow GC to collect warmup dictionary
+			// Phase 2 (freeze transition): Convert to FrozenDictionary
+			_frozenRegistrations = _registrations.ToFrozenDictionary();
+			_frozenCache = warmup.ToFrozenDictionary();
+			_isFrozen = true;
+			_warmupCache = null; // Allow GC to collect warmup dictionary
+		}
 	}
 
 	/// <summary>
@@ -281,8 +299,13 @@ public static partial class HandlerInvokerRegistry
 	/// </remarks>
 	internal static void ClearCache()
 	{
-		_isFrozen = false;
-		_frozenCache = null;
-		_warmupCache = new ConcurrentDictionary<Type, Func<object, IDispatchMessage, CancellationToken, Task<object?>>>();
+		lock (RegistrationLock)
+		{
+			_registrations = new();
+			_frozenRegistrations = null;
+			_isFrozen = false;
+			_frozenCache = null;
+			_warmupCache = new ConcurrentDictionary<Type, Func<object, IDispatchMessage, CancellationToken, Task<object?>>>();
+		}
 	}
 }

@@ -32,6 +32,30 @@ public sealed class OutboxJobShould
 		_heartbeatTracker = new JobHeartbeatTracker();
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task HonorConfiguredDispatcherWhetherOrNotAProcessorIsRegistered(bool registerProcessor)
+	{
+		var processor = A.Fake<IOutboxProcessor>();
+		var services = new ServiceCollection();
+		services.AddSingleton(_fakeOutbox);
+		services.AddSingleton(_heartbeatTracker);
+		services.AddLogging();
+		services.AddTransient<OutboxJob>();
+		if (registerProcessor)
+		{
+			services.AddSingleton(processor);
+		}
+		await using var provider = services.BuildServiceProvider();
+		var job = provider.GetRequiredService<OutboxJob>();
+		var context = CreateJobExecutionContext("custom", "DEFAULT");
+		await job.Execute(context, CancellationToken.None);
+		await job.Execute(context, CancellationToken.None);
+		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+		A.CallTo(() => processor.DispatchPendingMessagesAsync(A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
 	// --- Constructor null guards ---
 
 	[Fact]
@@ -107,7 +131,7 @@ public sealed class OutboxJobShould
 	}
 
 	[Fact]
-	public async Task ExecuteSwallowExceptionAndLog()
+	public async Task ExecuteReportFailureWithoutImmediateRefire()
 	{
 		// Arrange
 		var sut = new OutboxJob(_fakeOutbox, _heartbeatTracker, NullLogger<OutboxJob>.Instance);
@@ -116,8 +140,10 @@ public sealed class OutboxJobShould
 
 		var context = CreateJobExecutionContext("OutboxJob", "DEFAULT");
 
-		// Act & Assert — Quartz jobs swallow exceptions
-		await Should.NotThrowAsync(() => sut.Execute(context));
+		// Report failure without an immediate retry or a success heartbeat.
+		var error = await Should.ThrowAsync<JobExecutionException>(() => sut.Execute(context));
+		error.RefireImmediately.ShouldBeFalse();
+		_heartbeatTracker.GetLastHeartbeat("OutboxJob").ShouldBeNull();
 	}
 
 	// --- bd-gh8ov8: OutboxJob MUST NOT dispose its injected SINGLETON IOutboxDispatcher (AC-12, EC-7) ---
@@ -161,45 +187,53 @@ public sealed class OutboxJobShould
 	}
 
 	// --- ConfigureJob honors the Disabled flag (Excalibur.Dispatch-ku1i3e) ---
-	// IServiceCollectionQuartzConfigurator cannot be faked, so these drive the real Quartz
+	// IQuartzBuilder cannot be faked, so these drive the real Quartz
 	// configurator and inspect the resulting QuartzOptions for the registered job detail.
 	// Inspecting options (rather than building a scheduler) keeps the test deterministic — it avoids
 	// Quartz's process-global SchedulerRepository, which is shared across parallel test classes.
 
 	[Fact]
-	public void ConfigureJobDoesNotRegisterJobWhenDisabled()
+	public async Task ConfigureJobDoesNotRegisterJobWhenDisabled()
 	{
 		// Arrange — Disabled:true must mean the job is never registered with the scheduler.
 		var config = BuildJobConfig(disabled: true);
 
 		// Act
-		var registered = IsJobRegistered(config);
+		var registered = await IsJobRegistered(config);
 
 		// Assert
 		registered.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void ConfigureJobRegistersJobWhenEnabled()
+	public async Task ConfigureJobRegistersJobWhenEnabled()
 	{
 		// Arrange — control case: proves the assertion above tests the Disabled gate, not a wiring slip.
 		var config = BuildJobConfig(disabled: false);
 
 		// Act
-		var registered = IsJobRegistered(config);
+		var registered = await IsJobRegistered(config);
 
 		// Assert
 		registered.ShouldBeTrue();
 	}
 
-	private static bool IsJobRegistered(IConfiguration config)
+	private static async Task<bool> IsJobRegistered(IConfiguration config)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddQuartz(q => OutboxJob.ConfigureJob(q, config));
-		using var provider = services.BuildServiceProvider();
-
-		var quartzOptions = provider.GetRequiredService<IOptions<QuartzOptions>>().Value;
-		return quartzOptions.JobDetails.Any(j => j.Key.Equals(new JobKey("OutboxJob", "TestGroup")));
+		services.AddLogging();
+		services.AddQuartz(q => q.ConfigureScheduler(o => o.InstanceName = Guid.NewGuid().ToString()));
+		await using var provider = services.BuildServiceProvider();
+		var scheduler = await provider.GetRequiredService<ISchedulerFactory>().GetScheduler();
+		try
+		{
+			return await scheduler.GetJobDetail(new JobKey("OutboxJob", "TestGroup")) is not null;
+		}
+		finally
+		{
+			await scheduler.Shutdown();
+		}
 	}
 
 	private static IConfiguration BuildJobConfig(bool disabled) =>

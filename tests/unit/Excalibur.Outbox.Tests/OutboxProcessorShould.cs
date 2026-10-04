@@ -54,6 +54,161 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 	};
 
+	[Fact]
+	public async Task DrainAgainAfterEmptyRun()
+	{
+		await using var scenario = await CreateDispatchScenarioAsync("second-run", 3, DispatchMessageResult.Success());
+		var calls = 0;
+		var original = await scenario.OutboxStore.GetUnsentMessagesAsync(1, CancellationToken.None);
+		A.CallTo(() => scenario.OutboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>(++calls == 2 ? original : []));
+		(await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None)).ShouldBe(0);
+		(await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None)).ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task RejectConcurrentDrainAndJoinBothDisposers()
+	{
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(call => new ValueTask<IEnumerable<OutboundMessage>>(ReadAsync(call.GetArgument<CancellationToken>(1))));
+		async Task<IEnumerable<OutboundMessage>> ReadAsync(CancellationToken token)
+			{
+				entered.SetResult();
+				await release.Task;
+				token.ThrowIfCancellationRequested();
+				return Enumerable.Empty<OutboundMessage>();
+			}
+		var processor = CreateProcessor(outboxStore: store);
+		processor.Init("first");
+		var run = processor.DispatchPendingMessagesAsync(CancellationToken.None);
+		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		try
+		{
+			await Should.ThrowAsync<InvalidOperationException>(() => processor.DispatchPendingMessagesAsync(CancellationToken.None));
+			Should.Throw<InvalidOperationException>(() => processor.Init("second"));
+			var firstDisposal = processor.DisposeAsync().AsTask();
+			var secondDisposal = processor.DisposeAsync().AsTask();
+			firstDisposal.IsCompleted.ShouldBeFalse();
+			secondDisposal.IsCompleted.ShouldBeFalse();
+			release.SetResult();
+			await Should.ThrowAsync<OperationCanceledException>(() => run);
+			await Task.WhenAll(firstDisposal, secondDisposal).WaitAsync(TimeSpan.FromSeconds(10));
+		}
+		finally
+		{
+			release.TrySetResult();
+			await processor.DisposeAsync();
+		}
+	}
+
+	[Fact]
+	public async Task ReuseAfterProducerFailure()
+	{
+		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		var failure = new InvalidOperationException("claim failed");
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).Throws(failure);
+		await using var processor = CreateProcessor(outboxStore: store);
+		processor.Init("retry");
+		(await Should.ThrowAsync<InvalidOperationException>(() => processor.DispatchPendingMessagesAsync(CancellationToken.None)))
+			.ShouldBeSameAs(failure);
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([]));
+		(await processor.DispatchPendingMessagesAsync(CancellationToken.None)).ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task PropagateDependencyCancellationWithoutTreatingItAsSuccessfulCompletion()
+	{
+		using var timeout = new CancellationTokenSource();
+		await timeout.CancelAsync();
+		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Throws(new OperationCanceledException("dependency timeout", timeout.Token));
+		await using var processor = CreateProcessor(outboxStore: store);
+		processor.Init("timeout");
+		await Should.ThrowAsync<OperationCanceledException>(() => processor.DispatchPendingMessagesAsync(CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task JoinRunEvenWhenDisposalCancellationCallbackThrows()
+	{
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(call => new ValueTask<IEnumerable<OutboundMessage>>(ReadAsync(call.GetArgument<CancellationToken>(1))));
+		async Task<IEnumerable<OutboundMessage>> ReadAsync(CancellationToken token)
+		{
+			using var registration = token.Register(() => { callbackEntered.SetResult(); throw new InvalidOperationException("callback failed"); });
+			entered.SetResult();
+			await release.Task;
+			token.ThrowIfCancellationRequested();
+			return [];
+		}
+		var processor = CreateProcessor(outboxStore: store);
+		processor.Init("callback");
+		var run = processor.DispatchPendingMessagesAsync(CancellationToken.None);
+		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		var disposal = processor.DisposeAsync().AsTask();
+		try
+		{
+			await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			disposal.IsCompleted.ShouldBeFalse();
+		}
+		finally
+		{
+			release.TrySetResult();
+		}
+		await Should.ThrowAsync<OperationCanceledException>(() => run);
+		await Should.ThrowAsync<AggregateException>(() => disposal);
+		await Should.ThrowAsync<AggregateException>(() => processor.DisposeAsync().AsTask());
+	}
+
+	[Fact]
+	public async Task ConsumerFailureStopsProducerUnderBackpressure()
+	{
+		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>([new OutboundMessage
+			{
+				Id = Guid.NewGuid().ToString(), MessageType = "test", Payload = [],
+			}]));
+		var registry = A.Fake<ITransportCircuitBreakerRegistry>();
+		A.CallTo(() => registry.GetOrCreate(A<string>._)).Throws(new InvalidOperationException("consumer failed"));
+		var options = CreateValidOptions();
+		options.Value.QueueCapacity = 1;
+		options.Value.ProducerBatchSize = 1;
+		options.Value.ConsumerBatchSize = 1;
+		options.Value.BatchProcessing.ParallelProcessingDegree = 1;
+		await using var processor = CreateProcessor(options: options, outboxStore: store, circuitBreakerRegistry: registry);
+		processor.Init("backpressure");
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			processor.DispatchPendingMessagesAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)));
+	}
+
+	[Fact]
+	public async Task StopReclaimingABatchContainingOnlyAlreadySeenIdentities()
+	{
+		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new ValueTask<IEnumerable<OutboundMessage>>([new OutboundMessage
+			{
+				Id = "repeated", MessageType = "unregistered", Payload = [],
+			}]));
+		var options = CreateValidOptions();
+		options.Value.PerRunTotal = 3;
+		options.Value.ProducerBatchSize = 1;
+		await using var processor = CreateProcessor(options: options, outboxStore: store);
+		processor.Init("duplicate");
+		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+		await processor.DispatchPendingMessagesAsync(deadline.Token);
+		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+	}
+
 	#region Constructor Tests
 
 	[Fact]
@@ -323,7 +478,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		await cts.CancelAsync();
 
 		// Act & Assert - Cancellation throws TaskCanceledException (expected behavior)
-		_ = await Should.ThrowAsync<TaskCanceledException>(
+		_ = await Should.ThrowAsync<OperationCanceledException>(
 			() => processor.DispatchPendingMessagesAsync(cts.Token));
 	}
 

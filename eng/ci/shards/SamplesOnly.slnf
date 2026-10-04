@@ -39,6 +39,7 @@
       "samples\\08-serialization\\MemoryPackSample\\MemoryPackSample.csproj",
       "samples\\08-serialization\\MessagePackSample\\MessagePackSample.csproj",
       "samples\\08-serialization\\Protobuf\\Protobuf.csproj",
+      "samples\\09-advanced\\ConsumerConformanceExample\\ConsumerConformanceExample.csproj",
       "samples\\09-advanced\\deployment\\BackgroundServices\\AtLeastOnceWithInbox\\AtLeastOnceWithInbox.csproj",
       "samples\\09-advanced\\deployment\\BackgroundServices\\MinimizedWindow\\MinimizedWindow.csproj",
       "samples\\09-advanced\\deployment\\BackgroundServices\\PerformanceComparison\\PerformanceComparison.csproj",

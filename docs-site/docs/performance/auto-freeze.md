@@ -55,52 +55,17 @@ await host.RunAsync();
 Measured 2026-09-04, `HandlerResolutionBenchmarks`, BenchmarkDotNet 0.15.8 in-process on
 .NET 10.0.11 (i9-14900K).
 
-:::caution Freezing measures slower for profile selection, and the 10x figure described something else
+:::note Historical profile-selection measurements
 
-This page previously stated a handler lookup of ~50 ns before freeze against ~5 ns after, a 10x
-improvement. That comparison had never been measured. Part of it has been now, and it does not
-support the claim.
+Earlier versions cached profile selection by message type. Measurements recorded on 2026-09-05
+compared that implementation's concurrent and frozen dictionaries. They do not describe the current
+`PipelineProfileRegistry`: it evaluates compatibility against each message and publishes an immutable
+snapshot of profile membership. This preserves message-dependent matching and observes completed
+registration/removal changes. There is no per-message-type profile-selection cache to freeze.
 
-**Profile selection: freezing costs more, at every registered type count tested.** Warm and frozen
-arms measured under one job configuration, rotating across all registered message types:
-
-| Registered message types | Warm (`ConcurrentDictionary`) | Frozen (`FrozenDictionary`) |
-|--------------------------|-------------------------------|-----------------------------|
-| 1                        | 3.15 ns, 0 B                  | 3.99 ns, 0 B                |
-| 10                       | 2.98 ns, 0 B                  | 5.56 ns, 0 B                |
-| 100                      | 3.57 ns, 0 B                  | 6.45 ns, 0 B                |
-
-There is no crossover. The frozen dictionary is 27% slower at one registered type and 81% slower at
-a hundred, and the gap widens with the type count instead of closing. Both allocate nothing.
-
-**What a ~10x figure probably described is the first lookup, not the freeze.** Selecting a profile
-for a message type that is not yet cached runs the full profile scan: **~310 ns and 128 B**, roughly
-a hundred times a cached lookup, independent of how many types are already cached. That is a
-cold-versus-cached difference, which every cache delivers whether or not it is later frozen.
-
-**Handler lookup is still unmeasured.** The handler invocation, registry, activation and result
-caches are separate from profile selection, and no like-for-like before-and-after-freeze arm exists
-for them. The figures in the table above this note are frozen steady-state costs with no unfrozen
-counterpart. Do not read the profile-selection result as a measurement of those.
-
-Measured 2026-09-05, `ProfileSelectionScaleBenchmarks`, BenchmarkDotNet 0.15.8 in-process on
-.NET 10.0.11 (i9-14900K).
-:::
-
-:::warning A message type first seen after freezing is never cached
-
-Freezing the profile-selection cache releases it, and the code path that would add a newly seen
-type to it afterwards has nothing to add to. So a message type that was not present when the
-freeze happened runs the full profile scan on **every dispatch, indefinitely** -- about 310 ns
-and 128 B each time, rather than the ~3 ns a cached lookup costs.
-
-Auto-freeze is enabled by default and happens at startup, so this affects any type that arrives
-later: one registered by a plugin, a handler in an assembly loaded on demand, or a generic
-constructed at run time. Nothing is logged when it happens.
-
-If that describes your application, disable auto-freeze -- the measurements above show freezing
-costs more than it saves for profile selection at every type count tested, so you give up
-nothing on this path by leaving the cache unfrozen.
+Do not disable auto-freeze to work around historical profile-cache behavior. Handler registries and
+invoker registrations are separate mechanisms; register those before freezing. The handler lookup
+measurements above are steady-state results, not a measured before/after-freeze speedup.
 :::
 
 ## Configuration

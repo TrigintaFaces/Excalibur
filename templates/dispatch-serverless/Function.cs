@@ -41,12 +41,23 @@ public sealed class Function
         }
 
         var context = DispatchContextInitializer.CreateDefaultContext();
-        _ = await _dispatcher.DispatchAsync(request, context, cancellationToken: default).ConfigureAwait(false);
+        var result = await _dispatcher.DispatchAsync(request, context, cancellationToken: default).ConfigureAwait(false);
 
         _logger.LogInformation("Order {OrderId} dispatched", request.OrderId);
 
-        var response = req.CreateResponse(HttpStatusCode.Accepted);
-        await response.WriteAsJsonAsync(new { orderId = request.OrderId, status = "Accepted" }).ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            var failed = req.CreateResponse();
+            await failed.WriteAsJsonAsync(new { error = "Order dispatch failed" }).ConfigureAwait(false);
+            failed.StatusCode = (HttpStatusCode)(result.ProblemDetails?.Status is int statusCode && statusCode is >= 400 and <= 599
+                ? statusCode : 500);
+            return failed;
+        }
+
+        var response = req.CreateResponse();
+        await response.WriteAsJsonAsync(new { orderId = request.OrderId, status = result.Disposition.ToString() }).ConfigureAwait(false);
+        response.StatusCode = result.Disposition == MessageDisposition.AcceptedForBackgroundExecution
+            ? HttpStatusCode.Accepted : HttpStatusCode.OK;
         return response;
     }
 }
@@ -105,14 +116,23 @@ public class Function
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
         var context = DispatchContextInitializer.CreateDefaultContext();
 
-        _ = await dispatcher.DispatchAsync(orderAction, context, cancellationToken: default).ConfigureAwait(false);
+        var result = await dispatcher.DispatchAsync(orderAction, context, cancellationToken: default).ConfigureAwait(false);
 
         _logger.LogInformation("Order {OrderId} dispatched", orderAction.OrderId);
 
+        if (!result.Succeeded)
+        {
+            return new APIGatewayProxyResponse
+            {
+                StatusCode = result.ProblemDetails?.Status is int statusCode && statusCode is >= 400 and <= 599 ? statusCode : 500,
+                Body = JsonSerializer.Serialize(new { error = "Order dispatch failed" }),
+            };
+        }
+
         return new APIGatewayProxyResponse
         {
-            StatusCode = 202,
-            Body = JsonSerializer.Serialize(new { orderId = orderAction.OrderId, status = "Accepted" }),
+            StatusCode = result.Disposition == MessageDisposition.AcceptedForBackgroundExecution ? 202 : 200,
+            Body = JsonSerializer.Serialize(new { orderId = orderAction.OrderId, status = result.Disposition.ToString() }),
         };
     }
 }
@@ -172,12 +192,20 @@ public class Function : IHttpFunction
         }
 
         var dispatchContext = DispatchContextInitializer.CreateDefaultContext();
-        _ = await _dispatcher.DispatchAsync(orderAction, dispatchContext, cancellationToken: default).ConfigureAwait(false);
+        var result = await _dispatcher.DispatchAsync(orderAction, dispatchContext, cancellationToken: default).ConfigureAwait(false);
 
         _logger.LogInformation("Order {OrderId} dispatched", orderAction.OrderId);
 
-        response.StatusCode = (int)HttpStatusCode.Accepted;
-        await response.WriteAsJsonAsync(new { orderId = orderAction.OrderId, status = "Accepted" }).ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            response.StatusCode = result.ProblemDetails?.Status is int statusCode && statusCode is >= 400 and <= 599 ? statusCode : 500;
+            await response.WriteAsJsonAsync(new { error = "Order dispatch failed" }).ConfigureAwait(false);
+            return;
+        }
+
+        response.StatusCode = result.Disposition == MessageDisposition.AcceptedForBackgroundExecution
+            ? (int)HttpStatusCode.Accepted : (int)HttpStatusCode.OK;
+        await response.WriteAsJsonAsync(new { orderId = orderAction.OrderId, status = result.Disposition.ToString() }).ConfigureAwait(false);
     }
 }
 #endif

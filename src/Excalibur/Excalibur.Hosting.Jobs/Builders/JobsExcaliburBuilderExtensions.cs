@@ -62,7 +62,7 @@ public static class JobsExcaliburBuilderExtensions
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IExcaliburBuilder AddJobs(this IExcaliburBuilder builder,
-		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
+		Action<IQuartzBuilder>? configureQuartz,
 		params Assembly[] assemblies)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
@@ -105,7 +105,7 @@ public static class JobsExcaliburBuilderExtensions
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IExcaliburBuilder AddJobs(this IExcaliburBuilder builder,
-		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
+		Action<IQuartzBuilder>? configureQuartz,
 		Action<IJobConfigurator>? configureJobs,
 		params Assembly[] assemblies)
 	{

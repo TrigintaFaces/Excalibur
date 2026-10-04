@@ -26,6 +26,28 @@ public sealed class DataProcessingHealthCheckShould : UnitTestBase
 	}
 
 	[Fact]
+	public async Task DegradeOnFailureBecomeUnhealthyAtThresholdAndRecoverOnSuccess()
+	{
+		_state.MarkStarted();
+		var health = new DataProcessingHealthCheck(_state, Options.Create(_options),
+			Options.Create(new Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions { UnhealthyThreshold = 2 }));
+		_state.RecordCycle(false);
+		(await health.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None)).Status.ShouldBe(HealthStatus.Degraded);
+		_state.RecordCycle(false);
+		(await health.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None)).Status.ShouldBe(HealthStatus.Unhealthy);
+		_state.RecordCycle(true);
+		(await health.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None)).Status.ShouldBe(HealthStatus.Healthy);
+	}
+
+	[Fact]
+	public async Task ReportStoppedBeforeTheFirstCycleAsUnhealthy()
+	{
+		_state.MarkStarted();
+		_state.MarkStopped();
+		(await CreateHealthCheck().CheckHealthAsync(new HealthCheckContext(), CancellationToken.None)).Status.ShouldBe(HealthStatus.Unhealthy);
+	}
+
+	[Fact]
 	public void ThrowArgumentNullException_WhenStateIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>

@@ -158,7 +158,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 // SQL Server with health checks. Fencing tokens are already on by default — see "Fencing tokens" below.
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
-    .UseSqlServer(connectionString, "my-app-leader")
+    .UseSqlServer(sql => sql.ConnectionString(connectionString).LockResource("my-app-leader"))
     .WithHealthChecks()));
 
 // Postgres (5 canonical connection overloads)
@@ -291,7 +291,7 @@ Register a single `ILeaderElection` when your application has **one leadership s
 ```csharp
 // One leader election for the entire application
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
-    .UseSqlServer(connectionString, "my-app-leader")
+    .UseSqlServer(sql => sql.ConnectionString(connectionString).LockResource("my-app-leader"))
     .WithHealthChecks()));
 ```
 
@@ -339,7 +339,7 @@ Register `ILeaderElectionFactory` when your application has **multiple independe
 ```csharp
 // Factory for creating per-resource elections
 services.AddExcalibur(excalibur => excalibur.AddLeaderElection(le => le
-    .UseSqlServerFactory(connectionString)));
+    .UseSqlServerFactory(sql => sql.ConnectionString(connectionString))));
 ```
 
 Use cases:
@@ -1200,53 +1200,35 @@ public class DailyReportGenerator : BackgroundService
 
 ### Event Projection Processing
 
-Single instance processes event projections:
+**Do not write this loop.** Asynchronous projections already run in a hosted processor that gates itself
+on leadership, and it does so by *presence*: register leader election and the projection host picks it up
+from the container. There is nothing to wire between them.
 
 ```csharp
-public class ProjectionWorker : BackgroundService
-{
-    private readonly ILeaderElection _leaderElection;
-    private readonly IEventStore _eventStore;
-    private readonly ICheckpointStore _checkpointStore;
-    private readonly IProjectionRegistry _projections;
-
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        await _leaderElection.StartAsync(ct);
-
-        try
-        {
-            while (!ct.IsCancellationRequested)
-            {
-                if (_leaderElection.IsLeader)
-                {
-                    var position = await _checkpointStore.GetPositionAsync("main", ct);
-
-                    await foreach (var @event in _eventStore.ReadAllAsync(position, ct))
-                    {
-                        // Check leadership before each event
-                        if (!_leaderElection.IsLeader)
-                            break;
-
-                        foreach (var projection in _projections)
-                        {
-                            await projection.HandleAsync(@event, ct);
-                        }
-
-                        await _checkpointStore.SavePositionAsync("main", @event.Position, ct);
-                    }
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(1), ct);
-            }
-        }
-        finally
-        {
-            await _leaderElection.StopAsync(CancellationToken.None);
-        }
-    }
-}
+services.AddExcalibur(excalibur => excalibur
+    .AddLeaderElection(le => le
+        .UseSqlServer(sql => sql
+            .ConnectionString(connectionString)
+            .LockResource("my-app-projections"))
+        .WithHealthChecks())
+    .AddEventSourcing(es => es
+        .AddProjection<OrderSummary>(p => p
+            .Async()                                  // runs in the hosted processor
+            .When<OrderPlaced>((proj, e) => proj.Total = e.Amount)
+            .When<OrderShipped>((proj, e) => proj.ShippedAt = e.ShippedAt))));
 ```
+
+With no leader election registered the processor runs unconditionally, which is what you want in a
+single-instance deployment. Register it and only the leader applies events.
+
+**Why the checkpoint is not sufficient on its own, and why this needs leadership at all.** It is tempting
+to assume two instances can both read the subscription and let the checkpoint sort them out. They cannot:
+each reader applies a whole batch *before* either contests the checkpoint, so the work is duplicated even
+though the mark is not. The checkpoint guards the mark, not the work. That is the reason the gate exists,
+and it is the part a hand-rolled loop usually gets wrong.
+
+Use `.Inline()` instead when a projection must be updated in the same transaction as the append; inline
+projections are not leader-gated, because there is only ever one writer of a given append.
 
 ## Health-Based Elections
 

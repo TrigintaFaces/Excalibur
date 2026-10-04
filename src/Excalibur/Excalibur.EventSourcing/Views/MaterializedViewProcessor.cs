@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
@@ -47,6 +48,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IOptions<MaterializedViewOptions> _options;
 	private readonly ILogger<MaterializedViewProcessor> _logger;
+	private readonly MaterializedViewMetrics? _metrics;
 
 	/// <summary>
 	/// Maps event type -> list of (viewName, builderRegistration) for routing.
@@ -74,19 +76,22 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// <param name="registrations">The registered materialized view builders.</param>
 	/// <param name="options">The materialized view options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="metrics">Optional refresh metrics. When supplied, each catch-up records its outcome so a stalled projection is observable rather than only logged.</param>
 	public MaterializedViewProcessor(
 		IMaterializedViewStore viewStore,
 		IGlobalStreamQuery globalStreamQuery,
 		IEventSerializer eventSerializer,
 		IEnumerable<MaterializedViewBuilderRegistration> registrations,
 		IOptions<MaterializedViewOptions> options,
-		ILogger<MaterializedViewProcessor> logger)
+		ILogger<MaterializedViewProcessor> logger,
+		MaterializedViewMetrics? metrics = null)
 	{
 		_viewStore = viewStore ?? throw new ArgumentNullException(nameof(viewStore));
 		_globalStreamQuery = globalStreamQuery ?? throw new ArgumentNullException(nameof(globalStreamQuery));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_metrics = metrics;
 
 		ArgumentNullException.ThrowIfNull(registrations);
 		var registrationList = registrations as IReadOnlyCollection<MaterializedViewBuilderRegistration> ?? registrations.ToList();
@@ -198,14 +203,27 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	{
 		LogRebuildStarting();
 
-		// Reset positions for all registered views to replay from the beginning
+		// Clear every registered view's checkpoint so nothing resumes from a stale one.
+		//
+		// This used to call SavePositionAsync(viewName, 0), and that could not work on ANY provider. Every
+		// store enforces a monotonic advance server-side -- SQL Server by `source.Position > target.Position`
+		// in its MERGE, Postgres by `WHERE position < EXCLUDED.position`, MongoDB by `$max`, and the two
+		// search stores by external versioning -- so a write of zero against an existing checkpoint was
+		// refused by design. The method returned void, so the refusal was invisible, and each store then
+		// logged a successful save. Measured against real Elasticsearch: the write answers HTTP 409,
+		// "current version [4000001] is higher than the one provided [1]", the stored position is unchanged,
+		// and the rebuild reported completion regardless.
+		//
+		// Lowering a checkpoint is a different operation from advancing one, so it is a different member.
 		foreach (var (viewName, _) in _viewNameRoutes)
 		{
-			await _viewStore.SavePositionAsync(viewName, 0, cancellationToken).ConfigureAwait(false);
+			await _viewStore.ResetPositionAsync(viewName, cancellationToken).ConfigureAwait(false);
 		}
 
-		// Replay the entire global stream through all builders
-		await ReplayGlobalStreamAsync(
+		// Replay the entire global stream through all builders. The applied count is not recorded here:
+		// a rebuild is an explicit operator action with its own completion log, not the periodic refresh
+		// whose staleness the health check tracks.
+		_ = await ReplayGlobalStreamAsync(
 			GlobalStreamPosition.Start,
 			allBuilders: true,
 			viewNameFilter: null,
@@ -231,22 +249,51 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			return;
 		}
 
-		var lastPosition = await _viewStore.GetPositionAsync(viewName, cancellationToken)
-			.ConfigureAwait(false);
+		// A refresh that permanently stops making progress must be OBSERVABLE, not merely logged. The
+		// health check derives staleness and failure rate from these recorders, so with nothing writing to
+		// them it can only ever report healthy — a projection dead for hours looks identical to one that
+		// just succeeded. Recording here is what makes a stalled refresh detectable, and here is the right
+		// place because the view name, the applied count and the fault are all in scope.
+		var startTimestamp = Stopwatch.GetTimestamp();
 
-		var startPosition = lastPosition.HasValue
-			? new GlobalStreamPosition(lastPosition.Value, DateTimeOffset.MinValue)
-			: GlobalStreamPosition.Start;
+		try
+		{
+			var lastPosition = await _viewStore.GetPositionAsync(viewName, cancellationToken)
+				.ConfigureAwait(false);
 
-		LogCatchUpStarting(viewName, startPosition.Position);
+			var startPosition = lastPosition.HasValue
+				? new GlobalStreamPosition(lastPosition.Value, DateTimeOffset.MinValue)
+				: GlobalStreamPosition.Start;
 
-		await ReplayGlobalStreamAsync(
-			startPosition,
-			allBuilders: false,
-			viewNameFilter: viewName,
-			cancellationToken).ConfigureAwait(false);
+			LogCatchUpStarting(viewName, startPosition.Position);
 
-		LogCatchUpCompleted(viewName);
+			var eventsApplied = await ReplayGlobalStreamAsync(
+				startPosition,
+				allBuilders: false,
+				viewNameFilter: viewName,
+				cancellationToken).ConfigureAwait(false);
+
+			_metrics?.RecordRefreshSuccess(
+				viewName,
+				Stopwatch.GetElapsedTime(startTimestamp),
+				eventsApplied);
+
+			LogCatchUpCompleted(viewName);
+		}
+		catch (OperationCanceledException)
+		{
+			// A host shutting down is not a refresh failure. Recording it as one would inflate the failure
+			// rate every time the process stops.
+			throw;
+		}
+		catch (Exception ex)
+		{
+			_metrics?.RecordRefreshFailure(
+				viewName,
+				Stopwatch.GetElapsedTime(startTimestamp),
+				ex.GetType().Name);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -258,7 +305,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
 	[RequiresUnreferencedCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("The materialized view store serializes view types reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private async Task ReplayGlobalStreamAsync(
+	private async Task<int> ReplayGlobalStreamAsync(
 		GlobalStreamPosition startPosition,
 		bool allBuilders,
 		string? viewNameFilter,
@@ -266,6 +313,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	{
 		var opts = _options.Value;
 		var currentPosition = startPosition;
+		var eventsApplied = 0;
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
@@ -276,20 +324,18 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 
 			if (storedEvents.Count == 0)
 			{
-				// "Caught up" is only ONE of the two things an empty read can mean, and the comment that
-				// stood here asserted the wrong one unconditionally.
-				//
-				// The global-stream read delivers only the contiguous run from our position and withholds
-				// everything above a gap, so empty also means "the next position is absent". Ending the
-				// replay there leaves the view short of the stream while reporting that it finished.
-				//
-				// Unlike a rebuild, this processor is not making a durable completion claim, so the right
-				// response is to STOP THIS PASS without claiming to be caught up. The gap is almost always
-				// an append still in flight, and the next pass picks it up once it commits.
+				// An empty read and a later head observation are not an atomic snapshot.
+				// If the observed head is ahead, this pass cannot claim complete coverage.
+				// Concurrent commits may conservatively fail a pass; retry catch-up from the
+				// durable applied prefix rather than reporting success or skipping to the head.
 				var head = await _globalStreamQuery.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+				cancellationToken.ThrowIfCancellationRequested();
 				if (head > currentPosition.Position)
 				{
 					LogStoppedShortOfHead(currentPosition.Position, head);
+					throw new InvalidOperationException(
+						$"Materialized view replay returned an empty page at position {currentPosition.Position} "
+						+ $"but observed head {head}. Completion is unproven; retry from the saved checkpoint.");
 				}
 
 				break;
@@ -304,7 +350,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 				// deserialization attempt, and continue past it: a view replay that halted at the first
 				// tombstone would make an erased subject's stream permanently un-replayable. It is never routed
 				// to a view builder, so it cannot populate a view. Only the reserved marker is skipped.
-				if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+				if (ErasedEventMarker.IsErased(storedEvent.EventType))
 				{
 					LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
 					continue;
@@ -313,12 +359,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 				try
 				{
 					var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-					var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
-
-					if (domainEvent is null)
-					{
-						continue;
-					}
+					var domainEvent = StoredEventPayload.RequireDecoded(
+						_eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType), storedEvent);
 
 					if (allBuilders)
 					{
@@ -327,7 +369,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 						{
 							foreach (var route in routes)
 							{
-								await ApplyEventToBuilderAsync(route.Registration, domainEvent, storedEvent.Version, cancellationToken)
+								await ApplyEventToBuilderAsync(route.Registration, domainEvent, storedEvent.GlobalPosition, cancellationToken)
 									.ConfigureAwait(false);
 							}
 						}
@@ -341,7 +383,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 							{
 								if (string.Equals(GetViewName(route.Registration), viewNameFilter, StringComparison.Ordinal))
 								{
-									await ApplyEventToBuilderAsync(route.Registration, domainEvent, storedEvent.Version, cancellationToken)
+									await ApplyEventToBuilderAsync(route.Registration, domainEvent, storedEvent.GlobalPosition, cancellationToken)
 										.ConfigureAwait(false);
 								}
 							}
@@ -395,6 +437,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 					+ "The event store's global stream query must stamp each event's global position.");
 			}
 
+			eventsApplied += storedEvents.Count;
+
 			var newPosition = lastEvent.GlobalPosition;
 			currentPosition = new GlobalStreamPosition(newPosition, lastEvent.Timestamp);
 
@@ -403,13 +447,16 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			{
 				foreach (var (viewName, _) in _viewNameRoutes)
 				{
-					await _viewStore.SavePositionAsync(viewName, lastEvent.GlobalPosition, cancellationToken)
+					// A refusal here is the monotonic guard working: another writer is further ahead and
+					// re-applying this position would rewind it. Discarded deliberately, not by omission.
+					_ = await _viewStore.SavePositionAsync(viewName, lastEvent.GlobalPosition, cancellationToken)
 						.ConfigureAwait(false);
 				}
 			}
 			else if (viewNameFilter is not null)
 			{
-				await _viewStore.SavePositionAsync(viewNameFilter, lastEvent.GlobalPosition, cancellationToken)
+				// A refusal here is the monotonic guard working -- see the sibling call above.
+				_ = await _viewStore.SavePositionAsync(viewNameFilter, lastEvent.GlobalPosition, cancellationToken)
 					.ConfigureAwait(false);
 			}
 
@@ -419,6 +466,9 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 				await Task.Delay(opts.BatchDelay, cancellationToken).ConfigureAwait(false);
 			}
 		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+		return eventsApplied;
 	}
 
 	/// <summary>
@@ -440,7 +490,8 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			// The event matched the builder's handled types but maps to no view instance — there is no
 			// view write to make atomic, yet the checkpoint must still advance so catch-up/rebuild does
 			// not re-scan this no-op event forever. A crash before this point simply re-reads a no-op.
-			await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
+			// A refusal is the monotonic guard working; discarded deliberately.
+			_ = await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
@@ -516,7 +567,10 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		CancellationToken cancellationToken)
 	{
 		await _viewStoreAccessors[viewType].SaveAsync(_viewStore, viewName, viewId, view, cancellationToken).ConfigureAwait(false);
-		await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
+
+		// NOTE: this is the NON-atomic fallback -- two separate writes. A refusal of the position advance
+		// here means a concurrent writer is ahead, which is the guard working; discarded deliberately.
+		_ = await _viewStore.SavePositionAsync(viewName, position, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -530,10 +584,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// </summary>
 	private static string? GetViewId(MaterializedViewBuilderRegistration registration, IDomainEvent @event)
 	{
-		var getViewIdMethod = registration.BuilderType
-			.GetMethod(nameof(IMaterializedViewBuilder<>.GetViewId));
-
-		return (string?)getViewIdMethod!.Invoke(registration.BuilderInstance, [@event]);
+		return registration.Accessor.GetViewId(registration.BuilderInstance, @event);
 	}
 
 	/// <summary>
@@ -541,10 +592,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 	/// </summary>
 	private static object CreateNewView(MaterializedViewBuilderRegistration registration)
 	{
-		var createNewMethod = registration.BuilderType
-			.GetMethod(nameof(IMaterializedViewBuilder<>.CreateNew));
-
-		return createNewMethod!.Invoke(registration.BuilderInstance, null)!;
+		return registration.Accessor.CreateNew(registration.BuilderInstance);
 	}
 
 	/// <summary>
@@ -555,10 +603,7 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 		object view,
 		IDomainEvent @event)
 	{
-		var applyMethod = registration.BuilderType
-			.GetMethod(nameof(IMaterializedViewBuilder<>.Apply));
-
-		return applyMethod!.Invoke(registration.BuilderInstance, [view, @event])!;
+		return registration.Accessor.Apply(registration.BuilderInstance, view, @event);
 	}
 
 	/// <summary>
@@ -583,21 +628,16 @@ internal sealed partial class MaterializedViewProcessor : IMaterializedViewProce
 			viewRegistrations.Add(registration);
 
 			// Build event-type routes by reading HandledEventTypes from the builder
-			var handledTypesProperty = registration.BuilderType
-				.GetProperty(nameof(IMaterializedViewBuilder<>.HandledEventTypes));
-
-			if (handledTypesProperty?.GetValue(registration.BuilderInstance) is IReadOnlyList<Type> handledTypes)
+			var handledTypes = registration.Accessor.GetHandledEventTypes(registration.BuilderInstance);
+			foreach (var eventType in handledTypes)
 			{
-				foreach (var eventType in handledTypes)
+				if (!_eventTypeRoutes.TryGetValue(eventType, out var routes))
 				{
-					if (!_eventTypeRoutes.TryGetValue(eventType, out var routes))
-					{
-						routes = [];
-						_eventTypeRoutes[eventType] = routes;
-					}
-
-					routes.Add(new BuilderRoute(viewName, registration));
+					routes = [];
+					_eventTypeRoutes[eventType] = routes;
 				}
+
+				routes.Add(new BuilderRoute(viewName, registration));
 			}
 
 			LogBuilderRegistered(viewName, registration.BuilderType.Name);

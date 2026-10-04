@@ -117,6 +117,19 @@ internal sealed partial class CdcChangeDetector
 		var currentGlobalLsn = lowestStartLsn;
 		var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 
+        if (maxLsn.All(static b => b == 0))
+        {
+            throw new InvalidOperationException("CDC maximum LSN is unavailable; no checkpoint has been reset.");
+        }
+        foreach (var table in _checkpointManager.TrackedTables)
+        {
+            var position = _checkpointManager.GetTracking(table);
+            if (position is not null && position.Lsn.CompareLsn(maxLsn) > 0)
+            {
+                throw InvalidPosition(table, position.Lsn, maxLsn, StalePositionReasonCodes.BackupRestore);
+            }
+        }
+
 		LogProducerLoopStarted(_checkpointManager.TrackingCount);
 
 		while (currentGlobalLsn != null && currentGlobalLsn.CompareLsn(maxLsn) <= 0)
@@ -140,6 +153,18 @@ internal sealed partial class CdcChangeDetector
 		LogNoMoreRecordsProducer();
 	}
 
+    private SqlServerCdcStalePositionException InvalidPosition(string table, byte[] position, byte[] bound, string reason) =>
+        new(new CdcPositionResetEventArgs
+        {
+            ProcessorId = _dbConfig.DatabaseConnectionIdentifier,
+            ProviderType = "SqlServer",
+            DatabaseName = _dbConfig.DatabaseName,
+            CaptureInstance = table,
+            StalePosition = position.ToArray(),
+            ReasonCode = reason,
+            ReasonMessage = $"CDC bounds changed while preparing a batch (observed bound {ByteArrayToHex(bound)}). Recovery requires a joined batch boundary.",
+        });
+
 	private async Task EnqueueTableChangesAsync(
 		string tableName,
 		byte[] lastLsn,
@@ -149,18 +174,17 @@ internal sealed partial class CdcChangeDetector
 		int queueSize,
 		CancellationToken combinedToken)
 	{
-		// Defense-in-depth: if this table's LSN predates the CDC cleanup boundary,
-		// reset the checkpoint to the capture instance's minimum valid LSN and skip
-		// this cycle. The next poll will process from the correct position.
-		// This avoids SQL Error 313 ("insufficient arguments") from the CDC TVF
-		// and only resets the affected table — other tables continue uninterrupted.
-		var minLsn = await _cdcRepository.GetMinPositionAsync(tableName, combinedToken).ConfigureAwait(false);
-		if (lastLsn.CompareLsn(minLsn) < 0)
-		{
-			LogStaleLsnReset(tableName, ByteArrayToHex(lastLsn), ByteArrayToHex(minLsn));
-			_checkpointManager.UpdateLsnTracking(tableName, minLsn, seqVal: null);
-			return;
-		}
+        // Bounds can move after initialization. Refuse the batch; only the joined retry
+        // may apply recovery policy and install replacement positions.
+        var minLsn = await _cdcRepository.GetMinPositionAsync(tableName, combinedToken).ConfigureAwait(false);
+        if (minLsn.All(static b => b == 0))
+        {
+            throw new InvalidOperationException("CDC capture minimum LSN is unavailable; verify capture instance and permissions.");
+        }
+        if (lastLsn.CompareLsn(minLsn) < 0)
+        {
+            throw InvalidPosition(tableName, lastLsn, minLsn, StalePositionReasonCodes.CdcCleanup);
+        }
 
 		var changeProcessingState = new ChangeProcessingState
 		{
@@ -186,14 +210,15 @@ internal sealed partial class CdcChangeDetector
 			// to current max), the TVF scans thousands of rows only to return a batch of N.
 			// Point queries bound the TVF scan to a single LSN — fast and predictable.
 			// The outer loop in ProducerLoopCoreAsync handles LSN-by-LSN advancement.
-			var changes = await retryPolicy.ExecuteAsync(() => _cdcRepository.FetchChangesAsync(
+			var fetched = await retryPolicy.ExecuteAsync(ct => _cdcRepository.FetchChangesAsync(
 				tableName,
 				producerBatchSize,
 				changeProcessingState.Lsn,
 				changeProcessingState.Lsn,
 				changeProcessingState.SequenceValue,
 				changeProcessingState.LastOperation,
-				combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
+				ct), combinedToken).ConfigureAwait(false);
+            var changes = fetched as IList<CdcRow> ?? fetched.ToList();
 
 			if (changes.Count == 0)
 			{
@@ -241,7 +266,6 @@ internal sealed partial class CdcChangeDetector
 		}
 
 		events.Clear();
-		changes.Clear();
 	}
 
 	private void ProcessCdcRecord(

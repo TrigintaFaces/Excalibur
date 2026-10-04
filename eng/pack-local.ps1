@@ -1,204 +1,121 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Pack Dispatch projects to a local feed so CI can validate them as a consumer would.
-
-.DESCRIPTION
-    This script:
-    1. Builds all shipping projects in Release mode
-    2. Packs both src/Dispatch and src/Excalibur projects to artifacts/_packages/ local feed
-    3. The packages are then used for cross-project PackageReference validation when
-       UsePackageReferences=true is set
-
-.PARAMETER Version
-    Package version override. Defaults to 0.0.0-local.
-    Passed to MinVer as MinVerVersionOverride so build + pack produce consistent metadata.
-
+    Build and pack the evaluated source package roster, retaining command logs and package hashes.
 .PARAMETER NoBuild
-    Skip build step (use if already built).
-
-.PARAMETER Clean
-    Remove existing packages before packing.
-
-.EXAMPLE
-    .\pack-local.ps1
-
-.EXAMPLE
-    .\pack-local.ps1 -Version 0.2.0-ci
-
-.EXAMPLE
-    .\pack-local.ps1 -NoBuild -Clean
+    Pack existing outputs. The manifest records this as unverified build provenance.
+.PARAMETER OutputDirectory
+    Local feed beneath artifacts/. Defaults to artifacts/_packages for existing callers.
 #>
-
 [CmdletBinding()]
 param(
-    [string]$Version = "0.0.0-local",
+    [string]$Version = '0.0.0-local',
     [switch]$NoBuild,
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$LockedRestore,
+    [switch]$ContinuousIntegrationBuild,
+    [string]$OutputDirectory = '',
+    [string]$EvidenceDirectory = ''
 )
-
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$LocalFeed = Join-Path $RepoRoot "artifacts/_packages"
-$DispatchSrc = Join-Path $RepoRoot "src/Dispatch"
-$ExcaliburSrc = Join-Path $RepoRoot "src/Excalibur"
-$MetapackagesSrc = Join-Path $RepoRoot "src/metapackages"
-$ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
-
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "Pack Local Feed" -ForegroundColor Cyan
-Write-Host "========================================`n" -ForegroundColor Cyan
-
-# Clean and create local feed
-if ($Clean -or !(Test-Path $LocalFeed)) {
-    if (Test-Path $LocalFeed) {
-        Write-Host "Cleaning existing packages..." -ForegroundColor Yellow
-        Remove-Item $LocalFeed -Recurse -Force
-    }
-    Write-Host "Creating local feed directory..." -ForegroundColor Yellow
-    New-Item -ItemType Directory -Path $LocalFeed -Force | Out-Null
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/package-composition.functions.ps1"
+$repo = Split-Path -Parent $PSScriptRoot
+$artifacts = [IO.Path]::GetFullPath((Join-Path $repo 'artifacts'))
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $artifacts '_packages' }
+$feed = [IO.Path]::GetFullPath($OutputDirectory)
+$relativeFeed = [IO.Path]::GetRelativePath($artifacts,$feed)
+if ($relativeFeed -eq '.' -or $relativeFeed -eq '..' -or $relativeFeed.StartsWith("..$([IO.Path]::DirectorySeparatorChar)") -or [IO.Path]::IsPathRooted($relativeFeed)) {
+    throw 'The local feed must be a child directory of this repository artifacts directory.'
 }
-
-# Build Dispatch projects
-if (-not $NoBuild) {
-    Write-Host "`n[1/2] Building Dispatch projects..." -ForegroundColor Yellow
-    if (-not (Test-Path $ShippingSolutionFilter)) {
-        throw "Shipping solution filter not found: $ShippingSolutionFilter"
+# A lexical child can still traverse a junction or symbolic link. Refuse those before deletion.
+$ancestor = $feed
+while ($ancestor -and $ancestor -ne [IO.Path]::GetPathRoot($ancestor)) {
+    if ((Test-Path -LiteralPath $ancestor) -and ((Get-Item -LiteralPath $ancestor).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw "The local feed traverses a linked directory: $ancestor"
     }
-
-    Push-Location $RepoRoot
-    try {
-        Write-Host "  Restoring $ShippingSolutionFilter..." -ForegroundColor Gray
-        dotnet restore $ShippingSolutionFilter --verbosity quiet
-        if ($LASTEXITCODE -ne 0) {
-            throw "Restore failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
-        }
-
-        Write-Host "  Building $ShippingSolutionFilter..." -ForegroundColor Gray
-        dotnet build $ShippingSolutionFilter -c Release --no-restore --verbosity quiet `
-            -p:MinVerVersionOverride=$Version
-        if ($LASTEXITCODE -ne 0) {
-            throw "Build failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
-        }
-    }
-    finally {
-        Pop-Location
-    }
+    $ancestor = Split-Path -Parent $ancestor
 }
-else {
-    Write-Host "`n[1/2] Skipping build (--NoBuild specified)..." -ForegroundColor Yellow
+if (-not $EvidenceDirectory) { $EvidenceDirectory = Join-Path $artifacts ('pack-evidence/' + [guid]::NewGuid().ToString('N')) }
+$evidence = [IO.Path]::GetFullPath($EvidenceDirectory)
+if ($Clean -and (Test-Path -LiteralPath $feed)) {
+    # Only the verified, explicitly owned feed is removed. Never clear shared NuGet caches.
+    Remove-Item -LiteralPath $feed -Recurse -Force
 }
-
-# Pack Dispatch projects
-Write-Host "`n[2/4] Packing Dispatch projects to local feed..." -ForegroundColor Yellow
-
-$DispatchProjects = Get-ChildItem -Path $DispatchSrc -Filter "*.csproj" -Recurse
-
-$packedCount = 0
-foreach ($proj in $DispatchProjects) {
-    Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
-
-    Push-Location $RepoRoot
-    try {
-        dotnet pack $proj.FullName `
-            -o $LocalFeed `
-            -c Release `
-            -p:MinVerVersionOverride=$Version `
-            --no-build `
-            --no-restore
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to pack $($proj.Name)"
-        }
-        else {
-            $packedCount++
+New-Item -ItemType Directory -Path $feed,$evidence -Force | Out-Null
+if (@(Get-ChildItem -LiteralPath $feed -Filter '*.nupkg').Count -gt 0) { throw 'The feed must be empty. Use -Clean or a fresh -OutputDirectory.' }
+$dotnet = (Get-Command dotnet -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$common = @("-p:MinVerVersionOverride=$Version", '-p:BuildExamplesAndTests=true', '-p:Configuration=Release', '-p:UsePackageReferences=false')
+if ($LockedRestore) { $common += '-p:RestoreLockedMode=true' }
+if ($ContinuousIntegrationBuild) { $common += '-p:ContinuousIntegrationBuild=true' }
+$filter = Join-Path $repo 'eng/ci/shards/ShippingOnly.slnf'
+$roster = @()
+$failures = [Collections.Generic.List[string]]::new()
+$manifest = [ordered]@{ status='incomplete'; version=$Version; buildVerified=$false; lockedRestore=[bool]$LockedRestore; continuousIntegrationBuild=[bool]$ContinuousIntegrationBuild; candidateSha=''; projects=@(); packages=@() }
+try {
+    $head = & git -C $repo rev-parse HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot identify the candidate checkout.' }
+    $manifest.candidateSha = "$head".Trim()
+    $expectedSha = if ($env:COMPOSITION_EXPECTED_SHA) { $env:COMPOSITION_EXPECTED_SHA } else { $env:GITHUB_SHA }
+    if ($expectedSha -and $expectedSha -cne $manifest.candidateSha) { throw 'Checkout differs from the expected workflow candidate.' }
+    $sourceIdentity = Get-CompositionSourceIdentity $repo
+    $sourceIdentity | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $evidence 'source-inputs.json') -Encoding utf8
+    $manifest.sourceSha256 = $sourceIdentity.sha256
+    # Independent population: every source project, including providers, tools and metapackages.
+    $projects = @(Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Filter '*.csproj' -Recurse | Sort-Object FullName)
+    if ($projects.Count -eq 0) { throw 'The source project roster is empty.' }
+    $shipping = @((Get-Content -LiteralPath $filter -Raw | ConvertFrom-Json).solution.projects | ForEach-Object { $_.Replace('\','/') })
+    foreach ($project in $projects) {
+        $relative = [IO.Path]::GetRelativePath($repo,$project.FullName).Replace('\','/')
+        $log = Join-Path $evidence ($project.BaseName + '.evaluate')
+        Invoke-PackageCommand $dotnet (@('msbuild',$project.FullName,'-nologo','-getProperty:IsPackable,PackageId,PackageVersion') + $common) $log $repo
+        $properties = (Get-Content -LiteralPath "$log.stdout.log" -Raw | ConvertFrom-Json).Properties
+        $packable = $properties.IsPackable -ne 'false'
+        if ($packable -and $relative -notin $shipping) { throw "Packable project omitted from ShippingOnly: $relative" }
+        if ($packable -and [string]::IsNullOrWhiteSpace($properties.PackageId)) { throw "Missing evaluated package identity: $relative" }
+        $roster += @{ project=$relative; id=$properties.PackageId; packable=$packable; projectSha256=(Get-FileHash $project.FullName).Hash }
+    }
+    $manifest.projects = $roster
+    $expected = @($roster | Where-Object packable)
+    if ($expected.Count -eq 0) { throw 'The evaluated package roster is empty.' }
+    if (@($expected | Group-Object id | Where-Object Count -gt 1).Count -gt 0) { throw 'Duplicate evaluated package identities.' }
+    if (-not $NoBuild) {
+        Write-Host 'Building the shipping candidate with the requested package version.'
+        Invoke-PackageCommand $dotnet (@('restore',$filter,'--verbosity','minimal') + $common) (Join-Path $evidence 'restore') $repo
+        Invoke-PackageCommand $dotnet (@('build',$filter,'-c','Release','--no-restore','--verbosity','minimal','--disable-build-servers') + $common) (Join-Path $evidence 'build') $repo
+        $manifest.buildVerified = $true
+        # Capture source-mode runtime edges before package-mode restores overwrite obj files.
+        foreach ($project in $roster) {
+            $log = Join-Path $evidence ($project.id + '.source-assets-path')
+            Invoke-PackageCommand $dotnet (@('msbuild',(Join-Path $repo $project.project),'-nologo','-getProperty:ProjectAssetsFile') + $common) $log $repo
+            $assetsPath = (Get-Content "$log.stdout.log" -Raw).Trim()
+            $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json -AsHashtable
+            $project.dispatchDependencies = @{}
+            $project.internalDependencies = @{}
+            foreach ($target in $assets.targets.Keys) {
+                $project.dispatchDependencies[$target] = @($assets.targets[$target].Keys | Where-Object { $_ -like 'Excalibur.Dispatch*/*' } | ForEach-Object { $_.Split('/')[0] } | Sort-Object -Unique)
+                $project.internalDependencies[$target] = @($assets.targets[$target].Keys | Where-Object { $_ -like 'Excalibur*/*' } | ForEach-Object { $_.Split('/')[0] } | Sort-Object -Unique)
+            }
+            Copy-Item -LiteralPath $assetsPath -Destination (Join-Path $evidence ($project.id + '.source.assets.json'))
         }
     }
-    finally {
-        Pop-Location
+    foreach ($project in $expected) {
+        Write-Host "Packing $($project.id)"
+        try {
+            Invoke-PackageCommand $dotnet (@('pack',(Join-Path $repo $project.project),'-o',$feed,'-c','Release','--no-build','--no-restore') + $common) (Join-Path $evidence ($project.id + '.pack')) $repo
+        }
+        catch { $failures.Add($_.Exception.Message); Write-Warning $_ }
     }
+    if ($failures.Count -gt 0) { throw "$($failures.Count) required package command(s) failed. See $evidence" }
+    $packages = Get-CompositionPackages $feed $Version
+    $difference = @(Compare-Object @($expected.id | Sort-Object) @($packages.Keys | Sort-Object))
+    if ($difference.Count -gt 0) { throw "Produced packages do not match the evaluated source roster: $($difference.InputObject -join ', ')" }
+    $manifest.packages = @($packages.Values | Sort-Object id)
+    if ((Get-CompositionSourceIdentity $repo).sha256 -cne $manifest.sourceSha256) { throw 'Candidate source changed during production.' }
+    if ((& git -C $repo rev-parse HEAD).Trim() -cne $manifest.candidateSha) { throw 'Candidate commit changed during production.' }
+    $manifest.status = 'passed'
+    Write-Host "Local feed: $feed ($($packages.Count) packages). Evidence: $evidence"
 }
-
-# Pack Excalibur projects (needed for cross-project PackageReference validation)
-Write-Host "`n[3/4] Packing Excalibur projects to local feed..." -ForegroundColor Yellow
-
-$ExcaliburProjects = Get-ChildItem -Path $ExcaliburSrc -Filter "*.csproj" -Recurse
-
-foreach ($proj in $ExcaliburProjects) {
-    Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
-
-    Push-Location $RepoRoot
-    try {
-        dotnet pack $proj.FullName `
-            -o $LocalFeed `
-            -c Release `
-            -p:MinVerVersionOverride=$Version `
-            --no-build `
-            --no-restore
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to pack $($proj.Name)"
-        }
-        else {
-            $packedCount++
-        }
-    }
-    finally {
-        Pop-Location
-    }
+finally {
+    $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $evidence 'candidate-packages.json') -Encoding utf8
 }
-
-# Pack metapackage projects
-Write-Host "`n[4/4] Packing metapackage projects to local feed..." -ForegroundColor Yellow
-
-$MetapackageProjects = Get-ChildItem -Path $MetapackagesSrc -Filter "*.csproj" -Recurse
-
-foreach ($proj in $MetapackageProjects) {
-    Write-Host "  Packing $($proj.Name)..." -ForegroundColor Gray
-
-    Push-Location $RepoRoot
-    try {
-        dotnet pack $proj.FullName `
-            -o $LocalFeed `
-            -c Release `
-            -p:MinVerVersionOverride=$Version `
-            --no-build `
-            --no-restore
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to pack $($proj.Name)"
-        }
-        else {
-            $packedCount++
-        }
-    }
-    finally {
-        Pop-Location
-    }
-}
-
-# Summary
-Write-Host "`n========================================" -ForegroundColor Green
-Write-Host "Local Feed Ready" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "  Location: $LocalFeed" -ForegroundColor White
-Write-Host "  Version: $Version" -ForegroundColor White
-
-$packages = Get-ChildItem $LocalFeed -Filter "*.nupkg" -ErrorAction SilentlyContinue
-$packageCount = ($packages | Measure-Object).Count
-Write-Host "  Packages: $packageCount" -ForegroundColor White
-
-if ($packageCount -gt 0) {
-    Write-Host "`nPackages:" -ForegroundColor Cyan
-    $packages | ForEach-Object {
-        Write-Host "  - $($_.Name)" -ForegroundColor Gray
-    }
-}
-
-Write-Host "`nUsage:" -ForegroundColor Cyan
-Write-Host "  dotnet build src/Excalibur -p:UsePackageReferences=true" -ForegroundColor Gray
-Write-Host "  dotnet build eng/ci/shards/ShippingOnly.slnf -p:UsePackageReferences=true" -ForegroundColor Gray
-
-exit 0

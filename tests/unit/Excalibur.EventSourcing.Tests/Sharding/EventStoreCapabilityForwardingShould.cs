@@ -174,7 +174,7 @@ public sealed class EventStoreCapabilityForwardingShould
 			],
 		};
 		var cold = A.Fake<IColdEventStore>();
-		_ = A.CallTo(() => cold.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._))
+		_ = A.CallTo(() => cold.ReadAsync(A<KeyedTenantPartition>._, "agg-1", "Agg", A<CancellationToken>._))
 			.Returns(Versions(1, 2, 3, 4));
 
 		var view = (IEventStore)Tiered(hot, cold).GetService(typeof(ITransactionalEventStore))!;
@@ -266,7 +266,7 @@ public sealed class EventStoreCapabilityForwardingShould
 			EventData: [],
 			Metadata: null,
 			Version: v,
-			Timestamp: DateTimeOffset.UnixEpoch))
+			Timestamp: DateTimeOffset.UnixEpoch) { TenantId = TenantDefaults.DefaultTenantId })
 	];
 
 	private static EncryptedData Envelope() => new()
@@ -300,6 +300,8 @@ public sealed class EventStoreCapabilityForwardingShould
 
 	private class PlainStore : IEventStore
 	{
+		public object? GetService(Type serviceType) => serviceType == typeof(IEventStoreAuthoritativeReader)
+			? new TestEventStateReader(this) : serviceType.IsInstanceOfType(this) ? this : null;
 		/// <summary>The history this store holds. Seeded to model a hot tier whose early events were archived away.</summary>
 		public IReadOnlyList<StoredEvent> Events { get; init; } = [];
 

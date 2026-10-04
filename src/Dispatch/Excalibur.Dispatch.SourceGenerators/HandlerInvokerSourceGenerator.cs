@@ -22,7 +22,8 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 {
 	private static readonly HashSet<string> HandlerInterfaces =
 	[
-		"IActionHandler", "IEventHandler", "IDocumentHandler", "IQueryHandler"
+		"Excalibur.Dispatch.Delivery.IActionHandler`1", "Excalibur.Dispatch.Delivery.IActionHandler`2",
+		"Excalibur.Dispatch.Delivery.IEventHandler`1", "Excalibur.Dispatch.Delivery.IDocumentHandler`1"
 	];
 
 	/// <summary>
@@ -52,7 +53,7 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 	private static HandlerInfo? GetHandlerInfo(GeneratorSyntaxContext context)
 	{
 		if (context.SemanticModel.GetDeclaredSymbol(context.Node) is not INamedTypeSymbol typeSymbol || typeSymbol.IsAbstract ||
-			typeSymbol.IsGenericType)
+			typeSymbol.IsGenericType || !CanNameType(typeSymbol, context.SemanticModel.Compilation))
 		{
 			return null;
 		}
@@ -67,20 +68,23 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			var unboundInterface = @interface.ConstructUnboundGenericType();
-			var interfaceName = unboundInterface.Name;
-
-			if (!HandlerInterfaces.Contains(interfaceName))
+			var compilation = context.SemanticModel.Compilation;
+			if (!HandlerInterfaces.Any(name => SymbolEqualityComparer.Default.Equals(
+				@interface.OriginalDefinition, compilation.GetTypeByMetadataName(name))))
 			{
 				continue;
 			}
 
 			var messageType = @interface.TypeArguments[0];
 			var resultType = @interface.TypeArguments.Length > 1 ? @interface.TypeArguments[1] : null;
+			if (!CanNameType(messageType, compilation) || (resultType is not null && !CanNameType(resultType, compilation)))
+			{
+				continue;
+			}
 
 			handlerInterfaces.Add(new HandlerInterfaceInfo
 			{
-				InterfaceName = interfaceName,
+				InterfaceName = @interface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 				MessageType = messageType,
 				ResultType = resultType,
 				HasResult = resultType != null
@@ -99,6 +103,22 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 			SimpleName = typeSymbol.Name,
 			Interfaces = handlerInterfaces
 		};
+	}
+
+	private static bool CanNameType(ITypeSymbol type, Compilation compilation)
+	{
+		if (type is IArrayTypeSymbol array)
+		{
+			return CanNameType(array.ElementType, compilation);
+		}
+		if (type is not INamedTypeSymbol named || named.IsAnonymousType || named.IsUnboundGenericType
+			|| named.IsFileLocal || named.TypeKind == TypeKind.Error
+			|| !compilation.IsSymbolAccessibleWithin(named, compilation.Assembly))
+		{
+			return false;
+		}
+		return (named.ContainingType is null || CanNameType(named.ContainingType, compilation))
+			&& named.TypeArguments.All(argument => CanNameType(argument, compilation));
 	}
 
 	private static void GenerateHandlerInvokerRegistry(SourceProductionContext context, ImmutableArray<HandlerInfo> handlers)
@@ -157,12 +177,12 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 				{
 					var resultTypeName = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 					_ = sb.AppendLine($"        HandlerInvokerRegistry.RegisterInvoker<{handler.FullName}, {messageTypeName}, {resultTypeName}>(");
-					_ = sb.AppendLine("            static (handler, message, ct) => handler.HandleAsync(message, ct));");
+					_ = sb.AppendLine($"            static (handler, message, ct) => (({@interface.InterfaceName})handler).HandleAsync(message, ct));");
 				}
 				else
 				{
 					_ = sb.AppendLine($"        HandlerInvokerRegistry.RegisterInvoker<{handler.FullName}, {messageTypeName}>(");
-					_ = sb.AppendLine("            static (handler, message, ct) => handler.HandleAsync(message, ct));");
+					_ = sb.AppendLine($"            static (handler, message, ct) => (({@interface.InterfaceName})handler).HandleAsync(message, ct));");
 				}
 			}
 		}

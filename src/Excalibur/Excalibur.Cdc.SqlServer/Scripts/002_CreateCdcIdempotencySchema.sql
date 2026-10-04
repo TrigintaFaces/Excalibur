@@ -26,15 +26,44 @@
 --
 --     catch (SqlException ex) when (IsDuplicateKeyViolation(ex))
 --
--- That is what makes the filter correct when two instances process the same change concurrently —
--- the loser of the race is told so by the database rather than by a read that raced. Remove or
--- weaken the uniqueness below and the code does not fail; it silently stops deduplicating, because
--- the exception it relies on is never raised and both instances proceed as if they had won.
+-- WHAT THE CONSTRAINT GUARANTEES, AND WHAT IT DOES NOT.
 --
--- The key is therefore the full natural key (TableName, Lsn, SeqVal, ConsumerId), matching the
--- predicate in HasProcessedAsync exactly. ConsumerId is part of it and is not decoration: without
--- it the dedupe namespace is table-plus-position, so the first consumer to process a change marks
--- it done for every other consumer and the others skip a change they never saw.
+-- It guarantees AT MOST ONE ROW per (TableName, Lsn, SeqVal, ConsumerId). It does NOT guarantee at
+-- most one EXECUTION, and an earlier version of this comment claimed it did -- that it "makes the
+-- filter correct when two instances process the same change concurrently." That was wrong, and it
+-- was wrong in the direction that makes a consumer under-engineer their handler.
+--
+-- The insert is a RECORD, not a CLAIM. A claim is taken before the work; this one is taken after it.
+-- The order in CdcChangeApplier is: IsProcessedAsync, then the handler, then MarkProcessedAsync. So
+-- two processors sharing a consumer identity both read "not processed" -- honestly, because nothing
+-- has been written yet -- both invoke the handler, and only then does one of them lose the insert.
+-- The loser IS told, after it has already acted, and the exception is swallowed by design. There is
+-- no execution in which the duplicate-key violation prevents a second handler invocation.
+--
+-- That ordering is deliberate and correct. Marking first would permit a change to be recorded as
+-- processed that was never handled, which loses data; a duplicate only reprocesses. The subsystem's
+-- ARCHITECTURE.md states the resulting guarantee properly: delivery is at-least-once, and nothing
+-- here deduplicates unless this filter is registered. What the filter buys is the restart and retry
+-- case -- a change already recorded is skipped on a later pass -- not mutual exclusion between live
+-- processors.
+--
+-- The constraint's purpose is therefore that the loser's MarkProcessedAsync is a NO-OP rather than an
+-- error, so a race does not fail the batch. Remove or weaken the uniqueness below and the code does
+-- not fail; it silently stops deduplicating even across restarts, because the exception it relies on
+-- is never raised.
+--
+-- The key is the full natural key (TableName, Lsn, SeqVal, ConsumerId, DatabaseName), matching the
+-- predicate in the filter exactly, and carrying EVERY axis the checkpoint store matches on. That
+-- correspondence is the invariant: the checkpoint matches on (DatabaseConnectionIdentifier,
+-- DatabaseName, TableName), so a dedupe key missing any of those axes is COARSER than the position it
+-- guards -- and a coarser dedupe namespace suppresses rather than duplicates, because the first
+-- consumer to reach a position marks it done for everyone sharing the coarser key.
+--
+-- Neither ConsumerId nor DatabaseName is decoration. Nothing elsewhere establishes that a connection
+-- identifier is unique across whatever shares one dedupe table: the job options validator checks only
+-- that the collection is non-empty, the fan-out de-duplicates configurations by reference rather than
+-- by value, and the dedupe table's own database is chosen independently of any source. So the key does
+-- not rely on identifiers happening to differ -- it carries the axes outright.
 --
 --
 -- INDEX KEY WIDTH — STATED, BECAUSE IT IS WHAT BOUNDS THE COLUMN SIZES
@@ -43,12 +72,19 @@
 -- so that is the limit that binds, and the column widths below are chosen to fit it rather than
 -- chosen for comfort and discovered to fit:
 --
---     [TableName]   NVARCHAR(128)  ->  256 bytes   (2 bytes per character)
---     [ConsumerId]  NVARCHAR(128)  ->  256 bytes
---     [Lsn]         BINARY(10)     ->   10 bytes
---     [SeqVal]      BINARY(10)     ->   10 bytes
---                                      ---------
---                                       532 bytes   (of 900)
+--     [TableName]    NVARCHAR(128)  ->  256 bytes   (2 bytes per character)
+--     [ConsumerId]   NVARCHAR(128)  ->  256 bytes
+--     [DatabaseName] NVARCHAR(128)  ->  256 bytes
+--     [Lsn]          BINARY(10)     ->   10 bytes
+--     [SeqVal]       BINARY(10)     ->   10 bytes
+--                                       ---------
+--                                        788 bytes   (of 900)
+--
+-- The margin is now 112 bytes, down from 368 when the key had four columns. A SIXTH axis of identifier
+-- width does NOT fit: 128 more characters would be 1044 bytes. If one is ever genuinely needed, the
+-- natural key moves to a UNIQUE constraint over a surrogate clustered key -- which is exactly what the
+-- CDC state-store table next door already does, and for this reason. Do not widen these columns and do
+-- not add a sixth identifier to this key without making that change first.
 --
 -- 128 is not an arbitrary cap on TableName: the value is a SQL Server capture instance or table
 -- name, and a SQL Server identifier is at most 128 characters, so the column cannot be narrower
@@ -93,15 +129,23 @@ BEGIN
         [Lsn]         BINARY(10)      NOT NULL,
         [SeqVal]      BINARY(10)      NOT NULL,
 
-        -- The consumer that processed the change. Part of the key: see the header.
+        -- The consumer that processed the change, as a connection-string NAME. Part of the key.
         [ConsumerId]  NVARCHAR(128)   NOT NULL,
+
+        -- The configured source database. Part of the key, and it was MISSING: the checkpoint store
+        -- matches on (DatabaseConnectionIdentifier, DatabaseName, TableName), so a dedupe key without
+        -- this column is coarser than the position it guards. Two configured sources that share a
+        -- connection identifier and differ here kept separate checkpoints while sharing one dedupe
+        -- namespace, and the first to reach a position marked it done for the other -- a change skipped
+        -- that was never processed.
+        [DatabaseName] NVARCHAR(128)  NOT NULL,
 
         -- Written by the INSERT as SYSUTCDATETIME(). The retention sweep compares against it.
         [ProcessedAt] DATETIME2(7)    NOT NULL,
 
         -- Load-bearing: this constraint IS the deduplication mechanism. See the header.
         CONSTRAINT [PK_CdcProcessedEvents] PRIMARY KEY CLUSTERED
-            ([TableName] ASC, [Lsn] ASC, [SeqVal] ASC, [ConsumerId] ASC)
+            ([TableName] ASC, [Lsn] ASC, [SeqVal] ASC, [ConsumerId] ASC, [DatabaseName] ASC)
     );
 END
 GO

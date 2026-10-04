@@ -85,6 +85,13 @@ internal sealed class SqliteSubscriptionCheckpointStore : ISubscriptionCheckpoin
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		if (expectedPosition is { } prior)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(prior, nameof(expectedPosition));
+			ArgumentOutOfRangeException.ThrowIfLessThan(newPosition, prior);
+		}
+
 
 		await using var connection = new SqliteConnection(_connectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);

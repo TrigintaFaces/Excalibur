@@ -135,7 +135,7 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	/// </summary>
 	/// <param name="configurator"> The Quartz configurator. </param>
 	/// <param name="configuration"> The application configuration. </param>
-	public static void ConfigureJob(IServiceCollectionQuartzConfigurator configurator, IConfiguration configuration)
+	public static void ConfigureJob(IQuartzBuilder configurator, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -158,10 +158,10 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 			return;
 		}
 
-		_ = configurator.AddJob<CdcJob>(jobKey, job => job.WithIdentity(jobKey).WithDescription("CDC processing job"));
+		_ = configurator.AddJob<CdcJob>(job => job.WithIdentity(jobKey).WithDescription("CDC processing job"));
 
 		_ = configurator.AddTrigger(trigger => trigger.ForJob(jobKey).WithIdentity($"{jobConfig.JobName}Trigger")
-			.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15))).WithCronSchedule(jobConfig.CronSchedule)
+			.StartAt(DateTimeOffset.UtcNow.AddSeconds(15)).WithCronSchedule(jobConfig.CronSchedule)
 			.WithDescription("Trigger for CDC processing job"));
 	}
 
@@ -200,8 +200,9 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 	/// Executes the CDC job, processing changes for each configured database.
 	/// </summary>
 	/// <param name="context"> The execution context provided by Quartz. </param>
-	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-	public async Task Execute(IJobExecutionContext context)
+	/// <param name="cancellationToken">The cancellation token for this firing.</param>
+	/// <returns>The asynchronous execution.</returns>
+	public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -213,75 +214,59 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		{
 			try
 			{
+				cancellationToken.ThrowIfCancellationRequested();
 				LogJobStarting(jobGroup, jobName);
 
 				var tasks = jobConfig.DatabaseConfigs
 					.Distinct()
-					.Select(dbConfig => ProcessCdcChangesAsync(dbConfig, context.CancellationToken));
+					.Select(dbConfig => ProcessCdcChangesAsync(dbConfig, cancellationToken));
 
 				var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
+				cancellationToken.ThrowIfCancellationRequested();
 				_heartbeatTracker.RecordHeartbeat(jobName);
 
 				LogJobCompleted(jobGroup, jobName, results.Sum());
 			}
-#pragma warning disable CA1031 // Intentional: Quartz jobs must catch all exceptions to prevent immediate re-execution
-			catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 				// Graceful shutdown requested — propagate so Quartz respects the cancellation
 				throw;
 			}
 			catch (Exception ex)
-#pragma warning restore CA1031
 			{
-				// Quartz best practices state that exceptions in jobs should not be rethrown as the job will subsequently process again
-				// immediately and likely encounter the same exception. So swallow the exception and log the error to be investigated. If
-				// this is an issue that does not resolve with time then the heartbeat will also never recover and alerts should be sent.
 				LogJobError(ex.GetType().Name, jobGroup, jobName, ex.Message, ex);
+				cancellationToken.ThrowIfCancellationRequested();
+				// Report failure to Quartz listeners without requesting an immediate retry.
+				// The next scheduled firing remains eligible to recover.
+				throw new JobExecutionException(ex) { RefireImmediately = false };
 			}
 		}
 	}
 
 	private async Task<int> ProcessCdcChangesAsync(DatabaseOptions dbConfig, CancellationToken cancellationToken)
 	{
-		// Fail loudly instead of silently no-op'ing when a database has no tracked tables
-		// (e.g. a configuration that predates the Tables shape). Without this, the job would
-		// poll nothing and report success, masking a misconfiguration.
+		cancellationToken.ThrowIfCancellationRequested();
 		if (dbConfig.CaptureInstances.Length == 0)
 		{
 			LogNoTablesConfigured(dbConfig.DatabaseName);
-			return 0;
+			throw new InvalidOperationException($"No CDC tables configured for database '{dbConfig.DatabaseName}'.");
 		}
 
-		var cdcConnection = _connectionFactory(dbConfig.DatabaseConnectionIdentifier);
-
-		// CdcRepository wraps the CDC connection and owns its disposal.
-		// The factory expects a CdcRepository, not a raw SqlConnection.
-		var cdcRepository = new CdcRepository(cdcConnection);
-
-		// The state store opens a connection per operation, so it takes the factory rather than one
-		// connection: overlapping checkpoint writes must not share a single connection.
+		// Establish ownership before invoking the factory: creation itself can fail.
+		await using var cdcRepository = new CdcRepository(_connectionFactory(dbConfig.DatabaseConnectionIdentifier));
 		var stateConnectionIdentifier = dbConfig.StateConnectionIdentifier;
-		var processor = _factory.Create(dbConfig, cdcRepository, () => _connectionFactory(stateConnectionIdentifier));
+		await using var processor = _factory.Create(dbConfig, cdcRepository, () => _connectionFactory(stateConnectionIdentifier));
 
 		try
 		{
 			return await processor.ProcessCdcChangesAsync(cancellationToken).ConfigureAwait(false);
 		}
-#pragma warning disable CA1031 // Intentional: CDC processor errors should not crash the job - log and return 0 processed
 		catch (Exception ex)
-#pragma warning restore CA1031
 		{
 			LogCdcProcessingError(ex.GetType().Name, dbConfig.DatabaseName, ex.Message, ex);
-			return 0;
-		}
-		finally
-		{
-			await processor.DisposeAsync().ConfigureAwait(false);
-			// CdcRepository.DisposeAsync disposes the underlying cdcConnection
-			await cdcRepository.DisposeAsync().ConfigureAwait(false);
-
-			// No state-store connection to dispose: the store opens and disposes one per operation.
+			// Only an entirely successful invocation may advance the job heartbeat.
+			throw;
 		}
 	}
 
@@ -306,4 +291,12 @@ public sealed partial class CdcJob : IJob, IConfigurableJob<CdcJobOptions>
 		"No CDC tables configured for database '{DatabaseName}'. Add entries to the 'Tables' array " +
 		"(each with a 'TableName' and, when it differs, a 'CaptureInstance'). Nothing was processed.")]
 	private partial void LogNoTablesConfigured(string databaseName);
+	/// <summary>Executes using the cancellation token supplied by the execution context.</summary>
+	/// <param name="context">The Quartz execution context.</param>
+	/// <returns>The asynchronous execution.</returns>
+	public Task Execute(IJobExecutionContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+		return Execute(context, context.CancellationToken).AsTask();
+	}
 }

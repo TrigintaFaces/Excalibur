@@ -66,6 +66,64 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 {
 	private const string AggregateType = nameof(ErasureOutboxAggregate);
 
+	[Fact]
+	public async Task PreservePendingEventsAfterTransactionalStagingWithUnknownCommit()
+	{
+		var store = A.Fake<ITransactionalEventStore>();
+		A.CallTo(() => ((IServiceProvider)store).GetService(typeof(ITransactionalEventStore))).Returns(store);
+		var transaction = A.Fake<IDbTransaction>();
+		var staged = false;
+		A.CallTo(() => store.AppendWithOutboxStagingAsync(
+			A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._,
+			A<Func<IDbTransaction, CancellationToken, ValueTask>>._, A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				var stage = call.GetArgument<Func<IDbTransaction, CancellationToken, ValueTask>>(4)!;
+				var token = call.GetArgument<CancellationToken>(5);
+				await stage(transaction, token);
+				staged = true;
+				return AppendResult.CreateUnknown("commit acknowledgement unavailable");
+			});
+		var outbox = A.Fake<IOutboxStore>();
+		var broker = A.Fake<IEventNotificationBroker>();
+		var writer = A.Fake<ITransactionalOutboxWriter>();
+		var repository = CreateTransactionalRepository(store, outbox, broker, writer);
+		var aggregate = new ErasureOutboxAggregate("unknown-transactional-outcome");
+		aggregate.DoWork("pending", "stable-transactional-event-id");
+		var pending = aggregate.GetUncommittedEvents().ToArray();
+
+		await Should.ThrowAsync<AppendOutcomeUnknownException>(() => repository.SaveAsync(aggregate, CancellationToken.None));
+
+		staged.ShouldBeTrue("uncertainty can arise after the staging callback has run");
+		aggregate.GetUncommittedEvents().ShouldBe(pending);
+		A.CallTo(() => store.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+		A.CallTo(() => outbox.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => broker.NotifyAsync(A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task PreservePendingIdentityAndRefuseEffectsForUnknownAppendOutcome()
+	{
+		var store = A.Fake<IEventStore>();
+		A.CallTo(() => store.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new ValueTask<AppendResult>(AppendResult.CreateUnknown("commit acknowledgement unavailable")));
+		var outbox = A.Fake<IOutboxStore>();
+		var broker = A.Fake<IEventNotificationBroker>();
+		var repository = CreateRepository(store, outbox, broker);
+		var aggregate = new ErasureOutboxAggregate("unknown-outcome");
+		aggregate.DoWork("pending", "stable-event-id");
+		var pending = aggregate.GetUncommittedEvents().ToArray();
+
+		await Should.ThrowAsync<AppendOutcomeUnknownException>(() => repository.SaveAsync(aggregate, CancellationToken.None));
+
+		aggregate.GetUncommittedEvents().ShouldBe(pending);
+		A.CallTo(() => outbox.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => broker.NotifyAsync(A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
 	/// <summary>
 	/// SAFETY — the store recognises its own rows by identity, the stream has since been erased, and the
 	/// repository refuses: no outbox stage, no notification, and the defined exception.

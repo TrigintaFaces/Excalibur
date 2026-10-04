@@ -3,7 +3,6 @@
 
 
 using System.Data;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -40,7 +39,6 @@ namespace Excalibur.Cdc.SqlServer;
 public partial class CdcProcessor : ISqlServerCdcProcessor
 {
 	private protected readonly IDatabaseOptions _dbConfig;
-	private readonly IDataAccessPolicyFactory _policyFactory;
 	private readonly TimeProvider _timeProvider;
 	private readonly ILogger<CdcProcessor> _logger;
 
@@ -49,12 +47,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	private readonly CdcChangeDetector _changeDetector;
 	private readonly CdcChangeApplier _changeApplier;
 
-	// Disposal targets — kept for lifecycle management.
-	// Typed as the ICdcRepository seam (not the concrete CdcRepository) so this field's five uses —
-	// GetMin/GetMaxPositionAsync in stale-position recovery plus lifecycle dispose — resolve against the
-	// interface. The public/internal ctors still accept the concrete CdcRepository (upcast on assignment),
-	// so the public surface is unchanged; the seam lets a unit test drive RecoverFromStalePositionAsync
-	// with an injected fake repository deterministically, without live SQL.
+	// Source and state repositories remain owned for disposal; composed workers share their storage seams.
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly OrderedEventProcessor _orderedEventProcessor = new();
@@ -78,9 +71,14 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	// CdcLeadershipSupersededException as fatal, so a superseded leader stops rather than retries.
 	private readonly IMessageFailureClassifier? _failureClassifier;
 
+#pragma warning disable CA2213 // Managed-only semaphore; queued callers must still acquire/release after disposal. AvailableWaitHandle is never used.
 	private readonly SemaphoreSlim _executionLock = new(1, 1);
+#pragma warning restore CA2213
 
-	private readonly ConcurrentBag<Task> _backgroundTasks = [];
+	private readonly Lock _disposeGate = new();
+	private readonly CancellationTokenRegistration _stoppingRegistration;
+	private readonly CancellationToken _stoppingToken;
+	private Task? _disposeTask;
 
 	private volatile bool _isRunning;
 
@@ -189,7 +187,6 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		_stateStore = stateStoreOptions is null
 				? new CdcStateStore(stateStoreConnectionFactory)
 				: new CdcStateStore(stateStoreConnectionFactory, stateStoreOptions);
-		_policyFactory = policyFactory;
 		_logger = logger;
 		_leaderElection = leaderElection;
 		_failureClassifier = failureClassifier;
@@ -204,30 +201,15 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			dbConfig,
 			cdcRepository,
 			_stateStore,
-			logger);
+			logger, policyFactory);
 		_changeDetector = new CdcChangeDetector(cdcRepository, cdcRepository, dbConfig, policyFactory, _checkpointManager, logger);
 		_changeApplier = new CdcChangeApplier(dbConfig, policyFactory, _checkpointManager, _orderedEventProcessor, logger, _onFatalError, idempotencyFilter, _failureClassifier);
 
-		_ = appLifetime.ApplicationStopping.Register(() =>
+		_stoppingToken = _producerCancellationTokenSource.Token;
+		_stoppingRegistration = appLifetime.ApplicationStopping.Register(() =>
 		{
-			var task = Task.Factory.StartNew(
-					OnApplicationStoppingAsync,
-					CancellationToken.None,
-					TaskCreationOptions.DenyChildAttach,
-					TaskScheduler.Default)
-				.Unwrap();
-			_backgroundTasks.Add(task);
-
-			// Drain completed tasks to prevent unbounded growth
-			var snapshot = _backgroundTasks.ToArray();
-			_backgroundTasks.Clear();
-			foreach (var t in snapshot)
-			{
-				if (!t.IsCompleted)
-				{
-					_backgroundTasks.Add(t);
-				}
-			}
+			try { _producerCancellationTokenSource.Cancel(); }
+			catch (Exception ex) { LogErrorDisposingOnShutdown(ex); }
 		});
 	}
 
@@ -256,14 +238,16 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
-
-		await _executionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		using var invocationStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stoppingToken);
+		cancellationToken = invocationStop.Token;
 
 		using var activity = CdcTelemetryConstants.ActivitySource.StartActivity("cdc.process");
 		activity?.SetTag(CdcTelemetryConstants.TagNames.CaptureInstance, string.Join(",", _dbConfig.CaptureInstances));
 
+		await _executionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
+			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 			if (_isRunning)
 			{
 				throw new InvalidOperationException("CDC processor is already running.");
@@ -271,6 +255,10 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 
 			_isRunning = true;
 
+            var totalProcessed = 0;
+            for (var recoveryAttempt = 0; ; recoveryAttempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 			// Single-active-consumer gate + fencing-token pin. Read CurrentLeadership ONCE: if fencing is
 			// configured and this instance is not (or no longer) the leader, stand by. Otherwise PIN the
 			// leadership tenure's fencing token for the WHOLE batch — a mid-batch demotion does NOT mutate the
@@ -285,7 +273,7 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 				if (_leaderElection.CurrentLeadership is not { } leadership)
 				{
 					activity?.SetTag("cdc.standby", "not-leader");
-					return 0;
+					return totalProcessed;
 				}
 
 				pinnedFencingToken = leadership.FencingToken;
@@ -294,6 +282,11 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			_checkpointManager.SetBatchFencingToken(pinnedFencingToken);
 
 			await _checkpointManager.InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
+			if (!_checkpointManager.HasReadableWindow)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				return totalProcessed;
+			}
 
 			var lowestStartLsn = _checkpointManager.GetNextLsn() ??
 								 throw new InvalidOperationException("Cannot start processing: no valid minimum LSN found.");
@@ -315,11 +308,12 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 			// time delivered nothing: the first poll left both in their terminal state.
 			_cdcQueue = CreateQueue(_queueSize);
 			_producerStopped = false;
+            _changeApplier.ResetBatchAccounting();
 
 			_producerTask = Task.Factory.StartNew(
 					() => ProducerLoopAsync(lowestStartLsn, batchToken),
 					batchToken,
-					TaskCreationOptions.LongRunning,
+					TaskCreationOptions.DenyChildAttach,
 					TaskScheduler.Default)
 				.Unwrap();
 			_consumerTask = Task.Factory.StartNew(
@@ -331,17 +325,40 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 						() => _producerStopped,
 						batchToken),
 					batchToken,
-					TaskCreationOptions.LongRunning,
+					TaskCreationOptions.DenyChildAttach,
 					TaskScheduler.Default)
 				.Unwrap();
 
-			await JoinBothHalvesAsync(_producerTask, _consumerTask, batchFaultSource).ConfigureAwait(false);
-
-			var totalProcessed = await _consumerTask.ConfigureAwait(false);
-
-			activity?.SetTag("cdc.events.total", totalProcessed);
-			return totalProcessed;
-		}
+                try
+                {
+                    await JoinBothHalvesAsync(_producerTask, _consumerTask, batchFaultSource).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (IsProducerStaleFailure(ex))
+                {
+                    var recovery = _dbConfig.RecoveryOptions;
+                    if (recovery is null || recovery.RecoveryStrategy == StalePositionRecoveryStrategy.Throw || recoveryAttempt >= recovery.MaxRecoveryAttempts)
+                    {
+                        throw;
+                    }
+                    recovery.Validate();
+                    LogStalePositionDetected(ex is SqlException sourceError ? sourceError.Number.ToString(CultureInfo.InvariantCulture) : "bounds-changed", recoveryAttempt + 1);
+                    if (recovery.RecoveryAttemptDelay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(recovery.RecoveryAttemptDelay, _timeProvider, cancellationToken).ConfigureAwait(false);
+                    }
+                    // The join completed before this catch. The next attempt reloads durable
+                    // checkpoints and leadership, and creates a fresh queue and cancellation source.
+                    continue;
+                }
+                finally
+                {
+                    totalProcessed = checked(totalProcessed + _changeApplier.CompletedBatchEventCount);
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                activity?.SetTag("cdc.events.total", totalProcessed);
+                return totalProcessed;
+            }
+        }
 		catch (Exception ex)
 		{
 			activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
@@ -373,124 +390,59 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	/// <summary>
 	/// Disposes of resources used by the <see cref="CdcProcessor" />.
 	/// </summary>
-	protected virtual async ValueTask DisposeCoreAsync()
+	protected virtual ValueTask DisposeCoreAsync()
 	{
-		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		lock (_disposeGate)
 		{
-			return;
+			if (_disposeTask is null)
+			{
+				Interlocked.Exchange(ref _disposedFlag, 1);
+				_disposeTask = DisposeOwnedResourcesAsync();
+			}
+			return new ValueTask(_disposeTask);
 		}
+	}
 
+	private async Task DisposeOwnedResourcesAsync()
+	{
 		LogDisposingAsync();
+		await _stoppingRegistration.DisposeAsync().ConfigureAwait(false);
+		try { await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false); }
+		catch (Exception ex) { LogErrorDisposingAsync(ex); }
 
+		// ProcessBatch releases this only after joining both workers. Never clear state
+		// or dispose connections while an admitted invocation still owns them.
+		await _executionLock.WaitAsync().ConfigureAwait(false);
 		try
 		{
-			await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
-
-			if (_consumerTask is { IsCompleted: false })
-			{
-				LogConsumerNotCompletedAsync();
-
-				try
-				{
-					using var disposalCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-					_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), disposalCts.Token).ConfigureAwait(false);
-				}
-				catch (TimeoutException ex)
-				{
-					LogConsumerTimeoutAsync(ex);
-				}
-				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-				{
-					// Disposal timeout expired — continue cleanup
-				}
-			}
-
-			// Await tracked background tasks
-			foreach (var task in _backgroundTasks)
-			{
-				try
-				{
-					await task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-				}
-				catch (TimeoutException)
-				{
-					// Background task did not complete in time — continue cleanup
-				}
-				catch (Exception)
-				{
-					// Swallow exceptions from background tasks during disposal
-				}
-			}
-
-			if (_producerTask is not null)
-			{
-				await CdcDisposalHelper.SafeDisposeAsync(_producerTask).ConfigureAwait(false);
-			}
-
-			if (_consumerTask is not null)
-			{
-				await CdcDisposalHelper.SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
-			}
-
 			_checkpointManager.Clear();
 			_ = _cdcQueue.Writer.TryComplete();
-			await _cdcRepository.DisposeAsync().ConfigureAwait(false);
-			await _stateStore.DisposeAsync().ConfigureAwait(false);
-			await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
-
-			_executionLock.Dispose();
-		}
-		catch (Exception ex)
-		{
-			LogErrorDisposingAsync(ex);
+			try { await _cdcRepository.DisposeAsync().ConfigureAwait(false); }
+			finally
+			{
+				try { await _stateStore.DisposeAsync().ConfigureAwait(false); }
+				finally { await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false); }
+			}
 		}
 		finally
 		{
 			_producerCancellationTokenSource.Dispose();
+			// Keep the managed semaphore alive for already queued callers, which reject
+			// the disposed instance after acquisition and then release it themselves.
+			_ = _executionLock.Release();
 		}
 	}
 
-	/// <summary>
-	/// Releases the unmanaged resources used by the <see cref="CdcProcessor" /> and optionally releases the managed resources.
-	/// </summary>
-	/// <param name="disposing"> True to release both managed and unmanaged resources; false to release only unmanaged resources. </param>
+	/// <summary>Releases resources after all admitted processing has stopped.</summary>
+	/// <param name="disposing">Whether managed resources should be released.</param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (!disposing || Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		if (disposing)
 		{
-			return;
+#pragma warning disable RS0030 // Legacy IDisposable must join the same shutdown as IAsyncDisposable before releasing owned resources.
+			DisposeCoreAsync().AsTask().GetAwaiter().GetResult();
+#pragma warning restore RS0030
 		}
-
-		LogDisposingSync();
-
-		_producerCancellationTokenSource.Cancel();
-
-		if (_consumerTask is { IsCompleted: false })
-		{
-			LogConsumerNotCompletedSync();
-		}
-
-		_checkpointManager.Clear();
-		_producerCancellationTokenSource.Dispose();
-
-		if (_producerTask?.IsCompleted == true)
-		{
-			_producerTask.Dispose();
-		}
-
-		if (_consumerTask?.IsCompleted == true)
-		{
-			_consumerTask.Dispose();
-		}
-		_cdcRepository.Dispose();
-		_stateStore.Dispose();
-
-		// For synchronous disposal, we need to handle the async queue disposal This is a known pattern for dual disposal (sync/async) in
-		// .NET We suppress the warning as this is intentional for backward compatibility
-		_ = _cdcQueue.Writer.TryComplete();
-
-		_orderedEventProcessor.Dispose();
-		_executionLock.Dispose();
 	}
 
 	/// <summary>
@@ -555,10 +507,11 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	{
 		var firstSettled = await Task.WhenAny(producer, consumer).ConfigureAwait(false);
 
-		if (firstSettled.IsFaulted)
-		{
-			await faultSource.CancelAsync().ConfigureAwait(false);
-		}
+        if (firstSettled.IsFaulted || firstSettled.IsCanceled)
+        {
+            try { await faultSource.CancelAsync().ConfigureAwait(false); }
+            catch (Exception) { /* A callback failure must not bypass the join or hide the causal task failure. */ }
+        }
 
 		try
 		{
@@ -566,6 +519,13 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		}
 		catch when (firstSettled.IsFaulted)
 		{
+            var other = ReferenceEquals(firstSettled, producer) ? consumer : producer;
+            if (other.IsFaulted)
+            {
+                throw new AggregateException("Both CDC batch workers failed.",
+                    firstSettled.Exception!.InnerExceptions.Concat(other.Exception!.InnerExceptions));
+            }
+
 			// Rethrow the ORIGINAL failure with its stack intact. Task.WhenAll surfaces whichever exception
 			// it happens to pick, which after a cancellation may be the survivor's OperationCanceledException
 			// -- an effect of the fault reported in place of the fault.
@@ -574,189 +534,27 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 		}
 	}
 
-	/// <summary>
-	/// Runs the producer loop with stale-position recovery. Delegates the core CDC iteration
-	/// to <see cref="CdcChangeDetector.ProducerLoopCoreAsync"/> and wraps it with a retry loop
-	/// that handles <see cref="SqlException"/>s indicating stale LSN positions.
-	/// </summary>
-	private async Task ProducerLoopAsync(byte[]? lowestStartLsn, CancellationToken cancellationToken)
-	{
-		var recoveryAttempts = 0;
-		var currentStartLsn = lowestStartLsn;
+    private bool IsProducerStaleFailure(Exception exception) => _producerTask is { IsFaulted: true } &&
+        _consumerTask is { IsFaulted: false } &&
+        _producerTask.Exception!.InnerExceptions.Contains(exception) &&
+        (exception is SqlServerCdcStalePositionException ||
+         (exception is SqlException sql && CdcStalePositionDetector.IsStalePositionException(sql)));
 
-		try
-		{
-			while (true) // Recovery retry loop
-			{
-				try
-				{
-					using var combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
-					await _changeDetector.ProducerLoopCoreAsync(currentStartLsn, _cdcQueue.Writer, _queueSize, combinedTokenSource.Token)
-						.ConfigureAwait(false);
-					break; // Success — exit recovery retry loop
-				}
-				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || ProducerCancellationToken.IsCancellationRequested)
-				{
-					LogProducerCanceled();
-					break;
-				}
-				catch (SqlException ex) when (CdcStalePositionDetector.IsStalePositionException(ex))
-				{
-					recoveryAttempts++;
-					var recoveryOptions = _dbConfig.RecoveryOptions;
-
-					LogStalePositionDetected(
-						CdcStalePositionDetector.GetStalePositionErrorNumber(ex)?.ToString(CultureInfo.InvariantCulture) ?? "unknown",
-						recoveryAttempts);
-
-					if (recoveryOptions is null || recoveryOptions.RecoveryStrategy == StalePositionRecoveryStrategy.Throw)
-					{
-						LogSqlErrorInProducer(ex);
-						throw;
-					}
-
-					if (recoveryAttempts > recoveryOptions.MaxRecoveryAttempts)
-					{
-						LogRecoveryExhausted(recoveryAttempts, recoveryOptions.MaxRecoveryAttempts);
-						throw new SqlServerCdcStalePositionException(
-							CdcStalePositionDetector.CreateEventArgs(
-								ex, _dbConfig.DatabaseConnectionIdentifier,
-								databaseName: _dbConfig.DatabaseName),
-							$"Stale position recovery exhausted after {recoveryAttempts} attempts.",
-							ex);
-					}
-
-					currentStartLsn = await RecoverFromStalePositionAsync(ex, recoveryOptions, cancellationToken)
-						.ConfigureAwait(false);
-
-					if (recoveryOptions.RecoveryAttemptDelay > TimeSpan.Zero)
-					{
-						await Task.Delay(recoveryOptions.RecoveryAttemptDelay, _timeProvider, cancellationToken).ConfigureAwait(false);
-					}
-
-					// Loop will retry with recovered LSN
-				}
-				catch (SqlException ex)
-				{
-					LogSqlErrorInProducer(ex);
-					throw;
-				}
-				catch (Exception ex)
-				{
-					LogUnexpectedErrorInProducer(ex);
-					throw;
-				}
-			}
-		}
-		finally
-		{
-			_producerStopped = true;
-			_cdcQueue.Writer.Complete();
-			LogProducerCompleted();
-		}
-	}
-
-	/// <summary>
-	/// Attempts to recover from a stale CDC position by resetting tracking to a valid LSN range.
-	/// </summary>
-	private async Task<byte[]?> RecoverFromStalePositionAsync(
-		SqlException ex,
-		CdcRecoveryOptions recoveryOptions,
-		CancellationToken cancellationToken)
-	{
-		byte[]? newPosition = null;
-
-		// Recovery reads the CDC position bounds directly, outside the detector and applier that own the
-		// rest of the change pipeline. Both of those siblings run their repository calls through the shared
-		// data-access policy, and recovery must too: it is invoked from inside the producer's stale-position
-		// catch block, so a transient fault raised here is not caught by any sibling handler and stops the
-		// producer for the remainder of the run. Both position reads are idempotent, so retrying is safe.
-		var recoveryPolicy = _policyFactory.GetComprehensivePolicy();
-
-		switch (recoveryOptions.RecoveryStrategy)
-		{
-			case StalePositionRecoveryStrategy.FallbackToEarliest:
-				foreach (var captureInstance in _dbConfig.CaptureInstances)
-				{
-					var minLsn = await recoveryPolicy
-						.ExecuteAsync(ct => _cdcRepository.GetMinPositionAsync(captureInstance, ct), cancellationToken)
-						.ConfigureAwait(false);
-					_checkpointManager.UpdateLsnTracking(captureInstance, minLsn, seqVal: null);
-				}
-				newPosition = _checkpointManager.GetNextLsn();
-				LogRecoveryAttempt("FallbackToEarliest",
-					newPosition != null ? CdcChangeDetector.ByteArrayToHex(newPosition) : "null");
-				break;
-
-			case StalePositionRecoveryStrategy.FallbackToLatest:
-				newPosition = await recoveryPolicy
-					.ExecuteAsync(_cdcRepository.GetMaxPositionAsync, cancellationToken)
-					.ConfigureAwait(false);
-				foreach (var captureInstance in _dbConfig.CaptureInstances)
-				{
-					_checkpointManager.UpdateLsnTracking(captureInstance, newPosition, seqVal: null);
-				}
-				LogRecoveryAttempt("FallbackToLatest", CdcChangeDetector.ByteArrayToHex(newPosition));
-				break;
-
-			case StalePositionRecoveryStrategy.InvokeCallback:
-				if (recoveryOptions.OnPositionReset is null)
-				{
-					throw new InvalidOperationException(
-						$"{nameof(CdcRecoveryOptions.OnPositionReset)} callback is required when using " +
-						$"{nameof(StalePositionRecoveryStrategy)}.{nameof(StalePositionRecoveryStrategy.InvokeCallback)} strategy.");
-				}
-				// Fall through to callback invocation below — callback decides the action
-				foreach (var captureInstance in _dbConfig.CaptureInstances)
-				{
-					var minLsn = await recoveryPolicy
-						.ExecuteAsync(ct => _cdcRepository.GetMinPositionAsync(captureInstance, ct), cancellationToken)
-						.ConfigureAwait(false);
-					_checkpointManager.UpdateLsnTracking(captureInstance, minLsn, seqVal: null);
-				}
-				newPosition = _checkpointManager.GetNextLsn();
-				LogRecoveryAttempt("InvokeCallback",
-					newPosition != null ? CdcChangeDetector.ByteArrayToHex(newPosition) : "null");
-				break;
-		}
-
-		// Invoke callback if configured (for all strategies — enables logging/alerting)
-		if (recoveryOptions.OnPositionReset is not null)
-		{
-			var args = CdcStalePositionDetector.CreateEventArgs(
-				ex,
-				_dbConfig.DatabaseConnectionIdentifier,
-				newPosition: newPosition,
-				databaseName: _dbConfig.DatabaseName);
-
-			await recoveryOptions.OnPositionReset(args, cancellationToken).ConfigureAwait(false);
-		}
-
-		return newPosition;
-	}
-
-	/// <summary>
-	/// Handles cleanup when the application is stopping.
-	/// </summary>
-	private async Task OnApplicationStoppingAsync()
-	{
-		LogApplicationStopping();
-
-		_producerStopped = true;
-		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
-
-		LogProducerCancellationRequested();
-		LogWaitingForConsumer();
-
-		try
-		{
-			await DisposeAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			LogErrorDisposingOnShutdown(ex);
-		}
-	}
+    /// <summary>Produces one batch. Recovery happens only after both batch workers terminate.</summary>
+    private async Task ProducerLoopAsync(byte[]? lowestStartLsn, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var combined = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
+            await _changeDetector.ProducerLoopCoreAsync(lowestStartLsn, _cdcQueue.Writer, _queueSize, combined.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            _producerStopped = true;
+            _cdcQueue.Writer.TryComplete();
+            LogProducerCompleted();
+        }
+    }
 
 	// ── Source-generated logging ──────────────────────────────────────────────
 

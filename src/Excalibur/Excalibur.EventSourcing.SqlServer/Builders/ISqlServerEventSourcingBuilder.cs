@@ -10,7 +10,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Provides the canonical 4 connection overloads plus subsystem-specific configuration
+	/// Provides the canonical 4 connection overloads, an explicit owned-primary factory opt-in, and subsystem-specific configuration
 /// for event store and snapshot store schemas and tables. Follows the builder pattern
 /// established by <c>ISqlServerCdcConnectionBuilder</c>.
 /// </para>
@@ -65,6 +65,20 @@ public interface ISqlServerEventSourcingBuilder
 	/// </exception>
 	ISqlServerEventSourcingBuilder ConnectionFactory(
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory);
+
+	/// <summary>Configures a factory transferring fresh closed primary connections to the stores.</summary>
+	/// <param name="connectionFactory">Factory resolving the connection source once, then creating a new owned closed connection per invocation.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// Connections must target the same logical primary database without cached query results. The stores
+	/// dispose them; never return a caller-owned connection. This opt-in enables independent authoritative
+	/// event rechecks. Authentication is the factory's responsibility. Like other connection methods, the
+	/// last call wins. Existing custom builders must implement this opt-in explicitly.
+	/// </remarks>
+	/// <exception cref="NotSupportedException">This builder does not implement the owned-primary contract.</exception>
+	ISqlServerEventSourcingBuilder OwnedPrimaryConnectionFactory(
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory) =>
+		throw new NotSupportedException("This builder does not support owned primary connection factories.");
 
 	/// <summary>
 	/// Resolves the connection string from <c>IConfiguration.GetConnectionString(name)</c>

@@ -15,6 +15,10 @@ internal sealed class AwsS3ColdEventStoreOptionsValidator : IValidateOptions<Aws
 	public ValidateOptionsResult Validate(string? name, AwsS3ColdEventStoreOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		if (!Enum.IsDefined(options.Layout))
+		{
+			return ValidateOptionsResult.Fail("Layout must be a supported cold archive layout.");
+		}
 
 		if (string.IsNullOrWhiteSpace(options.BucketName))
 		{

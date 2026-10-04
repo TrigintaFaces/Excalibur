@@ -15,6 +15,10 @@ internal sealed class AzureBlobColdEventStoreOptionsValidator : IValidateOptions
 	public ValidateOptionsResult Validate(string? name, AzureBlobColdEventStoreOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
+		if (!Enum.IsDefined(options.Layout))
+		{
+			return ValidateOptionsResult.Fail("Layout must be a supported cold archive layout.");
+		}
 
 		if (string.IsNullOrWhiteSpace(options.ConnectionString))
 		{

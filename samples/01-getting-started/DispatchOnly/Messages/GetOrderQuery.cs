@@ -8,7 +8,7 @@ namespace DispatchMinimal.Messages;
 /// <summary>
 /// A query to retrieve order details.
 /// Queries (documents) request data without changing state.
-/// Returns an OrderDto with the order details.
+/// The document handler reads the order and records the observed OrderDto in this sample's store.
 /// </summary>
 public record GetOrderQuery(Guid OrderId) : IDispatchDocument;
 

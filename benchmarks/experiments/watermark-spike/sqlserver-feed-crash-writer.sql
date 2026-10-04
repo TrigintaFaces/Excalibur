@@ -1,0 +1,11 @@
+USE WatermarkFeedSpike;
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+BEGIN TRAN;
+INSERT EventPayload(EventId,Payload) VALUES(11,1);
+INSERT Ledger(EventId) VALUES(11);
+INSERT Outbox VALUES(11);
+RAISERROR('Feed crash writer staged payload, ledger and outbox',10,1) WITH NOWAIT;
+WAITFOR DELAY '00:01:00';
+ROLLBACK;
+THROW 51000, 'Crash injection did not arrive before writer deadline', 1;

@@ -156,7 +156,10 @@ public sealed class MaterializedViewProcessorValueTaskConsumeShould
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken cancellationToken)
 			=> new((long?)null);
 
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken)
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken cancellationToken)
+			=> new(ViewPositionSaveOutcome.Advanced);
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
 			=> ValueTask.CompletedTask;
 	}
 

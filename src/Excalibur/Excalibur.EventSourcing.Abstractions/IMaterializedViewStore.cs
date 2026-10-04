@@ -104,16 +104,92 @@ public interface IMaterializedViewStore
 	ValueTask<long?> GetPositionAsync(string viewName, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Saves the last processed position for a view.
+	/// Advances the last processed position for a view, and reports whether the advance was taken.
 	/// </summary>
 	/// <param name="viewName">The view name for position tracking.</param>
-	/// <param name="position">The position to save.</param>
+	/// <param name="position">The position to advance to.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>
+	/// <see cref="ViewPositionSaveOutcome.Advanced"/> when the checkpoint moved to
+	/// <paramref name="position"/>; <see cref="ViewPositionSaveOutcome.RefusedAsStale"/> when the stored
+	/// checkpoint was already at or beyond it and nothing was written.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>This advance is MONOTONIC in every implementation, and the refusal is a normal outcome rather
+	/// than an error.</b> A delayed or retried write carrying an older position must not rewind the
+	/// checkpoint, because the projection would then replay events it has already applied. Every store
+	/// enforces that server-side.
+	/// </para>
+	/// <para>
+	/// <b>The return value exists because the refusal used to be unobservable.</b> This member returned
+	/// <see cref="ValueTask"/> — a caller could not tell a taken advance from a refused one, and every
+	/// implementation logged a successful save either way. That hid a real defect for as long as the
+	/// monotonic guard existed: a caller that needed the position to go BACKWARDS was silently refused and
+	/// reported success. An operation that can decline to act must say so in its signature.
+	/// </para>
+	/// <para>
+	/// <b>To move a checkpoint backwards, use <see cref="ResetPositionAsync"/>.</b> Lowering a position is
+	/// a different operation from advancing one, so it is a different member rather than a flag — this
+	/// method cannot express it and must not be asked to.
+	/// </para>
+	/// </remarks>
+	ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
+		string viewName,
+		long position,
+		CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Clears the recorded position for a view, so the next read reports no checkpoint at all.
+	/// </summary>
+	/// <param name="viewName">The view name for position tracking.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous operation.</returns>
-	ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken);
+	/// <remarks>
+	/// <para>
+	/// <b>Unconditional by contract.</b> This is the operation a rebuild needs, and it is deliberately not
+	/// subject to the monotonic guard that governs <see cref="SavePositionAsync"/> — a guard whose whole
+	/// purpose is to refuse exactly this.
+	/// </para>
+	/// <para>
+	/// <b>It clears rather than zeroes.</b> <see cref="GetPositionAsync"/> already returns
+	/// <see langword="null"/> for a view with no checkpoint, so absence is the existing representation of
+	/// "start from the beginning" and needs no second encoding. Writing zero would also be indistinguishable
+	/// from a view legitimately checkpointed at position zero.
+	/// </para>
+	/// <para>
+	/// <b>It returns no outcome because it cannot refuse.</b> Clearing an already-absent checkpoint is
+	/// success, not a refusal. A store that cannot clear throws.
+	/// </para>
+	/// </remarks>
+	ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken);
 
 	// An atomic view+position write is deliberately NOT declared here, not even as a virtual member with a
 	// sequential default. A default would let a store inherit an exactly-once guarantee it cannot honour,
 	// and the two-write fallback silently double-counts accumulating views after a crash. Stores that can
 	// commit both writes together implement IAtomicMaterializedViewStore and say so in the type system.
+}
+
+
+/// <summary>
+/// Whether a view-position advance was taken or refused as stale.
+/// </summary>
+public enum ViewPositionSaveOutcome
+{
+	/// <summary>
+	/// The checkpoint moved to the requested position.
+	/// </summary>
+	Advanced,
+
+	/// <summary>
+	/// The stored checkpoint was already at or beyond the requested position, so the advance was refused
+	/// and nothing was written.
+	/// </summary>
+	/// <remarks>
+	/// This is the expected outcome for a delayed or retried write that lost a race, and for any caller
+	/// asking the checkpoint to move backwards — the monotonic guard working as designed. A caller that
+	/// INTENDED to lower the position wanted <see cref="IMaterializedViewStore.ResetPositionAsync"/> and
+	/// must treat this as a failure of its own operation rather than ignoring it.
+	/// </remarks>
+	RefusedAsStale,
 }

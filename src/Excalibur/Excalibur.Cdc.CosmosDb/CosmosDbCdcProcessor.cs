@@ -256,7 +256,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		}
 
 		var database = _client.GetDatabase(_options.DatabaseId);
-		_container = database.GetContainer(_options.ContainerId);
+		var container = database.GetContainer(_options.ContainerId);
 
 		// Restore position from state store
 		var storedPosition = await _stateStore.GetPositionAsync(_options.ProcessorName, cancellationToken).ConfigureAwait(false);
@@ -270,6 +270,8 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		{
 			_currentPosition = _options.ChangeFeed.StartPosition;
 		}
+		// Publish initialization only after checkpoint restoration succeeds.
+		_container = container;
 	}
 
 	private async Task<int> ProcessBatchInternalAsync(
@@ -278,7 +280,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 	{
 		using var pollActivity = CdcActivitySource.StartPollActivity("CosmosDb");
 
-		var iterator = CreateChangeFeedIterator();
+		using var iterator = CreateChangeFeedIterator();
 		var processedCount = 0;
 		CosmosDbCdcPosition? lastPosition = null;
 		Exception? batchFailure = null;
@@ -299,7 +301,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 					break;
 				}
 
-				if (response.Count == 0)
+				if (response.StatusCode == HttpStatusCode.NotModified)
 				{
 					break;
 				}

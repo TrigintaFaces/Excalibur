@@ -8,8 +8,22 @@
   <PropertyGroup Condition="'$(BuildingInsideVisualStudio)' == 'true'">
     <!-- Force sequential inner builds for multi-TFM projects -->
     <InnerBuildInParallel>false</InnerBuildInParallel>
-    <!-- Ensure reference assemblies are always produced for proper resolution -->
-    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <!-- ProduceReferenceAssembly is deliberately NOT set here, and the timing is the whole
+         reason. TargetRefPath is computed inside Microsoft.Common.CurrentVersion.targets under
+         a condition on this property, and a .targets file at the repository root is imported
+         AFTER that, so a value assigned here arrives too late: the property reads true while
+         TargetRefPath is still empty, and CopyRefAssembly then fails MSB4044 because its
+         DestinationPath has no value.
+
+         It belongs in a .props file, where it is seen before that computation runs, and it is
+         already set in exactly that place for the code that needs it (src/Directory.Build.props,
+         for multi-TFM dependency resolution in Visual Studio). Projects outside src/ with their
+         own isolating props do not inherit it, which is correct for them: the SDK leaves it off
+         for target frameworks below .NETCoreApp 5.0, and a content-only package has no reference
+         assembly to produce.
+
+         If a future project genuinely needs it, set it in that project or in a .props file.
+         Setting it here cannot work. -->
     <!-- CRITICAL: Don't use reference assemblies for compilation - fixes CS0006 -->
     <CompileUsingReferenceAssemblies>false</CompileUsingReferenceAssemblies>
     <!-- Disable design-time builds that can conflict -->

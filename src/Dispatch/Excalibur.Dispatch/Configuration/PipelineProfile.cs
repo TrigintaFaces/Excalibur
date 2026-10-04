@@ -167,9 +167,9 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 
 		var registration = CreateMiddlewareRegistration(middlewareType, order, criticality);
 
-		if (_middleware.TryAdd(middlewareType, registration))
+		lock (_orderedMiddleware)
 		{
-			lock (_orderedMiddleware)
+			if (_middleware.TryAdd(middlewareType, registration))
 			{
 				InsertOrderedMiddleware(registration);
 				InvalidateMiddlewareSnapshots();
@@ -191,9 +191,9 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 	/// <param name="middlewareType"> The middleware type to remove. </param>
 	public void RemoveMiddleware(Type middlewareType)
 	{
-		if (_middleware.TryRemove(middlewareType, out var registration))
+		lock (_orderedMiddleware)
 		{
-			lock (_orderedMiddleware)
+			if (_middleware.TryRemove(middlewareType, out var registration))
 			{
 				_ = _orderedMiddleware.Remove(registration);
 				InvalidateMiddlewareSnapshots();
@@ -206,9 +206,9 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 	/// </summary>
 	public void ClearMiddleware()
 	{
-		_middleware.Clear();
 		lock (_orderedMiddleware)
 		{
+			_middleware.Clear();
 			_orderedMiddleware.Clear();
 			InvalidateMiddlewareSnapshots();
 		}
@@ -240,7 +240,7 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 			}
 
 			snapshot = _orderedMiddleware.ToArray();
-			_orderedMiddlewareSnapshot = snapshot;
+			Volatile.Write(ref _orderedMiddlewareSnapshot, snapshot);
 
 			return snapshot;
 		}
@@ -289,7 +289,7 @@ internal sealed class PipelineProfile : IPipelineProfile, IPipelineProfileMatche
 
 	private void InvalidateMiddlewareSnapshots()
 	{
-		_orderedMiddlewareSnapshot = null;
+		Volatile.Write(ref _orderedMiddlewareSnapshot, null);
 	}
 
 	private sealed class MiddlewareRegistration

@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
 using Excalibur.EventSourcing.Queries;
+using Excalibur.EventSourcing.TieredStorage;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -166,35 +167,48 @@ public static class EventSourcingBuilderPostgresExtensions
 #pragma warning disable CA2000 // Dispose objects before losing scope -- managed by DI container
 		builder.Services.TryAddSingleton(dataSourceFactory);
 #pragma warning restore CA2000
-		RegisterEventStore(builder.Services, options.EventStoreSchema, options.EventStoreTable);
+		// Bind the source DI actually selected, including a pre-registered data source.
+		builder.Services.TryAddSingleton(sp =>
+		{
+			var resolved = sp.GetRequiredService<IOptions<PostgresEventSourcingOptions>>().Value;
+			return new ProviderBinding(sp.GetRequiredService<NpgsqlDataSource>(),
+				resolved.EventStoreSchema, resolved.EventStoreTable, resolved.SnapshotStoreSchema,
+				resolved.SnapshotStoreTable, resolved.EventTypeInfoResolver);
+		});
+		RegisterEventStore(builder.Services);
 
 		// The global stream query is what lets projections, materialized views, projection rebuilds and
 		// the lag read-model run on this provider. Without it those features resolve nothing and the
 		// provider is an event store that silently cannot project.
-		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp => new PostgresGlobalStreamQuery(
-			sp.GetRequiredService<NpgsqlDataSource>(),
-			sp.GetRequiredService<IOptions<PostgresEventSourcingOptions>>()));
-		RegisterSnapshotStore(builder.Services, options.SnapshotStoreSchema, options.SnapshotStoreTable);
+		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp =>
+		{
+			var binding = sp.GetRequiredService<ProviderBinding>();
+			IGlobalStreamQuery global = new PostgresGlobalStreamQuery(binding.DataSource, Options.Create(new PostgresEventSourcingOptions
+			{
+				EventStoreSchema = binding.EventStoreSchema,
+				EventStoreTable = binding.EventStoreTable,
+			}));
+			var cold = TieredStorageServiceCollectionExtensions.ResolveGlobalColdStore(sp, binding.SourceIdentity);
+			return cold is null ? global : new TieredGlobalStreamQuery(global, cold, new PostgresAuthoritativeEventReader(
+				binding.DataSource, binding.EventStoreSchema, binding.EventStoreTable, authorizedTenant: null));
+		});
+		RegisterSnapshotStore(builder.Services);
 
 		// Register health checks if enabled and connection string is available
 		if (options.HealthChecks.RegisterHealthChecks && !string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
 			_ = builder.Services.AddHealthChecks()
-				.AddNpgSql(
-					options.ConnectionString,
+				.AddEventStoreHealthCheck(
 					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "postgres", "eventsourcing"])
-				.AddNpgSql(
-					options.ConnectionString,
+				.AddSnapshotStoreHealthCheck(
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "postgres", "eventsourcing"]);
 		}
 	}
 
 	private static void RegisterEventStore(
-		IServiceCollection services,
-		string schema,
-		string table)
+		IServiceCollection services)
 	{
 		services.AddDefaultTenantContext();
 		// AddTenantAwareStore builds the store (injecting ITenantContext for the row-level tenant predicate,
@@ -203,25 +217,26 @@ public static class EventSourcingBuilderPostgresExtensions
 		// the store registration so it cannot exist without the store that must honor the tenant).
 		services.AddTenantAwareStore<IEventStore, PostgresEventStore>(sp =>
 		{
-			var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
+			var binding = sp.GetRequiredService<ProviderBinding>();
+			var tenantContext = sp.GetRequiredService<ITenantContext>();
 			return new PostgresEventStore(
-				dataSource,
+				binding.DataSource,
 				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
-				tenantContext: sp.GetRequiredService<ITenantContext>(),
+				tenantContext: tenantContext,
 				internalSerializer: sp.GetService<ISerializer>(),
 				payloadSerializer: sp.GetService<IPayloadSerializer>(),
-				schema: schema,
-				table: table,
-				eventTypeInfoResolver: sp.GetService<IOptions<PostgresEventSourcingOptions>>()?.Value.EventTypeInfoResolver);
+				schema: binding.EventStoreSchema,
+				table: binding.EventStoreTable,
+				eventTypeInfoResolver: binding.EventTypeInfoResolver,
+				capabilities: new PostgresEventStoreCapabilities(binding.DataSource, binding.EventStoreSchema,
+					binding.EventStoreTable, tenantContext, binding.SourceIdentity));
 		});
 
 		PostgresEventSourcingServiceCollectionExtensions.RegisterEventStoreTelemetryWrapper(services);
 	}
 
 	private static void RegisterSnapshotStore(
-		IServiceCollection services,
-		string schema,
-		string table)
+		IServiceCollection services)
 	{
 		services.AddDefaultTenantContext();
 		// Mirror RegisterEventStore: AddTenantAwareStore injects ITenantContext (for the row-level tenant
@@ -232,15 +247,26 @@ public static class EventSourcingBuilderPostgresExtensions
 		// unwired context resolved to default(TenantScope) -- and carried no tenant-scoping attestation.
 		services.AddTenantAwareStore<ISnapshotStore, PostgresSnapshotStore>(sp =>
 		{
-			var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
+			var binding = sp.GetRequiredService<ProviderBinding>();
 			return new PostgresSnapshotStore(
-				dataSource,
+				binding.DataSource,
 				sp.GetRequiredService<ILogger<PostgresSnapshotStore>>(),
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
-				schema: schema,
-				table: table);
+				schema: binding.SnapshotStoreSchema,
+				table: binding.SnapshotStoreTable);
 		});
 
 		PostgresEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);
 	}
+	private sealed record ProviderBinding(
+		NpgsqlDataSource DataSource,
+		string EventStoreSchema,
+		string EventStoreTable,
+		string SnapshotStoreSchema,
+		string SnapshotStoreTable,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? EventTypeInfoResolver)
+	{
+		internal EventStoreSourceIdentity SourceIdentity { get; } = new();
+	}
+
 }

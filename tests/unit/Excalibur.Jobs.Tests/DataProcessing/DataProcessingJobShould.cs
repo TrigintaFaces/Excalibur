@@ -91,7 +91,7 @@ public sealed class DataProcessingJobShould
 	}
 
 	[Fact]
-	public async Task ExecuteJob_SwallowsException_LogsError()
+	public async Task ExecuteJob_ReportsFailureWithoutRequestingImmediateRefire()
 	{
 		// Arrange
 		A.CallTo(() => _orchestrationManager.ProcessDataTasksAsync(A<CancellationToken>._))
@@ -99,8 +99,13 @@ public sealed class DataProcessingJobShould
 
 		var context = CreateJobContext("DataJob", "DataGroup");
 
-		// Act — should not throw (Quartz best practice)
+		var failure = await Should.ThrowAsync<JobExecutionException>(() => _job.Execute(context));
+		failure.RefireImmediately.ShouldBeFalse();
+		_heartbeatTracker.GetLastHeartbeat("DataJob").ShouldBeNull();
+
+		A.CallTo(() => _orchestrationManager.ProcessDataTasksAsync(A<CancellationToken>._)).Returns(ValueTask.CompletedTask);
 		await _job.Execute(context);
+		_heartbeatTracker.GetLastHeartbeat("DataJob").ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -126,45 +131,53 @@ public sealed class DataProcessingJobShould
 	}
 
 	// --- ConfigureJob honors the Disabled flag (Excalibur.Dispatch-ku1i3e) ---
-	// IServiceCollectionQuartzConfigurator cannot be faked, so these drive the real Quartz
+	// IQuartzBuilder cannot be faked, so these drive the real Quartz
 	// configurator and inspect the resulting QuartzOptions for the registered job detail.
 	// Inspecting options (rather than building a scheduler) keeps the test deterministic — it avoids
 	// Quartz's process-global SchedulerRepository, which is shared across parallel test classes.
 
 	[Fact]
-	public void ConfigureJobDoesNotRegisterJobWhenDisabled()
+	public async Task ConfigureJobDoesNotRegisterJobWhenDisabled()
 	{
 		// Arrange — Disabled:true must mean the job is never registered with the scheduler.
 		var config = BuildJobConfig(disabled: true);
 
 		// Act
-		var registered = IsJobRegistered(config);
+		var registered = await IsJobRegistered(config);
 
 		// Assert
 		registered.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void ConfigureJobRegistersJobWhenEnabled()
+	public async Task ConfigureJobRegistersJobWhenEnabled()
 	{
 		// Arrange — control case: proves the assertion above tests the Disabled gate, not a wiring slip.
 		var config = BuildJobConfig(disabled: false);
 
 		// Act
-		var registered = IsJobRegistered(config);
+		var registered = await IsJobRegistered(config);
 
 		// Assert
 		registered.ShouldBeTrue();
 	}
 
-	private static bool IsJobRegistered(IConfiguration config)
+	private static async Task<bool> IsJobRegistered(IConfiguration config)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddQuartz(q => DataProcessingJob.ConfigureJob(q, config));
-		using var provider = services.BuildServiceProvider();
-
-		var quartzOptions = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<QuartzOptions>>().Value;
-		return quartzOptions.JobDetails.Any(j => j.Key.Equals(new JobKey("DataProcessingJob", "TestGroup")));
+		services.AddLogging();
+		services.AddQuartz(q => q.ConfigureScheduler(o => o.InstanceName = Guid.NewGuid().ToString()));
+		await using var provider = services.BuildServiceProvider();
+		var scheduler = await provider.GetRequiredService<ISchedulerFactory>().GetScheduler();
+		try
+		{
+			return await scheduler.GetJobDetail(new JobKey("DataProcessingJob", "TestGroup")) is not null;
+		}
+		finally
+		{
+			await scheduler.Shutdown();
+		}
 	}
 
 	private static IConfiguration BuildJobConfig(bool disabled) =>

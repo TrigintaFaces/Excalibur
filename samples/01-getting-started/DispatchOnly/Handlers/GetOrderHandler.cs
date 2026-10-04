@@ -10,19 +10,14 @@ namespace DispatchMinimal.Handlers;
 /// <summary>
 /// Handles GetOrderQuery - retrieves order details.
 /// </summary>
-public class GetOrderHandler : IDocumentHandler<GetOrderQuery>
+public sealed class GetOrderHandler(OrderStore store) : IDocumentHandler<GetOrderQuery>
 {
 	public Task HandleAsync(GetOrderQuery document, CancellationToken cancellationToken)
 	{
 		Console.WriteLine($"[GetOrderHandler] Looking up order {document.OrderId}...");
 
-		// In a real app, this would query a database
-		// For demo, return mock data
-		var orderData = new OrderDto(
-			Id: document.OrderId,
-			ProductId: "MOCK-PRODUCT",
-			Quantity: 1,
-			Status: "Confirmed");
+		var orderData = store.ReadModel[document.OrderId];
+		store.Documents[document.OrderId] = orderData;
 
 		Console.WriteLine($"  Found order: {orderData.ProductId} x{orderData.Quantity}");
 		Console.WriteLine($"  Order details: {orderData}");

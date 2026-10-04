@@ -44,9 +44,8 @@ public abstract class SubscriptionCheckpointStoreConformanceTestKit : Conformanc
 
 	/// <summary>An unknown subscription has no checkpoint, reported as null rather than zero.</summary>
 	/// <remarks>
-	/// Zero is a legitimate position — it is what a subscriber that has processed the first event holds —
-	/// so conflating "never started" with "at the beginning" would make a fresh subscription skip the
-	/// first event forever.
+	/// Zero is the before-first-event position. A stored zero and an absent checkpoint are distinct
+	/// compare-and-set states; a create must not overwrite an existing zero.
 	/// </remarks>
 	public virtual async Task GetCheckpoint_ForUnknownSubscription_ShouldReturnNull()
 	{
@@ -57,7 +56,7 @@ public abstract class SubscriptionCheckpointStoreConformanceTestKit : Conformanc
 		{
 			throw new TestFixtureAssertionException(
 				$"An unknown subscription must report null, not {checkpoint}. Reporting 0 would be "
-				+ "indistinguishable from a subscription that has processed the first event.");
+				+ "indistinguishable from a subscription with a stored before-first-event checkpoint.");
 		}
 	}
 
@@ -189,13 +188,13 @@ public abstract class SubscriptionCheckpointStoreConformanceTestKit : Conformanc
 	}
 
 	/// <summary>
-	/// Under concurrent advances from the same prior position, EXACTLY ONE is accepted.
+	/// Under concurrent strictly increasing advances from the same prior position, EXACTLY ONE is accepted.
 	/// </summary>
 	/// <remarks>
 	/// The arm a mock cannot satisfy and a read-then-write implementation cannot pass reliably. Both
 	/// callers read the same prior value and both believe they may advance; the store must decide. If
-	/// more than one is told Advanced, two instances both believe they own the mark and the later write
-	/// silently discards the other's progress.
+	/// more than one strict advance is told Advanced, the comparison was not atomic. Equal-position
+	/// proposals may all succeed; none of these outcomes grants exclusive processing ownership.
 	/// </remarks>
 	public virtual async Task ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne()
 	{
@@ -228,6 +227,69 @@ public abstract class SubscriptionCheckpointStoreConformanceTestKit : Conformanc
 			throw new TestFixtureAssertionException(
 				$"The surviving checkpoint must be one of the racers' values but is "
 				+ $"{readBack?.ToString() ?? "null"}.");
+		}
+	}
+
+	/// <summary>Invalid proposals throw without creating or changing a checkpoint.</summary>
+	public virtual async Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing()
+	{
+		var store = CreateStore();
+		var existing = GenerateSubscriptionName();
+		var absent = GenerateSubscriptionName();
+		_ = await store.AdvanceCheckpointAsync(existing, null, 10, CancellationToken.None).ConfigureAwait(false);
+		(long? Expected, long Next, string Parameter)[] invalid =
+		[
+			(null, -1, "newPosition"),
+			(-1, 0, "expectedPosition"),
+			(10, 5, "newPosition"),
+			(20, 5, "newPosition"),
+		];
+		foreach (var name in new[] { existing, absent })
+		{
+			foreach (var proposal in invalid)
+			{
+				try
+				{
+					_ = await store.AdvanceCheckpointAsync(name, proposal.Expected, proposal.Next, CancellationToken.None)
+						.ConfigureAwait(false);
+				}
+				catch (ArgumentOutOfRangeException exception) when (exception.ParamName == proposal.Parameter)
+				{
+					continue;
+				}
+
+				throw new TestFixtureAssertionException($"Invalid proposal {proposal.Expected} -> {proposal.Next} was not rejected.");
+			}
+		}
+
+		if (await CreateStore().GetCheckpointAsync(existing, CancellationToken.None).ConfigureAwait(false) != 10
+			|| await CreateStore().GetCheckpointAsync(absent, CancellationToken.None).ConfigureAwait(false) is not null)
+		{
+			throw new TestFixtureAssertionException("Invalid proposals changed checkpoint storage.");
+		}
+	}
+
+	/// <summary>Equal proposals compare atomically, including zero and the largest position.</summary>
+	public virtual async Task Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership()
+	{
+		var store = CreateStore();
+		var name = GenerateSubscriptionName();
+		var created = await store.AdvanceCheckpointAsync(name, null, 0, CancellationToken.None).ConfigureAwait(false);
+		var duplicateCreate = await CreateStore().AdvanceCheckpointAsync(name, null, 0, CancellationToken.None).ConfigureAwait(false);
+		var equal = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
+			CreateStore().AdvanceCheckpointAsync(name, 0, 0, CancellationToken.None))).ConfigureAwait(false);
+		var moved = await store.AdvanceCheckpointAsync(name, 0, long.MaxValue, CancellationToken.None).ConfigureAwait(false);
+		var staleEqual = await CreateStore().AdvanceCheckpointAsync(name, 0, 0, CancellationToken.None).ConfigureAwait(false);
+		var maximum = await CreateStore().AdvanceCheckpointAsync(name, long.MaxValue, long.MaxValue, CancellationToken.None)
+			.ConfigureAwait(false);
+		var readBack = await CreateStore().GetCheckpointAsync(name, CancellationToken.None).ConfigureAwait(false);
+
+		if (created != CheckpointAdvanceOutcome.Advanced || duplicateCreate != CheckpointAdvanceOutcome.Superseded
+			|| equal.Any(outcome => outcome != CheckpointAdvanceOutcome.Advanced)
+			|| moved != CheckpointAdvanceOutcome.Advanced || staleEqual != CheckpointAdvanceOutcome.Superseded
+			|| maximum != CheckpointAdvanceOutcome.Advanced || readBack != long.MaxValue)
+		{
+			throw new TestFixtureAssertionException("Equal-position proposals must compare the actual stored state without overflow or exclusive ownership.");
 		}
 	}
 

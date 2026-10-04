@@ -1,142 +1,37 @@
 # DispatchOnly
 
-A minimal sample demonstrating pure Dispatch messaging patterns without any Excalibur dependencies.
+This sample demonstrates Dispatch commands, events with two handlers, document processing, and custom middleware through the real `IDispatcher` pipeline. It uses `Excalibur.Dispatch` and `Excalibur.Dispatch.Abstractions`, plus Microsoft logging; it does not require the Excalibur CQRS wrapper.
 
-## Purpose
+Run from the repository root:
 
-This sample shows how to use Dispatch as a lightweight MediatR alternative for simple command/query/event scenarios. Use this when you don't need aggregate roots, event sourcing, or other CQRS/ES patterns.
-
-## Running the Sample
-
-```bash
-dotnet run --project samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj
+```powershell
+dotnet run --project samples/01-getting-started/DispatchOnly -p:BuildExamplesAndTests=true
 ```
 
-## What This Sample Demonstrates
+The command creates an order for five widgets and returns its identifier. Two awaited event handlers update an in-memory read model and record a local notification. The document handler reads that order and records the observed result. `Program.cs` checks the identifier, product, quantity, both event effects, and document contents. Any failed dispatch or incorrect effect throws and exits unsuccessfully.
 
-### Message Types
+`OrderStore` is demonstration state. Its concurrent collections allow the event handlers to execute concurrently; the sample does not implement durable storage, an external notification service, atomic command/event delivery, or exactly-once processing.
 
-- **IDispatchAction** (Commands) - Represent intent to change state
-- **IDispatchEvent** (Events) - Notify multiple handlers that something happened
-- **IDispatchDocument** (Queries) - Request data without changing state
+## Code to explore
 
-### Patterns
+- [Program.cs](Program.cs): service registration, middleware, dispatch and result assertions.
+- [Messages](Messages): `IDispatchAction<Guid>`, `IDispatchEvent` and `IDispatchDocument` contracts.
+- [Handlers](Handlers): command, two event handlers and document processing.
+- [OrderStore.cs](OrderStore.cs): observable in-memory state shared by the handlers.
+- [LoggingMiddleware.cs](Middleware/LoggingMiddleware.cs): pipeline logging.
 
-1. **Handler Registration** - Using `AddDispatch(dispatch => dispatch.AddHandlersFromAssembly(...))` to name the assembly explicitly
-2. **Message Dispatching** - Using `IDispatcher.DispatchAsync()`
-3. **Custom Middleware** - Logging middleware showing pipeline interception
-4. **Multiple Event Handlers** - Same event handled by different handlers
+## Validate the NuGet packages
 
-## Project Structure
+Local development uses project references. With `UsePackageReferences=true`, the project consumes the two Dispatch packages at `DispatchPackageVersion` instead. The repository composition check builds an exact candidate feed, uses isolated caches, verifies consumed package hashes, and runs this scenario with a timeout:
 
-```
-DispatchOnly/
-├── Messages/
-│   ├── CreateOrderCommand.cs   # IDispatchAction
-│   ├── OrderCreatedEvent.cs    # IDispatchEvent
-│   └── GetOrderQuery.cs        # IDispatchDocument
-├── Handlers/
-│   ├── CreateOrderHandler.cs   # Command handler
-│   ├── OrderCreatedHandler.cs  # Event handlers (2)
-│   └── GetOrderHandler.cs      # Query handler
-├── Middleware/
-│   └── LoggingMiddleware.cs    # Custom pipeline middleware
-├── Program.cs                  # Entry point
-└── README.md
+```powershell
+pwsh eng/validate-package-composition.ps1 -Version 0.0.0-local
 ```
 
-## Key Code Examples
+Evidence remains under `artifacts/package-composition/`. A successful build alone does not certify the scenario. See [the contributor gate documentation](../../../docs/ci-gates.md#17-package-composition) for the complete contract.
 
-### Defining a Command
-
-```csharp
-public record CreateOrderCommand(string ProductId, int Quantity) : IDispatchAction;
-```
-
-### Creating Handlers
-
-**Command Handler (returns a value):**
-
-```csharp
-public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
-{
-    public Task<Guid> HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
-    {
-        var orderId = Guid.NewGuid();
-        return Task.FromResult(orderId);
-    }
-}
-```
-
-**Event Handler:**
-
-```csharp
-public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
-{
-    public Task HandleAsync(OrderCreatedEvent eventMessage, CancellationToken cancellationToken)
-    {
-        Console.WriteLine($"Order created: {eventMessage.OrderId}");
-        return Task.CompletedTask;
-    }
-}
-```
-
-**Document Handler:**
-
-```csharp
-public class GetOrderHandler : IDocumentHandler<GetOrderQuery>
-{
-    public Task HandleAsync(GetOrderQuery document, CancellationToken cancellationToken)
-    {
-        Console.WriteLine($"Processing document for order: {document.OrderId}");
-        return Task.CompletedTask;
-    }
-}
-```
-
-### Dispatching Messages
-
-```csharp
-var dispatcher = provider.GetRequiredService<IDispatcher>();
-var context = DispatchContextInitializer.CreateDefaultContext(provider);
-
-// Command with return value
-var result = await dispatcher.DispatchAsync<CreateOrderCommand, Guid>(
-    new CreateOrderCommand("WIDGET-123", 5), context, CancellationToken.None);
-var orderId = result.ReturnValue;
-
-// Event (fire and forget)
-await dispatcher.DispatchAsync(new OrderCreatedEvent(orderId, "WIDGET-123", 5), context, CancellationToken.None);
-
-// Document query
-await dispatcher.DispatchAsync(new GetOrderQuery(orderId), context, CancellationToken.None);
-```
-
-## When to Upgrade
-
-Consider upgrading to Excalibur when you need:
-
-- Aggregate roots with domain events
-- Event sourcing and event store
-- Projections and read models
-- Complex domain invariants
-
-See [samples/MIGRATION.md](../../MIGRATION.md) for upgrade guidance.
-
-## Dependencies
-
-This sample has **NO Excalibur dependencies** - only:
-
-- `Dispatch`
-- `Excalibur.Dispatch.Abstractions`
+Use the [ExcaliburCqrs sample](../ExcaliburCqrs) when you need aggregate roots, event sourcing or domain invariants.
 
 ## License
 
-This project is multi-licensed under:
-- [Excalibur License 1.1](..\..\..\licenses\LICENSE-EXCALIBUR.txt)
-- [AGPL-3.0-or-later](..\..\..\licenses\LICENSE-AGPL-3.0.txt)
-- [SSPL-1.0](..\..\..\licenses\LICENSE-SSPL-1.0.txt)
-
-See [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE) for details.
-
-
+This project is available under the [Excalibur License 1.1](../../../licenses/LICENSE-EXCALIBUR.txt), [AGPL-3.0-or-later](../../../licenses/LICENSE-AGPL-3.0.txt), or [SSPL-1.0](../../../licenses/LICENSE-SSPL-1.0.txt). See [LICENSE](../../../LICENSE).

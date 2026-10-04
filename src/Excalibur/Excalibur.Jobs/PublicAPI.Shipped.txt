@@ -36,17 +36,20 @@ Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.ExecuteAsync(System.Th
 Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.SnapshotCreationJob(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger! logger) -> void
 Excalibur.Jobs.Outbox.OutboxJob
 Excalibur.Jobs.Outbox.OutboxJob.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Outbox.OutboxJob.Execute(Quartz.IJobExecutionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Jobs.Outbox.OutboxJob.OutboxJob(Excalibur.Dispatch.IOutboxDispatcher! outbox, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Outbox.OutboxJob!>! logger) -> void
 Excalibur.Jobs.Outbox.OutboxJobOptions
 Excalibur.Jobs.Outbox.OutboxJobOptions.OutboxJobOptions() -> void
 Excalibur.Jobs.Quartz.ApplicationBuilderExtensions
 Excalibur.Jobs.Quartz.IJobConfigurator
 Excalibur.Jobs.Quartz.IJobConfigurator.AddDelayedJob<TJob>(System.TimeSpan delay, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
+Excalibur.Jobs.Quartz.IJobConfigurator.AddJob<TJob, TContext>(string! cronExpression, TContext! context, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TContext!>! typeInfo, string? jobKey = null, string! contextVersion = "1") -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.IJobConfigurator.AddJob<TJob, TContext>(string! cronExpression, TContext! context, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.IJobConfigurator.AddJob<TJob>(string! cronExpression, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.IJobConfigurator.AddOneTimeJob<TJob>(string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.JobConfigurator
 Excalibur.Jobs.Quartz.JobConfigurator.AddDelayedJob<TJob>(System.TimeSpan delay, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
+Excalibur.Jobs.Quartz.JobConfigurator.AddJob<TJob, TContext>(string! cronExpression, TContext! context, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TContext!>! typeInfo, string? jobKey = null, string! contextVersion = "1") -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.JobConfigurator.AddJob<TJob, TContext>(string! cronExpression, TContext! context, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.JobConfigurator.AddJob<TJob>(string! cronExpression, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 Excalibur.Jobs.Quartz.JobConfigurator.AddOneTimeJob<TJob>(string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
@@ -54,9 +57,12 @@ Excalibur.Jobs.Quartz.JobConfigurator.JobConfigurator(Microsoft.Extensions.Depen
 Excalibur.Jobs.Quartz.JobConfiguratorExtensions
 Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext>
 Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext>.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext>.Execute(Quartz.IJobExecutionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext>.QuartzGenericJobAdapter(TJob job, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext!>!>! logger) -> void
+Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext>.QuartzGenericJobAdapter(TJob job, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<TJob, TContext!>!>! logger, System.IServiceProvider! services) -> void
 Excalibur.Jobs.Quartz.QuartzJobAdapter
 Excalibur.Jobs.Quartz.QuartzJobAdapter.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Quartz.QuartzJobAdapter.Execute(Quartz.IJobExecutionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Jobs.Quartz.QuartzJobAdapter.QuartzJobAdapter(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Quartz.QuartzJobAdapter!>! logger) -> void
 Excalibur.Jobs.Quartz.QuartzJobOptions
 Excalibur.Jobs.Quartz.QuartzJobOptions.CronExpression.get -> string!
@@ -72,10 +78,10 @@ Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions
 abstract Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.GetAggregateIdsAsync(System.IServiceProvider! serviceProvider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TKey>!>!
 const Excalibur.Jobs.Outbox.OutboxJob.JobConfigSectionName = "Jobs:OutboxJob" -> string!
 static Excalibur.Jobs.Outbox.OutboxJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
-static Excalibur.Jobs.Outbox.OutboxJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator! configurator, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
+static Excalibur.Jobs.Outbox.OutboxJob.ConfigureJob(Quartz.IQuartzBuilder! configurator, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
 static Excalibur.Jobs.Quartz.ApplicationBuilderExtensions.UseExcaliburJobHost(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddJobIf(this Excalibur.Jobs.Quartz.IJobConfigurator! configurator, bool condition, System.Action<Excalibur.Jobs.Quartz.IJobConfigurator!>! configureJob) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddJobInstances<TJob>(this Excalibur.Jobs.Quartz.IJobConfigurator! configurator, params Excalibur.Jobs.Quartz.QuartzJobOptions![]! configurations) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 static Excalibur.Jobs.Quartz.JobConfiguratorExtensions.AddRecurringJob<TJob>(this Excalibur.Jobs.Quartz.IJobConfigurator! configurator, System.TimeSpan interval, string? jobKey = null) -> Excalibur.Jobs.Quartz.IJobConfigurator!
 static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddJobWatcher<TJob, TOptions>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> void
-static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddQuartzWithJobs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Quartz.IServiceCollectionQuartzConfigurator!>? withJobs) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddQuartzWithJobs(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Quartz.IQuartzBuilder!>? withJobs) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

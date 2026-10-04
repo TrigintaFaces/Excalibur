@@ -82,7 +82,12 @@ public sealed class SnapshotStoreHealthCheckShould
 
 		// Assert
 		result.Status.ShouldBe(HealthStatus.Unhealthy);
-		result.Description.ShouldContain("unreachable");
+
+		// Strengthened: a read the store refused may mean the snapshot table is missing a column the read
+		// statement binds, which is not an unreachable database; the description must not misdirect an
+		// operator to the network.
+		result.Description.ShouldContain("refused a read");
+		result.Description.ShouldContain("missing a column");
 		result.Exception!.ShouldBeOfType<TimeoutException>();
 	}
 

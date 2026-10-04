@@ -59,6 +59,29 @@ namespace Excalibur.Data.ElasticSearch.MaterializedViews;
 /// </remarks>
 public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedViewStore, IAsyncDisposable
 {
+	/// <summary>
+	/// The monotonic position advance, performed server-side so concurrent writers need no coordination.
+	/// </summary>
+	/// <remarks>
+	/// <b>The field names are the SERIALIZED names, not the C# property names.</b> The client's source
+	/// serializer applies <see cref="System.Text.Json.JsonNamingPolicy.CamelCase"/> by default, so the
+	/// document members are <c>position</c>, <c>viewName</c> and so on. A script written against the
+	/// PascalCase property names compiles, runs, and silently compares <see langword="null"/> — which is
+	/// the mistake a first draft of this made, and which passed a probe that had written its own documents
+	/// with the wrong casing.
+	/// </remarks>
+	private const string PositionAdvanceScript =
+		"if (ctx.op == 'create') {"
+		+ " ctx._source.position = params.pos;"
+		+ " ctx._source.viewName = params.view;"
+		+ " ctx._source.tenantId = params.tenant;"
+		+ " ctx._source.createdAt = params.now;"
+		+ " ctx._source.updatedAt = params.now;"
+		+ " } else if (params.pos > ctx._source.position) {"
+		+ " ctx._source.position = params.pos;"
+		+ " ctx._source.updatedAt = params.now;"
+		+ " } else { ctx.op = 'noop'; }";
+
 	private readonly ElasticSearchMaterializedViewStoreOptions _options;
 	private readonly ILogger<ElasticSearchMaterializedViewStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
@@ -287,7 +310,28 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask SavePositionAsync(
+	/// <remarks>
+	/// <para>
+	/// <b>The monotonic comparison happens in a Painless script, NOT in the document version.</b> An
+	/// earlier form used the position itself as an external document version with
+	/// <c>ExternalGte</c>, which refuses a lower value — elegant, and wrong in two ways that both reached
+	/// shipped behaviour. It made a legitimate reset impossible, because a reset IS a lower value; and a
+	/// delete does not forget a version, it increments it and keeps a tombstone, so even after the
+	/// document was removed a low write stayed refused ("current version [4000002] is higher than the one
+	/// provided [1]", measured on real Elasticsearch).
+	/// </para>
+	/// <para>
+	/// <b>The root cause was conflating two different things.</b> External versioning exists to mirror a
+	/// monotonic version owned by an external system. A projection checkpoint is not monotonic — it must
+	/// be resettable, which is the entire point of a rebuild. A scripted update keeps the comparison
+	/// server-side, where it belongs, without borrowing the version field for it.
+	/// </para>
+	/// <para>
+	/// <b>The response tells us the outcome, so no second round trip is needed.</b> Painless reports
+	/// <c>noop</c> when the script declines to change the document, which is exactly a refused advance.
+	/// </para>
+	/// </remarks>
+	public async ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
 		string viewName,
 		long position,
 		CancellationToken cancellationToken)
@@ -297,49 +341,69 @@ public sealed partial class ElasticSearchMaterializedViewStore : IMaterializedVi
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var now = DateTimeOffset.UtcNow;
-
-		var document = new MaterializedViewPositionDocument
+		var request = new UpdateRequest<MaterializedViewPositionDocument, MaterializedViewPositionDocument>(
+			_options.PositionsIndexName,
+			CreatePositionDocumentId(viewName))
 		{
-			TenantId = CurrentTenantPartition.TenantId,
-			ViewName = viewName,
-			Position = position,
-			CreatedAt = now,
-			UpdatedAt = now
+			ScriptedUpsert = true,
+			Upsert = new MaterializedViewPositionDocument(),
+			Refresh = GetRefresh(),
+			Script = new Script
+			{
+				Source = PositionAdvanceScript,
+				Params = new Dictionary<string, object>(StringComparer.Ordinal)
+				{
+					["pos"] = position,
+					["view"] = viewName,
+					["tenant"] = CurrentTenantPartition.TenantId,
+					["now"] = DateTimeOffset.UtcNow,
+				},
+			},
 		};
 
-		// Monotonic advance, enforced by the store rather than by the caller. The checkpoint is written under
-		// external versioning: Elasticsearch accepts the write only when the supplied version is greater than
-		// or equal to the stored one, and answers 409 otherwise. A delayed or retried write carrying an older
-		// position is therefore rejected instead of rewinding the checkpoint and replaying applied events.
-		//
-		// The version is the position offset by one because external versions must be positive, and position
-		// zero is a legitimate starting checkpoint. Versioning is index metadata, so this does not depend on
-		// how the document's fields happen to be serialized.
-		var response = await _client!.IndexAsync(
-			document,
-			idx => idx
-				.Index(_options.PositionsIndexName)
-				.Id(CreatePositionDocumentId(viewName))
-				.Version(position + 1)
-				.VersionType(VersionType.ExternalGte)
-				.Refresh(GetRefresh()),
-			cancellationToken).ConfigureAwait(false);
+		var response = await _client!.UpdateAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (!response.IsValidResponse)
 		{
-			// A stale write losing the race is the guard working, not a failure: a higher checkpoint is
-			// already durable, and re-applying this one would move it backwards.
-			if (response.ApiCallDetails?.HttpStatusCode == 409)
-			{
-				return;
-			}
-
 			throw new InvalidOperationException(
 				$"Failed to save position for {viewName}: {response.DebugInformation}");
 		}
 
+		// NoOp is the script declining to move the checkpoint backwards: a refused advance, not a failure.
+		if (response.Result == Result.NoOp)
+		{
+			return ViewPositionSaveOutcome.RefusedAsStale;
+		}
+
 		LogPositionSaved(viewName, position);
+		return ViewPositionSaveOutcome.Advanced;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Deleting the position document is the reset, and it is the only form that works here: an indexing
+		// write cannot lower an external version, which is precisely what the monotonic guard above is for.
+		// Absence is already how GetPositionAsync reports "no checkpoint", so nothing new is encoded.
+		// Deleting the position document is the reset. It is unconditional by contract, and since the
+		// monotonic comparison now lives in a script rather than in the document version, a subsequent
+		// LOW advance is accepted immediately — verified against real Elasticsearch and real OpenSearch.
+		// Absence is already how GetPositionAsync reports "no checkpoint", so nothing new is encoded.
+		var deleteRequest = new DeleteRequest(_options.PositionsIndexName, new Id(CreatePositionDocumentId(viewName)));
+		var response = await _client!.DeleteAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
+
+		// NotFound is success: a view with no checkpoint is already in the requested state. Anything else
+		// is a real failure and must not be swallowed -- that is the defect this member exists to fix.
+		if (!response.IsValidResponse && response.ApiCallDetails?.HttpStatusCode != 404)
+		{
+			throw new InvalidOperationException(
+				$"Failed to reset position for {viewName}: {response.DebugInformation}");
+		}
 	}
 
 	/// <inheritdoc/>

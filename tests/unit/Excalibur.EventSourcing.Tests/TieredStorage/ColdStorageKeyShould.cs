@@ -30,6 +30,50 @@ namespace Excalibur.EventSourcing.Tests.TieredStorage;
 [Trait("Component", "Core")]
 public sealed class ColdStorageKeyShould
 {
+	[Fact]
+	public void PinTheVersionedStreamPathWireFormat() =>
+		ColdStorageKey.StreamPath(KeyedTenantPartition.Scoped("t"), "Order", "a/b")
+			.ShouldBe("v2/dA/T3JkZXI/YS9i");
+
+	[Fact]
+	public void KeepEveryIdentityTermDistinctAcrossAdversarialCombinations()
+	{
+		string[] terms = ["a", "A", "a/b", @"a\b", "a_b", " a", "a ", "é", "e\u0301", "💡"];
+		var paths = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var tenant in terms)
+		{
+			foreach (var type in terms)
+			{
+				foreach (var id in terms)
+				{
+					paths.Add(ColdStorageKey.StreamPath(KeyedTenantPartition.Scoped(tenant), type, id))
+						.ShouldBeTrue($"collision for ({tenant}, {type}, {id})");
+				}
+			}
+		}
+		paths.Count.ShouldBe(1000);
+	}
+
+	[Fact]
+	public void RejectMalformedUtf16RatherThanReplaceIdentityBytes()
+	{
+		var tenant = KeyedTenantPartition.Scoped("tenant");
+		Should.Throw<EncoderFallbackException>(() => ColdStorageKey.StreamPath(tenant, "\ud800", "id"));
+		Should.Throw<EncoderFallbackException>(() => ColdStorageKey.StreamPath(tenant, "Order", "\udc00"));
+		Should.Throw<EncoderFallbackException>(() => ColdStorageKey.StreamPath(KeyedTenantPartition.Scoped("\ud800"), "Order", "id"));
+		ColdStorageKey.StreamPath(tenant, "\ufffd", "id").ShouldNotBeNullOrEmpty();
+	}
+
+	[Fact]
+	public void PreserveWhitespaceOnlyAggregateTerms() =>
+		ColdStorageKey.StreamPath(KeyedTenantPartition.Scoped("t"), " ", " ").ShouldBe("v2/dA/IA/IA");
+
+	[Theory]
+	[InlineData("", "id")]
+	[InlineData("Order", "")]
+	public void RejectEmptyStreamIdentityTerms(string type, string id) =>
+		Should.Throw<ArgumentException>(() => ColdStorageKey.StreamPath(KeyedTenantPartition.Scoped("tenant"), type, id));
+
 	/// <summary>
 	/// Tenants that differ only in characters a sanitizing implementation is tempted to rewrite.
 	/// Any scheme that maps separators to a common replacement collapses these onto one segment.

@@ -53,21 +53,38 @@ internal sealed class CompatActionBridge<TRequest, TResponse> : ICompatRequestBr
         CancellationToken cancellationToken)
     {
         var invoker = provider.GetService<IDispatchMiddlewareInvoker>();
-        var context = provider.GetService<IMessageContextFactory>()?.CreateContext();
+        var factory = provider.GetService<IMessageContextFactory>();
 
         // No canonical pipeline available (e.g. a bare unit-test container): run the compat chain directly.
-        if (invoker is null || context is null)
+        if (invoker is null || factory is null)
         {
             return await pipeline(cancellationToken).ConfigureAwait(false);
         }
 
-        var wrapper = new CompatActionWrapper<TRequest, TResponse>(request);
-        var result = await invoker.InvokeAsync<IMessageResult<TResponse>>(
-            wrapper,
-            context,
-            async (_, _, ct) => MessageResult.Success(await pipeline(ct).ConfigureAwait(false)),
-            cancellationToken).ConfigureAwait(false);
+        var context = factory.CreateContext();
+        try
+        {
+            context.RequestServices = provider;
+            var wrapper = new CompatActionWrapper<TRequest, TResponse>(request);
+            var result = await invoker.InvokeAsync<IMessageResult>(
+                wrapper,
+                context,
+                async (_, _, ct) => MessageResult.Success(await pipeline(ct).ConfigureAwait(false)),
+                cancellationToken).ConfigureAwait(false);
 
-        return result.ReturnValue!;
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(result.ErrorMessage ?? result.ProblemDetails?.Detail ?? "The Dispatch pipeline rejected the request.");
+            }
+            if (result is not IMessageResult<TResponse> typedResult)
+            {
+                throw new InvalidOperationException("The Dispatch pipeline completed without a compatible response.");
+            }
+            return typedResult.ReturnValue!;
+        }
+        finally
+        {
+            factory.Return(context);
+        }
     }
 }

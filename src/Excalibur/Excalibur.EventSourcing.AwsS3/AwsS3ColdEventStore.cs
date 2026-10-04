@@ -15,6 +15,7 @@ using Polly;
 using Polly.Retry;
 
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.TieredStorage;
 
 namespace Excalibur.EventSourcing.AwsS3;
 
@@ -27,8 +28,12 @@ namespace Excalibur.EventSourcing.AwsS3;
 /// <c>{tenantSegment}/{aggregateSegment}/events.json.gz</c> when no key prefix is configured. Both segments
 /// are Base64Url-encoded, so neither appears verbatim: write lifecycle rules and IAM prefix conditions
 /// against the encoded form, never against a raw tenant or aggregate identifier.
+/// TypedV2 uses a type-qualified key and requires explicit activation and migration. Client routing,
+/// bucket and prefix must identify one fixed, strongly consistent namespace for the instance lifetime.
+/// Legacy guards do not require endpoint discovery; typed operations and migration do. Activation never
+/// changes the captured layout, and does not supply the required external legacy-operation fence.
 /// </remarks>
-internal sealed class AwsS3ColdEventStore : IColdEventStore
+internal sealed class AwsS3ColdEventStore : IColdEventStore, IColdEventStoreMigration
 {
 	private const int MaxConcurrencyRetries = 5;
 
@@ -36,6 +41,9 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 	private readonly string _bucketName;
 	private readonly string _keyPrefix;
 	private readonly ILogger<AwsS3ColdEventStore> _logger;
+	private readonly ColdArchiveLayout _layout;
+	private readonly AwsS3ColdArchiveMigrationStorage _migrationStorage;
+	private readonly Lazy<ColdArchiveMigrationCoordinator> _migration;
 
 	/// <summary>
 	/// Retries the WriteAsync read-modify-write body on an S3 precondition/conflict response (another
@@ -87,36 +95,60 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 		IAmazonS3 s3Client,
 		string bucketName,
 		string keyPrefix,
-		ILogger<AwsS3ColdEventStore> logger)
+		ILogger<AwsS3ColdEventStore> logger,
+		ColdArchiveLayout layout = ColdArchiveLayout.Legacy)
 	{
 		ArgumentNullException.ThrowIfNull(s3Client);
 		ArgumentNullException.ThrowIfNull(bucketName);
 		ArgumentNullException.ThrowIfNull(logger);
+		if (!Enum.IsDefined(layout))
+		{
+			throw new ArgumentOutOfRangeException(nameof(layout));
+		}
 
 		_s3Client = s3Client;
 		_bucketName = bucketName;
 		_keyPrefix = keyPrefix ?? "";
 		_logger = logger;
+		_layout = layout;
+		_migrationStorage = new AwsS3ColdArchiveMigrationStorage(s3Client, bucketName, _keyPrefix);
+		_migration = new Lazy<ColdArchiveMigrationCoordinator>(() => new ColdArchiveMigrationCoordinator(_migrationStorage));
 		_writeRetryPipeline = BuildWriteRetryPipeline();
 	}
+
+	/// <inheritdoc />
+	public Task ActivateTypedLayoutAsync(CancellationToken cancellationToken) =>
+		_migration.Value.ActivateTypedLayoutAsync(cancellationToken);
+
+	/// <inheritdoc />
+	public Task MigrateAsync(KeyedTenantPartition tenant, string aggregateId, string aggregateType,
+		CancellationToken cancellationToken) =>
+		_migration.Value.MigrateAsync(tenant, aggregateId, aggregateType, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<long> WriteAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		IReadOnlyList<StoredEvent> events,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 		ArgumentNullException.ThrowIfNull(events);
+
+		events = ColdArchiveBatch.Snapshot(events);
 
 		if (events.Count == 0)
 		{
+			_ = await ReadArchiveAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 			return -1;
 		}
 
-		var key = GetObjectKey(tenant, aggregateId);
+		var key = _layout == ColdArchiveLayout.TypedV2
+			? _migrationStorage.GetTypedKey(tenant, aggregateId, aggregateType)
+			: _migrationStorage.GetLegacyKey(tenant, aggregateId);
 
 		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite (lost
 		// update). We capture the source object's ETag on read and write conditionally (IfMatch for an
@@ -125,13 +157,12 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 		return await _writeRetryPipeline.ExecuteAsync(
 			async ct =>
 			{
-				var (existingEvents, etag) = await TryDownloadForUpdateAsync(key, ct).ConfigureAwait(false);
+				var (existingEvents, etag) = await ReadArchiveAsync(tenant, aggregateId, aggregateType, ct).ConfigureAwait(false);
 
 				// Membership, not maximum. Selecting by "version greater than the existing max" silently
 				// DROPS a submitted version that falls into a gap below it — cold holding {0,1,5} would
 				// discard a submitted {2,3,4} as already-present. Presence is a set question, ask it as one.
-				var existingVersions = existingEvents.Select(e => e.Version).ToHashSet();
-				var newEvents = events.Where(e => !existingVersions.Contains(e.Version)).ToList();
+				var newEvents = ColdArchiveBatch.GetAdditions(tenant, aggregateId, existingEvents, events, aggregateType);
 
 				if (newEvents.Count == 0)
 				{
@@ -167,28 +198,28 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 
-		var key = GetObjectKey(tenant, aggregateId);
-		if (!await ObjectExistsAsync(key, cancellationToken).ConfigureAwait(false))
-		{
-			return Array.Empty<StoredEvent>();
-		}
-
-		return await ReadEventsFromS3Async(key, cancellationToken).ConfigureAwait(false);
+		var (events, _) = await ReadArchiveAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+		ColdArchiveBatch.ValidateStream(events, tenant, aggregateId, aggregateType);
+		events.Sort(static (left, right) => left.Version.CompareTo(right.Version));
+		return events;
 	}
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
-		var allEvents = await ReadAsync(tenant, aggregateId, cancellationToken).ConfigureAwait(false);
+		var allEvents = await ReadAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 		return allEvents.Where(e => e.Version > fromVersion).ToList();
 	}
 
@@ -196,17 +227,15 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 	public async Task<bool> HasArchivedEventsAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
-		ArgumentNullException.ThrowIfNull(tenant);
-		ArgumentNullException.ThrowIfNull(aggregateId);
-		return await ObjectExistsAsync(GetObjectKey(tenant, aggregateId), cancellationToken).ConfigureAwait(false);
+		return (await ReadAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false)).Count > 0;
 	}
 
 	/// <summary>
-	/// Returns the highest version <c>V</c> such that every version from the aggregate's lowest archived
-	/// version through <c>V</c> is present in <paramref name="ascendingEvents"/>, or <c>-1</c> when nothing
-	/// is archived.
+	/// Returns the highest version <c>V</c> such that every version from zero through <c>V</c> is
+	/// present in <paramref name="ascendingEvents"/>, or <c>-1</c> when no such prefix is proven.
 	/// </summary>
 	/// <remarks>
 	/// The interface promises a <strong>contiguous</strong> durable prefix, and a maximum is not a prefix.
@@ -214,99 +243,39 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 	/// that gap — destroying the only surviving copy of versions cold never stored. Scanning for the first
 	/// discontinuity is what makes the returned watermark mean what the contract says it means.
 	/// </remarks>
-	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents)
-	{
-		if (ascendingEvents.Count == 0)
-		{
-			return -1;
-		}
+	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents) =>
+		ColdArchiveBatch.ContiguousDurablePrefix(ascendingEvents);
 
-		var watermark = ascendingEvents[0].Version;
-		for (var i = 1; i < ascendingEvents.Count; i++)
+	private async Task<(List<StoredEvent> Events, string? ETag)> ReadArchiveAsync(
+		KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken)
+	{
+		ColdArchiveMigrationObject? archive;
+		if (_layout == ColdArchiveLayout.TypedV2)
 		{
-			var version = ascendingEvents[i].Version;
-			if (version == watermark)
+			archive = await _migration.Value.ReadTypedAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			// Presence alone disables Legacy. Do not resolve namespace identity for this compatibility path.
+			if (await _migrationStorage.ReadAsync(_migrationStorage.GetLayoutKey(), cancellationToken).ConfigureAwait(false) is not null
+				|| await _migrationStorage.ReadAsync(_migrationStorage.GetReceiptKey(tenant, aggregateId), cancellationToken).ConfigureAwait(false) is not null)
 			{
-				// A duplicate version neither extends nor breaks the run.
-				continue;
+				throw new InvalidOperationException("A layout marker or migration receipt exists; legacy archive operations are disabled.");
 			}
 
-			if (version != watermark + 1)
-			{
-				break;
-			}
-
-			watermark = version;
+			archive = await _migrationStorage.ReadAsync(_migrationStorage.GetLegacyKey(tenant, aggregateId), cancellationToken).ConfigureAwait(false);
 		}
 
-		return watermark;
-	}
-
-	private string GetObjectKey(KeyedTenantPartition tenant, string aggregateId)
-	{
-		// BOTH components are Base64Url-encoded (injective, alphabet excludes '/' and '\'), so the key is a
-		// function of the whole (tenant, aggregate) pair and distinct pairs cannot share an object. Encoding
-		// the aggregate term is load-bearing, not belt-and-braces: the Replace-based sanitation this
-		// supersedes was many-to-one, so 'a\b' and 'a_b' addressed the SAME object within one tenant.
-		var tenantSegment = ColdStorageKey.TenantSegment(tenant);
-		var aggregateSegment = ColdStorageKey.AggregateSegment(aggregateId);
-		return string.IsNullOrEmpty(_keyPrefix)
-			? $"{tenantSegment}/{aggregateSegment}/events.json.gz"
-			: $"{_keyPrefix}/{tenantSegment}/{aggregateSegment}/events.json.gz";
-	}
-
-	private async Task<bool> ObjectExistsAsync(string key, CancellationToken cancellationToken)
-	{
-		try
-		{
-			await _s3Client.GetObjectMetadataAsync(_bucketName, key, cancellationToken).ConfigureAwait(false);
-			return true;
-		}
-		catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-		{
-			return false;
-		}
-	}
-
-	private async Task<List<StoredEvent>> ReadEventsFromS3Async(string key, CancellationToken cancellationToken)
-	{
-		var response = await _s3Client.GetObjectAsync(_bucketName, key, cancellationToken).ConfigureAwait(false);
-
-		await using var responseStream = response.ResponseStream;
-		await using var gzipStream = new GZipStream(responseStream, CompressionMode.Decompress);
-
-		var events = await JsonSerializer.DeserializeAsync(
-			gzipStream, ArchiveTypeInfo, cancellationToken).ConfigureAwait(false);
-
-		return events ?? [];
-	}
-
-	/// <summary>
-	/// Downloads the current archive object (if any) and its ETag in a single request. Returns an empty
-	/// list and a <see langword="null"/> ETag when the object does not yet exist (create path).
-	/// </summary>
-	private async Task<(List<StoredEvent> Events, string? ETag)> TryDownloadForUpdateAsync(
-		string key,
-		CancellationToken cancellationToken)
-	{
-		try
-		{
-			var response = await _s3Client.GetObjectAsync(_bucketName, key, cancellationToken).ConfigureAwait(false);
-
-			await using var responseStream = response.ResponseStream;
-			await using var gzipStream = new GZipStream(responseStream, CompressionMode.Decompress);
-
-			var events = await JsonSerializer.DeserializeAsync(
-				gzipStream, ArchiveTypeInfo, cancellationToken).ConfigureAwait(false);
-
-			return (events ?? [], response.ETag);
-		}
-		catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+		if (archive is null)
 		{
 			return ([], null);
 		}
-	}
 
+		var events = (await _migrationStorage.DecodeAsync(archive, cancellationToken).ConfigureAwait(false)).ToList();
+		ColdArchiveBatch.ValidateStream(events, tenant, aggregateId, aggregateType);
+		events.Sort(static (left, right) => left.Version.CompareTo(right.Version));
+		return (events, archive.Revision);
+	}
 	private async Task WriteEventsToS3Async(
 		string key,
 		List<StoredEvent> events,
@@ -342,6 +311,10 @@ internal sealed class AwsS3ColdEventStore : IColdEventStore
 			request.IfNoneMatch = "*";
 		}
 
-		await _s3Client.PutObjectAsync(request, cancellationToken).ConfigureAwait(false);
+		var response = await _s3Client.PutObjectAsync(request, cancellationToken).ConfigureAwait(false);
+		if (response.HttpStatusCode != HttpStatusCode.OK)
+		{
+			throw new InvalidOperationException("The archive upload did not return a successful durable acknowledgement.");
+		}
 	}
 }

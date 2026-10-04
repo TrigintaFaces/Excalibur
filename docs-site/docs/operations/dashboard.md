@@ -71,6 +71,21 @@ builder.Services.AddProjectionLagDashboard();   // requires Excalibur.Operations
 
 The module resolves the projection-lag read-model as an optional service, so a host without event sourcing configured still fails open (reports not-configured).
 
+:::info Reading the lag panel: "not configured" and "nothing behind" are different answers
+
+`configured: false` means **lag could not be measured** — either the read model is not registered, or it
+is registered without an event-store head source to subtract checkpoints from. Either way the `streams`
+array is empty and that emptiness carries **no information about lag**.
+
+`configured: true` with an empty `streams` array is the opposite: the head *was* read, and no
+subscription is behind.
+
+The distinction is deliberate. These two states used to be indistinguishable — a host that registered the
+read model without a head source reported `configured: true` with no streams, which a dashboard renders as
+"every projection is caught up". A monitoring surface that degrades to "all clear" is the one failure mode
+it can least afford, so the panel now reports what it actually knows.
+:::
+
 ## Configuration
 
 `AddDashboard(Action<DashboardOptions>)` configures the dashboard. Options are validated at startup (`ValidateOnStart`), so a bad route prefix fails fast with `OptionsValidationException`.

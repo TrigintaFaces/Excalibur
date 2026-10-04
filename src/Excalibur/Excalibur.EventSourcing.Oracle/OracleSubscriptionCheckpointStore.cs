@@ -88,6 +88,13 @@ internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpoin
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		if (expectedPosition is { } prior)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(prior, nameof(expectedPosition));
+			ArgumentOutOfRangeException.ThrowIfLessThan(newPosition, prior);
+		}
+
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);

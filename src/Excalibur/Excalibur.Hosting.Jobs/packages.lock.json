@@ -89,10 +89,10 @@
       },
       "Quartz.Jobs": {
         "type": "Transitive",
-        "resolved": "3.18.0",
-        "contentHash": "QODsbF6VuFBXvsQfWOyqoRDIT5UIyfOquh1SIYeHMAnkb+wKJvZp82jZi0M99v9uMWXMHYKVKhlQ0F5vp+x5DQ==",
+        "resolved": "4.3.0",
+        "contentHash": "Y/tz+9WFxu5g9yA47fa7lNhuiF5vmov9neXbvI21/oz5xSY47psuQl/WQK+uKdT0Lv34njHtHw2MQ7mb0cJ4yQ==",
         "dependencies": {
-          "Quartz": "3.18.0"
+          "Quartz": "4.3.0"
         }
       },
       "System.Reflection.TypeExtensions": {
@@ -210,11 +210,8 @@
           "Excalibur.Hosting.HealthChecks": "[1.0.0, )",
           "Excalibur.Jobs.Abstractions": "[1.0.0, )",
           "OpenTelemetry.Exporter.Prometheus.AspNetCore": "[1.13.0-beta.1, )",
-          "Quartz": "[3.18.0, )",
-          "Quartz.Extensions.DependencyInjection": "[3.18.0, )",
-          "Quartz.Extensions.Hosting": "[3.18.0, )",
-          "Quartz.Plugins": "[3.18.0, )",
-          "Quartz.Serialization.SystemTextJson": "[3.18.0, )"
+          "Quartz": "[4.3.0, )",
+          "Quartz.Plugins": "[4.3.0, )"
         }
       },
       "excalibur.jobs.abstractions": {
@@ -353,44 +350,17 @@
       },
       "Quartz": {
         "type": "CentralTransitive",
-        "requested": "[3.18.0, )",
-        "resolved": "3.18.0",
-        "contentHash": "l+PY20yF32ljFkP/OROYc7Z7Wv3rhGARqxGkDMaCwOJ3aGA/94fPSBYtJpZKciLbc/89xfVlpEZbIzIPE0hHHQ=="
-      },
-      "Quartz.Extensions.DependencyInjection": {
-        "type": "CentralTransitive",
-        "requested": "[3.18.0, )",
-        "resolved": "3.18.0",
-        "contentHash": "YAtrZ+pYtPPnWKKuHII1x16E6HxyT1eHWQCvAR4zkMT8xmfuz1KCRHCg3+b8z/nGXpWyR6WpSoIh7dsR4jI+iA==",
-        "dependencies": {
-          "Quartz": "3.18.0"
-        }
-      },
-      "Quartz.Extensions.Hosting": {
-        "type": "CentralTransitive",
-        "requested": "[3.18.0, )",
-        "resolved": "3.18.0",
-        "contentHash": "DOIgnLibu9sEYqHAKRQYz+0oWZ5q2LP55oNUtosOygEiIxCvTtHAwkZdf6Ea0VCucZ1oO9SeWLoA4q4WFbZspw==",
-        "dependencies": {
-          "Quartz.Extensions.DependencyInjection": "3.18.0"
-        }
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "sjWlYGxMrU3QhcGV2257OSZm59ACgvDbJa59e9LUrHA5FE/s+Mpwmos6vwEnBuhW872ky5gxTm6ARBC48xVCbg=="
       },
       "Quartz.Plugins": {
         "type": "CentralTransitive",
-        "requested": "[3.18.0, )",
-        "resolved": "3.18.0",
-        "contentHash": "l9/wWvqrIhCnm0C9BkcCIUdxoG7l16MlPGiJeHQ27zgizveg2D2NlXVxcpwm9qE91JSzcec8hQDKgGDuzpT8iw==",
+        "requested": "[4.3.0, )",
+        "resolved": "4.3.0",
+        "contentHash": "KDhFSMtqqjsH1fSLOkir8GW3dCc7TvSQhIu0QD+vQaFPaIbLytMPx3PtLdTbil2jHWfbGaDs+zpsJ+HpmbIwKQ==",
         "dependencies": {
-          "Quartz.Jobs": "3.18.0"
-        }
-      },
-      "Quartz.Serialization.SystemTextJson": {
-        "type": "CentralTransitive",
-        "requested": "[3.18.0, )",
-        "resolved": "3.18.0",
-        "contentHash": "p+qvJAMLoDoj1VecU1rFCsmMfvhfYCXiFK1d2dicLNPapizy3BfPhKapSwexFndOt97mFr2M0qsXYelb3pLM1A==",
-        "dependencies": {
-          "Quartz": "3.18.0"
+          "Quartz.Jobs": "4.3.0"
         }
       },
       "System.IdentityModel.Tokens.Jwt": {

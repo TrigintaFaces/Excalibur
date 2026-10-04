@@ -23,6 +23,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
+[Trait("Pattern", "Regression")]
 public sealed class TransportHotPathOptimizationsShould
 {
 	private static readonly string[] DefaultEndpoints = ["default"];
@@ -200,10 +201,13 @@ public sealed class TransportHotPathOptimizationsShould
 	}
 
 	[Fact]
-	public async Task SkipChainLookupWhenOnlyRoutingMiddleware()
+	public async Task ExecuteRoutingWhenInvokedDirectlyWithOnlyRoutingMiddleware()
 	{
-		// Arrange - routing-only pipeline should skip directly to next delegate
+		// Direct invocations must route before reaching the terminal delegate.
 		var router = A.Fake<IDispatchRouter>();
+		A.CallTo(() => router.RouteAsync(
+			A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(new ValueTask<RoutingDecision>(RoutingDecision.Success("rabbitmq", DefaultEndpoints)));
 		var routingMiddleware = new RoutingMiddleware(router, NullLogger<RoutingMiddleware>.Instance);
 		var invoker = new DispatchMiddlewareInvoker([routingMiddleware]);
 
@@ -221,9 +225,11 @@ public sealed class TransportHotPathOptimizationsShould
 		// Act
 		var result = await invoker.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
 
-		// Assert - next delegate called directly, bypassing chain
+		// The terminal runs only after the routing middleware evaluates this message.
 		nextCalled.ShouldBeTrue();
 		result.Succeeded.ShouldBeTrue();
+		A.CallTo(() => router.RouteAsync(message, context, CancellationToken.None))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	#endregion
@@ -335,12 +341,12 @@ public sealed class TransportHotPathOptimizationsShould
 
 	#endregion
 
-	#region T.5 (Opt 4): Routing Decision Cache for Deterministic Routers
+	#region T.5 (Opt 4): Routing Decisions Per Dispatch
 
 	[Fact]
-	public async Task CacheRoutingDecisionForDefaultDispatchRouter()
+	public async Task ReevaluateRoutingDecisionForDefaultDispatchRouter()
 	{
-		// Arrange - DefaultDispatchRouter enables caching
+		// DefaultDispatchRouter may contain message- or context-dependent selectors.
 		var transportSelector = A.Fake<ITransportSelector>();
 		A.CallTo(() => transportSelector.SelectTransportAsync(
 			A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -371,10 +377,10 @@ public sealed class TransportHotPathOptimizationsShould
 		var ctx2 = new MessageContext(msg2, _serviceProvider);
 		await dispatcher.DispatchAsync(msg2, ctx2, CancellationToken.None);
 
-		// Assert - router called only once (second dispatch uses cache)
+		// Each distinct dispatch context requires its own routing decision.
 		A.CallTo(() => transportSelector.SelectTransportAsync(
 			A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
+			.MustHaveHappenedTwiceExactly();
 	}
 
 	[Fact]
@@ -496,7 +502,7 @@ public sealed class TransportHotPathOptimizationsShould
 	public async Task AllOptimizationsCombineCorrectlyForOutboundDispatch()
 	{
 		// Arrange - all 4 optimizations active: outbound, routing-only middleware,
-		// single transport bus, DefaultDispatchRouter with caching
+		// single transport bus, and per-dispatch routing.
 		var transportSelector = A.Fake<ITransportSelector>();
 		A.CallTo(() => transportSelector.SelectTransportAsync(
 			A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -520,7 +526,7 @@ public sealed class TransportHotPathOptimizationsShould
 			invoker, finalHandler, transportProvider, _serviceProvider,
 			dispatchRouter: router);
 
-		// Act - two dispatches to verify caching works
+		// Act - two dispatches with distinct contexts.
 		var msg1 = new FakeDispatchMessage();
 		var ctx1 = new MessageContext(msg1, _serviceProvider);
 		await dispatcher.DispatchAsync(msg1, ctx1, CancellationToken.None);
@@ -533,10 +539,10 @@ public sealed class TransportHotPathOptimizationsShould
 		// T.2: transport binding NOT resolved (outbound)
 		A.CallTo(() => transportProvider.GetTransportBinding(A<IMessageContext>._))
 			.MustNotHaveHappened();
-		// T.5: router called only once (cached second time)
+		// Routing is evaluated for each dispatch context.
 		A.CallTo(() => transportSelector.SelectTransportAsync(
 			A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
+			.MustHaveHappenedTwiceExactly();
 	}
 
 	[Fact]

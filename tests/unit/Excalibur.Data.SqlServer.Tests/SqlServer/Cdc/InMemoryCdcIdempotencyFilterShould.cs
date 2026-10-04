@@ -21,7 +21,7 @@ public sealed class InMemoryCdcIdempotencyFilterShould : UnitTestBase
 {
 	/// <summary>The asking consumer. These arms are not about consumer isolation, so one identity is used
 	/// throughout; CdcIdempotencyConsumerCollisionShould is where two identities are contrasted.</summary>
-	private const string TestConsumer = "test-consumer";
+	private static readonly CdcConsumerIdentity TestConsumer = new("test-consumer", "test-db");
 
 	private static readonly byte[] SampleLsn = [0x00, 0x00, 0x00, 0x01];
 	private static readonly byte[] SampleSeqVal = [0x00, 0x01];

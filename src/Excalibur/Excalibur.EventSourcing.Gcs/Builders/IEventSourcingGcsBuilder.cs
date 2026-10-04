@@ -23,6 +23,11 @@ namespace Excalibur.EventSourcing.Gcs;
 /// </remarks>
 public interface IEventSourcingGcsBuilder
 {
+	/// <summary>Selects the archive layout captured at provider construction. Defaults to Legacy.</summary>
+	/// <remarks>TypedV2 requires explicit activation, migration and a client that preserves raw archive bytes.</remarks>
+	IEventSourcingGcsBuilder Layout(ColdArchiveLayout layout) =>
+		throw new NotSupportedException("This builder does not support archive layout selection. Use a provider builder that implements Layout.");
+
 	/// <summary>Sets the Google Cloud project ID.</summary>
 	IEventSourcingGcsBuilder ProjectId(string projectId);
 

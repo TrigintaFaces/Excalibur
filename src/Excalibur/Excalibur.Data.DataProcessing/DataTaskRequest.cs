@@ -30,9 +30,9 @@ public sealed class DataTaskRequest
 	public string RecordType { get; init; } = string.Empty;
 
 	/// <summary>
-	/// Gets the number of attempts made to process the data task.
+	/// Gets the number of observed processing failures charged to the data task.
 	/// </summary>
-	/// <value> An integer representing the count of processing attempts. </value>
+	/// <value> An integer representing observed failures; host cancellation and process crashes do not increment it. </value>
 	public int Attempts { get; init; }
 
 	/// <summary>
@@ -42,9 +42,9 @@ public sealed class DataTaskRequest
 	public int MaxAttempts { get; init; }
 
 	/// <summary>
-	/// Gets the total number of records completed in this data task.
+	/// Gets the cumulative number of successful record-processing attempts checkpointed for this task.
 	/// </summary>
-	/// <value> A long representing the count of completed records. </value>
+	/// <value> A long counting successful processing attempts, including repeated work after page replay. </value>
 	public long CompletedCount { get; init; }
 
 	/// <summary>

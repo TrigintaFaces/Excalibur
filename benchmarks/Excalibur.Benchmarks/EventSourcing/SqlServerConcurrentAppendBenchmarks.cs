@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Excalibur.Benchmarks.EventSourcing;
 
 /// <summary>
-/// Measures sustained append throughput under CONCURRENCY against a real SQL Server.
+/// Measures the elapsed time of a concurrent append wave against a real SQL Server.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,17 +25,19 @@ namespace Excalibur.Benchmarks.EventSourcing;
 /// reassuring number about the wrong thing.
 /// </para>
 /// <para>
-/// Writers append to DISTINCT aggregates, so nothing here contends on the stream uniqueness key or on
-/// optimistic concurrency. The only thing being measured is the counter row. Sweeping the writer count
-/// shows the shape: throughput should rise with concurrency until the counter saturates and then flatten,
-/// and the level at which it flattens IS the store's sustained append ceiling.
+/// Writers append to distinct, new aggregates. The measurement includes scheduling, serialization,
+/// connection pooling, network and transaction work as well as counter contention. It does not isolate
+/// counter cost or establish production sustained capacity.
 /// </para>
 /// <para>
-/// <b>Interpreting the result.</b> Report time is per ITERATION, and one iteration performs
+/// <b>Interpreting the result.</b> Report time is per invocation, and one invocation performs
 /// <see cref="WriterCount"/> appends. Appends/sec is therefore
-/// <c>WriterCount / (mean seconds per iteration)</c>. That flattening level is the number the event
-/// sourcing guarantee contract should quote -- it currently carries a reasoned estimate, not a
-/// measurement.
+/// <c>WriterCount / (mean seconds per invocation)</c> for this closed-loop wave workload. Each append
+/// writes one version-zero <see cref="TestDomainEvent"/> with fresh stream/event identities and a null
+/// application payload. Persistence checks run outside timing, but affect cache state and spacing
+/// between waves. This one-invocation configuration requires a fresh baseline; results from the former
+/// sixteen-invocation configuration are not directly comparable. Retain the candidate revision and
+/// environment with the raw BenchmarkDotNet report before publishing comparisons.
 /// </para>
 /// <para>
 /// Requires a SQL Server instance: set <c>BENCHMARK_SQL_CONNECTIONSTRING</c>. When it is absent this
@@ -45,9 +47,9 @@ namespace Excalibur.Benchmarks.EventSourcing;
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]
-// Iteration counts are pinned rather than left to the default: six parameter values against a real
-// database otherwise runs for hours, and the figure being sought is a throughput CEILING, which is
-// stable well before BenchmarkDotNet's default statistical rigour is reached.
+// This is a database macrobenchmark. One wave per iteration permits persistence verification outside
+// the timed interval. IterationCleanup failures propagate before BDN publishes measurements, whereas
+// GlobalCleanup failures can be swallowed by the in-process toolchain (BDN 0.15.8).
 // InProcess rather than the default CsProj toolchain. BenchmarkDotNet locates the benchmark project
 // by scanning the repo, and a git worktree under the repo root makes that scan ambiguous
 // ("found more than one matching project file"), which fails the run before it starts. In-process
@@ -56,31 +58,51 @@ namespace Excalibur.Benchmarks.EventSourcing;
 [InProcess]
 [WarmupCount(3)]
 [IterationCount(10)]
-[InvocationCount(16)]
+[InvocationCount(1, unrollFactor: 1)]
 public class SqlServerConcurrentAppendBenchmarks
 {
 	private const string Schema = "dispatch";
 	private const string Table = "ConcurrentAppendEvents";
 
-	private static readonly string? ConnectionString =
-		Environment.GetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING");
+	private readonly string? _connectionString;
+	private readonly Func<string, Task<(long Events, long Streams, long Identities)>> _readCounts;
+	private IEventStore _eventStore = null!;
+	private string _aggregateType = string.Empty;
+	private long _committedAppends;
+	private bool _waveFailed;
 
-	private SqlServerEventStore _eventStore = null!;
+	public SqlServerConcurrentAppendBenchmarks()
+		: this(Environment.GetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING"))
+	{
+	}
+
+	internal SqlServerConcurrentAppendBenchmarks(string? connectionString)
+	{
+		_connectionString = connectionString;
+		_readCounts = ReadCountsAsync;
+	}
+
+	internal SqlServerConcurrentAppendBenchmarks(
+		IEventStore eventStore,
+		Func<string, Task<(long Events, long Streams, long Identities)>> readCounts)
+	{
+		_eventStore = eventStore;
+		_readCounts = readCounts;
+	}
 
 	/// <summary>
-	/// Gets or sets how many appends run concurrently in one iteration.
+	/// Gets or sets how many appends run concurrently in one invocation.
 	/// </summary>
 	/// <remarks>
-	/// 1 is the control: it measures the counter row's cost with no contention at all, so the difference
-	/// between 1 and the rest separates "the extra statement" from "the serialization".
+	/// One writer is the serial control for the complete append path, including the database round trip.
 	/// </remarks>
 	[Params(1, 2, 4, 8, 16, 32)]
 	public int WriterCount { get; set; }
 
 	[GlobalSetup]
-	public void GlobalSetup()
+	public async Task GlobalSetup()
 	{
-		if (string.IsNullOrWhiteSpace(ConnectionString))
+		if (string.IsNullOrWhiteSpace(_connectionString))
 		{
 			throw new InvalidOperationException(
 				"SqlServerConcurrentAppendBenchmarks needs a real SQL Server: set "
@@ -89,16 +111,43 @@ public class SqlServerConcurrentAppendBenchmarks
 				+ "indistinguishable from an extremely fast one.");
 		}
 
-		EnsureSchemaAsync().GetAwaiter().GetResult();
+		await EnsureSchemaAsync().ConfigureAwait(false);
 
 		// The connection-factory overload is the one that takes schema/table; the string overload is
 		// hardcoded to dbo.EventStoreEvents and would silently measure a different table.
 		_eventStore = new SqlServerEventStore(
-			() => new SqlConnection(ConnectionString),
+			() => new SqlConnection(_connectionString),
 			NullLogger<SqlServerEventStore>.Instance,
 			tenantContext: BenchmarkTenantContext.SingleTenant,
 			schema: Schema,
 			table: Table);
+	}
+
+	[IterationSetup]
+	public void IterationSetup()
+	{
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(WriterCount);
+		_aggregateType = $"BenchAggregate-{Guid.NewGuid():N}";
+		_committedAppends = 0;
+		_waveFailed = false;
+	}
+
+	[IterationCleanup]
+	public async Task IterationCleanup()
+	{
+		if (_waveFailed || _committedAppends != WriterCount)
+		{
+			throw new InvalidOperationException("Invalid append measurement: a wave failed or was skipped.");
+		}
+
+		var counts = await _readCounts(_aggregateType).ConfigureAwait(false);
+		if (counts.Events != _committedAppends || counts.Streams != _committedAppends || counts.Identities != _committedAppends)
+		{
+			throw new InvalidOperationException(
+				$"Invalid append measurement: expected {_committedAppends} new events/streams/identities; found {counts}.");
+		}
+
+		Console.WriteLine($"Validated append wave: {_committedAppends} appends/events/streams; run={_aggregateType}.");
 	}
 
 	/// <summary>
@@ -107,14 +156,14 @@ public class SqlServerConcurrentAppendBenchmarks
 	[Benchmark]
 	public async Task ConcurrentAppendToDistinctAggregates()
 	{
-		var appends = new Task[WriterCount];
+		var appends = new Task<AppendResult>[WriterCount];
 		for (var i = 0; i < WriterCount; i++)
 		{
 			var aggregateId = Guid.NewGuid().ToString("N");
 			appends[i] = Task.Run(async () =>
 				await _eventStore.AppendAsync(
 						aggregateId,
-						"BenchAggregate",
+						_aggregateType,
 						new IDomainEvent[]
 						{
 							new TestDomainEvent
@@ -131,12 +180,48 @@ public class SqlServerConcurrentAppendBenchmarks
 					.ConfigureAwait(false));
 		}
 
-		await Task.WhenAll(appends).ConfigureAwait(false);
+		try
+		{
+			var results = await Task.WhenAll(appends).ConfigureAwait(false);
+			foreach (var result in results)
+			{
+				// AlreadyCommitted is a valid retry outcome, but this workload promises NEW writes.
+				if (result.Outcome != AppendOutcome.Committed)
+				{
+					throw new InvalidOperationException($"Invalid append measurement: expected Committed, received {result.Outcome}.");
+				}
+			}
+
+			_committedAppends = checked(_committedAppends + results.Length);
+		}
+		catch
+		{
+			_waveFailed = true;
+			throw;
+		}
 	}
 
-	private static async Task EnsureSchemaAsync()
+	private async Task<(long Events, long Streams, long Identities)> ReadCountsAsync(string aggregateType)
 	{
-		await using var connection = new SqlConnection(ConnectionString);
+		await using var connection = new SqlConnection(_connectionString);
+		await connection.OpenAsync().ConfigureAwait(false);
+		const string Sql = $"""
+			SELECT COUNT_BIG(*), COUNT_BIG(DISTINCT [AggregateId]),
+			       COUNT_BIG(DISTINCT CASE WHEN [Version] = 0 THEN [EventId] END)
+			FROM [{Schema}].[{Table}]
+			WHERE [AggregateType] = @AggregateType AND [TenantId] = @TenantId;
+			""";
+		await using var command = new SqlCommand(Sql, connection);
+		_ = command.Parameters.AddWithValue("@AggregateType", aggregateType);
+		_ = command.Parameters.AddWithValue("@TenantId", TenantDefaults.DefaultTenantId);
+		await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+		_ = await reader.ReadAsync().ConfigureAwait(false);
+		return (reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2));
+	}
+
+	private async Task EnsureSchemaAsync()
+	{
+		await using var connection = new SqlConnection(_connectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
 		// Mirrors the shipped schema in the shape that matters here: Position is NOT an identity column,

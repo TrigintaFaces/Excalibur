@@ -22,6 +22,11 @@ namespace Excalibur.EventSourcing.AwsS3;
 /// </remarks>
 public interface IEventSourcingAwsS3Builder
 {
+	/// <summary>Selects the archive layout captured at provider construction. Defaults to Legacy.</summary>
+	/// <remarks>TypedV2 requires explicit activation and migration of a fixed single-bucket namespace.</remarks>
+	IEventSourcingAwsS3Builder Layout(ColdArchiveLayout layout) =>
+		throw new NotSupportedException("This builder does not support archive layout selection. Use a provider builder that implements Layout.");
+
 	/// <summary>Sets the S3 bucket name for cold event storage.</summary>
 	IEventSourcingAwsS3Builder BucketName(string bucketName);
 

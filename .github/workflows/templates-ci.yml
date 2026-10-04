@@ -111,7 +111,7 @@ jobs:
           echo "# Template Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${GITHUB_REF_NAME}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Validates all \`dotnet new\` templates produce buildable projects" >> $GITHUB_STEP_SUMMARY
           echo "with correct structure across all option combinations." >> $GITHUB_STEP_SUMMARY

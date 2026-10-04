@@ -45,9 +45,15 @@ public sealed class TieredErasureGuardShould
         var services = new ServiceCollection();
         _ = services.AddLogging();
         _ = services.AddSingleton(A.Fake<IColdEventStore>());
+        // The inner store supports both erasure and fresh observations. The rejection must come
+        // from tiering's inability to erase cold data, not an unrelated missing reader capability.
+        var hot = A.Fake<IEventStore>(o => o.Implements<IEventStoreErasure>());
+        A.CallTo(() => hot.GetService(typeof(IEventStoreErasure))).Returns((IEventStoreErasure)hot);
+        A.CallTo(() => hot.GetService(typeof(IEventStoreAuthoritativeReader))).Returns(new TestEventStateReader(hot));
         _ = services.AddExcaliburEventSourcing(b =>
         {
             _ = b.UseInMemory();
+            services.AddKeyedSingleton<IEventStore>("default", hot);
             _ = b.UseEventStoreErasure<SubjectHashIsAggregateIdMapping>();
             _ = b.UseTieredStorage(policy => policy.MaxAge = TimeSpan.FromDays(90));
         });

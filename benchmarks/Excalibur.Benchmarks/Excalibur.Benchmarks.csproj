@@ -20,6 +20,10 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/001_CreateEventStoreSchema.sql" LogicalName="BenchmarkSchema.001_CreateEventStoreSchema.sql" />
+    <EmbeddedResource Include="../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/002_CreateSnapshotSchema.sql" LogicalName="BenchmarkSchema.002_CreateSnapshotSchema.sql" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Core Excalibur packages -->
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />

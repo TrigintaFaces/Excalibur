@@ -378,25 +378,37 @@ public sealed class ReconnectingTransportSubscriberShould
 	}
 
 	[Fact]
-	public async Task KeepMakingProgress_WhenTheScheduleReturnsZero()
+	public async Task RaiseAZeroScheduleToTheFloorAndKeepReconnecting()
 	{
-		// LIVENESS, and the arm that bounds the floor from ABOVE. The two arms before this one prove the
-		// floor fires; nothing in them prevents it from being raised to a value that overrides a schedule a
-		// consumer actually chose, and a floor is only defensible while it stays too small to do that.
+		// LIVENESS, and the arm that bounds the floor FROM ABOVE. The two arms before this one prove the
+		// floor fires; nothing in them stops it being raised to a value that overrides a schedule a consumer
+		// actually chose, and a floor is only defensible while it stays too small to do that.
 		//
-		// It asserts progress rather than elapsed time, deliberately. The floor is below the platform timer's
-		// resolution, so no wall-clock assertion could tell a floored zero from a real one -- but a floor
-		// large enough to matter starves the attempt count against the backstop, which is observable and
-		// terminates. Verified: with the floor at one second this arm is the one that goes red.
+		// IT ASSERTS THE DELAY THIS DECORATOR CHOSE, read from the clock it was given. The previous version
+		// inferred the floor from THROUGHPUT -- it required 20 reconnects inside a ten-second backstop, on
+		// the reasoning that a floor large enough to matter would starve the attempt count. That reasoning is
+		// sound and the mechanism was not: a throughput proxy cannot tell a raised floor from a slow machine.
+		// It failed on a hosted Windows runner at 2 attempts where it wanted 20, and the floor is ONE
+		// MILLISECOND, so the shortfall was three orders of magnitude away from anything the floor could
+		// explain. Measured on the same commit: 101ms and all 20 attempts locally, and still green with the
+		// runtime pinned to a single core, so core-count starvation was not the cause either. The cause
+		// remains unidentified and is now irrelevant to this arm.
+		//
+		// Lowering the count was the obvious repair and would have destroyed the arm. A one-second floor
+		// still reaches about ten reconnects inside a ten-second backstop, while that runner managed two --
+		// so every threshold that passes the runner also passes the defect this arm exists to catch.
 		const int AttemptsToObserve = 20;
 
 		var attempts = 0;
+		var clock = new DelayRecordingTimeProvider();
 		using var cts = new CancellationTokenSource();
+
+		// Backstop only. The arm ends on the attempt count; this exists so a floor that parks the loop fails
+		// rather than hangs. Nothing is asserted about elapsed time.
 		cts.CancelAfter(TimeSpan.FromSeconds(10));
-		var inner = PermanentlyFaultingInner();
 
 		var subscriber = new ReconnectingTransportSubscriber(
-			inner,
+			PermanentlyFaultingInner(),
 			_ =>
 			{
 				if (++attempts >= AttemptsToObserve)
@@ -406,13 +418,62 @@ public sealed class ReconnectingTransportSubscriberShould
 
 				return TimeSpan.Zero;
 			},
-			NullLogger<ReconnectingTransportSubscriber>.Instance);
+			NullLogger<ReconnectingTransportSubscriber>.Instance,
+			clock);
 
 		await Should.ThrowAsync<OperationCanceledException>(
 			() => subscriber.SubscribeAsync(Handler, cts.Token));
 
 		attempts.ShouldBe(AttemptsToObserve,
 			"a zero schedule must still reconnect -- the floor paces the loop, it does not stop it.");
+
+		var delays = clock.RequestedDelays;
+
+		delays.ShouldNotBeEmpty(
+			"the decorator must wait through the injected clock; a delay taken from somewhere else is a wait "
+			+ "no test can observe, which is how this arm came to measure throughput instead.");
+
+		delays.ShouldAllBe(d => d == TimeSpan.FromMilliseconds(1),
+			"every zero schedule must be raised to the one-millisecond floor and to nothing larger. This is "
+			+ "the assertion the throughput version was reaching for: a floor big enough to override a "
+			+ "caller's schedule is now visible as its own value rather than inferred from how many "
+			+ "reconnects fitted into a wall-clock window.");
+	}
+
+	/// <summary>
+	/// A clock that records the delay it is asked to wait and then fires immediately.
+	/// </summary>
+	/// <remarks>
+	/// Not <c>FakeTimeProvider</c>, deliberately: that one advances only when told, so a loop awaiting it
+	/// needs a pump driving the clock from another thread, and the test would then be asserting its own
+	/// pump's behaviour alongside the decorator's. This records the requested due time -- which IS the
+	/// property under test -- and delegates to the system timer with a zero due time so the loop runs at
+	/// full speed and terminates on its own count.
+	/// </remarks>
+	private sealed class DelayRecordingTimeProvider : TimeProvider
+	{
+		private readonly List<TimeSpan> _requested = [];
+
+		public IReadOnlyList<TimeSpan> RequestedDelays
+		{
+			get
+			{
+				lock (_requested)
+				{
+					return [.. _requested];
+				}
+			}
+		}
+
+		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+		{
+			lock (_requested)
+			{
+				_requested.Add(dueTime);
+			}
+
+			return base.CreateTimer(callback, state, TimeSpan.Zero, period);
+		}
 	}
 
 	private static ITransportSubscriber PermanentlyFaultingInner()

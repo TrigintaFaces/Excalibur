@@ -5,6 +5,7 @@ using Excalibur.Dispatch;
 using System.Data;
 
 using Excalibur.EventSourcing.Decorators;
+using Excalibur.EventSourcing.TieredStorage;
 
 namespace Excalibur.EventSourcing.Sharding;
 
@@ -146,6 +147,13 @@ public sealed class TenantScopedEventStore : IsolatingEventStoreDecorator
 	protected override object? WrapCapability(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		// Both reads delegate inward after the tenant guard. This data-free receipt identifies
+		// that preserved composition; it cannot expose an unscoped store or payload.
+		if (serviceType == typeof(TieredStorageCompositionReceipt) || serviceType == typeof(EventStoreSourceIdentity))
+		{
+			return Inner.GetService(serviceType);
+		}
 
 		if (serviceType == typeof(ITransactionalEventStore)
 			&& Inner.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore transactional)

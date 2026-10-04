@@ -302,7 +302,9 @@ public sealed class MaterializedViewsBuilderShould
 		public ValueTask SaveAsync<TView>(string viewName, string viewId, TView view, CancellationToken cancellationToken) where TView : class => default;
 		public ValueTask DeleteAsync(string viewName, string viewId, CancellationToken cancellationToken) => default;
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken cancellationToken) => default;
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken) => default;
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken cancellationToken) => default;
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken) => default;
 	}
 
 	internal sealed class AlternativeTestStore : IMaterializedViewStore
@@ -311,7 +313,9 @@ public sealed class MaterializedViewsBuilderShould
 		public ValueTask SaveAsync<TView>(string viewName, string viewId, TView view, CancellationToken cancellationToken) where TView : class => default;
 		public ValueTask DeleteAsync(string viewName, string viewId, CancellationToken cancellationToken) => default;
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken cancellationToken) => default;
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken) => default;
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken cancellationToken) => default;
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken) => default;
 	}
 
 	internal sealed class TestProcessor : IMaterializedViewProcessor

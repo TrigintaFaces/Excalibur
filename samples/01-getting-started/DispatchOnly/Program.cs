@@ -17,6 +17,7 @@
 // - IDispatcher (message dispatching)
 // ============================================================================
 
+using DispatchMinimal;
 using DispatchMinimal.Messages;
 using DispatchMinimal.Middleware;
 
@@ -35,6 +36,8 @@ Console.WriteLine();
 
 // Step 1: Configure services
 var services = new ServiceCollection();
+var store = new OrderStore();
+services.AddSingleton(store);
 
 // Add logging (required by Dispatch pipeline)
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
@@ -47,7 +50,7 @@ services.AddDispatch(dispatch =>
 });
 
 // Build the service provider
-var provider = services.BuildServiceProvider();
+await using var provider = services.BuildServiceProvider();
 
 // Step 2: Get the dispatcher
 var dispatcher = provider.GetRequiredService<IDispatcher>();
@@ -69,6 +72,11 @@ var createResult = await dispatcher.DispatchAsync<CreateOrderCommand, Guid>(crea
 if (createResult.Succeeded)
 {
 	var orderId = createResult.ReturnValue;
+	if (orderId == Guid.Empty || !store.Orders.TryGetValue(orderId, out var createdOrder)
+		|| createdOrder.ProductId != "WIDGET-123" || createdOrder.Quantity != 5)
+	{
+		throw new InvalidOperationException("The command did not create the expected order.");
+	}
 	Console.WriteLine();
 	Console.WriteLine($"  --> Command succeeded! Order ID: {orderId}");
 	Console.WriteLine();
@@ -80,6 +88,10 @@ if (createResult.Succeeded)
 	// Step 4: Dispatch an event (can have multiple handlers)
 	var orderEvent = new OrderCreatedEvent(orderId, "WIDGET-123", 5);
 	var eventResult = await dispatcher.DispatchAsync(orderEvent, context, CancellationToken.None);
+	if (!eventResult.Succeeded || !store.ReadModel.ContainsKey(orderId) || !store.Notifications.ContainsKey(orderId))
+	{
+		throw new InvalidOperationException("Both event handlers must process the created order.");
+	}
 
 	Console.WriteLine();
 	Console.WriteLine($"  --> Event dispatched to multiple handlers (Success: {eventResult.Succeeded})");
@@ -92,13 +104,18 @@ if (createResult.Succeeded)
 	// Step 5: Dispatch a document query
 	var query = new GetOrderQuery(orderId);
 	var queryResult = await dispatcher.DispatchAsync(query, context, CancellationToken.None);
+	if (!queryResult.Succeeded || !store.Documents.TryGetValue(orderId, out var document)
+		|| document != new OrderDto(orderId, "WIDGET-123", 5, "Confirmed"))
+	{
+		throw new InvalidOperationException("The document handler did not read the expected order.");
+	}
 
 	Console.WriteLine();
 	Console.WriteLine($"  --> Document processing completed (Success: {queryResult.Succeeded})");
 }
 else
 {
-	Console.WriteLine($"  --> Command failed: {createResult.ErrorMessage}");
+	throw new InvalidOperationException($"Command failed: {createResult.ErrorMessage}");
 }
 
 Console.WriteLine();

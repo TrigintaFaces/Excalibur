@@ -97,9 +97,24 @@ public sealed class InMemoryMaterializedViewStore : IAtomicMaterializedViewStore
     }
 
     /// <inheritdoc />
-    public ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken)
+    // Monotonic, matching every shipped store: a delayed or retried write carrying an older position must
+    // not rewind the checkpoint, or the projection replays events it has already applied. Clearing a
+    // checkpoint is a separate operation for exactly that reason.
+    public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken cancellationToken)
     {
+        if (_positions.TryGetValue(viewName, out var stored) && stored >= position)
+        {
+            return new(ViewPositionSaveOutcome.RefusedAsStale);
+        }
+
         _positions[viewName] = position;
+        return new(ViewPositionSaveOutcome.Advanced);
+    }
+
+    /// <inheritdoc/>
+    public ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+    {
+        _ = _positions.TryRemove(viewName, out _);
         return ValueTask.CompletedTask;
     }
 

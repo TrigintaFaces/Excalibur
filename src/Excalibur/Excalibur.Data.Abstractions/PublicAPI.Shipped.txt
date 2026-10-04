@@ -42,6 +42,7 @@ Excalibur.Data.CloudNative.CloudAppendOutcome.AlreadyCommitted = 1 -> Excalibur.
 Excalibur.Data.CloudNative.CloudAppendOutcome.Committed = 0 -> Excalibur.Data.CloudNative.CloudAppendOutcome
 Excalibur.Data.CloudNative.CloudAppendOutcome.ConcurrencyConflict = 2 -> Excalibur.Data.CloudNative.CloudAppendOutcome
 Excalibur.Data.CloudNative.CloudAppendOutcome.Failed = 3 -> Excalibur.Data.CloudNative.CloudAppendOutcome
+Excalibur.Data.CloudNative.CloudAppendOutcome.Unknown = 4 -> Excalibur.Data.CloudNative.CloudAppendOutcome
 Excalibur.Data.CloudNative.CloudAppendResult
 Excalibur.Data.CloudNative.CloudAppendResult.ErrorMessage.get -> string?
 Excalibur.Data.CloudNative.CloudAppendResult.FailureKind.get -> Excalibur.Dispatch.MessageFailureKind?
@@ -631,6 +632,7 @@ static Excalibur.Data.CloudNative.CloudAppendResult.CreateAlreadyCommitted(long 
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateConcurrencyConflict(long expectedVersion, long? actualVersion, double requestCharge) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateFailure(string! errorMessage, double requestCharge, Excalibur.Dispatch.MessageFailureKind failureKind) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudAppendResult.CreateSuccess(long nextExpectedVersion, double requestCharge, string? sessionToken = null) -> Excalibur.Data.CloudNative.CloudAppendResult!
+static Excalibur.Data.CloudNative.CloudAppendResult.CreateUnknown(string! errorMessage, double requestCharge, Excalibur.Dispatch.MessageFailureKind failureKind) -> Excalibur.Data.CloudNative.CloudAppendResult!
 static Excalibur.Data.CloudNative.CloudNativeOutboxStoreExtensions.AddBatchAsync(this Excalibur.Data.CloudNative.ICloudNativeOutboxStore! store, System.Collections.Generic.IEnumerable<Excalibur.Data.CloudNative.CloudOutboxMessage!>! messages, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudBatchResult!>!
 static Excalibur.Data.CloudNative.CloudNativeOutboxStoreExtensions.CleanupOldMessagesAsync(this Excalibur.Data.CloudNative.ICloudNativeOutboxStore! store, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudCleanupResult!>!
 static Excalibur.Data.CloudNative.CloudNativeOutboxStoreExtensions.IncrementRetryCountAsync(this Excalibur.Data.CloudNative.ICloudNativeOutboxStore! store, string! messageId, Excalibur.Data.CloudNative.IPartitionKey! partitionKey, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudOperationResult!>!

@@ -43,9 +43,16 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
+  </ItemGroup>
   <!-- S4: Compliance dependencies (SOC 2 configuration binding + report export) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Compliance\Excalibur.Compliance.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.DataProcessing\Excalibur.Jobs.DataProcessing.csproj" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
   </ItemGroup>
 </Project>

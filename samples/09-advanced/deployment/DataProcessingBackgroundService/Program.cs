@@ -29,8 +29,6 @@
 //
 // ============================================================================
 
-using System.Data;
-
 using DataProcessingBackgroundService.Data;
 using DataProcessingBackgroundService.Processing;
 
@@ -47,17 +45,13 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // 1. Register data processing infrastructure
 // -------------------------------------------------------------------
 
-// Register the orchestration database connection factory (keyed singleton).
-// The DataOrchestrationManager resolves this via [FromKeyedServices].
-builder.Services.AddKeyedSingleton(
-	DataProcessingKeys.OrchestrationConnection,
-	(_, _) => (Func<IDbConnection>)(() => new SqlConnection(connectionString)));
-
-// Register the processor and handler explicitly (AOT-safe path).
-builder.Services.AddDataProcessor<OrderDataProcessor>(
-	builder.Configuration,
-	"DataProcessing");
-builder.Services.AddRecordHandler<OrderRecordHandler, OrderRecord>();
+// AddDataProcessing registers the manager and processor registry as well as the connection.
+// Registering only AddDataProcessor and the hosted service leaves that infrastructure unresolved.
+builder.Services.AddDataProcessing(processing => processing
+    .ConnectionFactory(() => new SqlConnection(connectionString))
+    .BindConfiguration("DataProcessing")
+    .AddProcessor<OrderDataProcessor>()
+    .AddRecordHandler<OrderRecordHandler, OrderRecord>());
 
 // -------------------------------------------------------------------
 // 2. Enable the background service (the new feature!)
@@ -74,6 +68,8 @@ builder.Services.EnableDataProcessingBackgroundService(
 // the exception (404 for ResourceNotFoundException, 409 for ConcurrencyException). Details of a
 // 5xx response are hidden outside Development.
 builder.Services.AddGlobalExceptionHandler();
+
+builder.Services.AddHealthChecks().AddDataProcessingHealthCheck();
 
 var app = builder.Build();
 
@@ -97,6 +93,6 @@ app.MapPost("/api/tasks/{recordType}", async (
 });
 
 // Health check endpoint showing background service state.
-app.MapGet("/health", () => Results.Ok(new { status = "running" }));
+app.MapHealthChecks("/health");
 
 app.Run();

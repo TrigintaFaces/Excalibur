@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using Excalibur.Data.SqlServer.Diagnostics;
 
 using Microsoft.Extensions.Logging;
+using Polly;
 
 namespace Excalibur.Cdc.SqlServer;
 
@@ -23,6 +24,7 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ISqlServerCdcStateStore _stateStore;
 	private readonly ILogger _logger;
+    private readonly IDataAccessPolicyFactory? _policyFactory;
 
 	// The leadership tenure's fencing token PINNED for the current batch (set once at the batch-start gate via
 	// SetBatchFencingToken), or null when leader-election fencing is not configured / the provider issues no
@@ -41,12 +43,13 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 		IDatabaseOptions dbConfig,
 		ICdcRepository cdcRepository,
 		ISqlServerCdcStateStore stateStore,
-		ILogger logger)
+		ILogger logger, IDataAccessPolicyFactory? policyFactory = null)
 	{
 		_dbConfig = dbConfig;
 		_cdcRepository = cdcRepository;
 		_stateStore = stateStore;
 		_logger = logger;
+        _policyFactory = policyFactory;
 	}
 
 	/// <summary>
@@ -99,6 +102,8 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 		}
 	}
 
+	internal bool HasReadableWindow { get; private set; }
+
 	/// <summary>
 	/// Initializes tracking positions from the state store.
 	/// </summary>
@@ -139,33 +144,71 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 		var processingStates = await _stateStore.GetLastProcessedPositionAsync(
 			_dbConfig.DatabaseConnectionIdentifier,
 			_dbConfig.DatabaseName,
-			cancellationToken).ConfigureAwait(false) as ICollection<CdcProcessingState> ?? [];
+			cancellationToken).ConfigureAwait(false);
+		var states = processingStates.ToList();
+        var policy = _policyFactory?.GetComprehensivePolicy() ?? Policy.NoOpAsync();
+        var maxLsn = await policy.ExecuteAsync(_cdcRepository.GetMaxPositionAsync, cancellationToken).ConfigureAwait(false);
+        HasReadableWindow = !IsEmptyLsn(maxLsn);
+        foreach (var captureInstance in _dbConfig.CaptureInstances)
+        {
+            var minimum = await policy.ExecuteAsync(ct => _cdcRepository.GetMinPositionAsync(captureInstance, ct), cancellationToken).ConfigureAwait(false);
+            if (IsEmptyLsn(minimum) || (!IsEmptyLsn(maxLsn) && minimum.CompareLsn(maxLsn) > 0))
+            {
+                throw new InvalidOperationException("CDC has no consistent readable LSN range. Verify the capture instance, permissions and capture job after restore.");
+            }
+            // A valid capture can precede the capture job's first LSN mapping entry.
+            // No readable upper bound means no work yet, never a checkpoint reset.
+            if (IsEmptyLsn(maxLsn))
+            {
+                continue;
+            }
+            var state = states.FirstOrDefault(x => x.TableName.Equals(captureInstance, StringComparison.OrdinalIgnoreCase));
+            var startLsn = state is null || IsEmptyLsn(state.LastProcessedLsn) ? minimum : state.LastProcessedLsn;
+            var seqVal = state is null || IsEmptyLsn(state.LastProcessedLsn) ? null : state.LastProcessedSequenceValue;
+            if (startLsn.CompareLsn(maxLsn) > 0 || startLsn.CompareLsn(minimum) < 0)
+            {
+                startLsn = await RecoverInvalidPositionAsync(captureInstance, startLsn, minimum, maxLsn, cancellationToken).ConfigureAwait(false);
+                seqVal = null;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            UpdateLsnTracking(captureInstance, startLsn, seqVal);
+        }
+    }
 
-		foreach (var captureInstance in _dbConfig.CaptureInstances)
-		{
-			var state = processingStates.FirstOrDefault(x => x.TableName.Equals(captureInstance, StringComparison.OrdinalIgnoreCase));
-
-			byte[] startLsn;
-			byte[]? seqVal = null;
-
-			if (state == null)
-			{
-				startLsn = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken).ConfigureAwait(false);
-			}
-			else
-			{
-				startLsn = state.LastProcessedLsn;
-				seqVal = state.LastProcessedSequenceValue;
-
-				if (IsEmptyLsn(startLsn))
-				{
-					startLsn = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken).ConfigureAwait(false);
-				}
-			}
-
-			UpdateLsnTracking(captureInstance, startLsn, seqVal);
-		}
-	}
+    private async Task<byte[]> RecoverInvalidPositionAsync(string captureInstance, byte[] stale, byte[] minimum, byte[] maximum,
+        CancellationToken cancellationToken)
+    {
+        var options = _dbConfig.RecoveryOptions;
+        var strategy = options?.RecoveryStrategy ?? StalePositionRecoveryStrategy.Throw;
+        var replacement = strategy == StalePositionRecoveryStrategy.FallbackToLatest ? maximum : minimum;
+        var args = new CdcPositionResetEventArgs
+        {
+            ProcessorId = _dbConfig.DatabaseConnectionIdentifier,
+            ProviderType = "SqlServer",
+            DatabaseName = _dbConfig.DatabaseName,
+            CaptureInstance = captureInstance,
+            StalePosition = stale.ToArray(),
+            NewPosition = replacement.ToArray(),
+            EarliestAvailablePosition = minimum.ToArray(),
+            LatestAvailablePosition = maximum.ToArray(),
+            ReasonCode = stale.CompareLsn(maximum) > 0 ? StalePositionReasonCodes.BackupRestore : StalePositionReasonCodes.CdcCleanup,
+            ReasonMessage = "Saved checkpoint is outside the current CDC range; source history may have been restored, replaced or cleaned up.",
+            Strategy = strategy,
+            AttemptNumber = 1,
+        };
+        if (strategy == StalePositionRecoveryStrategy.Throw || options is null || options.MaxRecoveryAttempts == 0)
+        {
+            throw new SqlServerCdcStalePositionException(args);
+        }
+        options.Validate();
+        if (options.OnPositionReset is not null)
+        {
+            await options.OnPositionReset(args, cancellationToken).ConfigureAwait(false);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        _logger.LogWarning("Resetting in-memory CDC position for {CaptureInstance} after detecting a checkpoint outside the readable source range. Strategy: {Strategy}. Delivery will establish the durable checkpoint.", captureInstance, strategy);
+        return replacement;
+    }
 
 	/// <summary>
 	/// Updates the last processed position in the state store.
@@ -285,7 +328,7 @@ internal sealed partial class CdcCheckpointManager : ICdcFetchProgress
 		}
 	}
 
-	private static bool IsEmptyLsn(IEnumerable<byte> lsn) => lsn.All(static b => b == 0);
+	private static bool IsEmptyLsn(IEnumerable<byte>? lsn) => lsn is null || lsn.All(static b => b == 0);
 
 	// Source-generated logging methods
 	[LoggerMessage(DataSqlServerEventId.CdcCheckpointStateUpdated, LogLevel.Information,

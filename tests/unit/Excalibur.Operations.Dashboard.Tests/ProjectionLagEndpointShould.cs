@@ -97,7 +97,7 @@ public sealed class ProjectionLagEndpointShould
 	{
 		private readonly IReadOnlyList<ProjectionLag> _lag = [.. seed];
 
-		public ValueTask<IReadOnlyList<ProjectionLag>> GetLagAsync(CancellationToken cancellationToken) =>
-			ValueTask.FromResult(_lag);
+		public ValueTask<ProjectionLagReport> GetLagAsync(CancellationToken cancellationToken) =>
+			ValueTask.FromResult(new ProjectionLagReport(ProjectionLagAvailability.Measured, _lag));
 	}
 }

@@ -4,6 +4,7 @@
 using Polly;
 using Polly.Retry;
 using System.IO.Compression;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -12,6 +13,7 @@ using Google.Cloud.Storage.V1;
 using Microsoft.Extensions.Logging;
 
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.TieredStorage;
 
 namespace Excalibur.EventSourcing.Gcs;
 
@@ -24,8 +26,12 @@ namespace Excalibur.EventSourcing.Gcs;
 /// <c>{tenantSegment}/{aggregateSegment}/events.json.gz</c> when no prefix is configured. Both segments are
 /// Base64Url-encoded, so neither appears verbatim: write lifecycle rules and IAM prefix conditions against
 /// the encoded form, never against a raw tenant or aggregate identifier.
+/// TypedV2 separates aggregate types and requires explicit activation and migration under an external
+/// legacy-operation fence. Layout and client binding remain fixed. Legacy marker checks use metadata
+/// without changing supplied clients; typed operations require a client configured to preserve raw bytes.
+/// Missing-object classification requires bucket metadata permission and rejects unavailable buckets.
 /// </remarks>
-internal sealed class GcsColdEventStore : IColdEventStore
+internal sealed class GcsColdEventStore : IColdEventStore, IColdEventStoreMigration, IDisposable
 {
 	private const int MaxConcurrencyRetries = 5;
 
@@ -69,6 +75,11 @@ internal sealed class GcsColdEventStore : IColdEventStore
 	private readonly string _bucketName;
 	private readonly string _objectPrefix;
 	private readonly ILogger<GcsColdEventStore> _logger;
+	private readonly ColdArchiveLayout _layout;
+	private readonly Lazy<GcsColdArchiveMigrationStorage> _migrationStorage;
+	private readonly Lazy<ColdArchiveMigrationCoordinator> _migration;
+	private readonly bool _ownsClient;
+	private int _disposed;
 
 	/// <summary>
 	/// The archive JSON contract: the single canonical event serializer options, with type metadata supplied
@@ -92,36 +103,71 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		StorageClient storageClient,
 		string bucketName,
 		string objectPrefix,
-		ILogger<GcsColdEventStore> logger)
+		ILogger<GcsColdEventStore> logger,
+		ColdArchiveLayout layout = ColdArchiveLayout.Legacy,
+		bool ownsClient = false)
 	{
 		ArgumentNullException.ThrowIfNull(storageClient);
 		ArgumentNullException.ThrowIfNull(bucketName);
 		ArgumentNullException.ThrowIfNull(logger);
+		if (!Enum.IsDefined(layout))
+		{
+			throw new ArgumentOutOfRangeException(nameof(layout));
+		}
 
 		_storageClient = storageClient;
 		_bucketName = bucketName;
 		_objectPrefix = objectPrefix ?? "";
 		_logger = logger;
+		_layout = layout;
+		_ownsClient = ownsClient;
+		_migrationStorage = new Lazy<GcsColdArchiveMigrationStorage>(() => new GcsColdArchiveMigrationStorage(storageClient, bucketName, _objectPrefix));
+		_migration = new Lazy<ColdArchiveMigrationCoordinator>(() => new ColdArchiveMigrationCoordinator(_migrationStorage.Value));
 		_writeRetryPipeline = BuildWriteRetryPipeline();
 	}
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (Interlocked.Exchange(ref _disposed, 1) == 0 && _ownsClient)
+		{
+			_storageClient.Dispose();
+		}
+	}
+
+	/// <inheritdoc />
+	public Task ActivateTypedLayoutAsync(CancellationToken cancellationToken) =>
+		_migration.Value.ActivateTypedLayoutAsync(cancellationToken);
+
+	/// <inheritdoc />
+	public Task MigrateAsync(KeyedTenantPartition tenant, string aggregateId, string aggregateType,
+		CancellationToken cancellationToken) =>
+		_migration.Value.MigrateAsync(tenant, aggregateId, aggregateType, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<long> WriteAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		IReadOnlyList<StoredEvent> events,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 		ArgumentNullException.ThrowIfNull(events);
+
+		events = ColdArchiveBatch.Snapshot(events);
 
 		if (events.Count == 0)
 		{
+			_ = await ReadArchiveAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 			return -1;
 		}
 
-		var objectName = GetObjectName(tenant, aggregateId);
+		var objectName = _layout == ColdArchiveLayout.TypedV2
+			? PrefixKey(ColdStorageKey.StreamPath(tenant, aggregateType, aggregateId) + "/events.json.gz")
+			: GetObjectName(tenant, aggregateId);
 
 		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite (lost
 		// update). We capture the source object's generation on read and write conditionally
@@ -130,14 +176,13 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		return await _writeRetryPipeline.ExecuteAsync(
 			async ct =>
 			{
-				var (existingEvents, generation) = await TryDownloadForUpdateAsync(objectName, ct)
+				var (existingEvents, generation) = await ReadArchiveAsync(tenant, aggregateId, aggregateType, ct)
 					.ConfigureAwait(false);
 
 			// Membership, not maximum. Selecting by "version greater than the existing max" silently DROPS a
 			// submitted version that falls into a gap below it — cold holding {0,1,5} would discard a
 			// submitted {2,3,4} as already-present. Presence is a set question, so ask it as one.
-			var existingVersions = existingEvents.Select(e => e.Version).ToHashSet();
-			var newEvents = events.Where(e => !existingVersions.Contains(e.Version)).ToList();
+			var newEvents = ColdArchiveBatch.GetAdditions(tenant, aggregateId, existingEvents, events, aggregateType);
 
 			if (newEvents.Count == 0)
 			{
@@ -175,28 +220,28 @@ internal sealed class GcsColdEventStore : IColdEventStore
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 
-		var objectName = GetObjectName(tenant, aggregateId);
-		if (!await ObjectExistsAsync(objectName, cancellationToken).ConfigureAwait(false))
-		{
-			return Array.Empty<StoredEvent>();
-		}
-
-		return await ReadEventsFromGcsAsync(objectName, cancellationToken).ConfigureAwait(false);
+		var (events, _) = await ReadArchiveAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+		ColdArchiveBatch.ValidateStream(events, tenant, aggregateId, aggregateType);
+		events.Sort(static (left, right) => left.Version.CompareTo(right.Version));
+		return events;
 	}
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
-		var allEvents = await ReadAsync(tenant, aggregateId, cancellationToken).ConfigureAwait(false);
+		var allEvents = await ReadAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 		return allEvents.Where(e => e.Version > fromVersion).ToList();
 	}
 
@@ -204,17 +249,15 @@ internal sealed class GcsColdEventStore : IColdEventStore
 	public async Task<bool> HasArchivedEventsAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
-		ArgumentNullException.ThrowIfNull(tenant);
-		ArgumentNullException.ThrowIfNull(aggregateId);
-		return await ObjectExistsAsync(GetObjectName(tenant, aggregateId), cancellationToken).ConfigureAwait(false);
+		return (await ReadAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false)).Count > 0;
 	}
 
 	/// <summary>
-	/// Returns the highest version <c>V</c> such that every version from the aggregate's lowest archived
-	/// version through <c>V</c> is present in <paramref name="ascendingEvents"/>, or <c>-1</c> when nothing
-	/// is archived.
+	/// Returns the highest version <c>V</c> such that every version from zero through <c>V</c> is
+	/// present in <paramref name="ascendingEvents"/>, or <c>-1</c> when no such prefix is proven.
 	/// </summary>
 	/// <remarks>
 	/// The interface promises a <strong>contiguous</strong> durable prefix, and a maximum is not a prefix.
@@ -222,32 +265,51 @@ internal sealed class GcsColdEventStore : IColdEventStore
 	/// that gap — destroying the only surviving copy of versions cold never stored. Scanning for the first
 	/// discontinuity is what makes the returned watermark mean what the contract says it means.
 	/// </remarks>
-	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents)
+	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents) =>
+		ColdArchiveBatch.ContiguousDurablePrefix(ascendingEvents);
+
+	private string PrefixKey(string key) => string.IsNullOrEmpty(_objectPrefix) ? key : _objectPrefix + "/" + key;
+
+	private async Task<(List<StoredEvent> Events, long? Generation)> ReadArchiveAsync(
+		KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken)
 	{
-		if (ascendingEvents.Count == 0)
+		List<StoredEvent> events;
+		long? generation;
+		if (_layout == ColdArchiveLayout.TypedV2)
 		{
-			return -1;
-		}
-
-		var watermark = ascendingEvents[0].Version;
-		for (var i = 1; i < ascendingEvents.Count; i++)
-		{
-			var version = ascendingEvents[i].Version;
-			if (version == watermark)
+			var archive = await _migration.Value.ReadTypedAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+			if (archive is null)
 			{
-				// A duplicate version neither extends nor breaks the run.
-				continue;
+				return ([], null);
 			}
 
-			if (version != watermark + 1)
+			events = (await _migrationStorage.Value.DecodeAsync(archive, cancellationToken).ConfigureAwait(false)).ToList();
+			generation = long.Parse(archive.Revision, CultureInfo.InvariantCulture);
+		}
+		else
+		{
+			// Metadata presence alone disables Legacy; never initialize the raw adapter on this path.
+			if (await ObjectExistsAsync(PrefixKey("layout-v1.json"), cancellationToken).ConfigureAwait(false)
+				|| await ObjectExistsAsync(PrefixKey($"migration-v1/{ColdStorageKey.TenantSegment(tenant)}/{ColdStorageKey.AggregateSegment(aggregateId)}.json"), cancellationToken).ConfigureAwait(false))
 			{
-				break;
+				throw new InvalidOperationException("A layout marker or migration receipt exists; legacy archive operations are disabled.");
 			}
 
-			watermark = version;
+			(events, generation) = await TryDownloadForUpdateAsync(GetObjectName(tenant, aggregateId), cancellationToken).ConfigureAwait(false);
 		}
 
-		return watermark;
+		ColdArchiveBatch.ValidateStream(events, tenant, aggregateId, aggregateType);
+		events.Sort(static (left, right) => left.Version.CompareTo(right.Version));
+		return (events, generation);
+	}
+
+	private async Task RequireBucketAsync(CancellationToken cancellationToken)
+	{
+		var bucket = await _storageClient.GetBucketAsync(_bucketName, cancellationToken: cancellationToken).ConfigureAwait(false);
+		if (bucket.Name != _bucketName)
+		{
+			throw new InvalidDataException("The storage response does not identify the requested bucket.");
+		}
 	}
 
 	private string GetObjectName(KeyedTenantPartition tenant, string aggregateId)
@@ -273,25 +335,9 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		}
 		catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
 		{
+			await RequireBucketAsync(cancellationToken).ConfigureAwait(false);
 			return false;
 		}
-	}
-
-	private async Task<List<StoredEvent>> ReadEventsFromGcsAsync(
-		string objectName,
-		CancellationToken cancellationToken)
-	{
-		using var memoryStream = new MemoryStream();
-		await _storageClient.DownloadObjectAsync(
-			_bucketName, objectName, memoryStream, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-		memoryStream.Position = 0;
-		await using var gzipStream = new GZipStream(memoryStream, CompressionMode.Decompress);
-
-		var events = await JsonSerializer.DeserializeAsync(
-			gzipStream, ArchiveTypeInfo, cancellationToken).ConfigureAwait(false);
-
-		return events ?? [];
 	}
 
 	/// <summary>
@@ -307,6 +353,10 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		{
 			var downloaded = await _storageClient.DownloadObjectAsync(
 				_bucketName, objectName, memoryStream, cancellationToken: cancellationToken).ConfigureAwait(false);
+			if (downloaded.Bucket != _bucketName || downloaded.Name != objectName || downloaded.Generation is not > 0)
+			{
+				throw new InvalidDataException("The downloaded archive does not identify the requested object and generation.");
+			}
 
 			memoryStream.Position = 0;
 			await using var gzipStream = new GZipStream(memoryStream, CompressionMode.Decompress);
@@ -314,10 +364,11 @@ internal sealed class GcsColdEventStore : IColdEventStore
 			var events = await JsonSerializer.DeserializeAsync(
 				gzipStream, ArchiveTypeInfo, cancellationToken).ConfigureAwait(false);
 
-			return (events ?? [], downloaded.Generation);
+			return (events ?? throw new JsonException("The archive must contain an event array, not null."), downloaded.Generation);
 		}
 		catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
 		{
+			await RequireBucketAsync(cancellationToken).ConfigureAwait(false);
 			return ([], null);
 		}
 	}
@@ -342,12 +393,21 @@ internal sealed class GcsColdEventStore : IColdEventStore
 		// overwrite.
 		var options = new UploadObjectOptions { IfGenerationMatch = generation ?? 0 };
 
-		await _storageClient.UploadObjectAsync(
+		var uploaded = await _storageClient.UploadObjectAsync(
 			_bucketName,
 			objectName,
 			"application/json",
 			memoryStream,
 			options,
 			cancellationToken: cancellationToken).ConfigureAwait(false);
+		if (uploaded.Bucket != _bucketName || uploaded.Name != objectName || uploaded.Generation is not > 0)
+		{
+			throw new InvalidDataException("The archive upload acknowledgement does not identify the requested object and generation.");
+		}
+
+		if (_layout == ColdArchiveLayout.TypedV2)
+		{
+			GcsArchiveIntegrity.Validate(memoryStream.ToArray(), uploaded.Size, uploaded.Crc32c, cancellationToken);
+		}
 	}
 }

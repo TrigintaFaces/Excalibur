@@ -70,6 +70,11 @@ public static class AzureBlobColdEventStoreExtensions
 		// Configure options from builder state
 		_ = builder.Services.Configure<AzureBlobColdEventStoreOptions>(opt =>
 		{
+			if (blobBuilder.LayoutValue.HasValue)
+			{
+				opt.Layout = blobBuilder.LayoutValue.Value;
+			}
+
 			if (blobBuilder.ConnectionStringValue is not null)
 			{
 				opt.ConnectionString = blobBuilder.ConnectionStringValue;
@@ -125,7 +130,8 @@ public static class AzureBlobColdEventStoreExtensions
 
 			return new AzureBlobColdEventStore(
 				containerClient,
-				sp.GetRequiredService<ILogger<AzureBlobColdEventStore>>());
+				sp.GetRequiredService<ILogger<AzureBlobColdEventStore>>(),
+				options.Layout);
 		});
 	}
 

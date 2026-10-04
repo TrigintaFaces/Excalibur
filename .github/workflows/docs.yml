@@ -15,11 +15,8 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN for GitHub Pages deployment
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Build tools do not receive deployment or OIDC authority.
+permissions: {}
 
 # Allow only one concurrent deployment
 concurrency:
@@ -31,6 +28,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read # configure-pages reads the existing site's configuration.
     env:
       DOCS_ANNOUNCEMENT_TEXT: "A new Excalibur prerelease is available."
       DOCS_ANNOUNCEMENT_ID: "release-prerelease"
@@ -94,6 +94,9 @@ jobs:
   # Deployment job (only on main branch)
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -141,4 +141,33 @@ rc=$?
 set -e
 [ "$rc" -eq 3 ] || fail "refuse exit code was ${rc}, expected the documented 3 (distinct from a test failure)"
 
+for invalid in \
+    'Skipped! - Failed: 0, Passed: 0, Skipped: 3, Total: 3, Duration: 1 ms - A.dll' \
+    'Passed! - Failed: 0, Passed: 1, Skipped: 2, Total: 3, Duration: 1 ms - A.dll' \
+    'Failed! - Failed: 1, Passed: 0, Skipped: 0, Total: 1, Duration: 1 ms - A.dll' \
+    'Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 3, Duration: 1 ms - A.dll' \
+    'Passed! - Failed: 0, Passed: missing, Skipped: 0, Total: 3, Duration: 1 ms - A.dll' \
+    'Passed! - Failed: 0, Passed: 18446744073709551617, Skipped: 0, Total: 18446744073709551617, Duration: 1 ms - A.dll' \
+    'Total: 10'; do
+    if bash "$gate" --filter X <<<"$invalid" >/dev/null 2>&1; then
+        fail "invalid summary was accepted: $invalid"
+    fi
+done
+if bash "$gate" --filter X <<<"${mixed_real_output}"$'\n''Skipped! - Failed: 0, Passed: 0, Skipped: 1, Total: 1, Duration: 1 ms - C.dll' >/dev/null 2>&1; then
+    fail 'a passing sibling concealed a skipped assembly'
+fi
+
+for invalid in 'Failed! - nope' 'Failed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1, Duration: 1 ms - A.dll'; do
+    if bash "$gate" <<<"${mixed_real_output}"$'\n'"$invalid" >/dev/null 2>&1; then
+        fail "passing sibling concealed invalid summary: $invalid"
+    fi
+done
+for arg in '--expect=' '--unknown' '--expect'; do
+    if bash "$gate" "$arg" <<<"$mixed_real_output" >/dev/null 2>&1; then
+        fail "invalid option accepted: $arg"
+    fi
+done
+if bash "$gate" --expect '' <<<"$mixed_real_output" >/dev/null 2>&1; then
+    fail 'empty expectation silently disabled comparison'
+fi
 echo "assert-tests-executed self-test: PASS (safety + liveness, non-vacuous)"

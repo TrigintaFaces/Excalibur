@@ -7,6 +7,19 @@ namespace Excalibur.EventSourcing.AwsS3;
 
 internal sealed class EventSourcingAwsS3Builder : IEventSourcingAwsS3Builder
 {
+	internal ColdArchiveLayout? LayoutValue { get; private set; }
+
+	public IEventSourcingAwsS3Builder Layout(ColdArchiveLayout layout)
+	{
+		if (!Enum.IsDefined(layout))
+		{
+			throw new ArgumentOutOfRangeException(nameof(layout));
+		}
+
+		LayoutValue = layout;
+		return this;
+	}
+
 	internal string? BucketNameValue { get; private set; }
 	internal string? KeyPrefixValue { get; private set; }
 	internal string? ServiceUrlValue { get; private set; }

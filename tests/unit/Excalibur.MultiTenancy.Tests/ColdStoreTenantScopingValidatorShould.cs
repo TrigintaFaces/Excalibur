@@ -203,24 +203,24 @@ public sealed class ColdStoreTenantScopingValidatorShould
 	{
 		public Task<long> WriteAsync(
 			KeyedTenantPartition tenant,
-			string aggregateId,
+			string aggregateId, string aggregateType,
 			IReadOnlyList<StoredEvent> events,
 			CancellationToken cancellationToken) => throw new NotSupportedException(NotExercised);
 
 		public Task<IReadOnlyList<StoredEvent>> ReadAsync(
 			KeyedTenantPartition tenant,
-			string aggregateId,
+			string aggregateId, string aggregateType,
 			CancellationToken cancellationToken) => throw new NotSupportedException(NotExercised);
 
 		public Task<IReadOnlyList<StoredEvent>> ReadAsync(
 			KeyedTenantPartition tenant,
-			string aggregateId,
+			string aggregateId, string aggregateType,
 			long fromVersion,
 			CancellationToken cancellationToken) => throw new NotSupportedException(NotExercised);
 
 		public Task<bool> HasArchivedEventsAsync(
 			KeyedTenantPartition tenant,
-			string aggregateId,
+			string aggregateId, string aggregateType,
 			CancellationToken cancellationToken) => throw new NotSupportedException(NotExercised);
 
 		private const string NotExercised =

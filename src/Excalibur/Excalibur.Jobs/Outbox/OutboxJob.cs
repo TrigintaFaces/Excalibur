@@ -63,7 +63,7 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 	/// </summary>
 	/// <param name="configurator"> The Quartz configurator for registering the job and trigger. </param>
 	/// <param name="configuration"> The application configuration. </param>
-	public static void ConfigureJob(IServiceCollectionQuartzConfigurator configurator, IConfiguration configuration)
+	public static void ConfigureJob(IQuartzBuilder configurator, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configurator);
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -78,11 +78,10 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 		}
 
 		_ = configurator.AddJob<OutboxJob>(
-			jobKey,
 			job => job.WithIdentity(jobKey).WithDescription("Dispatch outbox messages job"));
 
 		_ = configurator.AddTrigger(trigger => trigger.ForJob(jobKey).WithIdentity($"{jobConfig.JobName}Trigger")
-			.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15))).WithCronSchedule(jobConfig.CronSchedule)
+			.StartAt(DateTimeOffset.UtcNow.AddSeconds(15)).WithCronSchedule(jobConfig.CronSchedule)
 			.WithDescription("A cron based trigger for the dispatch of outbox messages"));
 	}
 
@@ -114,10 +113,11 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 	/// Executes the job, processing outbox messages.
 	/// </summary>
 	/// <param name="context"> The execution context provided by Quartz. </param>
-	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	/// <param name="cancellationToken">The cancellation token for this firing.</param>
+	/// <returns>The asynchronous execution.</returns>
 	[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but Quartz's IJob.Execute is a third-party interface member that cannot carry the annotation. Tracked for a source-generated outbox serialization seam.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: the outbox drain reaches the reflective serializer, but Quartz's IJob.Execute is a third-party interface member that cannot carry the annotation. Tracked for a source-generated outbox serialization seam.")]
-	public async Task Execute(IJobExecutionContext context)
+	public async ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
@@ -137,8 +137,10 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 					_logger.LogInformation("Starting execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 				}
 
-				_ = await _outbox.RunOutboxDispatchAsync(DispatcherId, context.CancellationToken).ConfigureAwait(false);
+				cancellationToken.ThrowIfCancellationRequested();
+				_ = await _outbox.RunOutboxDispatchAsync(DispatcherId, cancellationToken).ConfigureAwait(false);
 
+				cancellationToken.ThrowIfCancellationRequested();
 				_heartbeatTracker.RecordHeartbeat(jobName);
 
 				if (_logger.IsEnabled(LogLevel.Information))
@@ -146,19 +148,29 @@ public sealed class OutboxJob : IJob, IConfigurableJob<OutboxJobOptions>
 					_logger.LogInformation("Completed execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 				}
 			}
-#pragma warning disable CA1031 // Intentional: Quartz jobs must catch all exceptions to prevent immediate re-execution
-			catch (Exception ex)
-#pragma warning restore CA1031
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				// Quartz best practices state that exceptions in jobs should not be rethrown as the job will subsequently process again
-				// immediately and likely encounter the same exception. So swallow the exception and log the error to be investigated. If
-				// this is an issue that does not resolve with time then the heartbeat will also never recover and alerts should be sent.
+				throw;
+			}
+			catch (Exception ex)
+			{
+				// Report failure without requesting an immediate retry.
 				if (_logger.IsEnabled(LogLevel.Error))
 				{
 					_logger.LogError(ex, "{Error} executing {JobGroup}:{JobName}: {Message}", ex.GetType().Name, jobGroup, jobName,
 						ex.Message);
 				}
+				cancellationToken.ThrowIfCancellationRequested();
+				throw new JobExecutionException(ex) { RefireImmediately = false };
 			}
 		}
+	}
+	/// <summary>Executes using the cancellation token supplied by the execution context.</summary>
+	/// <param name="context">The Quartz execution context.</param>
+	/// <returns>The asynchronous execution.</returns>
+	public Task Execute(IJobExecutionContext context)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+		return Execute(context, context.CancellationToken).AsTask();
 	}
 }

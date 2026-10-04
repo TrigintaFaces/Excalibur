@@ -86,6 +86,38 @@ public sealed class TelemetryEventStoreShould : IDisposable
 
 	#region Constructor Validation Tests
 
+	[Theory]
+	[InlineData(AppendOutcome.Committed, "success")]
+	[InlineData(AppendOutcome.AlreadyCommitted, "success")]
+	[InlineData(AppendOutcome.ConcurrencyConflict, "concurrency_conflict")]
+	[InlineData(AppendOutcome.Failed, "failure")]
+	[InlineData(AppendOutcome.Unknown, "unknown")]
+	public async Task ReportReturnedAppendOutcomeWithoutChangingIt(AppendOutcome outcome, string expectedTag)
+	{
+		var returned = outcome switch
+		{
+			AppendOutcome.Committed => AppendResult.CreateSuccess(0, 1),
+			AppendOutcome.AlreadyCommitted => AppendResult.CreateAlreadyCommitted(0, 1),
+			AppendOutcome.ConcurrencyConflict => AppendResult.CreateConcurrencyConflict(-1, 0),
+			AppendOutcome.Failed => AppendResult.CreateFailure("definite rejection"),
+			_ => AppendResult.CreateUnknown("unconfirmed commit"),
+		};
+		A.CallTo(() => _innerStore.AppendAsync("outcome", "Order", A<IEnumerable<IDomainEvent>>._, -1L, A<CancellationToken>._))
+			.ReturnsLazily(() => new ValueTask<AppendResult>(returned));
+
+		var observed = await _sut.AppendAsync("outcome", "Order", [], -1, CancellationToken.None);
+
+		observed.ShouldBeSameAs(returned);
+		var counter = _counterMeasurements.ShouldHaveSingleItem();
+		counter.Value.ShouldBe(1);
+		counter.Tags.Single(t => t.Key == EventSourcingTags.OperationResult).Value.ShouldBe(expectedTag);
+		var duration = _histogramMeasurements.ShouldHaveSingleItem();
+		duration.Tags.Single(t => t.Key == EventSourcingTags.OperationResult).Value.ShouldBe(expectedTag);
+		var activity = _capturedActivities.ShouldHaveSingleItem();
+		activity.GetTagItem(EventSourcingTags.OperationResult).ShouldBe(expectedTag);
+		activity.Status.ShouldBe(returned.Success ? ActivityStatusCode.Unset : ActivityStatusCode.Error);
+	}
+
 	[Fact]
 	public void ThrowArgumentNullException_WhenInnerStoreIsNull()
 	{

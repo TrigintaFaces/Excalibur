@@ -133,6 +133,46 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 	}
 
 	[Fact]
+	public async Task RefuseNullDeserializationBeforeDeliveringOrAdvancingLaterEvents()
+	{
+		var bad = new StoredEvent("bad", "stream-1", "stream-1", "TestEvent", [1], null, 0, DateTimeOffset.UtcNow);
+		var later = new StoredEvent("later", "stream-1", "stream-1", "TestEvent", [2], null, 1, DateTimeOffset.UtcNow);
+		var nextRead = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var reads = 0;
+		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
+			.ReturnsLazily((string _, string _, long position, CancellationToken _) =>
+			{
+				if (Interlocked.Increment(ref reads) == 1)
+				{
+					return new ValueTask<IReadOnlyList<StoredEvent>>(new[] { bad, later });
+				}
+				nextRead.TrySetResult(position);
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
+		A.CallTo(() => _eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
+		A.CallTo(() => _eventSerializer.DeserializeEvent(bad.EventData!, A<Type>._)).Returns((IDomainEvent)null!);
+		A.CallTo(() => _eventSerializer.DeserializeEvent(later.EventData!, A<Type>._)).Returns(A.Fake<IDomainEvent>());
+		var received = new List<IDomainEvent>();
+		await _sut.SubscribeAsync("stream-1", events =>
+		{
+			received.AddRange(events);
+			return Task.CompletedTask;
+		}, CancellationToken.None);
+		long requestedPosition;
+		try
+		{
+			requestedPosition = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				nextRead.Task, global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		}
+		finally
+		{
+			await _sut.UnsubscribeAsync(CancellationToken.None);
+		}
+		received.ShouldBeEmpty();
+		requestedPosition.ShouldBe(-1);
+	}
+
+	[Fact]
 	public async Task SubscribeAsync_ThrowOnNullOrEmptyStreamId()
 	{
 		await Should.ThrowAsync<ArgumentException>(

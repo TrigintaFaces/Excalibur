@@ -10,12 +10,12 @@ namespace DispatchMinimal.Handlers;
 /// <summary>
 /// Handles CreateOrderCommand - creates a new order and returns the order ID.
 /// </summary>
-public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
+public sealed class CreateOrderHandler(OrderStore store) : IActionHandler<CreateOrderCommand, Guid>
 {
 	public Task<Guid> HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
 	{
-		// In a real app, this would persist to a database
 		var orderId = Guid.NewGuid();
+		store.Orders[orderId] = new OrderDto(orderId, action.ProductId, action.Quantity, "Created");
 
 		Console.WriteLine($"[CreateOrderHandler] Created order {orderId}");
 		Console.WriteLine($"  Product: {action.ProductId}");

@@ -1135,6 +1135,71 @@ behaviour in every `10.0.0` pre-release this repository has tagged; we have not 
 **Is it fixed?** **Not in any released version.** When a release carries a fix, this entry will name
 that version.
 
+### Data access
+
+#### The shipped `IdentityMap` table definition cannot store the identifiers its own columns allow
+
+**Affected: every published version of `Excalibur.Data.IdentityMap.SqlServer` up to and including
+`10.0.0-alpha.14`. Fixed after `10.0.0-alpha.14`; the fix is a schema change, so an existing table needs
+the migration below.**
+
+The DDL we ship — in `Scripts/CreateIdentityMapTable.sql` and in the package README — declares
+
+```sql
+CONSTRAINT PK_IdentityMap PRIMARY KEY CLUSTERED (ExternalSystem, ExternalId, AggregateType)
+```
+
+SQL Server caps a **clustered** index key at 900 bytes. At 2 bytes per `NVARCHAR` character those three
+columns are `NVARCHAR(128)` + `NVARCHAR(256)` + `NVARCHAR(256)` = **1280 bytes**, so the key is 380 bytes
+over the limit the moment it is declared clustered.
+
+**The failure mode is the awkward one: it does not fail when you create the table.** `CREATE TABLE`
+succeeds and emits only a warning, which a deployment script or migration runner typically does not treat
+as an error:
+
+```
+Warning! The maximum key length for a clustered index is 900 bytes. The index 'PK_IdentityMap'
+has maximum length of 1280 bytes. For some combination of large values, the insert/update
+operation will fail.
+```
+
+The table then **rejects rows at run time**, and only the long ones:
+
+```
+Msg 1946: Operation failed. The index entry of length 1280 bytes for the index 'PK_IdentityMap'
+exceeds the maximum length of 900 bytes for clustered indexes.
+```
+
+**Who is actually affected.** Only writes whose `ExternalSystem` + `ExternalId` + `AggregateType` exceed
+900 bytes in total — roughly 450 characters combined. Short identifiers insert normally, which is why a
+deployment can run for a long time and then fail on one external system whose identifiers are longer than
+the rest. If your identifiers are comfortably short you are not affected in practice, but the table is
+still declared in a shape that cannot accept what its own column types permit.
+
+**The remedy.** The key is now declared `NONCLUSTERED`, where the limit is 1700 bytes and 1280 fits, and
+the table is clustered on `(ExternalSystem, ExternalId)` instead — 768 bytes, and the order the resolver
+looks rows up in. The uniqueness guarantee is identical either way.
+
+**For an existing table**, this migration preserves every row. It drops the clustered primary key (leaving
+the table a heap momentarily), re-adds the same key as nonclustered, then builds the clustered index:
+
+```sql
+ALTER TABLE [dbo].[IdentityMap] DROP CONSTRAINT PK_IdentityMap;
+
+ALTER TABLE [dbo].[IdentityMap]
+    ADD CONSTRAINT PK_IdentityMap PRIMARY KEY NONCLUSTERED
+        (ExternalSystem, ExternalId, AggregateType);
+
+CREATE CLUSTERED INDEX CIX_IdentityMap_External
+    ON [dbo].[IdentityMap] (ExternalSystem, ExternalId);
+```
+
+Substitute your configured schema and table name if you changed them from the defaults via
+`SqlServerIdentityMapOptions`. On a large table the clustered-index build rewrites the table, so run it in
+a maintenance window. We verified this sequence against SQL Server on a populated table: all rows
+survived, a previously-impossible maximum-length row inserted afterwards, and a duplicate key was still
+rejected.
+
 ### Dependencies and packaging
 
 #### `Excalibur.Outbox.Marten` before `10.0.0-alpha.12` brings in a Marten with a critical SQL-injection advisory

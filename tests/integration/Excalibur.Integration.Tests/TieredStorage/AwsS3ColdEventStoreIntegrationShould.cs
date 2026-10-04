@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Amazon.S3;
@@ -111,9 +111,9 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 
 		var ct = CreateTestTimeout();
 		var events = CreateEvents("s3-agg-1", 1, 2, 3);
-		await _store!.WriteAsync(Tenant, "s3-agg-1", events, ct);
+		await _store!.WriteAsync(Tenant, "s3-agg-1", "Test", events, ct);
 
-		var read = await _store.ReadAsync(Tenant, "s3-agg-1", ct);
+		var read = await _store.ReadAsync(Tenant, "s3-agg-1", "Test", ct);
 		read.Count.ShouldBe(3);
 		read[0].Version.ShouldBe(1);
 	}
@@ -124,9 +124,9 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var ct = CreateTestTimeout();
-		await _store!.WriteAsync(Tenant, "s3-agg-v", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), ct);
+		await _store!.WriteAsync(Tenant, "s3-agg-v", "Test", CreateEvents("s3-agg-v", 1, 2, 3, 4, 5), ct);
 
-		var fromV3 = await _store.ReadAsync(Tenant, "s3-agg-v", 3, ct);
+		var fromV3 = await _store.ReadAsync(Tenant, "s3-agg-v", "Test", 3, ct);
 		fromV3.Count.ShouldBe(2);
 		fromV3[0].Version.ShouldBe(4);
 	}
@@ -137,10 +137,11 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var ct = CreateTestTimeout();
-		await _store!.WriteAsync(Tenant, "s3-agg-m", CreateEvents("s3-agg-m", 1, 2, 3), ct);
-		await _store.WriteAsync(Tenant, "s3-agg-m", CreateEvents("s3-agg-m", 3, 4, 5), ct);
+		var original = CreateEvents("s3-agg-m", 1, 2, 3);
+		await _store!.WriteAsync(Tenant, "s3-agg-m", "Test", original, ct);
+		await _store.WriteAsync(Tenant, "s3-agg-m", "Test", [original[2], .. CreateEvents("s3-agg-m", 4, 5)], ct);
 
-		var all = await _store.ReadAsync(Tenant, "s3-agg-m", ct);
+		var all = await _store.ReadAsync(Tenant, "s3-agg-m", "Test", ct);
 		all.Count.ShouldBe(5);
 	}
 
@@ -150,22 +151,40 @@ public sealed class AwsS3ColdEventStoreIntegrationShould : IAsyncLifetime
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
 
 		var ct = CreateTestTimeout();
-		await _store!.WriteAsync(Tenant, "s3-agg-h", CreateEvents("s3-agg-h", 1), ct);
-		(await _store.HasArchivedEventsAsync(Tenant, "s3-agg-h", ct)).ShouldBeTrue();
+		await _store!.WriteAsync(Tenant, "s3-agg-h", "Test", CreateEvents("s3-agg-h", 1), ct);
+		(await _store.HasArchivedEventsAsync(Tenant, "s3-agg-h", "Test", ct)).ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task HasArchivedReturnsFalseWhenAbsent()
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
-		(await _store!.HasArchivedEventsAsync(Tenant, "s3-nonexistent", CreateTestTimeout())).ShouldBeFalse();
+		(await _store!.HasArchivedEventsAsync(Tenant, "s3-nonexistent", "Test", CreateTestTimeout())).ShouldBeFalse();
 	}
 
 	[Fact]
 	public async Task ReadReturnsEmptyForNonexistent()
 	{
 		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] S3 (LocalStack/Docker) is not available, so this fact did NOT execute. It is reported skipped, never passed: a test that returns early on missing infrastructure is satisfied by doing nothing."));
-		(await _store!.ReadAsync(Tenant, "s3-no-such", CreateTestTimeout())).Count.ShouldBe(0);
+		(await _store!.ReadAsync(Tenant, "s3-no-such", "Test", CreateTestTimeout())).Count.ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task RequireAnIdentityConsistentPrefixBeforeAcknowledgingDurability()
+	{
+		Assert.SkipWhen(!_available, SkipReason("[infrastructure-unavailable] Cold-storage integration infrastructure unavailable."));
+		var id = "receipt-" + Guid.NewGuid().ToString("N");
+		var original = CreateEvents(id, 0, 1, 2);
+		(await _store!.WriteAsync(Tenant, id, "Test", [original[2]], CancellationToken.None)).ShouldBe(-1);
+		(await _store.WriteAsync(Tenant, id, "Test", [original[0], original[1]], CancellationToken.None)).ShouldBe(2);
+		(await _store.WriteAsync(Tenant, id, "Test", [original[2] with { EventData = original[2].EventData!.ToArray() }], CancellationToken.None)).ShouldBe(2);
+		await Should.ThrowAsync<InvalidOperationException>(() => _store.WriteAsync(Tenant, id, "Test",
+			[original[2] with { EventData = [99] }], CancellationToken.None));
+		(await _store.ReadAsync(Tenant, id, "Test", CancellationToken.None))[2].EventData.ShouldBe(original[2].EventData);
+		var erasedId = "erased-" + Guid.NewGuid().ToString("N");
+		await Should.ThrowAsync<InvalidOperationException>(() => _store.WriteAsync(Tenant, erasedId, "Test",
+			[CreateEvents(erasedId, 0)[0] with { EventType = "$erased" }], CancellationToken.None));
+		(await _store.HasArchivedEventsAsync(Tenant, erasedId, "Test", CancellationToken.None)).ShouldBeFalse();
 	}
 
 	private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions) =>

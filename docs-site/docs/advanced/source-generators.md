@@ -34,7 +34,7 @@ Source generators are Roslyn compiler extensions that analyze your code during c
 |---------|-------------|
 | **Zero-reflection dispatch** | Handler resolution at compile time, not runtime |
 | **Faster handler activation** | Pre-compiled property setters, no `Expression.Compile()` |
-| **Static pipelines** | Middleware chains inlined for deterministic messages |
+| **Call-site forwarding** | Supported calls preserve the selected dispatcher overload |
 | **AOT deployment** | Native executables without JIT compilation |
 
 ### Generator Inventory
@@ -45,9 +45,9 @@ The principal generators bundled in the `Excalibur.Dispatch` package are:
 |-----------|---------|-------------|
 | [`HandlerRegistrySourceGenerator`](#handlerregistrysourcegenerator) | Discovers, registers, and resolves handlers; generates `AddDiscoveredHandlers()` | `PrecompiledHandlerRegistry.g.cs`, `PrecompiledHandlerMetadata.g.cs`, `GeneratedHandlerRegistrationExtensions.g.cs`, `GeneratedHandlerActivatorRegistrations.g.cs`, `PrecompiledDirectActionDispatch.g.cs` |
 | [`DispatchActionExtensionGenerator`](#dispatchactionextensiongenerator) | Typed dispatch with `TResponse` inference | `TypedDispatchExtensions.g.cs` |
-| [`HandlerInvokerSourceGenerator`](#handlerinvokersourcegenerator) | AOT-compatible handler invocation via interceptors | `HandlerInvokerRegistry.g.cs` |
+| [`HandlerInvokerSourceGenerator`](#handlerinvokersourcegenerator) | AOT-compatible handler/message invoker registrations | `HandlerInvokerRegistry.g.cs` |
 | [`MessageTypeSourceGenerator`](#messagetypesourcegenerator) | Preserves discovered message types from trimming | `GeneratedMessageTypeRegistrations.g.cs` |
-| [`StaticPipelineGenerator`](#staticpipelinegenerator) | Static middleware pipelines | `StaticPipelines.g.cs` |
+| [`StaticPipelineGenerator`](#staticpipelinegenerator) | Dispatcher call-site forwarding | `StaticPipelines.g.cs` |
 | [`MiddlewareDecompositionAnalyzer`](#middlewaredecompositionanalyzer) | Middleware analysis | `MiddlewareDecomposition.g.cs` |
 | [`CachePolicySourceGenerator`](#cachepolicysourcegenerator) | Cache policy registration | `CacheInfoRegistry.g.cs` |
 | [`JsonSerializationSourceGenerator`](#jsonserializationsourcegenerator) | Message type metadata for AOT serialization | `DiscoveredMessageTypeRegistry.g.cs`, `DiscoveredMessageTypeMetadata.g.cs` |
@@ -149,11 +149,11 @@ internal static class TypedDispatchExtensions_MyAssembly
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task<IMessageResult<OrderDto>> DispatchAsync(
         this IDispatcher dispatcher,
-        GetOrderQuery action,
-        IMessageContext? context = null,
-        CancellationToken cancellationToken = default)
+        GetOrderQuery message,
+        IMessageContext context,
+        CancellationToken cancellationToken)
     {
-        return dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(action, context, cancellationToken);
+        return dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(message, context, cancellationToken);
     }
 }
 ```
@@ -167,9 +167,14 @@ internal static class TypedDispatchExtensions_MyAssembly
 
 ### HandlerInvokerSourceGenerator
 
-Generates AOT-compatible handler invocation interceptors that eliminate reflection in handler dispatch.
-
-**Diagnostic:** Reports handler invoker interception count during compilation.
+Emits module-initializer registrations through `HandlerInvokerRegistry.RegisterInvoker<THandler, TMessage>`.
+Registrations are keyed by the exact handler and runtime message type, so one handler can implement
+multiple message contracts, including explicit interface implementations. Register all pairs before
+freezing the registry. `HandlerInvokerAot` refuses an unregistered pair; it does not fall back to
+reflection or a handler-only registration for another message type. Inaccessible/file-local and open
+generic handler shapes cannot be emitted from a separate generated file. Make handler and message
+types accessible or register an explicit accessible invoker; a successful build alone does not prove
+that every runtime pair has a registration.
 
 ---
 
@@ -228,54 +233,25 @@ foreach (var registration in registry.GetAll())
 
 ### StaticPipelineGenerator
 
-Creates fully static middleware pipelines for deterministic message types, eliminating delegate allocation.
-
-**Triggers:** `DispatchAsync<TMessage>` calls where:
-- Message type is statically known (not interface or type parameter)
-- Message implements `IDispatchMessage`
-- Pipeline is deterministic (no runtime-conditional middleware)
-
-**Generated Output:**
+Emits forwarding methods for supported calls on `IDispatcher`. The forwarder invokes the selected
+overload directly and returns its original task. It does not catch exceptions, wrap the task, or
+inline middleware. Middleware selection, ordering, scopes and execution remain the configured
+dispatcher's responsibility.
 
 ```csharp
-// StaticPipelines.g.cs
-file static class StaticPipelines
-{
-    [InterceptsLocation(1, "...")]
-    internal static async Task<IMessageResult> CreateOrder_L42_C12(
-        this IDispatcher dispatcher,
-        CreateOrderCommand message,
-        IMessageContext context,
-        CancellationToken cancellationToken)
-    {
-        if (_isHotReloadEnabled)
-        {
-            // Fallback to dynamic pipeline
-            return await dispatcher.DispatchAsync<CreateOrderCommand>(...);
-        }
-
-        // Static pipeline with zero delegate allocation
-        try
-        {
-            return await dispatcher.DispatchAsync<CreateOrderCommand>(...);
-        }
-        catch (Exception ex)
-        {
-            return MessageResult.Failed(ex);
-        }
-    }
-
-    public static int InterceptionCount => 1;
-}
+// Representative generated body; the call-site attribute is omitted here.
+internal static Task<IMessageResult> Forward_0(
+    this IDispatcher dispatcher, CreateOrderCommand message,
+    IMessageContext context, CancellationToken cancellationToken)
+    => dispatcher.DispatchAsync<CreateOrderCommand>(message, context, cancellationToken);
 ```
 
-**Determinism Checks:**
-Messages with these attributes are non-deterministic and fallback to runtime pipelines:
-- `[PipelineProfile]` with dynamic selection
-- `[TenantSpecific]`, `[PerTenant]`, `[MultiTenant]`
-- `[ConditionalMiddleware]`, `[FeatureFlagMiddleware]`
-
-**Hot Reload:** Automatically detected via `DOTNET_WATCH` and `DOTNET_MODIFIABLE_ASSEMBLIES` environment variables.
+The generator skips call sites whose message or response types cannot be named from a separate
+generated file, including open generic, private nested and file-local types. Those calls retain
+ordinary dispatcher behavior. Internal accessible types and closed generic types can be supported.
+Existing eligibility filters may also skip call sites; generating a forwarder is not proof that a
+pipeline is deterministic or allocation-free. Publish and execute the application to validate its
+actual Native AOT path.
 
 ---
 
@@ -664,18 +640,11 @@ MyApp.Handlers/          # Handler implementations
 MyApp.Api/               # Application host
 ```
 
-### 2. Use Deterministic Pipelines
+### 2. Measure the Configured Pipeline
 
-For maximum performance, design message types that qualify for static pipelines:
-
-```csharp
-// Good - deterministic, gets static pipeline
-public record CreateOrderCommand(Guid OrderId) : IDispatchAction;
-
-// Avoid - non-deterministic, falls back to runtime
-[TenantSpecific]
-public record CreateTenantOrderCommand(Guid OrderId) : IDispatchAction;
-```
+Call-site forwarding does not eliminate middleware delegate allocation. Measure the actual middleware
+set, handler activation, terminal delegate lifetime and message workload. Include cold construction
+and steady-state execution, and validate the Native AOT executable separately from managed runs.
 
 ### 3. Verify Generated Output
 

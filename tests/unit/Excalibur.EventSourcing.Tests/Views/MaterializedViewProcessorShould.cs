@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.Diagnostics;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Views;
 
@@ -19,6 +20,7 @@ namespace Excalibur.EventSourcing.Tests.Views;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
+[Trait("Pattern", "Regression")]
 [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Test code")]
 [SuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.", Justification = "Test code")]
 public sealed class MaterializedViewProcessorShould
@@ -478,16 +480,23 @@ public sealed class MaterializedViewProcessorShould
         var processor = CreateProcessor(CreateRegistrations(builder));
 
         // Set existing position
-        await _viewStore.SavePositionAsync("OrderSummary", 100, CancellationToken.None);
+        _ = await _viewStore.SavePositionAsync("OrderSummary", 100, CancellationToken.None);
 
         _globalStreamQuery.SetEvents([]); // No events to replay
 
         // Act
         await processor.RebuildAsync(CancellationToken.None);
 
-        // Assert — position reset to 0
+        // Assert -- the checkpoint is CLEARED, not set to zero.
+        //
+        // This assertion used to read `position.ShouldBe(0)` and it was VACUOUS: it passed only because
+        // this test's in-memory store assigned positions unconditionally, which no real store does. Every
+        // shipped provider enforces a monotonic advance, so the rebuild's old SavePositionAsync(name, 0)
+        // was refused by all five while reporting success. Absence is the stronger assertion as well as
+        // the correct one -- GetPositionAsync already reports null for "no checkpoint", and a stored zero
+        // would be indistinguishable from a view legitimately checkpointed at zero.
         var position = await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None);
-        position.ShouldBe(0);
+        position.ShouldBeNull("a rebuild must clear the checkpoint so nothing resumes from a stale one");
     }
 
     [Fact]
@@ -523,8 +532,8 @@ public sealed class MaterializedViewProcessorShould
         var processor = CreateProcessor(registrations);
 
         // Set existing positions for both views
-        await _viewStore.SavePositionAsync("OrderSummary", 50, CancellationToken.None);
-        await _viewStore.SavePositionAsync("OrderStats", 75, CancellationToken.None);
+        _ = await _viewStore.SavePositionAsync("OrderSummary", 50, CancellationToken.None);
+        _ = await _viewStore.SavePositionAsync("OrderStats", 75, CancellationToken.None);
 
         _globalStreamQuery.SetEvents([]); // No events to replay
 
@@ -532,8 +541,8 @@ public sealed class MaterializedViewProcessorShould
         await processor.RebuildAsync(CancellationToken.None);
 
         // Assert — both positions reset to 0
-        (await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None)).ShouldBe(0);
-        (await _viewStore.GetPositionAsync("OrderStats", CancellationToken.None)).ShouldBe(0);
+        (await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None)).ShouldBeNull();
+        (await _viewStore.GetPositionAsync("OrderStats", CancellationToken.None)).ShouldBeNull();
     }
 
     [Fact]
@@ -564,8 +573,10 @@ public sealed class MaterializedViewProcessorShould
 
     #region Error Handling
 
-    [Fact]
-    public async Task CatchUpAsync_HaltAtAnUninterpretableEventInsteadOfProcessingPastIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CatchUpAsync_HaltAtAnUninterpretableEventInsteadOfProcessingPastIt(bool nullResult)
     {
         // Also reversed. This arm previously asserted that a bad event in the middle of a batch was skipped
         // and the events after it still applied. That is precisely the silent gap the ruling forbids: the
@@ -579,6 +590,11 @@ public sealed class MaterializedViewProcessorShould
 
         _globalStreamQuery.SetEvents([goodEvent1, badEvent, goodEvent2]);
         _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+        if (nullResult)
+        {
+            _eventSerializer.RegisterType<OrderCreatedEvent>("BadEventType");
+            _eventSerializer.RegisterEvent(badEvent.EventData!, null!);
+        }
         _eventSerializer.RegisterEvent(goodEvent1.EventData,
             new OrderCreatedEvent("order-1", "First", 10m));
         _eventSerializer.RegisterEvent(goodEvent2.EventData,
@@ -591,6 +607,9 @@ public sealed class MaterializedViewProcessorShould
         _viewStore.GetView<OrderSummaryView>("OrderSummary", "order-1").ShouldNotBeNull();
         _viewStore.GetView<OrderSummaryView>("OrderSummary", "order-2").ShouldBeNull(
             "the replay halted at the poison event, so nothing after it was applied");
+        var position = await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None);
+        position.ShouldNotBeNull();
+        position.Value.ShouldBeLessThan(badEvent.GlobalPosition);
     }
 
     [Fact]
@@ -769,6 +788,211 @@ public sealed class MaterializedViewProcessorShould
 
     #region Helpers
 
+    #region Refresh outcome is OBSERVABLE, not merely logged
+
+    // These arms bind the property that a periodic refresh which permanently stops making progress must be
+    // visible to a reader, because the materialized-view health check derives its whole verdict from these
+    // counters. With nothing writing to them, GetFailureRatePercent() and GetMaxStalenessSeconds() both
+    // return 0 by construction, so the check could only ever report Healthy -- a projection dead for hours
+    // looked identical to one that had just succeeded, which is exactly how a stalled catch-up reached a
+    // consumer behind a green health endpoint.
+    //
+    // The assertions drive the failure rate 100% -> 50% rather than reading staleness, deliberately:
+    // GetMaxStalenessSeconds() returns 0 BOTH when nothing was recorded and when a fresh success was
+    // recorded, so an arm built on it cannot tell the fix from the defect and would pass either way.
+
+    [Fact]
+    public async Task RefuseFalseCompletionAtGapAndResumeFromDurablePrefix()
+    {
+        using var metrics = new MaterializedViewMetrics();
+        var events = Enumerable.Range(1, 3).Select(i => CreateStoredEvent("order-1", nameof(OrderCreatedEvent), i)).ToArray();
+        _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+        for (var i = 0; i < events.Length; i++)
+        {
+            _eventSerializer.RegisterEvent(events[i].EventData, new OrderCreatedEvent("order-1", $"Item-{i + 1}", i + 1));
+        }
+        _globalStreamQuery.SetEvents([events[0], events[2]]);
+        var contiguous = new ContiguousGlobalStreamQuery(_globalStreamQuery,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ContiguousGlobalStreamQuery>.Instance);
+        var applied = new List<string>();
+        var processor = CreateProcessorWithMetrics(CreateRegistrations(new OrderSummaryViewBuilder(applied.Add)), metrics, contiguous);
+
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => processor.CatchUpAsync("OrderSummary", CancellationToken.None));
+        error.Message.ShouldContain("head 3");
+        (await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None)).ShouldBe(1);
+        metrics.GetFailureRatePercent().ShouldBe(100d);
+        applied.ShouldBe(["Item-1"]);
+
+        _globalStreamQuery.SetEvents(events);
+        await processor.CatchUpAsync("OrderSummary", CancellationToken.None);
+        (await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None)).ShouldBe(3);
+        metrics.GetFailureRatePercent().ShouldBe(50d);
+        applied.ShouldBe(["Item-1", "Item-2", "Item-3"]);
+        var view = await _viewStore.GetAsync<OrderSummaryView>("OrderSummary", "order-1", CancellationToken.None);
+        view.ShouldNotBeNull().ProductName.ShouldBe("Item-3");
+    }
+
+    [Fact]
+    public async Task RefuseRebuildCompletionWhenAnEmptyPageIsBehindHead()
+    {
+        using var metrics = new MaterializedViewMetrics();
+        var query = new EmptyGlobalStreamQuery(3);
+        var processor = CreateProcessorWithMetrics(CreateRegistrations(new OrderSummaryViewBuilder()), metrics, query);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => processor.RebuildAsync(CancellationToken.None));
+        (await _viewStore.GetPositionAsync("OrderSummary", CancellationToken.None) ?? 0).ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData(true, 0L)]
+    [InlineData(false, 0L)]
+    [InlineData(true, 3L)]
+    [InlineData(false, 3L)]
+    public async Task NotReportCompletionWhenCancellationEndsReplay(bool cancelBeforeRead, long head)
+    {
+        using var metrics = new MaterializedViewMetrics();
+        using var cancellation = new CancellationTokenSource();
+        var query = new EmptyGlobalStreamQuery(head, cancellation.Cancel);
+        if (cancelBeforeRead) cancellation.Cancel();
+        var processor = CreateProcessorWithMetrics(CreateRegistrations(new OrderSummaryViewBuilder()), metrics, query);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => processor.CatchUpAsync("OrderSummary", cancellation.Token));
+    }
+
+    [Fact]
+    public async Task RecordARefreshFailureSoAStalledProjectionIsObservable()
+    {
+        using var metrics = new MaterializedViewMetrics();
+        var processor = CreateProcessorWithMetrics(
+            CreateRegistrations(new OrderSummaryViewBuilder()),
+            metrics,
+            new ThrowingGlobalStreamQuery(() => new InvalidOperationException("Invalid column name 'ArchivedAt'")));
+
+        _ = await Should.ThrowAsync<InvalidOperationException>(
+            () => processor.CatchUpAsync("OrderSummary", TestContext.Current.CancellationToken));
+
+        metrics.GetFailureRatePercent().ShouldBe(100d,
+            "a catch-up that threw must be RECORDED and not only logged: the health check reads its verdict "
+            + "out of these counters, so an unrecorded failure is a projection that is dead and reports healthy");
+    }
+
+    [Fact]
+    public async Task RecordARefreshSuccessSoARecoveredProjectionStopsReportingBroken()
+    {
+        using var metrics = new MaterializedViewMetrics();
+
+        var failing = CreateProcessorWithMetrics(
+            CreateRegistrations(new OrderSummaryViewBuilder()),
+            metrics,
+            new ThrowingGlobalStreamQuery(() => new InvalidOperationException("transient")));
+
+        _ = await Should.ThrowAsync<InvalidOperationException>(
+            () => failing.CatchUpAsync("OrderSummary", TestContext.Current.CancellationToken));
+        metrics.GetFailureRatePercent().ShouldBe(100d);
+
+        // Liveness: a SUCCEEDING refresh must be recorded too. If only failures were recorded the rate
+        // could only ever climb, and a projection that recovered would stay reported as broken forever.
+        var storedEvent = CreateStoredEvent("order-1", nameof(OrderCreatedEvent), 1);
+        _globalStreamQuery.SetEvents([storedEvent]);
+        _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+        _eventSerializer.RegisterEvent(storedEvent.EventData, new OrderCreatedEvent("order-1", "Recovered", 1m));
+
+        var healthy = CreateProcessorWithMetrics(
+            CreateRegistrations(new OrderSummaryViewBuilder()),
+            metrics,
+            _globalStreamQuery);
+
+        await healthy.CatchUpAsync("OrderSummary", TestContext.Current.CancellationToken);
+
+        metrics.GetFailureRatePercent().ShouldBe(50d,
+            "one failure and one success is one attempt in two that failed; a rate stuck at 100% means the "
+            + "success was never recorded, and a rate of 0% means neither was");
+    }
+
+    [Fact]
+    public async Task NotCountAHostShutdownAsARefreshFailure()
+    {
+        // The baseline here is a SUCCESS, not a failure, and that choice is load-bearing. Starting from a
+        // failure gives 1-of-1 failed with the guard and 2-of-2 failed without it -- both 100%, so the
+        // assertion would pass either way and the arm would be vacuous against its own requirement.
+        // Starting from a success gives 0% with the guard and 50% without it, which discriminates.
+        using var metrics = new MaterializedViewMetrics();
+
+        var storedEvent = CreateStoredEvent("order-1", nameof(OrderCreatedEvent), 1);
+        _globalStreamQuery.SetEvents([storedEvent]);
+        _eventSerializer.RegisterType<OrderCreatedEvent>(nameof(OrderCreatedEvent));
+        _eventSerializer.RegisterEvent(storedEvent.EventData, new OrderCreatedEvent("order-1", "Fine", 1m));
+
+        var healthy = CreateProcessorWithMetrics(
+            CreateRegistrations(new OrderSummaryViewBuilder()),
+            metrics,
+            _globalStreamQuery);
+
+        await healthy.CatchUpAsync("OrderSummary", TestContext.Current.CancellationToken);
+        metrics.GetFailureRatePercent().ShouldBe(0d, "the baseline refresh succeeded");
+
+        var cancelling = CreateProcessorWithMetrics(
+            CreateRegistrations(new OrderSummaryViewBuilder()),
+            metrics,
+            new ThrowingGlobalStreamQuery(() => new OperationCanceledException()));
+
+        _ = await Should.ThrowAsync<OperationCanceledException>(
+            () => cancelling.CatchUpAsync("OrderSummary", TestContext.Current.CancellationToken));
+
+        metrics.GetFailureRatePercent().ShouldBe(0d,
+            "a host shutting down is not a refresh failure; counting it would inflate the failure rate on "
+            + "every rolling deploy and page someone for a clean shutdown");
+    }
+
+    #endregion Refresh outcome is OBSERVABLE, not merely logged
+
+    /// <summary>
+    /// A global-stream query that always faults, so a catch-up failure is attributable to the query rather
+    /// than to fixture setup.
+    /// </summary>
+    private sealed class EmptyGlobalStreamQuery(long head, Action? onRead = null) : IGlobalStreamQuery
+    {
+        public ValueTask<IReadOnlyList<StoredEvent>> ReadAllAsync(GlobalStreamPosition position, int maxCount, CancellationToken cancellationToken)
+        {
+            onRead?.Invoke();
+            return ValueTask.FromResult<IReadOnlyList<StoredEvent>>([]);
+        }
+
+        public ValueTask<IReadOnlyList<StoredEvent>> ReadByEventTypeAsync(string eventType, GlobalStreamPosition position, int maxCount, CancellationToken cancellationToken)
+            => ReadAllAsync(position, maxCount, cancellationToken);
+
+        public ValueTask<long> GetHeadPositionAsync(CancellationToken cancellationToken) => ValueTask.FromResult(head);
+    }
+
+    private sealed class ThrowingGlobalStreamQuery(Func<Exception> exceptionFactory) : IGlobalStreamQuery
+    {
+        public ValueTask<IReadOnlyList<StoredEvent>> ReadAllAsync(
+            GlobalStreamPosition position, int maxCount, CancellationToken cancellationToken)
+            => throw exceptionFactory();
+
+        public ValueTask<IReadOnlyList<StoredEvent>> ReadByEventTypeAsync(
+            string eventType, GlobalStreamPosition position, int maxCount, CancellationToken cancellationToken)
+            => throw exceptionFactory();
+
+        public ValueTask<long> GetHeadPositionAsync(CancellationToken cancellationToken)
+            => ValueTask.FromResult(0L);
+    }
+
+    private MaterializedViewProcessor CreateProcessorWithMetrics(
+        IEnumerable<MaterializedViewBuilderRegistration> registrations,
+        MaterializedViewMetrics metrics,
+        IGlobalStreamQuery globalStreamQuery)
+    {
+        return new MaterializedViewProcessor(
+            _viewStore,
+            globalStreamQuery,
+            _eventSerializer,
+            registrations,
+            _options,
+            _logger,
+            metrics);
+    }
+
     private MaterializedViewProcessor CreateProcessor(
         IEnumerable<MaterializedViewBuilderRegistration> registrations)
     {
@@ -850,7 +1074,7 @@ public sealed class MaterializedViewProcessorShould
 
     #region Test Builders
 
-    private sealed class OrderSummaryViewBuilder : IMaterializedViewBuilder<OrderSummaryView>
+    private sealed class OrderSummaryViewBuilder(Action<string>? onApplied = null) : IMaterializedViewBuilder<OrderSummaryView>
     {
         public string ViewName => "OrderSummary";
 
@@ -871,6 +1095,7 @@ public sealed class MaterializedViewProcessorShould
                 view.OrderId = created.AggregateId;
                 view.ProductName = created.ProductName;
                 view.TotalAmount = created.Amount;
+                onApplied?.Invoke(created.ProductName);
             }
 
             return view;
@@ -1068,10 +1293,31 @@ public sealed class MaterializedViewProcessorShould
                 : new ValueTask<long?>((long?)null);
         }
 
-        public ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken)
+        // MONOTONIC, deliberately, because every real store is -- SQL Server by
+        // `source.Position > target.Position`, Postgres by `WHERE position < EXCLUDED.position`, MongoDB by
+        // `$max`, Elasticsearch and OpenSearch by external versioning. This double used to assign
+        // unconditionally, so it accepted a position the real stores refuse. That divergence is why no unit
+        // test caught a rebuild whose reset-to-zero was silently refused by all five providers: the fixture
+        // was the only implementation in which the reset worked.
+        public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken cancellationToken)
         {
-            _positions[viewName] = position;
             SavePositionCallCount++;
+
+            if (_positions.TryGetValue(viewName, out var stored) && stored >= position)
+            {
+                return new(ViewPositionSaveOutcome.RefusedAsStale);
+            }
+
+            _positions[viewName] = position;
+            return new(ViewPositionSaveOutcome.Advanced);
+        }
+
+        public int ResetPositionCallCount { get; private set; }
+
+        public ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+        {
+            ResetPositionCallCount++;
+            _ = _positions.Remove(viewName);
             return ValueTask.CompletedTask;
         }
 

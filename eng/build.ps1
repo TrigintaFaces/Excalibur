@@ -93,6 +93,9 @@ param(
     # concurrency roots a native thread leak). Word-split deliberately.
     [string]$ExtraRunSettings,
 
+    # External job/shard/candidate context for independent discovery and per-invocation checks.
+    [string]$RequiredTestContext,
+
     # Print the composed `dotnet test` argv and exit without running it. This is what makes the
     # composition testable: the traps below are invisible at runtime -- a dropped setting produces a
     # passing run -- so they are asserted against the printed argv instead.
@@ -296,6 +299,17 @@ try {
             return
         }
 
+        if ($RequiredTestContext) {
+            $dotnetCommand = (Get-Command dotnet -CommandType Application | Select-Object -First 1).Source
+            $resolvedHost = [IO.File]::ResolveLinkTarget($dotnetCommand, $true)
+            if ($null -ne $resolvedHost) { $dotnetCommand = $resolvedHost.FullName }
+            $sdkVersion = (Get-Content (Join-Path $repoRoot 'global.json') -Raw | ConvertFrom-Json).sdk.version
+            $sdkDirectory = Join-Path ([IO.Path]::GetDirectoryName($dotnetCommand)) "sdk/$sdkVersion"
+            & (Join-Path $PSScriptRoot 'ci/invoke-required-tests.ps1') -TestArguments $testArgs `
+                -ContextPath $RequiredTestContext -EvidenceDirectory (Join-Path $results "$prefix.required") `
+                -DotnetPath $dotnetCommand -SdkDirectory $sdkDirectory
+        }
+        else {
         # Stamped before the run, so the guard below counts only what this invocation produced.
         # A second of slack absorbs filesystem timestamp granularity.
         $testStartedUtc = (Get-Date).ToUniversalTime().AddSeconds(-1)
@@ -321,6 +335,7 @@ try {
                 throw "filter '$TestFilter' executed 0 tests. A filter that matches nothing exits 0; that is not a pass."
             }
             Write-Host "$executed test(s) executed."
+        }
         }
     }
 

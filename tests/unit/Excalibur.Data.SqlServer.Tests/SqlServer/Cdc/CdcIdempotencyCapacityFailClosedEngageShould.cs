@@ -29,7 +29,7 @@ public sealed class CdcIdempotencyCapacityFailClosedEngageShould
 {
 	/// <summary>The asking consumer. These arms are not about consumer isolation, so one identity is used
 	/// throughout; CdcIdempotencyConsumerCollisionShould is where two identities are contrasted.</summary>
-	private const string TestConsumer = "test-consumer";
+	private static readonly CdcConsumerIdentity TestConsumer = new("test-consumer", "test-db");
 
 	private const string CapacityExceededMetric = "excalibur.cdc.idempotency.capacity_exceeded";
 	private static readonly byte[] SeqVal = [0x00, 0x01];

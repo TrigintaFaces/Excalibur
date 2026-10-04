@@ -28,6 +28,7 @@ namespace Excalibur.EventSourcing.Tests.TieredStorage;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "EventSourcing")]
 [Trait("Feature", "TieredStorage")]
 public sealed class TieredStorageWiringShould
 {
@@ -35,7 +36,7 @@ public sealed class TieredStorageWiringShould
     public void ResolveDefaultArchiveToTheHotStore_WhenHotStoreImplementsIEventStoreArchive()
     {
         // The hot store implements BOTH IEventStore and IEventStoreArchive → the default archive IS it.
-        var archivableHotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>());
+        var archivableHotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
         using var provider = BuildTieredProvider(archivableHotStore);
 
         provider.GetRequiredService<IEventStoreArchive>()
@@ -55,26 +56,50 @@ public sealed class TieredStorageWiringShould
     }
 
     [Fact]
-    public void YieldToConsumerSuppliedArchiveOverride_WhenRegisteredBeforeUseTieredStorage()
+    public void RejectAnArchiveOverrideFromAnotherSourceBeforeStartingTheWorker()
     {
-        // A consumer override registered BEFORE UseTieredStorage wins (TryAddSingleton yields to it),
-        // even though the hot store itself could archive.
-        var archivableHotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>());
+        // Registration order must not split discovery/tombstoning from the captured payload source.
+        var archivableHotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
         var consumerArchive = A.Fake<IEventStoreArchive>();
         using var provider = BuildTieredProvider(archivableHotStore, s => s.AddSingleton(consumerArchive));
 
-        provider.GetRequiredService<IEventStoreArchive>()
-            .ShouldBeSameAs(consumerArchive, "l31hx7: a consumer-supplied IEventStoreArchive override must win over the default hot-store archive.");
+        Should.Throw<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray())
+            .Message.ShouldContain("same captured hot store");
+    }
+
+    [Fact]
+    public void RejectAnIndependentArchiveReaderRegistration()
+    {
+        var hot = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
+        using var provider = BuildTieredProvider(hot, services =>
+            services.AddSingleton(A.Fake<IEventStoreArchiveReader>()));
+        Should.Throw<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray())
+            .Message.ShouldContain("same captured hot store");
+    }
+
+    [Fact]
+    public void RefuseAReaderDeniedByTheCapturedHotStore()
+    {
+        var hot = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
+        using var provider = BuildTieredProvider(hot);
+        A.CallTo(() => hot.GetService(typeof(IEventStoreArchiveReader))).Returns(null);
+        Should.Throw<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray())
+            .Message.ShouldContain(nameof(IEventStoreArchiveReader));
+        A.CallTo(() => ((IEventStoreArchiveReader)hot).LoadArchiveEventsAsync(
+            A<KeyedTenantPartition>._, A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
     }
 
     [Fact]
     public void RegisterEventArchiveService_AsHostedService()
     {
-        var services = NewTieredServices(A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>()));
+        var services = NewTieredServices(A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>()));
+        services.AddLogging();
         _ = new ExcaliburEventSourcingBuilder(services).UseTieredStorage(_ => { });
 
-        services.ShouldContain(
-            d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(EventArchiveService),
+        using var provider = services.BuildServiceProvider();
+        provider.GetServices<IHostedService>().ShouldContain(
+            service => service is EventArchiveService,
             "l31hx7: EventArchiveService must be registered as an IHostedService so archiving actually runs.");
     }
 
@@ -91,7 +116,7 @@ public sealed class TieredStorageWiringShould
         // read-through; the archive path must still resolve the RAW hot (never the decorator).
         // NON-VACUITY: on the current orphaned wiring the keyed "default" + non-keyed resolve to the bare
         // hot store (not a TieredEventStoreDecorator) → RED. GREEN once the keyed re-bind lands.
-        var hotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>());
+        var hotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
         var services = NewTieredServices(hotStore);
 
         // 2modyg — the non-keyed alias comes from the SHIPPED registration path, never hand-added here.
@@ -125,19 +150,30 @@ public sealed class TieredStorageWiringShould
         // decorator surfaces the archived events from cold. (The read-through LOGIC is unit-tested directly in
         // TieredEventStoreDecoratorShould; this proves the WIRED instance exercises it — closing the
         // advertised-but-unwired read gap the structural facts above catch.)
-        var hotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>());
+        var hotStore = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
         var coldStore = A.Fake<IColdEventStore>();
         // Archival TOMBSTONES: the hot store keeps the rows (version and position intact) with the
         // payload moved to cold and an ArchivedAt stamp. That stamp -- not an empty hot result -- is
         // what tells the decorator to read through, so this is the shape production actually produces.
-        var tombstoned = CreateEvents("agg-1", 1, 2, 3)
+        var original = CreateEvents("agg-1", 1, 2, 3);
+        var tombstoned = original
             .Select(e => e with { EventData = null, ArchivedAt = DateTimeOffset.UnixEpoch })
             .ToList();
         _ = A.CallTo(() => hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._)).Returns(tombstoned);
-        _ = A.CallTo(() => coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._)).Returns(true);
-        _ = A.CallTo(() => coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._)).Returns(CreateEvents("agg-1", 1, 2, 3));
+        _ = A.CallTo(() => coldStore.HasArchivedEventsAsync(A<KeyedTenantPartition>._, "agg-1", "Order", A<CancellationToken>._)).Returns(true);
+        _ = A.CallTo(() => coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", "Order", A<CancellationToken>._)).Returns(original);
+        A.CallTo(() => hotStore.GetService(typeof(IEventStoreAuthoritativeReader))).Returns(new TestEventStateReader(hotStore));
 
+        if (hotStore is IEventStoreArchiveReader reader)
+        {
+            A.CallTo(() => hotStore.GetService(typeof(IEventStoreArchiveReader))).Returns(reader);
+        }
+        if (hotStore is IEventStoreArchiveScanner scanner)
+        {
+            A.CallTo(() => hotStore.GetService(typeof(IEventStoreArchiveScanner))).Returns(scanner);
+        }
         var services = new ServiceCollection();
+        services.AddLogging();
         _ = services.AddKeyedSingleton("default", hotStore);
         _ = services.AddSingleton(coldStore);
         _ = services.AddSingleton<ILogger<TieredEventStoreDecorator>>(NullLogger<TieredEventStoreDecorator>.Instance);
@@ -154,6 +190,27 @@ public sealed class TieredStorageWiringShould
             "jqk80w: the wired keyed-\"default\" decorator must read through to cold on a hot miss, surfacing the archived events (not the hot store's empty result).");
     }
 
+    [Fact]
+    public void RefuseAnIndependentlyRegisteredScanner()
+    {
+        var hot = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
+        using var provider = BuildTieredProvider(hot, services => services.AddSingleton(A.Fake<IEventStoreArchiveScanner>()));
+        Should.Throw<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray())
+            .Message.ShouldContain("same captured hot store");
+    }
+
+    [Fact]
+    public void HonorScannerDenialEvenWhenTheHotObjectImplementsIt()
+    {
+        var hot = A.Fake<IEventStore>(x => x.Implements<IEventStoreArchive>().Implements<IEventStoreArchiveReader>().Implements<IEventStoreArchiveScanner>());
+        using var provider = BuildTieredProvider(hot);
+        A.CallTo(() => hot.GetService(typeof(IEventStoreArchiveScanner))).Returns(null);
+        Should.Throw<InvalidOperationException>(() => provider.GetServices<IHostedService>().ToArray())
+            .Message.ShouldContain(nameof(IEventStoreArchiveScanner));
+        A.CallTo(() => ((IEventStoreArchiveScanner)hot).ScanArchiveCandidatesAsync(
+            A<ArchivePolicy>._, A<int>._, A<ArchiveScanCursor?>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
     private static List<StoredEvent> CreateEvents(string aggregateId, params long[] versions) =>
         versions.Select(v => new StoredEvent(
             EventId: Guid.NewGuid().ToString(),
@@ -163,7 +220,7 @@ public sealed class TieredStorageWiringShould
             EventData: Array.Empty<byte>(),
             Metadata: null,
             Version: v,
-            Timestamp: DateTimeOffset.UtcNow)).ToList();
+            Timestamp: DateTimeOffset.UtcNow) { TenantId = TenantDefaults.DefaultTenantId }).ToList();
 
     private static ServiceProvider BuildTieredProvider(
         IEventStore hotStore, Action<IServiceCollection>? preRegister = null)
@@ -176,7 +233,21 @@ public sealed class TieredStorageWiringShould
 
     private static IServiceCollection NewTieredServices(IEventStore hotStore)
     {
+        A.CallTo(() => hotStore.GetService(typeof(IEventStoreAuthoritativeReader))).Returns(new TestEventStateReader(hotStore));
+        if (hotStore is IEventStoreArchive archive)
+        {
+            A.CallTo(() => hotStore.GetService(typeof(IEventStoreArchive))).Returns(archive);
+        }
+        if (hotStore is IEventStoreArchiveReader reader)
+        {
+            A.CallTo(() => hotStore.GetService(typeof(IEventStoreArchiveReader))).Returns(reader);
+        }
+        if (hotStore is IEventStoreArchiveScanner scanner)
+        {
+            A.CallTo(() => hotStore.GetService(typeof(IEventStoreArchiveScanner))).Returns(scanner);
+        }
         var services = new ServiceCollection();
+        services.AddLogging();
         _ = services.AddKeyedSingleton("default", hotStore);
         _ = services.AddSingleton(A.Fake<IColdEventStore>());
         _ = services.AddSingleton<ILogger<TieredEventStoreDecorator>>(NullLogger<TieredEventStoreDecorator>.Instance);

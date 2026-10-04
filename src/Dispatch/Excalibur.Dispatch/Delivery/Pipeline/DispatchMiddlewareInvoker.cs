@@ -78,6 +78,10 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 		{
 			return true;
 		}
+		if (_chainBuilder.HasCustomApplicability)
+		{
+			return false;
+		}
 
 		// PERF-T3: Global fast-exit when all middleware is routing-only.
 		// A single volatile bool read (~1ns) avoids the FrozenDictionary chain lookup (~3-5μs).
@@ -131,12 +135,6 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 			return nextDelegate(message, context, cancellationToken);
 		}
 
-		// PERF-T3: Fast path when all middleware is routing-only — skip chain lookup entirely.
-		if (!_hasAnyNonRoutingMiddleware)
-		{
-			return nextDelegate(message, context, cancellationToken);
-		}
-
 		// Auto-freeze on first dispatch to prevent per-dispatch ConcurrentDictionary overhead.
 		// Uses volatile read + Freeze()'s internal double-check lock for thread safety.
 		if (_autoFrozen == 0 && !_chainBuilder.IsFrozen)
@@ -148,7 +146,7 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 		}
 
 		// Get pre-compiled chain for this message type
-		var chain = _chainBuilder.GetChain(message.GetType(), _pipelineSignature);
+		var chain = _chainBuilder.GetChain(message, _pipelineSignature);
 
 		// Fast path for no applicable middleware - returns ValueTask directly (no Task allocation)
 		if (!chain.HasMiddleware)

@@ -360,13 +360,14 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 			// attempt, and skip it. Recovering a fully erased aggregate therefore rebuilds its projection to
 			// the empty initial state, carrying none of the subject's data forward -- rather than throwing and
 			// leaving the projection permanently unrecoverable. Only the reserved marker is skipped.
-			if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+			if (ErasedEventMarker.IsErased(storedEvent.EventType))
 			{
 				continue;
 			}
 
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-			var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
+			var domainEvent = StoredEventPayload.RequireDecoded(
+				_eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType), storedEvent);
 
 			// Recovery replays an aggregate's history, so isReplay is true and the identity is the
 			// aggregate being recovered -- a recovered projection that lost its id is not recovered.

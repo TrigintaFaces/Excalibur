@@ -66,6 +66,11 @@ app.DispatchPostAction<CreateOrderAction, CreateOrderResult>("/api/orders");
 app.MapGet("/api/orders/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken cancellationToken) =>
 {
     var result = await dispatcher.DispatchAsync<GetOrderAction, OrderResult?>(new GetOrderAction(id), cancellationToken).ConfigureAwait(false);
+    if (!result.Succeeded)
+    {
+        return result.ToHttpResult();
+    }
+
     return result.ReturnValue is not null ? Results.Ok(result.ReturnValue) : Results.NotFound();
 });
 

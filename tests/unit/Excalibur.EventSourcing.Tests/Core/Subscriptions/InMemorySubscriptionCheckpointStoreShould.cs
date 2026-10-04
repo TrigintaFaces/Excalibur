@@ -7,8 +7,62 @@ namespace Excalibur.EventSourcing.Tests.Core.Subscriptions;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "Regression")]
 public sealed class InMemorySubscriptionCheckpointStoreShould
 {
+	[Theory]
+	[InlineData(null, -1L, "newPosition")]
+	[InlineData(-1L, 0L, "expectedPosition")]
+	[InlineData(10L, 5L, "newPosition")]
+	public async Task RejectInvalidPositionsBeforeRelationalStorageAccess(long? expected, long next, string parameter)
+	{
+		ISubscriptionCheckpointStore[] stores =
+		[
+			new global::Excalibur.EventSourcing.SqlServer.SqlServerSubscriptionCheckpointStore(() => throw new InvalidOperationException("Connection factory invoked")),
+			new global::Excalibur.EventSourcing.Postgres.PostgresSubscriptionCheckpointStore(() => throw new InvalidOperationException("Connection factory invoked")),
+			new global::Excalibur.EventSourcing.Oracle.OracleSubscriptionCheckpointStore(() => throw new InvalidOperationException("Connection factory invoked")),
+			new global::Excalibur.EventSourcing.Sqlite.SqliteSubscriptionCheckpointStore("InvalidKeyword=invalid"),
+		];
+		foreach (var store in stores)
+		{
+			var exception = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+				() => store.AdvanceCheckpointAsync("sub", expected, next, CancellationToken.None));
+			exception.ParamName.ShouldBe(parameter);
+		}
+	}
+
+	[Theory]
+	[InlineData(null, -1L, "newPosition")]
+	[InlineData(-1L, 0L, "expectedPosition")]
+	[InlineData(10L, 5L, "newPosition")]
+	[InlineData(20L, 5L, "newPosition")]
+	public async Task RejectInvalidPositionsWithoutChangingCheckpoint(long? expected, long next, string parameter)
+	{
+		var store = new InMemorySubscriptionCheckpointStore();
+		await store.AdvanceCheckpointAsync("existing", null, 10, CancellationToken.None);
+		foreach (var name in new[] { "existing", "absent" })
+		{
+			var exception = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+				() => store.AdvanceCheckpointAsync(name, expected, next, CancellationToken.None));
+			exception.ParamName.ShouldBe(parameter);
+		}
+
+		(await store.GetCheckpointAsync("existing", CancellationToken.None)).ShouldBe(10);
+		(await store.GetCheckpointAsync("absent", CancellationToken.None)).ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task AcceptEqualPositionsOnlyWhileTheExpectationMatches()
+	{
+		var store = new InMemorySubscriptionCheckpointStore();
+		(await store.AdvanceCheckpointAsync("sub", null, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.AdvanceCheckpointAsync("sub", 0, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.AdvanceCheckpointAsync("sub", 0, long.MaxValue, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.AdvanceCheckpointAsync("sub", 0, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Superseded);
+		(await store.AdvanceCheckpointAsync("sub", long.MaxValue, long.MaxValue, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.GetCheckpointAsync("sub", CancellationToken.None)).ShouldBe(long.MaxValue);
+	}
+
 	[Fact]
 	public async Task ReturnNullForUnknownSubscription()
 	{

@@ -282,7 +282,7 @@ public sealed partial class PostgresMaterializedViewStore : IAtomicMaterializedV
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask SavePositionAsync(
+	public async ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
 		string viewName,
 		long position,
 		CancellationToken cancellationToken)
@@ -305,14 +305,44 @@ public sealed partial class PostgresMaterializedViewStore : IAtomicMaterializedV
 
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
+		// DO UPDATE ... WHERE affects no row when the stored checkpoint is already at or beyond `position`,
+		// so the affected-row count IS the outcome. It used to be discarded and the save logged
+		// unconditionally, which reported a write the monotonic guard had refused.
+		var affected = await connection.ExecuteAsync(
 			new CommandDefinition(
 				sql,
 				new { tenant_id = ResolveTenantKey(), view_name = viewName, position, updated_at = now },
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
+		if (affected == 0)
+		{
+			return ViewPositionSaveOutcome.RefusedAsStale;
+		}
+
 		LogPositionSaved(viewName, position);
+		return ViewPositionSaveOutcome.Advanced;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+
+		// Deletes rather than zeroes: GetPositionAsync already reports null for a view with no checkpoint,
+		// and a stored zero would be indistinguishable from a view legitimately checkpointed at zero.
+		// Unconditional by contract -- the monotonic guard on SavePositionAsync exists to refuse exactly
+		// this.
+		var sql = $"DELETE FROM {_positionTableName} WHERE tenant_id = @tenant_id AND view_name = @view_name";
+
+		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+		_ = await connection.ExecuteAsync(
+			new CommandDefinition(
+				sql,
+				new { tenant_id = ResolveTenantKey(), view_name = viewName },
+				cancellationToken: cancellationToken))
+			.ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

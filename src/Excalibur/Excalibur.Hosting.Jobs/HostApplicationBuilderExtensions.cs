@@ -57,7 +57,7 @@ public static class ExcaliburJobHostBuilderExtensions
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IHostApplicationBuilder AddExcaliburJobHost(
 		this IHostApplicationBuilder builder,
-		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
+		Action<IQuartzBuilder>? configureQuartz,
 		params Assembly[] assemblies)
 	{
 		ArgumentNullException.ThrowIfNull(builder);

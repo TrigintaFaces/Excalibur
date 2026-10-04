@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using System.Data.Common;
+
 using Dapper;
 
 namespace Excalibur.Data.DataProcessing.Requests;
@@ -39,6 +41,20 @@ internal sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskR
 		""";
 
 		Command = CreateCommand(sql, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.QueryAsync<DataTaskRequest>(Command).ConfigureAwait(false);
+		ResolveAsync = async conn =>
+		{
+			if (conn is not DbConnection database)
+			{
+				throw new InvalidOperationException("Data processing requires a DbConnection.");
+			}
+			// Explicit mapping keeps the SQL path executable when dynamic code is unavailable.
+			using var reader = await database.ExecuteReaderAsync(Command).ConfigureAwait(false);
+			var tasks = new List<DataTaskRequest>();
+			while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+			{
+				tasks.Add(SqlDataTaskClaim.ReadTask(reader));
+			}
+			return tasks;
+		};
 	}
 }

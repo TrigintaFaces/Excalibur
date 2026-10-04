@@ -3,6 +3,7 @@
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Excalibur.Data.DataProcessing.Processing;
 
 namespace Excalibur.Data.DataProcessing.Diagnostics;
 
@@ -34,21 +35,25 @@ internal sealed class DataProcessingHealthCheck : IHealthCheck
 {
 	private readonly DataProcessingHealthState _state;
 	private readonly DataProcessingHealthCheckOptions _options;
+	private readonly int _failureThreshold;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DataProcessingHealthCheck"/> class.
 	/// </summary>
 	/// <param name="state">The shared health state updated by the data processing service.</param>
 	/// <param name="options">The health check threshold options.</param>
+	/// <param name="processingOptions">The hosted processing failure threshold.</param>
 	public DataProcessingHealthCheck(
 		DataProcessingHealthState state,
-		IOptions<DataProcessingHealthCheckOptions> options)
+		IOptions<DataProcessingHealthCheckOptions> options,
+		IOptions<DataProcessingHostedServiceOptions>? processingOptions = null)
 	{
 		ArgumentNullException.ThrowIfNull(state);
 		ArgumentNullException.ThrowIfNull(options);
 
 		_state = state;
 		_options = options.Value;
+		_failureThreshold = processingOptions?.Value.UnhealthyThreshold ?? new DataProcessingHostedServiceOptions().UnhealthyThreshold;
 	}
 
 	/// <inheritdoc/>
@@ -73,7 +78,7 @@ internal sealed class DataProcessingHealthCheck : IHealthCheck
 		if (!_state.IsRunning)
 		{
 			// Service may legitimately not be running if it hasn't been started yet
-			if (_state.TotalCycles == 0)
+			if (!_state.HasStarted)
 			{
 				return Task.FromResult(HealthCheckResult.Healthy(
 					"Data processing service has not been started.",
@@ -83,6 +88,12 @@ internal sealed class DataProcessingHealthCheck : IHealthCheck
 			return Task.FromResult(HealthCheckResult.Unhealthy(
 				"Data processing service is not running.",
 				data: data));
+		}
+
+		data["ConsecutiveFailures"] = _state.ConsecutiveFailures;
+		if (_state.ConsecutiveFailures >= _failureThreshold)
+		{
+			return Task.FromResult(HealthCheckResult.Unhealthy("Data processing has repeatedly failed.", data: data));
 		}
 
 		// Check inactivity
@@ -106,6 +117,11 @@ internal sealed class DataProcessingHealthCheck : IHealthCheck
 					$"(threshold: {_options.DegradedInactivityTimeout.TotalSeconds:F0}s).",
 					data: data));
 			}
+		}
+
+		if (_state.ConsecutiveFailures > 0)
+		{
+			return Task.FromResult(HealthCheckResult.Degraded("The latest data processing cycle failed.", data: data));
 		}
 
 		return Task.FromResult(HealthCheckResult.Healthy(

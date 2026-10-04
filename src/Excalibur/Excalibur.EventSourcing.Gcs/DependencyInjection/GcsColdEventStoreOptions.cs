@@ -10,6 +10,11 @@ namespace Excalibur.EventSourcing.Gcs.DependencyInjection;
 /// </summary>
 public sealed class GcsColdEventStoreOptions
 {
+	/// <summary>Gets or sets the archive layout captured at provider construction.</summary>
+	/// <value>Defaults to <see cref="ColdArchiveLayout.Legacy"/>.</value>
+	/// <remarks>Configuration does not activate or migrate archives. Supplied clients must preserve raw bytes for TypedV2.</remarks>
+	public ColdArchiveLayout Layout { get; set; } = ColdArchiveLayout.Legacy;
+
 	/// <summary>
 	/// Gets or sets the GCS bucket name for cold event storage.
 	/// </summary>

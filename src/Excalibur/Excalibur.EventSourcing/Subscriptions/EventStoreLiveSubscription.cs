@@ -255,7 +255,7 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 			// -- which would make honouring an erasure request silently kill the subscription. Only the
 			// reserved marker is skipped: every other deserialization failure still halts below, so genuine
 			// corruption is never mistaken for erasure and is never silently skipped.
-			if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+			if (ErasedEventMarker.IsErased(storedEvent.EventType))
 			{
 				LogErasedEventSkipped(storedEvent.EventId, storedEvent.Version);
 				lastVersion = storedEvent.Version;
@@ -265,13 +265,10 @@ public sealed partial class EventStoreLiveSubscription : IEventSubscription, IAs
 			try
 			{
 				var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-				var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
-
-				if (domainEvent is not null)
-				{
-					results.Add(domainEvent);
-					lastVersion = storedEvent.Version;
-				}
+				var domainEvent = StoredEventPayload.RequireDecoded(
+					_eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType), storedEvent);
+				results.Add(domainEvent);
+				lastVersion = storedEvent.Version;
 			}
 			catch (Exception ex)
 			{

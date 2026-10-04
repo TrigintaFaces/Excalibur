@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Workflows</RootNamespace>
     <PackageId>Excalibur.Workflows</PackageId>
@@ -17,12 +18,15 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Workflows.Abstractions\Excalibur.Workflows.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" Condition="'$(UsePackageReferences)' != 'true'" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Workflows.Tests" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

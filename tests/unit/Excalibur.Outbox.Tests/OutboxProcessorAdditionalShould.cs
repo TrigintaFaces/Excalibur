@@ -134,15 +134,15 @@ public sealed class OutboxProcessorAdditionalShould : UnitTestBase
 	#region Init Edge Cases
 
 	[Fact]
-	public async Task Init_CanBeCalledMultipleTimes()
+	public async Task Init_AllowsSameIdentityAndRejectsReplacement()
 	{
 		// Arrange
 		await using var processor = CreateProcessor();
 
-		// Act - Multiple initialization should not throw
+		// An established ownership identity cannot change between runs.
 		processor.Init("dispatcher-1");
-		processor.Init("dispatcher-2");
-		processor.Init("dispatcher-3");
+		processor.Init("dispatcher-1");
+		Should.Throw<InvalidOperationException>(() => processor.Init("dispatcher-2"));
 
 		// Assert - No exception means success
 	}

@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.2.11415.280
@@ -883,6 +883,26 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "property", "property", "{25
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.EventSourcing.Properties", "tests\property\Excalibur.EventSourcing.Properties\Excalibur.EventSourcing.Properties.csproj", "{80435FBB-FB61-4F7E-ACB1-E3F8BB44F22C}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{8521DF59-E1D8-50F4-8854-9193F85F5937}"
+	ProjectSection(SolutionItems) = preProject
+		templates\dispatch-api\Company.DispatchApi.Tests\Company.DispatchApi.Tests.csproj = templates\dispatch-api\Company.DispatchApi.Tests\Company.DispatchApi.Tests.csproj
+		templates\dispatch-api\Company.DispatchApi.csproj = templates\dispatch-api\Company.DispatchApi.csproj
+		templates\dispatch-minimal-api\Company.DispatchMinimalApi.csproj = templates\dispatch-minimal-api\Company.DispatchMinimalApi.csproj
+		templates\dispatch-serverless\Company.DispatchServerless.csproj = templates\dispatch-serverless\Company.DispatchServerless.csproj
+		templates\dispatch-worker\Company.DispatchWorker.Tests\Company.DispatchWorker.Tests.csproj = templates\dispatch-worker\Company.DispatchWorker.Tests\Company.DispatchWorker.Tests.csproj
+		templates\dispatch-worker\Company.DispatchWorker.csproj = templates\dispatch-worker\Company.DispatchWorker.csproj
+		templates\excalibur-cqrs\Company.ExcaliburCqrs.Tests\Company.ExcaliburCqrs.Tests.csproj = templates\excalibur-cqrs\Company.ExcaliburCqrs.Tests\Company.ExcaliburCqrs.Tests.csproj
+		templates\excalibur-cqrs\Company.ExcaliburCqrs.csproj = templates\excalibur-cqrs\Company.ExcaliburCqrs.csproj
+		templates\excalibur-ddd\Company.ExcaliburDdd.Tests\Company.ExcaliburDdd.Tests.csproj = templates\excalibur-ddd\Company.ExcaliburDdd.Tests\Company.ExcaliburDdd.Tests.csproj
+		templates\excalibur-ddd\Company.ExcaliburDdd.csproj = templates\excalibur-ddd\Company.ExcaliburDdd.csproj
+		templates\excalibur-outbox\Company.ExcaliburOutbox.Tests\Company.ExcaliburOutbox.Tests.csproj = templates\excalibur-outbox\Company.ExcaliburOutbox.Tests\Company.ExcaliburOutbox.Tests.csproj
+		templates\excalibur-outbox\Company.ExcaliburOutbox.csproj = templates\excalibur-outbox\Company.ExcaliburOutbox.csproj
+		templates\excalibur-saga\Company.ExcaliburSaga.Tests\Company.ExcaliburSaga.Tests.csproj = templates\excalibur-saga\Company.ExcaliburSaga.Tests\Company.ExcaliburSaga.Tests.csproj
+		templates\excalibur-saga\Company.ExcaliburSaga.csproj = templates\excalibur-saga\Company.ExcaliburSaga.csproj
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.Templates", "templates\Excalibur.Dispatch.Templates.csproj", "{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -893,6 +913,18 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Debug|x64.Build.0 = Debug|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Debug|x86.Build.0 = Debug|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Release|x64.ActiveCfg = Release|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Release|x64.Build.0 = Release|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Release|x86.ActiveCfg = Release|Any CPU
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90}.Release|x86.Build.0 = Release|Any CPU
 		{D1234567-1234-1234-1234-123456789AB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D1234567-1234-1234-1234-123456789AB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D1234567-1234-1234-1234-123456789AB1}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -5746,6 +5778,7 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{51D94B41-E4C5-5CAA-A511-03EEAE5ADC90} = {8521DF59-E1D8-50F4-8854-9193F85F5937}
 		{F1234567-1234-1234-1234-123456789ABD} = {F1234567-1234-1234-1234-123456789ABC}
 		{F1234567-1234-1234-1234-123456789ABE} = {F1234567-1234-1234-1234-123456789ABC}
 		{D1234567-1234-1234-1234-123456789AB1} = {F1234567-1234-1234-1234-123456789ABD}

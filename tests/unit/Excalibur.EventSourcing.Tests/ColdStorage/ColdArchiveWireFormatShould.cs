@@ -72,6 +72,28 @@ public sealed class ColdArchiveWireFormatShould
 
     [Theory]
     [MemberData(nameof(ArchiveContexts))]
+    public void PreserveTenantProvenanceWithoutInventingLegacyOwnership(string provider)
+    {
+        var typeInfo = ArchiveTypeInfos[provider];
+        var legacy = JsonSerializer.Deserialize(GoldenArchiveJson, typeInfo).ShouldNotBeNull();
+        legacy.Count.ShouldBe(2);
+        legacy.ShouldAllBe(e => e.TenantId == null);
+
+        List<StoredEvent> scoped =
+        [
+            legacy[0] with { TenantId = "Acme" },
+            legacy[0] with { TenantId = "acme" },
+            legacy[0] with { TenantId = "__untenanted__" },
+            legacy[0],
+        ];
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(scoped, typeInfo);
+        var restored = JsonSerializer.Deserialize(bytes, typeInfo).ShouldNotBeNull();
+        restored.Select(e => e.TenantId).ShouldBe(new string?[] { "Acme", "acme", "__untenanted__", null });
+        restored.ShouldAllBe(e => e.EventId == "e-1" && e.GlobalPosition == 42);
+    }
+
+    [Theory]
+    [MemberData(nameof(ArchiveContexts))]
     public void WriteTheFrozenArchiveFormat(string provider) =>
         Serialize(ArchiveTypeInfos[provider]).ShouldBe(
             GoldenArchiveJson,

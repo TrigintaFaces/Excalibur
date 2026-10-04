@@ -16,8 +16,11 @@ namespace Excalibur.EventSourcing;
 /// <param name="Tenant">The tenant partition that owns the aggregate's events.</param>
 /// <param name="AggregateId">The aggregate identifier.</param>
 /// <param name="AggregateType">The aggregate type name.</param>
-/// <param name="ArchivableUpToVersion">The highest version eligible for archival.</param>
-/// <param name="EventCount">The number of events eligible for archival.</param>
+/// <param name="ArchivableUpToVersion">
+/// The inclusive ceiling of the safe archival prefix, before the first retained, ineligible, erased,
+/// or unresolved event. Previously archived markers may occur inside this prefix.
+/// </param>
+/// <param name="EventCount">The number of payload-bearing events pending archival in the prefix.</param>
 public sealed record ArchiveCandidate(
 	KeyedTenantPartition Tenant,
 	string AggregateId,
@@ -48,6 +51,10 @@ public interface IEventStoreArchive
 	/// Discovery is deliberately cross-tenant: one pass enumerates candidates for every tenant, and each
 	/// returned candidate carries the tenant that owns it. Scoping this enumeration to a single tenant would
 	/// stall archival for all others, so the tenant term is a result here, never a parameter.
+	/// Candidates must contain pending work. Apply the policy's retention override and stop each stream's
+	/// prefix at its first ineligible or unresolved event before applying the candidate batch limit.
+	/// Read candidate payloads through the same hot store's <see cref="IEventStoreArchiveReader"/>
+	/// capability, using the candidate's tenant, aggregate identity, and inclusive version ceiling.
 	/// </remarks>
 	/// <param name="policy">The archive policy criteria.</param>
 	/// <param name="batchSize">Maximum number of candidates to return.</param>
@@ -59,22 +66,24 @@ public interface IEventStoreArchive
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Deletes events from the hot store up to and including the specified version.
+	/// Clears archived payloads from the hot store up to and including the specified version,
+	/// preserving event identity, ordering, and archive markers.
 	/// </summary>
 	/// <param name="tenant">
-	/// The tenant partition whose events are to be deleted. The deletion is addressed by this term, so a
-	/// run for one tenant cannot remove another tenant's events for the same aggregate identifier.
+	/// The tenant partition whose payloads are to be cleared. The update is addressed by this term, so a
+	/// run for one tenant cannot clear another tenant's payloads for the same aggregate identifier.
 	/// </param>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
-	/// <param name="toVersion">The version up to which events should be deleted (inclusive).</param>
+	/// <param name="toVersion">The version up to which payloads should be cleared (inclusive).</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The number of events deleted.</returns>
+	/// <returns>The number of event payloads cleared.</returns>
 	/// <remarks>
 	/// <para>
-	/// Only events that have been successfully written to cold storage should be
-	/// deleted. The caller is responsible for ensuring cold write completed before
-	/// calling this method.
+	/// The caller must bound this operation by both the candidate ceiling and the cold store's confirmed
+	/// durable prefix. Completion of a write attempt alone does not establish that the full submitted
+	/// range is durable. Preserve hot rows and their global positions so subscribers can hydrate them
+	/// from cold storage without silently skipping committed events.
 	/// </para>
 	/// <para>
 	/// The tenant term is required and must be the same one under which the cold write was confirmed.

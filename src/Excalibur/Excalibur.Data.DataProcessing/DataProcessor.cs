@@ -1,12 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-
 using System.Buffers;
 using System.Threading.Channels;
-
-using Excalibur.Domain;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,572 +10,288 @@ using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.DataProcessing;
 
-/// <summary>
-/// Provides an abstract base implementation for a batched data processing pipeline.
-/// </summary>
-/// <typeparam name="TRecord"> The type of records being processed. </typeparam>
+/// <summary>Provides an abstract base implementation for a batched data processing pipeline.</summary>
+/// <typeparam name="TRecord">The type of records being processed.</typeparam>
+/// <remarks>
+/// Each instance runs once. A failed handler or checkpoint aborts the run; recovery starts at the
+/// last durable page boundary and may repeat effects within that page. Handlers must be idempotent.
+/// Fetchers and handlers must observe cancellation for shutdown to complete promptly.
+/// </remarks>
 public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
-	/// <summary>
-	/// Wraps a record with page-boundary metadata for cursor persistence.
-	/// The last record enqueued from each producer page is tagged with
-	/// <see cref="IsPageBoundary"/> = <see langword="true"/> and carries the page's
-	/// <see cref="PageCursor"/> value. When the consumer finishes processing
-	/// that record, it persists the cursor — establishing a durable checkpoint
-	/// at page granularity.
-	/// </summary>
-	private readonly struct PagedRecord
-	{
-		public required TRecord Record { get; init; }
-
-		public bool IsPageBoundary { get; init; }
-
-		public string? PageCursor { get; init; }
-	}
-
-	private readonly Channel<PagedRecord> _dataQueue;
-
-	private readonly DataProcessingOptions _configuration;
-
-	private readonly IServiceProvider _serviceProvider;
-
-	private readonly ILogger _logger;
-
-	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
-
-	private readonly OrderedEventProcessor _orderedEventProcessor = new();
-
-	/// <summary>
-	/// The current fetch cursor — advances at page granularity after each batch is enqueued.
-	/// On crash recovery this resets to the last durably persisted <c>ProcessedCursor</c>.
-	/// </summary>
-	private volatile string? _fetchCursor;
-
-	private long _processedTotal;
-
-	private int _disposedFlag;
-
-	private Task? _producerTask;
-
-	private Task<long>? _consumerTask;
-
-	private volatile bool _producerStopped;
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
-	/// </summary>
-	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
-	/// <param name="configuration"> The data processing configuration options. </param>
-	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
-	/// <param name="logger"> The logger used for diagnostic information. </param>
-	protected DataProcessor(
-		IHostApplicationLifetime appLifetime,
-		IOptions<DataProcessingOptions> configuration,
-		IServiceProvider serviceProvider,
-		ILogger logger)
-	{
-		ArgumentNullException.ThrowIfNull(appLifetime);
-		ArgumentNullException.ThrowIfNull(configuration);
-		ArgumentNullException.ThrowIfNull(serviceProvider);
-		ArgumentNullException.ThrowIfNull(logger);
-
-		_configuration = configuration.Value;
-		_serviceProvider = serviceProvider;
-		_logger = logger;
-		_dataQueue = Channel.CreateBounded<PagedRecord>(new BoundedChannelOptions(_configuration.QueueSize)
-		{
-			FullMode = BoundedChannelFullMode.Wait,
-			SingleReader = true,  // Only ConsumerLoopAsync reads from the channel
-			SingleWriter = true,  // Only ProducerLoopAsync writes to the channel
-			AllowSynchronousContinuations = false,
-		});
-
-		_ = appLifetime.ApplicationStopping.Register(() =>
-			Task.Factory.StartNew(
-					OnApplicationStoppingAsync,
-					CancellationToken.None,
-					TaskCreationOptions.DenyChildAttach,
-					TaskScheduler.Default)
-				.Unwrap());
-	}
-
-	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
-
-	/// <inheritdoc />
-	public virtual async Task<long> RunAsync(
-		long completedCount,
-		string? processedCursor,
-		UpdateCompletedCount updateCompletedCount,
-		CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
-
-		// On startup / crash recovery, the fetch cursor resets to the last durably
-		// persisted processed cursor so we never skip records that were fetched but
-		// not yet processed.
-		_fetchCursor = processedCursor;
-		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
-
-		_producerTask = Task.Factory.StartNew(
-				() => ProducerLoopAsync(cancellationToken),
-				cancellationToken,
-				TaskCreationOptions.LongRunning,
-				TaskScheduler.Default)
-			.Unwrap();
-		_consumerTask = Task.Factory.StartNew(
-				() => ConsumerLoopAsync(completedCount, updateCompletedCount, cancellationToken),
-				cancellationToken,
-				TaskCreationOptions.LongRunning,
-				TaskScheduler.Default)
-			.Unwrap();
-
-		await _producerTask.ConfigureAwait(false);
-		var consumerResult = await _consumerTask.ConfigureAwait(false);
-
-		return consumerResult;
-	}
-
-	/// <inheritdoc />
-	public abstract Task<CursorFetchResult<TRecord>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Asynchronously disposes the data processor.
-	/// </summary>
-	public async ValueTask DisposeAsync()
-	{
-		await DisposeCoreAsync().ConfigureAwait(false);
-		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
-	/// Disposes of resources used by the DataProcessor.
-	/// </summary>
-	protected virtual async ValueTask DisposeCoreAsync()
-	{
-		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
-		{
-			return;
-		}
-
-		LogDisposeAsync();
-
-		try
-		{
-			await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
-
-			// Wait for the producer task to complete before disposing resources
-			if (_producerTask is { IsCompleted: false })
-			{
-				try
-				{
-					await _producerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
-				}
-				catch (TimeoutException)
-				{
-					// Producer did not complete in time — proceed with disposal
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected — producer was cancelled
-				}
-				catch (Exception ex)
-				{
-					LogDisposeAsyncError(ex);
-				}
-			}
-
-			if (_consumerTask is { IsCompleted: false })
-			{
-				LogConsumerNotCompletedAsync();
-				try
-				{
-					_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
-				}
-				catch (TimeoutException)
-				{
-					LogConsumerTimeoutAsync();
-				}
-				catch (OperationCanceledException)
-				{
-					// Expected — consumer was cancelled
-				}
-				catch (Exception ex)
-				{
-					LogDisposeAsyncError(ex);
-				}
-			}
-
-			_ = _dataQueue.Writer.TryComplete();
-			await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			LogDisposeAsyncError(ex);
-		}
-		finally
-		{
-			_producerCancellationTokenSource.Dispose();
-		}
-	}
-
-	/// <summary>
-	/// Dequeues a batch of records from the channel into a pooled buffer.
-	/// The caller MUST return the buffer via <see cref="ArrayPool{T}.Shared"/> after processing.
-	/// </summary>
-	/// <returns>A tuple of the rented buffer and the actual count of items read.</returns>
-	private static async ValueTask<(PagedRecord[] Buffer, int Count)> DequeueBatchFromChannelAsync(
-		ChannelReader<PagedRecord> reader,
-		int batchSize,
-		CancellationToken cancellationToken)
-	{
-		var batch = ArrayPool<PagedRecord>.Shared.Rent(batchSize);
-		var count = 0;
-
-		// Read immediately available items
-		while (count < batchSize && reader.TryRead(out var record))
-		{
-			batch[count++] = record;
-		}
-
-		// If we got items, return them
-		if (count > 0)
-		{
-			return (batch, count);
-		}
-
-		// Otherwise, wait for at least one item
-		if (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
-		{
-			while (count < batchSize && reader.TryRead(out var record))
-			{
-				batch[count++] = record;
-			}
-		}
-
-		if (count == 0)
-		{
-			ArrayPool<PagedRecord>.Shared.Return(batch, clearArray: true);
-			return ([], 0);
-		}
-
-		return (batch, count);
-	}
-
-	private async Task ProducerLoopAsync(CancellationToken cancellationToken)
-	{
-		try
-		{
-			using var combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
-			var combinedToken = combinedTokenSource.Token;
-
-			while (!combinedToken.IsCancellationRequested)
-			{
-				var batchSize = _configuration.ProducerBatchSize;
-				var result = await FetchBatchAsync(_fetchCursor, batchSize, combinedToken).ConfigureAwait(false);
-
-				if (result.Records.Count == 0)
-				{
-					if (_logger.IsEnabled(LogLevel.Information))
-					{
-						LogNoMoreRecordsProducerExit();
-					}
-
-					break;
-				}
-
-				if (_logger.IsEnabled(LogLevel.Information))
-				{
-					LogEnqueuingRecords(result.Records.Count);
-				}
-
-				for (var i = 0; i < result.Records.Count; i++)
-				{
-					var isLast = i == result.Records.Count - 1;
-					var paged = new PagedRecord
-					{
-						Record = result.Records[i],
-						IsPageBoundary = isLast,
-						PageCursor = isLast ? result.NextCursor : null,
-					};
-
-					// WriteAsync applies backpressure when the bounded channel is full
-					await _dataQueue.Writer.WriteAsync(paged, combinedToken).ConfigureAwait(false);
-				}
-
-				// Advance the fetch cursor to the next page position.
-				// This is a volatile write — visible to the consumer but NOT persisted.
-				// On crash, _fetchCursor resets to the last durable ProcessedCursor.
-				_fetchCursor = result.NextCursor;
-
-				if (_logger.IsEnabled(LogLevel.Information))
-				{
-					LogSuccessfullyEnqueued(result.Records.Count);
-				}
-
-				// A null NextCursor means the data source has no more pages.
-				if (result.NextCursor is null)
-				{
-					if (_logger.IsEnabled(LogLevel.Information))
-					{
-						LogNoMoreRecordsProducerExit();
-					}
-
-					break;
-				}
-			}
-		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-		{
-			if (_logger.IsEnabled(LogLevel.Debug))
-			{
-				LogProducerCanceled();
-			}
-		}
-		catch (Exception ex)
-		{
-			if (_logger.IsEnabled(LogLevel.Error))
-			{
-				LogProducerError(ex);
-			}
-
-			throw;
-		}
-		finally
-		{
-			_producerStopped = true;
-			_dataQueue.Writer.Complete();
-
-			if (_logger.IsEnabled(LogLevel.Information))
-			{
-				LogProducerCompleted();
-			}
-		}
-	}
-
-	/// <summary>
-	/// Maximum number of consecutive per-record failures before the consumer aborts the
-	/// current batch. Prevents burning through an entire batch when the database is
-	/// unavailable or a systemic error is occurring.
-	/// </summary>
-	private const int MaxConsecutiveRecordFailures = 5;
-
-	private async Task<long> ConsumerLoopAsync(long completedCount, UpdateCompletedCount updateCompletedCount,
-		CancellationToken cancellationToken)
-	{
-		var totalProcessedCount = completedCount;
-
-		try
-		{
-			while (!cancellationToken.IsCancellationRequested)
-			{
-				if (_disposedFlag == 1)
-				{
-					if (_logger.IsEnabled(LogLevel.Warning))
-					{
-						LogConsumerDisposalRequested();
-					}
-
-					break;
-				}
-
-				if (_producerStopped && _dataQueue.Reader.Count == 0)
-				{
-					if (_logger.IsEnabled(LogLevel.Information))
-					{
-						LogNoMoreRecordsConsumerExit();
-					}
-
-					break;
-				}
-
-				// DequeueBatchFromChannelAsync uses WaitToReadAsync internally,
-				// which efficiently blocks until data is available — no busy-wait needed.
-				var (batch, batchCount) = await DequeueBatchFromChannelAsync(
-					_dataQueue.Reader, _configuration.ConsumerBatchSize, cancellationToken)
-					.ConfigureAwait(false);
-
-				if (batchCount == 0)
-				{
-					// Channel completed with no more data
-					break;
-				}
-
-				if (_logger.IsEnabled(LogLevel.Information))
-				{
-					LogProcessingBatch(batchCount);
-				}
-
-				try
-				{
-					var batchSuccessCount = 0;
-					var consecutiveFailures = 0;
-
-					for (var i = 0; i < batchCount; i++)
-					{
-						// Check for cancellation between records — critical for stale-task
-						// detection where the task-scoped CTS fires after a checkpoint
-						// returns 0 affected rows (e.g., after a database restore).
-						if (cancellationToken.IsCancellationRequested)
-						{
-							if (_logger.IsEnabled(LogLevel.Warning))
-							{
-								LogConsumerAbortedStaleTask();
-							}
-
-							break;
-						}
-
-						var paged = batch[i];
-						if (paged.Record is null)
-						{
-							continue;
-						}
-
-						try
-						{
-							// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
-							// processed sequentially.
-							await _orderedEventProcessor
-								.ProcessAsync(async () => await ProcessRecordAsync(paged.Record, cancellationToken).ConfigureAwait(false), cancellationToken)
-								.ConfigureAwait(false);
-
-							// Checkpoint to the database BEFORE incrementing in-memory counters.
-							// If the checkpoint fails, the in-memory state stays consistent with
-							// the persisted state — on restart, processing resumes from the last
-							// successfully persisted CompletedCount/ProcessedCursor.
-							// When this record is a page boundary, persist the cursor alongside the count.
-							// For mid-page records, pass null — COALESCE in SQL preserves the existing cursor.
-							var cursorToCheckpoint = paged.IsPageBoundary ? paged.PageCursor : null;
-							await updateCompletedCount(Interlocked.Read(ref _processedTotal) + 1, cursorToCheckpoint, cancellationToken).ConfigureAwait(false);
-
-							_ = Interlocked.Increment(ref _processedTotal);
-							batchSuccessCount++;
-							consecutiveFailures = 0;
-						}
-						catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-						{
-							// Task-scoped or host-scoped cancellation — exit the inner loop.
-							// The outer while-loop or the catch block will handle it.
-							break;
-						}
-						catch (Exception ex)
-						{
-							var recordId = paged.Record.ToString() ?? paged.Record.GetHashCode().ToString();
-
-							if (_logger.IsEnabled(LogLevel.Error))
-							{
-								LogProcessingRecordError(recordId, typeof(TRecord).Name, ex);
-							}
-
-							consecutiveFailures++;
-							if (consecutiveFailures >= MaxConsecutiveRecordFailures)
-							{
-								LogConsecutiveFailureThresholdExceeded(consecutiveFailures);
-								break;
-							}
-						}
-						finally
-						{
-							if (paged.Record is IAsyncDisposable asyncDisposable)
-							{
-								await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-							}
-							else if (paged.Record is IDisposable disposable)
-							{
-								disposable.Dispose();
-							}
-						}
-					}
-
-					totalProcessedCount += batchSuccessCount;
-					if (_logger.IsEnabled(LogLevel.Debug))
-					{
-						LogCompletedBatch(batchCount);
-					}
-				}
-				finally
-				{
-					ArrayPool<PagedRecord>.Shared.Return(batch, clearArray: true);
-				}
-			}
-
-			if (_logger.IsEnabled(LogLevel.Information))
-			{
-				LogCompletedProcessing(totalProcessedCount);
-			}
-		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			if (_logger.IsEnabled(LogLevel.Debug))
-			{
-				LogConsumerCanceled();
-			}
-		}
-		catch (Exception ex)
-		{
-			if (_logger.IsEnabled(LogLevel.Error))
-			{
-				LogConsumerError(ex);
-			}
-
-			throw;
-		}
-
-		return totalProcessedCount;
-	}
-
-	private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)
-	{
-		ArgumentNullException.ThrowIfNull(record);
-
-		await using var scope = _serviceProvider.CreateAsyncScope();
-
-		// Resolve handler via DI — both explicit AddRecordHandler<T,R>() and
-		// assembly-scanned handlers register as IRecordHandler<TRecord>.
-		var handler = scope.ServiceProvider.GetService<IRecordHandler<TRecord>>();
-
-		if (handler is null)
-		{
-			if (_logger.IsEnabled(LogLevel.Error))
-			{
-				LogNoHandlerFound(typeof(TRecord).Name);
-			}
-
-			return;
-		}
-
-		await handler.ProcessAsync(record, cancellationToken).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Handles cleanup when the application is stopping.
-	/// </summary>
-	private async Task OnApplicationStoppingAsync()
-	{
-		if (_logger.IsEnabled(LogLevel.Information))
-		{
-			LogApplicationStopping();
-		}
-
-		_producerStopped = true;
-		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
-
-		if (_logger.IsEnabled(LogLevel.Information))
-		{
-			LogProducerCancellationRequested();
-			LogWaitingForConsumer();
-		}
-
-		try
-		{
-			await DisposeAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			if (_logger.IsEnabled(LogLevel.Error))
-			{
-				LogDisposeError(ex);
-			}
-		}
-	}
+    private readonly struct PagedRecord
+    {
+        public TRecord? Record { get; init; }
+        public bool HasRecord { get; init; }
+        public bool IsPageBoundary { get; init; }
+        public string? PageCursor { get; init; }
+    }
+
+    private readonly Channel<PagedRecord> _dataQueue;
+    private readonly DataProcessingOptions _configuration;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger _logger;
+    private readonly CancellationTokenSource _stop = new();
+    private readonly CancellationTokenRegistration _stoppingRegistration;
+    private readonly Lock _lifecycle = new();
+    private Task<long>? _runTask;
+    private Task? _disposeTask;
+    private int _disposedFlag;
+
+    /// <summary>Initializes a new instance of the <see cref="DataProcessor{TRecord}"/> class.</summary>
+    /// <param name="appLifetime">Application shutdown notifications.</param>
+    /// <param name="configuration">Pipeline configuration.</param>
+    /// <param name="serviceProvider">Service provider used to create handler scopes.</param>
+    /// <param name="logger">Diagnostic logger.</param>
+    protected DataProcessor(IHostApplicationLifetime appLifetime, IOptions<DataProcessingOptions> configuration,
+        IServiceProvider serviceProvider, ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(appLifetime);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+        _configuration = configuration.Value;
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+        _dataQueue = Channel.CreateBounded<PagedRecord>(new BoundedChannelOptions(_configuration.QueueSize)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = true,
+            AllowSynchronousContinuations = false,
+        });
+        _stoppingRegistration = appLifetime.ApplicationStopping.Register(() =>
+        {
+            try { _stop.Cancel(); }
+            catch (Exception ex) { LogDisposeAsyncError(ex); }
+        });
+    }
+
+    /// <inheritdoc />
+    public virtual Task<long> RunAsync(long completedCount, string? processedCursor,
+        UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(updateCompletedCount);
+        lock (_lifecycle)
+        {
+            ObjectDisposedException.ThrowIf(_disposedFlag != 0, this);
+            if (_runTask is not null)
+            {
+                throw new InvalidOperationException("A data processor instance can only run once. Resolve a new instance to retry.");
+            }
+
+            _runTask = RunCoreAsync(completedCount, processedCursor, updateCompletedCount, cancellationToken);
+            return _runTask;
+        }
+    }
+
+    /// <inheritdoc />
+    public abstract Task<CursorFetchResult<TRecord>> FetchBatchAsync(string? cursor, int batchSize, CancellationToken cancellationToken);
+
+    /// <summary>Asynchronously disposes the data processor after processing stops.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeCoreAsync().ConfigureAwait(false);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Cancels and joins active processing before releasing its resources.</summary>
+    protected virtual ValueTask DisposeCoreAsync()
+    {
+        lock (_lifecycle)
+        {
+            _disposedFlag = 1;
+            _disposeTask ??= DisposeResourcesAsync(_runTask);
+            return new ValueTask(_disposeTask);
+        }
+    }
+
+    private async Task DisposeResourcesAsync(Task<long>? run)
+    {
+        await _stoppingRegistration.DisposeAsync().ConfigureAwait(false);
+        try { await _stop.CancelAsync().ConfigureAwait(false); }
+        catch (Exception ex) { LogDisposeAsyncError(ex); }
+        try
+        {
+            if (run is not null)
+            {
+                try { await run.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                catch (Exception ex) { LogDisposeAsyncError(ex); }
+            }
+        }
+        finally { _stop.Dispose(); }
+    }
+
+    private async Task<long> RunCoreAsync(long completedCount, string? cursor,
+        UpdateCompletedCount checkpoint, CancellationToken cancellationToken)
+    {
+        using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
+        var token = runCancellation.Token;
+        // Both loops are supervised: either failure must release a sibling blocked on the bounded channel.
+        var producer = Task.Factory.StartNew(() => SuperviseAsync(() => ProducerLoopAsync(cursor, token), runCancellation),
+            CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+        var consumer = Task.Factory.StartNew(async () =>
+        {
+            long result = 0;
+            await SuperviseAsync(async () => result = await ConsumerLoopAsync(completedCount, checkpoint, token).ConfigureAwait(false),
+                runCancellation).ConfigureAwait(false);
+            return result;
+        }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+        try
+        {
+            await Task.WhenAll(producer, consumer).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            return await consumer.ConfigureAwait(false);
+        }
+        finally
+        {
+            // Both tasks have stopped; the run now owns anything left in the queue.
+            while (_dataQueue.Reader.TryRead(out var pending))
+            {
+                if (pending.HasRecord)
+                {
+                    await DisposeRecordAsync(pending.Record).ConfigureAwait(false);
+                }
+            }
+        }
+    }
+
+    private async Task SuperviseAsync(Func<Task> operation, CancellationTokenSource cancellation)
+    {
+        try { await operation().ConfigureAwait(false); }
+        catch
+        {
+            try { await cancellation.CancelAsync().ConfigureAwait(false); }
+            catch (Exception ex) { LogConsumerError(ex); }
+            throw;
+        }
+    }
+
+    private async Task ProducerLoopAsync(string? cursor, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var page = await FetchBatchAsync(cursor, _configuration.ProducerBatchSize, cancellationToken).ConfigureAwait(false);
+                var transferred = 0;
+                try
+                {
+                    if (page.NextCursor is not null && string.Equals(page.NextCursor, cursor, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException("The data source returned a cursor that did not advance.");
+                    }
+                    if (page.Records.Count == 0 && page.NextCursor is not null)
+                    {
+                        // An ordered marker checkpoints an empty page only after all prior records succeeded.
+                        await _dataQueue.Writer.WriteAsync(new PagedRecord { IsPageBoundary = true, PageCursor = page.NextCursor },
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    for (; transferred < page.Records.Count; transferred++)
+                    {
+                        var record = page.Records[transferred] ?? throw new InvalidOperationException("The data source returned a null record.");
+                        var last = transferred == page.Records.Count - 1;
+                        await _dataQueue.Writer.WriteAsync(new PagedRecord
+                        {
+                            Record = record, HasRecord = true, IsPageBoundary = last,
+                            PageCursor = last ? page.NextCursor : null,
+                        }, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    // A successful write transfers ownership to the channel; failed writes do not.
+                    for (; transferred < page.Records.Count; transferred++)
+                    {
+                        await DisposeRecordAsync(page.Records[transferred]).ConfigureAwait(false);
+                    }
+                }
+                if (page.NextCursor is null)
+                {
+                    break;
+                }
+                cursor = page.NextCursor;
+            }
+        }
+        finally { _dataQueue.Writer.TryComplete(); }
+    }
+
+    private async Task<long> ConsumerLoopAsync(long count, UpdateCompletedCount checkpoint, CancellationToken cancellationToken)
+    {
+        while (await _dataQueue.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            // Rent only after the asynchronous wait succeeds; cancellation cannot strand a rented buffer.
+            var batch = ArrayPool<PagedRecord>.Shared.Rent(_configuration.ConsumerBatchSize);
+            var length = 0;
+            var processed = 0;
+            try
+            {
+                while (length < _configuration.ConsumerBatchSize && _dataQueue.Reader.TryRead(out var record))
+                {
+                    batch[length++] = record;
+                }
+                for (; processed < length; processed++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var item = batch[processed];
+                    if (item.HasRecord)
+                    {
+                        await ProcessRecordAsync(item.Record!, cancellationToken).ConfigureAwait(false);
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    var nextCount = item.HasRecord ? checked(count + 1) : count;
+                    await checkpoint(nextCount, item.IsPageBoundary ? item.PageCursor : null, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    count = nextCount;
+                    batch[processed] = default;
+                    if (item.HasRecord)
+                    {
+                        await DisposeRecordAsync(item.Record).ConfigureAwait(false);
+                    }
+                }
+            }
+            finally
+            {
+                try
+                {
+                    for (; processed < length; processed++)
+                    {
+                        if (batch[processed].HasRecord)
+                        {
+                            await DisposeRecordAsync(batch[processed].Record).ConfigureAwait(false);
+                        }
+                    }
+                }
+                finally { ArrayPool<PagedRecord>.Shared.Return(batch, clearArray: true); }
+            }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return count;
+    }
+
+    private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)
+    {
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<IRecordHandler<TRecord>>();
+        await handler.ProcessAsync(record, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask DisposeRecordAsync(TRecord? record)
+    {
+        // Cleanup failures are diagnostic; they must neither hide the processing failure nor abandon other owned records.
+        try
+        {
+            if (record is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+            else if (record is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
+        catch (Exception ex) { LogDisposeAsyncError(ex); }
+    }
 }

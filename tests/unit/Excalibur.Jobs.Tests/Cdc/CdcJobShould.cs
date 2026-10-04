@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Cdc;
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Jobs.Cdc;
 using Excalibur.Jobs.Core;
@@ -188,6 +189,101 @@ public sealed class CdcJobShould
 			sut.Execute(null!));
 	}
 
+	[Fact]
+	public async Task RecordHeartbeatOnlyAfterARecoveryRunSucceeds()
+	{
+		var processor = A.Fake<IDataChangeEventProcessor>();
+		A.CallTo(() => processor.ProcessCdcChangesAsync(A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("Source database is restoring"));
+		var (job, context) = CreateExecutableJob(processor);
+
+		var failure = await Should.ThrowAsync<JobExecutionException>(() => job.Execute(context));
+		failure.RefireImmediately.ShouldBeFalse();
+		_heartbeatTracker.GetLastHeartbeat("RecoveryJob").ShouldBeNull();
+		A.CallTo(() => processor.DisposeAsync()).MustHaveHappenedOnceExactly();
+
+		A.CallTo(() => processor.ProcessCdcChangesAsync(A<CancellationToken>._)).Returns(Task.FromResult(3));
+		await job.Execute(context);
+		_heartbeatTracker.GetLastHeartbeat("RecoveryJob").ShouldNotBeNull();
+	}
+
+	[Fact]
+	public async Task PropagateCancellationWithoutAHealthyHeartbeat()
+	{
+		using var cancellation = new CancellationTokenSource();
+		var processor = A.Fake<IDataChangeEventProcessor>();
+		A.CallTo(() => processor.ProcessCdcChangesAsync(A<CancellationToken>._)).Invokes(() => cancellation.Cancel())
+			.ThrowsAsync(new OperationCanceledException(cancellation.Token));
+		var (job, context) = CreateExecutableJob(processor);
+		A.CallTo(() => context.CancellationToken).Returns(cancellation.Token);
+
+		await Should.ThrowAsync<OperationCanceledException>(() => job.Execute(context));
+		_heartbeatTracker.GetLastHeartbeat("RecoveryJob").ShouldBeNull();
+		A.CallTo(() => processor.DisposeAsync()).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task PropagateRequestedCancellationWhenAnIndependentFailureWins()
+	{
+		using var cancellation = new CancellationTokenSource();
+		var processor = A.Fake<IDataChangeEventProcessor>();
+		A.CallTo(() => processor.ProcessCdcChangesAsync(A<CancellationToken>._)).Invokes(() => cancellation.Cancel())
+			.ThrowsAsync(new InvalidOperationException("Database unavailable during shutdown"));
+		var (job, context) = CreateExecutableJob(processor);
+		A.CallTo(() => context.CancellationToken).Returns(cancellation.Token);
+
+		await Should.ThrowAsync<OperationCanceledException>(() => job.Execute(context));
+		_heartbeatTracker.GetLastHeartbeat("RecoveryJob").ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task RefuseAHealthyHeartbeatWhenNoCaptureInstancesAreConfigured()
+	{
+		var (job, context) = CreateExecutableJob(A.Fake<IDataChangeEventProcessor>(), configureTable: false);
+		var failure = await Should.ThrowAsync<JobExecutionException>(() => job.Execute(context));
+		failure.RefireImmediately.ShouldBeFalse();
+		_heartbeatTracker.GetLastHeartbeat("RecoveryJob").ShouldBeNull();
+		A.CallTo(() => _fakeFactory.Create(A<IDatabaseOptions>._, A<CdcRepository>._, A<Func<System.Data.IDbConnection>>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task DisposeConnectionWhenProcessorCreationFails()
+	{
+		var connection = new SqlConnection("Server=localhost;Database=Recovery;Integrated Security=true");
+		var (job, context) = CreateExecutableJob(A.Fake<IDataChangeEventProcessor>());
+		A.CallTo(() => _fakeConnectionFactory(A<string>._)).Returns(connection);
+		A.CallTo(() => _fakeFactory.Create(A<IDatabaseOptions>._, A<CdcRepository>._, A<Func<System.Data.IDbConnection>>._))
+			.Throws(new InvalidOperationException("Processor construction failed"));
+
+		await Should.ThrowAsync<JobExecutionException>(() => job.Execute(context));
+		connection.ConnectionString.ShouldBeEmpty();
+		_heartbeatTracker.GetLastHeartbeat("RecoveryJob").ShouldBeNull();
+	}
+
+	private (CdcJob Job, IJobExecutionContext Context) CreateExecutableJob(
+		IDataChangeEventProcessor processor, bool configureTable = true)
+	{
+		var database = new DatabaseOptions
+		{
+			DatabaseName = "Recovery",
+			DatabaseConnectionIdentifier = "Source",
+			StateConnectionIdentifier = "State",
+		};
+		if (configureTable)
+		{
+			database.Tables.Add(new CdcTableConfig { TableName = "dbo.Orders" });
+		}
+
+		A.CallTo(() => _fakeConnectionFactory(A<string>._)).ReturnsLazily(() => new SqlConnection());
+		A.CallTo(() => _fakeFactory.Create(A<IDatabaseOptions>._, A<CdcRepository>._, A<Func<System.Data.IDbConnection>>._))
+			.Returns(processor);
+		var context = A.Fake<IJobExecutionContext>();
+		A.CallTo(() => context.JobDetail).Returns(JobBuilder.Create<CdcJob>().WithIdentity("RecoveryJob").Build());
+		var options = Microsoft.Extensions.Options.Options.Create(new CdcJobOptions { DatabaseConfigs = [database] });
+		return (new CdcJob(_fakeFactory, _fakeConnectionFactory, options, _heartbeatTracker, NullLogger<CdcJob>.Instance), context);
+	}
+
 	// --- JobConfigSectionName ---
 
 	[Fact]
@@ -198,7 +294,7 @@ public sealed class CdcJobShould
 	}
 
 	// --- ConfigureJob / ConfigureHealthChecks null guards ---
-	// Note: IServiceCollectionQuartzConfigurator cannot be faked by FakeItEasy (Castle.DynamicProxy fails).
+	// Note: IQuartzBuilder cannot be faked by FakeItEasy (Castle.DynamicProxy fails).
 	// We test the first null guard (configurator) which triggers before the interface is used.
 
 	[Fact]
@@ -235,45 +331,53 @@ public sealed class CdcJobShould
 	}
 
 	// --- ConfigureJob honors the Disabled flag (Excalibur.Dispatch-ku1i3e) ---
-	// IServiceCollectionQuartzConfigurator cannot be faked (see note above), so these drive the real
+	// IQuartzBuilder cannot be faked (see note above), so these drive the real
 	// Quartz configurator and inspect the resulting QuartzOptions for the registered job detail.
 	// Inspecting options (rather than building a scheduler) keeps the test deterministic — it avoids
 	// Quartz's process-global SchedulerRepository, which is shared across parallel test classes.
 
 	[Fact]
-	public void ConfigureJobDoesNotRegisterJobWhenDisabled()
+	public async Task ConfigureJobDoesNotRegisterJobWhenDisabled()
 	{
 		// Arrange — Disabled:true must mean the job is never registered with the scheduler.
 		var config = BuildJobConfig(disabled: true);
 
 		// Act
-		var registered = IsJobRegistered(config);
+		var registered = await IsJobRegistered(config);
 
 		// Assert
 		registered.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void ConfigureJobRegistersJobWhenEnabled()
+	public async Task ConfigureJobRegistersJobWhenEnabled()
 	{
 		// Arrange — control case: proves the assertion above tests the Disabled gate, not a wiring slip.
 		var config = BuildJobConfig(disabled: false);
 
 		// Act
-		var registered = IsJobRegistered(config);
+		var registered = await IsJobRegistered(config);
 
 		// Assert
 		registered.ShouldBeTrue();
 	}
 
-	private static bool IsJobRegistered(IConfiguration config)
+	private static async Task<bool> IsJobRegistered(IConfiguration config)
 	{
 		var services = new ServiceCollection();
 		_ = services.AddQuartz(q => CdcJob.ConfigureJob(q, config));
-		using var provider = services.BuildServiceProvider();
-
-		var quartzOptions = provider.GetRequiredService<IOptions<QuartzOptions>>().Value;
-		return quartzOptions.JobDetails.Any(j => j.Key.Equals(new JobKey("CdcJob", "TestGroup")));
+		services.AddLogging();
+		services.AddQuartz(q => q.ConfigureScheduler(o => o.InstanceName = Guid.NewGuid().ToString()));
+		await using var provider = services.BuildServiceProvider();
+		var scheduler = await provider.GetRequiredService<ISchedulerFactory>().GetScheduler();
+		try
+		{
+			return await scheduler.GetJobDetail(new JobKey("CdcJob", "TestGroup")) is not null;
+		}
+		finally
+		{
+			await scheduler.Shutdown();
+		}
 	}
 
 	private static IConfiguration BuildJobConfig(bool disabled) =>

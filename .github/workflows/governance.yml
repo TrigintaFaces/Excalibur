@@ -95,7 +95,7 @@ jobs:
   package-composition:
     name: Package Composition Validation (T2.4)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -108,63 +108,32 @@ jobs:
         with:
           checkout-ref: ${{ inputs.checkout-ref }}
           checkout-token: ${{ inputs.checkout-token }}
-          solution-filter: 'eng/ci/shards/ShippingOnly.slnf'
+          solution-filter: ''
 
-      - name: Pack Dispatch to local feed
+      - name: Verify package composition controls
         shell: pwsh
-        run: |
-          Write-Host "Packing Dispatch projects to local feed..."
-          ./eng/pack-local.ps1 -Version "0.0.0-ci-${{ github.run_number }}" -NoBuild
-          Write-Host "Packages created in artifacts/_packages/"
+        env:
+          COMPOSITION_EXPECTED_SHA: ${{ inputs.checkout-ref }}
+        run: ./eng/validate-package-composition.test.ps1
 
-      - name: Clear NuGet cache (avoid stale packages)
-        run: |
-          dotnet nuget locals http-cache --clear
-          dotnet nuget locals temp --clear
+      - name: Validate package composition
+        shell: pwsh
+        env:
+          COMPOSITION_EXPECTED_SHA: ${{ inputs.checkout-ref }}
+        run: ./eng/validate-package-composition.ps1 -Version "0.0.0-ci-$env:GITHUB_RUN_NUMBER"
 
-      - name: Restore Excalibur with PackageReference mode
-        run: |
-          echo "Restoring Excalibur with PackageReference mode..."
-          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
-            dotnet restore "$proj" \
-              -p:UsePackageReferences=true \
-              -p:DispatchPackageVersion=0.0.0-ci-${{ github.run_number }} \
-              -p:ExcaliburPackageVersion=0.0.0-ci-${{ github.run_number }}
-          done
-
-      - name: Build Excalibur with PackageReference mode
-        run: |
-          echo "Building Excalibur with PackageReference mode..."
-          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
-            dotnet build "$proj" \
-              --configuration Release \
-              --no-restore \
-              -p:UsePackageReferences=true \
-              -p:DispatchPackageVersion=0.0.0-ci-${{ github.run_number }} \
-              -p:ExcaliburPackageVersion=0.0.0-ci-${{ github.run_number }}
-          done
-
-      - name: Validate sample builds against packages
-        run: |
-          echo "Validating sample compilation..."
-          dotnet build samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj \
-            --configuration Release \
-            --no-restore \
-            -p:UsePackageReferences=true \
-            -p:DispatchPackageVersion=0.0.0-ci-${{ github.run_number }} \
-            -p:ExcaliburPackageVersion=0.0.0-ci-${{ github.run_number }} || true
-
-      - name: Package composition summary
+      - name: Preserve package composition evidence
         if: always()
-        run: |
-          echo "## Package Composition Validation (T2.4)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Package Version:** 0.0.0-ci-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Validation Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Packed Dispatch projects to local feed" >> $GITHUB_STEP_SUMMARY
-          echo "2. Built Excalibur with PackageReference mode" >> $GITHUB_STEP_SUMMARY
-          echo "3. Validated sample compilation" >> $GITHUB_STEP_SUMMARY
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: governance-package-composition-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/package-composition/**/*.json
+            artifacts/package-composition/**/*.log
+            artifacts/package-composition-controls/**/*.json
+            artifacts/package-composition-controls/**/*.log
+          if-no-files-found: error
+          retention-days: 14
 
   public-api-baselines:
     name: Public API Baseline Audit

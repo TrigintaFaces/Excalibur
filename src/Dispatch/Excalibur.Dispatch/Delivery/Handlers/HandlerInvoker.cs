@@ -162,7 +162,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// Attempts to use a source-generated handler invoker from <see cref="HandlerInvokerRegistry"/> if available.
 	/// </summary>
 	/// <remarks>
-	/// Uses <see cref="HandlerInvokerRegistry.TryGetRegisteredInvoker"/> which only returns invokers
+	/// Uses the registry's handler/message lookup, which only returns invokers
 	/// explicitly registered via <c>RegisterInvoker&lt;T&gt;</c> (source-generated module initializers).
 	/// Does NOT use the registry's reflection fallback, since <see cref="BuildInvoker"/> handles
 	/// all return types (<c>Task</c>, <c>Task&lt;T&gt;</c>, <c>ValueTask</c>, <c>ValueTask&lt;T&gt;</c>)
@@ -175,7 +175,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		CancellationToken cancellationToken,
 		out ValueTask<object?> result)
 	{
-		if (!HandlerInvokerRegistry.TryGetRegisteredInvoker(handlerType, out var registryInvoker))
+		if (!HandlerInvokerRegistry.TryGetRegisteredInvoker(handlerType, message.GetType(), out var registryInvoker))
 		{
 			result = default;
 			return false;
@@ -423,7 +423,7 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 				static key =>
 				{
 					// Try source-generated invoker first (explicitly registered, AOT-safe)
-					if (HandlerInvokerRegistry.TryGetRegisteredInvoker(key.HandlerType, out var registryInvoker))
+					if (HandlerInvokerRegistry.TryGetRegisteredInvoker(key.HandlerType, key.MessageType, out var registryInvoker))
 					{
 						var captured = registryInvoker;
 						return (handler, message, ct) =>

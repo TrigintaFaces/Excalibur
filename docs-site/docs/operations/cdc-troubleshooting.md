@@ -27,12 +27,14 @@ Change Data Capture (CDC) issues can cause projection lag, missed events, and da
 
 ### Check CDC Position
 
-```csharp
-// Check CDC processor position via provider-specific processor
-// (e.g., IPostgresCdcProcessor, ISqlServerCdcProcessor)
-var position = await _cdcProcessor.GetCurrentPositionAsync(ct);
-_logger.LogInformation("CDC position: {Position}", position);
+Read the configured SQL Server state store, which may be in a separate database. With the default schema:
+
+```sql
+SELECT DatabaseConnectionIdentifier, DatabaseName, TableName, LastProcessedLsn, LastProcessedSequenceValue
+FROM [Cdc].[CdcProcessingState];
 ```
+
+Compare each saved LSN with that capture instance's minimum and the source database's maximum.
 
 ### SQL Server CDC Status
 
@@ -49,12 +51,9 @@ SELECT
     sys.fn_cdc_get_max_lsn() AS MaxLsn;
 
 -- Check for stale position
-SELECT
-    capture_instance,
-    start_lsn,
-    DATEDIFF(MINUTE, create_date, GETDATE()) AS MinutesSinceStart
+SELECT TOP (20) start_lsn, tran_begin_time, tran_end_time
 FROM cdc.lsn_time_mapping
-ORDER BY create_date DESC;
+ORDER BY start_lsn DESC;
 ```
 
 ### PostgreSQL Replication Status
@@ -350,14 +349,14 @@ When a database is restored from a backup (common in development/staging environ
 
 ### During the Restore (Database Unavailable)
 
-The CDC processor survives database unavailability without crashing:
+Database unavailability is retried according to the configured policies:
 
 - All DB operations are wrapped in a resilience policy (retry with exponential backoff + circuit breaker) via `IDataAccessPolicyFactory`
-- The durable checkpoint advances **only after a change is successfully processed** — a fault never advances it past an unprocessed change (every processor routes its per-iteration decision through `CdcFatalGuard.Decide`). A **transient** fault (such as the database being temporarily unavailable) is logged and the loop reconnects and retries from the un-advanced checkpoint without terminating; a **fatal** (non-retryable) fault stops the loop loudly rather than silently swallowing the error. State-store save failures surface the original exception instead of masking it.
+- Durable checkpoints advance only after successful handling. SQL Server batches surface failures after configured retries are exhausted. A Quartz firing then fails without refreshing its success heartbeat; a subsequent scheduled firing can try again.
 - The circuit breaker opens after sustained failure, reducing load on the recovering database
 - The health check transitions through Degraded → Unhealthy as inactivity duration increases
 
-**No operator intervention required** — the processor automatically resumes when the database comes back online.
+Restoring connectivity can allow the next firing to succeed. Missing CDC jobs, lost history, exhausted task attempts, or inconsistent downstream state still require operator reconciliation.
 
 ### After the Restore (Data Replaced)
 
@@ -365,7 +364,7 @@ A restored database may have different CDC LSN ranges than what the processor ha
 
 | Scenario | What Happens | Resolution |
 |----------|-------------|------------|
-| Checkpoint LSN is within the restored range | Processing resumes normally | Automatic |
+| Checkpoint LSN is within the restored range | Bounds checks cannot distinguish overlapping replacement histories | Reconcile source identity and downstream state before resuming |
 | Checkpoint LSN is outside the restored range (stale) | `CdcStalePositionException` is raised | Handled by recovery strategy |
 | CDC tables were not restored | No change data available | Re-enable CDC on restored database |
 
@@ -479,24 +478,62 @@ mismatch produces changes that resolve to no partition rather than an error.
 
 ## Quick Reference
 
-### Recovery Commands
+### Restoring a SQL Server source database
 
-```bash
-# Stop CDC processor
-kubectl scale deployment cdc-processor --replicas=0
+1. Pause triggers and drain active framework executions before loading a backup. Pausing triggers alone does not stop a running job. Record the source database, capture instances,
+   checkpoint database, deduplication store, and projection or downstream databases involved.
+2. After restoring, verify CDC enablement, capture instances, permissions, and SQL Server Agent jobs.
+   `KEEP_CDC` preserves CDC settings when applicable; it does **not** recreate capture or cleanup jobs.
+   Recreate missing jobs as part of the DBA restore procedure before resuming workers. See Microsoft's
+   [CDC restore guidance](https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/change-data-capture-and-other-sql-server-features).
+3. Compare saved checkpoints with readable source bounds. The framework detects both checkpoints below
+   retention and checkpoints above the current head. Automatic fallback must be configured deliberately.
+   `FallbackToEarliest` replays available history; `FallbackToLatest` deliberately skips older available
+   changes. `Throw` requires operator intervention. No strategy can recover changes absent from the backup
+   and retained CDC history.
+4. Reconcile downstream state and deduplication records together. A retained deduplication marker can
+   suppress an effect lost when its destination database was restored. Conversely, clearing markers can
+   repeat external effects. Do not clear all state automatically.
+5. Resume workers and verify a new test change reaches its destination and advances its checkpoint.
+   Watch reset notifications, capture lag, task attempts, and worker health.
 
-# Check current position
-kubectl exec -it cdc-processor -- dotnet cdc position show
+Recovery is applied at a joined batch boundary. If bounds change while a batch is running, the processor
+stops both workers before retrying with a fresh queue, durable state, and leadership. Recovery retries are
+bounded by `MaxRecoveryAttempts` and delayed by `RecoveryAttemptDelay`. Callbacks run before replacement
+positions are installed; a callback failure stops recovery. Zero or inconsistent bounds are an availability
+error, not permission to erase history.
 
-# Reset position
-kubectl exec -it cdc-processor -- dotnet cdc position reset --to-latest
+An LSN range is not a database-history identity. A replacement database can have overlapping valid LSNs,
+which bounds checks cannot detect. Loading backups must remain a coordinated operation; rebuilding a
+projection or deliberately establishing a new consumer identity can be necessary. Likewise, DataProcessing
+can detect a missing task row, but cannot detect a restored row with the same identifier solely by existence.
 
-# Start CDC processor
-kubectl scale deployment cdc-processor --replicas=1
+### Quartz jobs
 
-# Trigger projection rebuild
-kubectl exec -it cdc-processor -- dotnet projection rebuild OrderSummary
+`CdcJob` is supplied by `Excalibur.Jobs.Cdc`; `DataProcessingJob` by `Excalibur.Jobs.DataProcessing`.
+A failed firing reports `JobExecutionException` with `RefireImmediately = false` and records no success
+heartbeat. The next configured cron firing remains eligible to run. This is separate from internal SQL
+retry limits and DataProcessing task eligibility (`Attempts < MaxAttempts`). Successful independent tasks
+may already have completed during a failed cycle. Cleanup-delete failures do not increment task attempts.
+An existing heartbeat can remain healthy until it ages past the health threshold; monitor failed Quartz
+executions as well. See [Quartz exception behavior](https://www.quartz-scheduler.net/documentation/best-practices.html#what-happens-when-a-job-throws).
+
+For `CdcJob`, configure recovery on **each database** under `Jobs:CdcJob:DatabaseConfigs`.
+Its processor factory receives that database's `RecoveryOptions`; configuring a separate
+`AddCdcProcessor(...WithRecovery(...))` registration does not replace those per-job options.
+For example, the database entry can contain:
+
+```json
+"RecoveryOptions": {
+  "RecoveryStrategy": "FallbackToEarliest",
+  "MaxRecoveryAttempts": 3,
+  "RecoveryAttemptDelay": "00:00:01"
+}
 ```
+
+Choose this replay policy only when handlers and downstream reconciliation tolerate replay.
+An omitted `RecoveryOptions` leaves stale-position failures for the operator. A recurring cron schedule
+cannot recreate missing SQL Server Agent CDC jobs or reconstruct history absent from the backup.
 
 ### SQL Server Quick Checks
 

@@ -351,8 +351,6 @@ Excalibur.Compliance.AuditAnnotationOptions::MaxTagLength
 Excalibur.Compliance.AuditAnnotationOptions::MaxTagsPerEvent
 Excalibur.Data.CloudNative.CdcHealthCheckOptions::DegradedLagThreshold
 Excalibur.Data.CloudNative.CdcHealthCheckOptions::UnhealthyLagThreshold
-Excalibur.Data.DataProcessing.DataProcessingOptions::DispatcherTimeoutMilliseconds
-Excalibur.Data.DataProcessing.DataProcessingOptions::SchemaName
 Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions::DrainTimeoutSeconds
 Excalibur.Data.DynamoDb.Caching.DaxCacheOptions::ClusterEndpoint
 Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::DefaultTemplate

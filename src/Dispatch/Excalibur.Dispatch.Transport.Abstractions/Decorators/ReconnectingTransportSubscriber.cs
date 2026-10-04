@@ -53,6 +53,14 @@ internal sealed partial class ReconnectingTransportSubscriber : DelegatingTransp
 	private readonly Func<int, TimeSpan> _backoffDelay;
 	private readonly ILogger<ReconnectingTransportSubscriber> _logger;
 
+	// The clock the backoff wait is taken from. Injected so a test can assert the DELAY THIS DECORATOR
+	// CHOOSES rather than infer it from how many reconnects fit in a wall-clock window. That inference is
+	// what made the floor arm fail on a loaded CI runner: it observed 2 attempts where it wanted 20, and
+	// the floor is one millisecond, so the shortfall was three orders of magnitude away from anything the
+	// floor could explain. A throughput proxy cannot tell a raised floor from a slow machine; a fake clock
+	// reports the value itself.
+	private readonly TimeProvider _timeProvider;
+
 	// Reported once per subscriber, not once per attempt: the condition repeats on every reconnect, and a
 	// warning per attempt against a fast schedule is its own denial of service on the log sink.
 	private int _floorReported;
@@ -66,13 +74,20 @@ internal sealed partial class ReconnectingTransportSubscriber : DelegatingTransp
 	/// next re-subscribe. Required (no default) — the DI/transport layer supplies the concrete schedule.
 	/// </param>
 	/// <param name="logger">The logger for reconnect diagnostics.</param>
+	/// <param name="timeProvider">
+	/// The clock the backoff wait is taken from. Optional; <see cref="TimeProvider.System"/> when omitted,
+	/// so no caller or registration changes. Supply a fake clock to assert the chosen delay directly
+	/// instead of inferring it from elapsed time or reconnect throughput.
+	/// </param>
 	public ReconnectingTransportSubscriber(
 		ITransportSubscriber innerSubscriber,
 		Func<int, TimeSpan> backoffDelay,
-		ILogger<ReconnectingTransportSubscriber> logger) : base(innerSubscriber)
+		ILogger<ReconnectingTransportSubscriber> logger,
+		TimeProvider? timeProvider = null) : base(innerSubscriber)
 	{
 		_backoffDelay = backoffDelay ?? throw new ArgumentNullException(nameof(backoffDelay));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
 
 	/// <inheritdoc />
@@ -109,7 +124,9 @@ internal sealed partial class ReconnectingTransportSubscriber : DelegatingTransp
 
 				// Honors cancellation during the backoff wait: a cancel here throws OCE which propagates
 				// out (it is not a receive fault, so it is not caught by the general handler above).
-				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+				// Through the injected clock, not Task.Delay directly: the overload taking a TimeProvider is
+				// the in-box seam for a wait a test needs to control, and it honors cancellation identically.
+				await Task.Delay(delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}

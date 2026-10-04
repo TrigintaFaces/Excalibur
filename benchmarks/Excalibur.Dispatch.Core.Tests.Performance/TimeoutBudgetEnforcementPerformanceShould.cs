@@ -12,7 +12,7 @@ using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Inbox.InMemory;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Shouldly;
@@ -66,7 +66,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 		const int globalBudgetMs = 5_000;
 
 		var budgetMetrics = new ConcurrentQueue<BudgetCalculationMetrics>();
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 
 		// Act - Test budget calculation performance patterns
 		var globalStopwatch = Stopwatch.StartNew();
@@ -93,7 +93,8 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 					var calculationStopwatch = Stopwatch.StartNew();
 
 					// Simulate realistic budget calculation scenario
-					var globalElapsedMs = globalStopwatch.ElapsedMilliseconds;
+					// Exercise exhausted budgets deterministically in every worker, independent of machine speed.
+					var globalElapsedMs = opIndex % 5 == 0 ? globalBudgetMs : globalStopwatch.ElapsedMilliseconds;
 					var remainingBudgetMs = Math.Max(0, globalBudgetMs - globalElapsedMs);
 
 					// Add realistic complexity to budget calculation
@@ -105,10 +106,11 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 						_ => 1.0
 					};
 
-					var adjustedBudgetMs = Math.Max(50, remainingBudgetMs * operationPriorityFactor);
+					var adjustedBudgetMs = remainingBudgetMs <= 0 ? 0 : Math.Max(50, remainingBudgetMs * operationPriorityFactor);
 
 					// Simulate budget enforcement overhead
 					using var budgetCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(adjustedBudgetMs));
+					if (adjustedBudgetMs == 0) { await budgetCts.CancelAsync().ConfigureAwait(false); }
 					using var enforcementCts = CancellationTokenSource.CreateLinkedTokenSource(
 						_testCancellation.Token, budgetCts.Token);
 
@@ -250,7 +252,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 		const int initialBudgetMs = 2_000;
 
 		var hopMetrics = new ConcurrentQueue<HopBudgetMetrics>();
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 
 		// Act - Simulate multi-hop budget propagation
 		var globalDeadline = DateTimeOffset.UtcNow.AddMilliseconds(initialBudgetMs);
@@ -440,7 +442,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 		const int regressionOperationCount = 1_000;
 		const int timeoutMs = 100;
 
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 
 		// Baseline measurement
 		var baselineMetrics = await MeasureTimeoutPerformance("Baseline", baselineOperationCount, timeoutMs, logger)
@@ -456,7 +458,7 @@ public sealed class TimeoutBudgetEnforcementPerformanceShould : IDisposable
 		// Assert no significant performance regression
 		var latencyRegression = (regressionMetrics.P95LatencyMicros / baselineMetrics.P95LatencyMicros - 1) * 100;
 		var throughputRegression = (baselineMetrics.ThroughputPerSecond / regressionMetrics.ThroughputPerSecond - 1) * 100;
-		var allocationRegression = (regressionMetrics.AllocationsPerOperation / baselineMetrics.AllocationsPerOperation - 1) * 100;
+		var allocationRegression = ((double)regressionMetrics.AllocationsPerOperation / baselineMetrics.AllocationsPerOperation - 1) * 100;
 
 		_output.WriteLine("=== Timeout Performance Regression Detection ===");
 		_output.WriteLine($"Baseline Operations: {baselineOperationCount:N0}");

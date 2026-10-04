@@ -11,7 +11,7 @@ namespace DispatchMinimal.Handlers;
 /// Handles OrderCreatedEvent - logs when an order is created.
 /// Events can have multiple handlers - this is just one example.
 /// </summary>
-public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedHandler(OrderStore store) : IEventHandler<OrderCreatedEvent>
 {
 	public Task HandleAsync(OrderCreatedEvent eventMessage, CancellationToken cancellationToken)
 	{
@@ -20,7 +20,8 @@ public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 		Console.WriteLine($"  Product: {eventMessage.ProductId}");
 		Console.WriteLine($"  Quantity: {eventMessage.Quantity}");
 
-		// In a real app, this could update a read model, send notifications, etc.
+		store.ReadModel[eventMessage.OrderId] = new OrderDto(
+			eventMessage.OrderId, eventMessage.ProductId, eventMessage.Quantity, "Confirmed");
 		return Task.CompletedTask;
 	}
 }
@@ -28,13 +29,14 @@ public class OrderCreatedHandler : IEventHandler<OrderCreatedEvent>
 /// <summary>
 /// A second handler for the same event - demonstrates multi-handler support.
 /// </summary>
-public class OrderCreatedNotificationHandler : IEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedNotificationHandler(OrderStore store) : IEventHandler<OrderCreatedEvent>
 {
 	public Task HandleAsync(OrderCreatedEvent eventMessage, CancellationToken cancellationToken)
 	{
-		Console.WriteLine($"[OrderCreatedNotificationHandler] Sending notification for order {eventMessage.OrderId}...");
+		Console.WriteLine($"[OrderCreatedNotificationHandler] Recording notification locally for order {eventMessage.OrderId}...");
 
-		// In a real app, this would send an email, SMS, push notification, etc.
+		// Record the notification locally; this sample does not contact an external service.
+		store.Notifications[eventMessage.OrderId] = 0;
 		return Task.CompletedTask;
 	}
 }

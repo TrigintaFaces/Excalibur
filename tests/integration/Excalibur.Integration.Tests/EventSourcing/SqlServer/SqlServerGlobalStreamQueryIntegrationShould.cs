@@ -127,6 +127,51 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
         paged.ShouldBe(all.Select(e => e.EventId).ToList(), "paged read must match the global-order full read");
     }
 
+    [Fact]
+    public async Task PreserveTenantIdentityAcrossBothGlobalQueryMethods()
+    {
+        _requiredContainer.Require();
+        string[] tenants = ["Acme", "acme", "__untenanted__"];
+        var sharedId = Guid.NewGuid().ToString("N");
+        await using var connection = new SqlConnection(_connectionString!);
+        await connection.OpenAsync();
+        for (var index = 0; index < tenants.Length; index++)
+        {
+            var originalId = sharedId + index;
+            var result = await CreateEventStore().AppendAsync(originalId, "TestAggregate",
+                [new TestDomainEvent(originalId, 0)], -1, CancellationToken.None);
+            result.Success.ShouldBeTrue();
+            await using var command = new SqlCommand(
+                "UPDATE dbo.EventStoreEvents SET TenantId=@Tenant, AggregateId=@Shared WHERE AggregateId=@Original", connection);
+            _ = command.Parameters.AddWithValue("@Tenant", tenants[index]);
+            _ = command.Parameters.AddWithValue("@Shared", sharedId);
+            _ = command.Parameters.AddWithValue("@Original", originalId);
+            (await command.ExecuteNonQueryAsync()).ShouldBe(1);
+        }
+
+        var query = CreateGlobalStreamQuery();
+        var all = await query.ReadAllAsync(GlobalStreamPosition.Start, 100, CancellationToken.None);
+        all.Select(e => e.TenantId).ShouldBe(tenants);
+        all.Select(e => e.AggregateId).Distinct().ShouldBe([sharedId]);
+        var filtered = await query.ReadByEventTypeAsync(all[0].EventType, GlobalStreamPosition.Start, 100, CancellationToken.None);
+        filtered.Select(e => e.TenantId).ShouldBe(tenants);
+        filtered.Select(e => e.EventId).ShouldBe(all.Select(e => e.EventId));
+
+        // Model the previous nullable tenant column separately; keep the shipped table unchanged.
+        await using var legacy = new SqlCommand("""
+            SELECT EventId, AggregateId, AggregateType, EventType, EventData, Metadata,
+                   Version, Timestamp, Position, ArchivedAt,
+                   NULLIF(TenantId, '__untenanted__') AS TenantId
+            INTO dbo.LegacyTenantEvents FROM dbo.EventStoreEvents
+            """, connection);
+        _ = await legacy.ExecuteNonQueryAsync();
+        var legacyQuery = CreateGlobalStreamQuery("LegacyTenantEvents");
+        var legacyAll = await legacyQuery.ReadAllAsync(GlobalStreamPosition.Start, 100, CancellationToken.None);
+        legacyAll.Select(e => e.TenantId).ShouldBe(tenants);
+        var legacyFiltered = await legacyQuery.ReadByEventTypeAsync(all[0].EventType, GlobalStreamPosition.Start, 100, CancellationToken.None);
+        legacyFiltered.Select(e => e.TenantId).ShouldBe(tenants);
+    }
+
     private IEventStore CreateEventStore() =>
         new SqlServerEventStore(_connectionString!, NullLogger<SqlServerEventStore>.Instance, SingleTenantTestContext.Instance);
 
@@ -135,14 +180,14 @@ public sealed class SqlServerGlobalStreamQueryIntegrationShould : IAsyncLifetime
     // and use it through the public IGlobalStreamQuery contract — mirroring the reflection pattern used
     // for other internal CDC/event-sourcing components in the test suite. Options use the defaults
     // (dbo.EventStoreEvents), which match SqlServerEventStore's defaults and the table created below.
-    private IGlobalStreamQuery CreateGlobalStreamQuery()
+    private IGlobalStreamQuery CreateGlobalStreamQuery(string table = "EventStoreEvents")
     {
         var queryType = typeof(SqlServerEventStore).Assembly
             .GetType("Excalibur.EventSourcing.SqlServer.SqlServerGlobalStreamQuery")
             ?? throw new InvalidOperationException("Expected internal SqlServerGlobalStreamQuery type.");
 
         Func<SqlConnection> connectionFactory = () => new SqlConnection(_connectionString!);
-        var options = Options.Create(new SqlServerEventSourcingOptions());
+        var options = Options.Create(new SqlServerEventSourcingOptions { EventStoreTable = table });
 
         return (IGlobalStreamQuery)Activator.CreateInstance(
             queryType,

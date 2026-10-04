@@ -36,7 +36,7 @@ namespace Excalibur.Outbox.Tests.Core;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
-public sealed class OutboxMessageTypeResolutionShould : IDisposable
+public sealed class OutboxMessageTypeResolutionShould : IAsyncDisposable
 {
 	private readonly IOutboxStore _outboxStore = A.Fake<IOutboxStore>();
 	private readonly IOutboxProcessor _outboxProcessor = A.Fake<IOutboxProcessor>();
@@ -55,7 +55,7 @@ public sealed class OutboxMessageTypeResolutionShould : IDisposable
 	private readonly ILogger<MessageOutbox> _logger = A.Fake<ILogger<MessageOutbox>>();
 	private MessageOutbox? _sut;
 
-	public void Dispose() => _sut?.Dispose();
+	public ValueTask DisposeAsync() => _sut?.DisposeAsync() ?? ValueTask.CompletedTask;
 
 	private static OutboundMessage Staged(string messageType, byte[] payload) => new()
 	{

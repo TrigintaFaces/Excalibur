@@ -79,7 +79,7 @@ public sealed class BackgroundExecutionShould
 			MicrosoftOptions.Create(new BackgroundExecutionOptions()),
 			NullLogger<BackgroundExecutionMiddleware>.Instance);
 		var message = new TestBackgroundMessage();
-		var context = A.Fake<IMessageContext>();
+		var context = new Excalibur.Dispatch.Messaging.MessageContext();
 		DispatchRequestDelegate next = (_, _, _) =>
 			new ValueTask<IMessageResult>(MessageResult.Success());
 

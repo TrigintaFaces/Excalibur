@@ -109,29 +109,9 @@ public sealed class DataOrchestrationManagerWorkflowShould : UnitTestBase
 
 		var manager = CreateManager();
 
-		// Act & Assert — with a pre-cancelled token, the method must either:
-		// 1. Throw OperationCanceledException (cancellation propagated), or
-		// 2. Throw OperationFailedException wrapping InvalidOperationException
-		//    (Dapper rejects fake IDbConnection before token check), or
-		// 3. Complete without error (empty task list short-circuit)
-		// It must NOT hang indefinitely or throw unexpected exception types.
-		try
-		{
-			await manager.ProcessDataTasksAsync(cts.Token).ConfigureAwait(false);
-			// Completed without error — valid if task list is empty
-		}
-		catch (OperationCanceledException)
-		{
-			// Expected — cancellation propagated correctly through Polly/Dapper
-		}
-		catch (Excalibur.Data.OperationFailedException ex)
-			when (ex.InnerException is InvalidOperationException)
-		{
-			// Acceptable — Dapper's connection.Ready() rejects the fake IDbConnection
-			// before the cancellation token is checked. The Data layer
-			// wraps this as OperationFailedException. This is a unit test boundary
-			// limitation (no real ADO.NET connection).
-		}
+        await Should.ThrowAsync<OperationCanceledException>(
+            async () => await manager.ProcessDataTasksAsync(cts.Token));
+
 	}
 
 	[Fact]
@@ -166,6 +146,25 @@ public sealed class DataOrchestrationManagerWorkflowShould : UnitTestBase
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new DataOrchestrationManager(null!, null!, null!, null!, null!));
+	}
+
+	[Fact]
+	public async Task ReportAllClaimFailuresAfterAttemptingIndependentTasks()
+	{
+		using var provider = new ServiceCollection().BuildServiceProvider();
+		var attempts = 0;
+		var manager = new DataOrchestrationManager(
+			() => { attempts++; throw new InvalidOperationException("State database unavailable"); }, _fakeRegistry, provider,
+			Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions()), _fakeLogger);
+		var requests = new List<DataTaskRequest> { new() { RecordType = "first" }, new() { RecordType = "second" } };
+		var method = typeof(DataOrchestrationManager).GetMethod("ProcessRequestsAsync",
+			System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+		var run = (Task)method.Invoke(manager, [requests, CancellationToken.None])!;
+
+		var failure = await Should.ThrowAsync<AggregateException>(() => run);
+		attempts.ShouldBe(2);
+		failure.InnerExceptions.Count.ShouldBe(2);
+		failure.InnerExceptions.ShouldAllBe(ex => ex.Message == "State database unavailable");
 	}
 
 	// --- Helpers ---

@@ -67,7 +67,8 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"""
 			SELECT TOP (@MaxCount)
 			       EventId, AggregateId, AggregateType, EventType,
-			       EventData, Metadata, Version, Timestamp, Position, ArchivedAt
+			       EventData, Metadata, Version, Timestamp, Position, ArchivedAt,
+			       COALESCE(TenantId, '__untenanted__') AS TenantId
 			FROM {_qualifiedTable}
 			WHERE Position > @Position
 			ORDER BY Position
@@ -99,6 +100,7 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 			{
 				GlobalPosition = row.Position,
 				ArchivedAt = row.ArchivedAt,
+				TenantId = row.TenantId,
 			});
 		}
 
@@ -121,7 +123,8 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"""
 			SELECT TOP (@MaxCount)
 			       EventId, AggregateId, AggregateType, EventType,
-			       EventData, Metadata, Version, Timestamp, Position, ArchivedAt
+			       EventData, Metadata, Version, Timestamp, Position, ArchivedAt,
+			       COALESCE(TenantId, '__untenanted__') AS TenantId
 			FROM {_qualifiedTable}
 			WHERE Position > @Position AND EventType = @EventType
 			ORDER BY Position
@@ -154,6 +157,7 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 			{
 				GlobalPosition = row.Position,
 				ArchivedAt = row.ArchivedAt,
+				TenantId = row.TenantId,
 			});
 		}
 
@@ -187,7 +191,8 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		long Version,
 		DateTimeOffset Timestamp,
 		long Position,
-		DateTimeOffset? ArchivedAt);
+		DateTimeOffset? ArchivedAt,
+		string TenantId);
 
 
 }

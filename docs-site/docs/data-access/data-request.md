@@ -67,16 +67,15 @@ The recommended way to implement data requests. Extends `DataRequestBase<IDbConn
 public abstract class DataRequest<TModel> : DataRequestBase<IDbConnection, TModel>;
 ```
 
-`CreateCommand` builds a `CommandDefinition` with proper defaults:
+`CreateCommand` builds a `CommandDefinition`. Its parameters, transaction, timeout and command type
+are optional. The helper also retains an optional cancellation token; pass the caller's token
+explicitly so the database command participates in cancellation:
 
 ```csharp
-protected CommandDefinition CreateCommand(
-    string commandText,
-    DynamicParameters? parameters = null,
-    IDbTransaction? transaction = null,
-    int? commandTimeout = null,
-    CommandType? commandType = null,
-    CancellationToken cancellationToken = default)
+Command = CreateCommand(
+    commandText: sql,
+    parameters: parameters,
+    cancellationToken: cancellationToken);
 ```
 
 ## Writing Data Requests

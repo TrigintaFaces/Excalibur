@@ -12,7 +12,7 @@ using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Inbox.InMemory;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Shouldly;
 
@@ -61,7 +61,7 @@ public sealed class CancellationMemoryPerformanceShould : IDisposable
 		const int concurrentWorkers = 2;
 
 		var gcMetrics = new List<GCMetrics>();
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 
 		// Act - Test GC impact under high-frequency cancellation
 		for (int round = 0; round < cancellationRounds; round++)
@@ -395,7 +395,7 @@ public sealed class CancellationMemoryPerformanceShould : IDisposable
 		const int cascadeDepth = 3;
 
 		var memorySnapshots = new List<MemorySnapshot>();
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 
 		// Act - Test for memory leaks during cancellation cascades
 		for (int round = 0; round < cascadeRounds; round++)
@@ -526,12 +526,10 @@ public sealed class CancellationMemoryPerformanceShould : IDisposable
 
 	private async Task TestDirectTokenCreation(int tokenCount)
 	{
-		var tokens = new List<CancellationToken>();
 
 		for (int i = 0; i < tokenCount; i++)
 		{
 			using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100 + i % 50));
-			tokens.Add(cts.Token);
 
 			// Simulate brief usage
 			_ = cts.Token.IsCancellationRequested;

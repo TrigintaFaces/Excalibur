@@ -13,6 +13,7 @@ using Excalibur.Dispatch.Serialization;
 using Excalibur.Outbox;
 using Excalibur.Outbox.Diagnostics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -23,31 +24,18 @@ namespace Excalibur.Dispatch.Delivery;
 /// deferred message publishing to ensure consistency between business operations and message delivery, implementing at-least-once delivery
 /// semantics with configurable retry logic and error handling.
 /// </summary>
-/// <param name="outboxStore"> Persistent store for outbox message management and retrieval operations. </param>
-/// <param name="outboxProcessor"> Processor responsible for dispatching messages from outbox to message brokers. </param>
-/// <param name="serializer"> JSON serializer for message and metadata serialization/deserialization. </param>
-/// <param name="options"> Configuration options for outbox behavior including batch sizes and TTL settings. </param>
-/// <param name="logger"> Logger for outbox operations, error tracking, and performance monitoring. </param>
-public sealed partial class MessageOutbox(
-	IOutboxStore outboxStore,
-	IOutboxProcessor outboxProcessor,
-	DispatchJsonSerializer serializer,
-	IOptions<OutboxDeliveryOptions> options,
-	ILogger<MessageOutbox> logger) : IOutboxDispatcher, IDisposable
+public sealed partial class MessageOutbox : IOutboxDispatcher, IDisposable
 {
-	/// <summary>
-	/// Maximum time to wait between polling cycles when no signal is received.
-	/// Acts as a fallback to ensure messages are eventually processed even if signaling fails.
-	/// </summary>
-	private static readonly TimeSpan MaxWaitInterval = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Semaphore used for event-driven signaling when new messages are added to the outbox.
-	/// This replaces fixed polling intervals with immediate notification for better latency and reduced CPU usage.
-	/// </summary>
-	private readonly SemaphoreSlim _messageSignal = new(0, int.MaxValue);
-
-	private readonly OutboxDeliveryOptions _options = options.Value;
+	private readonly IOutboxStore _outboxStore;
+	private readonly IOutboxProcessor? _legacyProcessor;
+	private readonly DispatchJsonSerializer _serializer;
+	private readonly ILogger<MessageOutbox> _logger;
+	private readonly IServiceScopeFactory? _scopeFactory;
+	private readonly OutboxDeliveryOptions _options;
+	private readonly Lock _lifecycleLock = new();
+	private readonly CancellationTokenSource _lifetimeCancellation = new();
+	private readonly HashSet<TaskCompletionSource> _cycles = [];
+	private TaskCompletionSource? _disposal;
 
 	/// <summary>
 	/// The declared message types indexed by every stored-name form a row may carry.
@@ -57,14 +45,47 @@ public sealed partial class MessageOutbox(
 	/// synchronisation. Deferring it to first use would need a barrier to be safe under a weak memory
 	/// model, which is more machinery than a dictionary of the host's own declared types is worth.
 	/// </remarks>
-	private readonly Dictionary<string, Type> _declaredMessageTypes =
-		BuildDeclaredMessageTypeLookup(options.Value.MessageTypes);
+	private readonly Dictionary<string, Type> _declaredMessageTypes;
 
-	/// <summary>
-	/// Runs the outbox dispatch loop, continuously processing and publishing pending messages to message brokers. This method implements
-	/// the core outbox processing logic with configurable polling intervals, error handling, and graceful shutdown support for reliable
-	/// message delivery.
-	/// </summary>
+	/// <summary>Creates a dispatcher using the supplied processor. Sequential cycles must use the same processor identity.</summary>
+	/// <param name="outboxStore">The message store.</param>
+	/// <param name="outboxProcessor">The processor owned by this dispatcher.</param>
+	/// <param name="serializer">The message serializer.</param>
+	/// <param name="options">The delivery options.</param>
+	/// <param name="logger">The dispatcher logger.</param>
+	public MessageOutbox(IOutboxStore outboxStore, IOutboxProcessor outboxProcessor,
+		DispatchJsonSerializer serializer, IOptions<OutboxDeliveryOptions> options, ILogger<MessageOutbox> logger)
+		: this(outboxStore, serializer, options, logger)
+	{
+		_legacyProcessor = outboxProcessor ?? throw new ArgumentNullException(nameof(outboxProcessor));
+	}
+
+	/// <summary>Creates a dispatcher with an independent processor scope for each dispatch cycle.</summary>
+	/// <param name="outboxStore">The message store.</param>
+	/// <param name="serializer">The message serializer.</param>
+	/// <param name="options">The delivery options.</param>
+	/// <param name="logger">The dispatcher logger.</param>
+	/// <param name="scopeFactory">The factory owning each cycle's processor lifetime.</param>
+	[ActivatorUtilitiesConstructor]
+	public MessageOutbox(IOutboxStore outboxStore, DispatchJsonSerializer serializer,
+		IOptions<OutboxDeliveryOptions> options, ILogger<MessageOutbox> logger, IServiceScopeFactory scopeFactory)
+		: this(outboxStore, serializer, options, logger)
+	{
+		_scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+	}
+
+	private MessageOutbox(IOutboxStore outboxStore, DispatchJsonSerializer serializer,
+		IOptions<OutboxDeliveryOptions> options, ILogger<MessageOutbox> logger)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
+		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_options = options.Value;
+		_declaredMessageTypes = BuildDeclaredMessageTypeLookup(_options.MessageTypes);
+	}
+
+	/// <summary>Runs one outbox dispatch cycle. The host or scheduler owns repetition.</summary>
 	/// <param name="dispatcherId"> Unique identifier for this dispatcher instance, used for message ownership and coordination. </param>
 	/// <param name="cancellationToken"> Cancellation token to support graceful shutdown and timeout scenarios. </param>
 	/// <returns> Task containing the total number of messages processed during the dispatch session. </returns>
@@ -74,57 +95,68 @@ public sealed partial class MessageOutbox(
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken)
 	{
-		LogOutboxStarted();
-
-		outboxProcessor.Init(dispatcherId);
-
-		var processed = 0;
-
-		while (!cancellationToken.IsCancellationRequested)
+		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
+		cancellationToken.ThrowIfCancellationRequested();
+		TaskCompletionSource completion;
+		CancellationTokenSource cycleCancellation;
+		lock (_lifecycleLock)
 		{
-			try
-			{
-				processed += await outboxProcessor.DispatchPendingMessagesAsync(cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				LogOutboxError(ex);
-			}
-
-			// Event-driven wait: blocks until signaled or timeout
-			// This reduces CPU usage compared to fixed polling while maintaining responsiveness
-			try
-			{
-				_ = await _messageSignal.WaitAsync(MaxWaitInterval, cancellationToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-				// Normal shutdown - exit the loop
-				break;
-			}
+			ObjectDisposedException.ThrowIf(_disposal is not null, this);
+			cycleCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCancellation.Token);
+			completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			_cycles.Add(completion);
 		}
-
-		LogOutboxStopped();
-
-		return processed;
-	}
-
-	/// <summary>
-	/// Signals that new messages have been added to the outbox, waking up the dispatch loop immediately.
-	/// This enables event-driven processing instead of relying solely on polling intervals.
-	/// </summary>
-	public void SignalNewMessage()
-	{
-		// Release the semaphore to wake up the waiting dispatch loop
-		// If multiple signals arrive before the loop processes, they will queue up
 		try
 		{
-			_ = _messageSignal.Release();
+			LogOutboxStarted();
+			int processed;
+			if (_scopeFactory is null)
+			{
+				_legacyProcessor!.Init(dispatcherId);
+				processed = await _legacyProcessor.DispatchPendingMessagesAsync(cycleCancellation.Token).ConfigureAwait(false);
+			}
+			else
+			{
+				await using var scope = _scopeFactory.CreateAsyncScope();
+				var processor = scope.ServiceProvider.GetRequiredService<IOutboxProcessor>();
+				processor.Init(dispatcherId);
+				processed = await processor.DispatchPendingMessagesAsync(cycleCancellation.Token).ConfigureAwait(false);
+			}
+			cycleCancellation.Token.ThrowIfCancellationRequested();
+			return processed;
 		}
-		catch (SemaphoreFullException)
+		catch (Exception ex)
 		{
-			// Semaphore is at max count - the dispatch loop will process anyway
+			LogOutboxError(ex);
+			throw;
 		}
+		finally
+		{
+			try
+			{
+				try
+				{
+					LogOutboxStopped();
+				}
+				finally
+				{
+					cycleCancellation.Dispose();
+				}
+			}
+			finally
+			{
+				lock (_lifecycleLock)
+				{
+					_cycles.Remove(completion);
+					completion.SetResult();
+				}
+			}
+		}
+	}
+
+	/// <summary>Retained for compatibility. This method does not schedule a dispatch cycle; the host owns scheduling.</summary>
+	public void SignalNewMessage()
+	{
 	}
 
 	/// <summary>
@@ -166,15 +198,15 @@ public sealed partial class MessageOutbox(
 		var outboxMessages = integrationEvents.Select(evt => new OutboxMessage(
 			messageId: Uuid7Extensions.GenerateString(),
 			messageType: evt.GetType().FullName ?? evt.GetType().Name,
-			messageMetadata: serializer.Serialize(metadata),
-			messageBody: serializer.SerializeToUtf8Bytes(evt, evt.GetType()),
+			messageMetadata: _serializer.Serialize(metadata),
+			messageBody: _serializer.SerializeToUtf8Bytes(evt, evt.GetType()),
 			createdAt: created,
 			expiresAt: expires)).ToArray();
 
 		foreach (var outboxMessage in outboxMessages)
 		{
 			var outboundMessage = ConvertToOutboundMessage(outboxMessage);
-			await outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
+			await _outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 		}
 
 		// Signal the dispatch loop that new messages are available
@@ -212,7 +244,7 @@ public sealed partial class MessageOutbox(
 		foreach (var message in outboxMessages)
 		{
 			var outboundMessage = ConvertIOutboxMessageToOutboundMessage(message);
-			await outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
+			await _outboxStore.StageMessageAsync(outboundMessage, cancellationToken).ConfigureAwait(false);
 			count++;
 		}
 
@@ -239,7 +271,7 @@ public sealed partial class MessageOutbox(
 		// Get pending messages from the outbox store
 		// Unfenced drain: MessageOutbox holds no leadership tenure, so it claims through the unfenced
 		// IOutboxStore members. The fenced drain is OutboxProcessor, which presents its leadership token.
-		var pendingMessages = await outboxStore.GetUnsentMessagesAsync(
+		var pendingMessages = await _outboxStore.GetUnsentMessagesAsync(
 			_options.ProducerBatchSize,
 			cancellationToken).ConfigureAwait(false);
 
@@ -256,7 +288,7 @@ public sealed partial class MessageOutbox(
 					// Encoding.UTF8.GetString first is a lossy round-trip for any payload byte that is not
 					// valid UTF-8 (invalid sequences become the replacement character), corrupting binary or
 					// non-UTF8 bodies; the byte-native path is the exact inverse of SerializeToUtf8Bytes.
-					var deserializedMessage = serializer.DeserializeFromBytes(message.Payload, messageType);
+					var deserializedMessage = _serializer.DeserializeFromBytes(message.Payload, messageType);
 					if (deserializedMessage is IDispatchMessage dispatchMessage)
 					{
 						dispatchMessages.Add(dispatchMessage);
@@ -369,29 +401,94 @@ public sealed partial class MessageOutbox(
 	/// resource cleanup and graceful shutdown of the outbox processing infrastructure.
 	/// </summary>
 	/// <returns> ValueTask representing the asynchronous disposal operation. </returns>
-	public ValueTask DisposeAsync()
+	public async ValueTask DisposeAsync()
 	{
-		_messageSignal.Dispose();
-
-		if (outboxProcessor is IAsyncDisposable asyncDisp)
+		TaskCompletionSource completion;
+		Task[] cycles;
+		bool ownsDisposal;
+		lock (_lifecycleLock)
 		{
-			return asyncDisp.DisposeAsync();
+			ownsDisposal = _disposal is null;
+			_disposal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			completion = _disposal;
+			cycles = ownsDisposal ? _cycles.Select(c => c.Task).ToArray() : [];
 		}
-
-		return ValueTask.CompletedTask;
+		if (ownsDisposal)
+		{
+			try
+			{
+				try
+				{
+					await _lifetimeCancellation.CancelAsync().ConfigureAwait(false);
+				}
+				finally
+				{
+					await Task.WhenAll(cycles).ConfigureAwait(false);
+					try
+					{
+						if (_legacyProcessor is not null)
+						{
+							await _legacyProcessor.DisposeAsync().ConfigureAwait(false);
+						}
+					}
+					finally
+					{
+						_lifetimeCancellation.Dispose();
+					}
+				}
+				completion.SetResult();
+			}
+			catch (Exception failure)
+			{
+				completion.SetException(failure);
+			}
+		}
+		await completion.Task.ConfigureAwait(false);
+		GC.SuppressFinalize(this);
 	}
 
-	/// <summary>
-	/// Performs synchronous cleanup of outbox resources including the message signal semaphore.
-	/// </summary>
+	/// <summary>Disposes an idle dispatcher synchronously. Active cycles require asynchronous disposal.</summary>
 	public void Dispose()
 	{
-		_messageSignal.Dispose();
-
-		if (outboxProcessor is IDisposable disp)
+		TaskCompletionSource completion;
+		lock (_lifecycleLock)
 		{
-			disp.Dispose();
+			if (_cycles.Count != 0 || _disposal is { Task.IsCompleted: false })
+			{
+				throw new InvalidOperationException("Use DisposeAsync to cancel and join active outbox cycles.");
+			}
+			if (_disposal is not null)
+			{
+				return;
+			}
+			if (_legacyProcessor is not null and not IDisposable)
+			{
+				throw new InvalidOperationException("The supplied processor requires DisposeAsync.");
+			}
+			completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			_disposal = completion;
 		}
+		try
+		{
+			try
+			{
+				if (_legacyProcessor is IDisposable disposable)
+				{
+					disposable.Dispose();
+				}
+			}
+			finally
+			{
+				_lifetimeCancellation.Dispose();
+			}
+			completion.SetResult();
+		}
+		catch (Exception failure)
+		{
+			completion.SetException(failure);
+			throw;
+		}
+		GC.SuppressFinalize(this);
 	}
 
 	/// <summary>

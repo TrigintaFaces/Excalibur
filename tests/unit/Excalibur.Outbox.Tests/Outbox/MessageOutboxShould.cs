@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -23,7 +24,7 @@ namespace Excalibur.Outbox.Tests.Core;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
-public sealed class MessageOutboxShould : IDisposable
+public sealed class MessageOutboxShould : IAsyncDisposable
 {
 	private readonly IOutboxStore _outboxStore;
 	private readonly IOutboxProcessor _outboxProcessor;
@@ -41,9 +42,80 @@ public sealed class MessageOutboxShould : IDisposable
 		_logger = A.Fake<ILogger<MessageOutbox>>();
 	}
 
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
-		_sut?.Dispose();
+		if (_sut is not null)
+		{
+			await _sut.DisposeAsync();
+		}
+	}
+
+	[Fact]
+	public async Task CreateOnlyScopedProcessorsAndDisposeEachCycle()
+	{
+		var processors = new List<IOutboxProcessor>();
+		var services = new ServiceCollection();
+		services.AddTransient<IOutboxProcessor>(_ =>
+		{
+			var processor = A.Fake<IOutboxProcessor>();
+			processors.Add(processor);
+			A.CallTo(() => processor.DispatchPendingMessagesAsync(A<CancellationToken>._)).Returns(3);
+			return processor;
+		});
+		await using var provider = services.BuildServiceProvider();
+		await using var dispatcher = ActivatorUtilities.CreateInstance<MessageOutbox>(provider,
+			_outboxStore, _serializer, _options, _logger);
+		processors.ShouldBeEmpty("constructing the dispatcher must not capture a root processor");
+		(await dispatcher.RunOutboxDispatchAsync("first", CancellationToken.None)).ShouldBe(3);
+		(await dispatcher.RunOutboxDispatchAsync("second", CancellationToken.None)).ShouldBe(3);
+		processors.Count.ShouldBe(2);
+		A.CallTo(() => processors[0].Init("first")).MustHaveHappenedOnceExactly();
+		A.CallTo(() => processors[1].Init("second")).MustHaveHappenedOnceExactly();
+		foreach (var processor in processors)
+		{
+			A.CallTo(() => processor.DisposeAsync()).MustHaveHappenedOnceExactly();
+		}
+	}
+
+	[Fact]
+	public async Task JoinScopedCleanupWhenDisposingAnActiveCycle()
+	{
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var cleanupEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var releaseCleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var processor = A.Fake<IOutboxProcessor>();
+		A.CallTo(() => processor.DispatchPendingMessagesAsync(A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				entered.SetResult();
+				await Task.Delay(Timeout.Infinite, call.GetArgument<CancellationToken>(0));
+				return 0;
+			});
+		A.CallTo(() => processor.DisposeAsync()).ReturnsLazily(() =>
+		{
+			cleanupEntered.SetResult();
+			return new ValueTask(releaseCleanup.Task);
+		});
+		await using var provider = new ServiceCollection().AddTransient<IOutboxProcessor>(_ => processor).BuildServiceProvider();
+		var dispatcher = new MessageOutbox(_outboxStore, _serializer, _options, _logger,
+			provider.GetRequiredService<IServiceScopeFactory>());
+		var run = dispatcher.RunOutboxDispatchAsync("active", CancellationToken.None);
+		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		var disposal = dispatcher.DisposeAsync().AsTask();
+		var secondDisposal = dispatcher.DisposeAsync().AsTask();
+		try
+		{
+			await cleanupEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			disposal.IsCompleted.ShouldBeFalse();
+			secondDisposal.IsCompleted.ShouldBeFalse();
+			await Should.ThrowAsync<ObjectDisposedException>(() => dispatcher.RunOutboxDispatchAsync("late", CancellationToken.None));
+		}
+		finally
+		{
+			releaseCleanup.TrySetResult();
+		}
+		await Should.ThrowAsync<OperationCanceledException>(() => run);
+		await Task.WhenAll(disposal, secondDisposal).WaitAsync(TimeSpan.FromSeconds(10));
 	}
 
 	#region Constructor Tests
@@ -346,57 +418,22 @@ public sealed class MessageOutboxShould : IDisposable
 	}
 
 	[Fact]
-	public async Task ProcessMessages_UntilCancelled()
+	public async Task ReturnAfterExactlyOneCycle()
 	{
-		// Arrange
 		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
-		var callCount = 0;
-		using var cts = new CancellationTokenSource();
-		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				var currentCall = Interlocked.Increment(ref callCount);
-				if (currentCall >= 2)
-				{
-					cts.Cancel();
-				}
-				return 1;
-			});
-
-		// Act
-		var result = await _sut.RunOutboxDispatchAsync("dispatcher-1", cts.Token);
-
-		// Assert - should have processed at least once
-		callCount.ShouldBeGreaterThanOrEqualTo(1);
-		result.ShouldBeGreaterThanOrEqualTo(1);
+		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._)).Returns(7);
+		(await _sut.RunOutboxDispatchAsync("dispatcher-1", CancellationToken.None)).ShouldBe(7);
+		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
-	public async Task HandleExceptions_DuringProcessing()
+	public async Task PropagateCycleFailureToTheScheduler()
 	{
-		// Arrange
 		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
-		var callCount = 0;
-		using var cts = new CancellationTokenSource();
-		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				var currentCall = Interlocked.Increment(ref callCount);
-				if (currentCall == 1)
-				{
-					throw new InvalidOperationException("Test error");
-				}
-				if (currentCall >= 2)
-				{
-					cts.Cancel();
-				}
-
-				return 0;
-			});
-
-		// Act & Assert - should not throw
-		await Should.NotThrowAsync(async () =>
-			await _sut.RunOutboxDispatchAsync("dispatcher-1", cts.Token));
+		var failure = new InvalidOperationException("store failed");
+		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._)).Throws(failure);
+		(await Should.ThrowAsync<InvalidOperationException>(() => _sut.RunOutboxDispatchAsync("dispatcher-1", CancellationToken.None)))
+			.ShouldBeSameAs(failure);
 	}
 
 	#endregion
@@ -404,16 +441,13 @@ public sealed class MessageOutboxShould : IDisposable
 	#region Dispose Tests
 
 	[Fact]
-	public void NotThrow_WhenDisposed()
+	public async Task RefuseSyncDisposalWithoutLosingAsyncCleanup()
 	{
-		// Arrange
 		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
-
-		// Act & Assert
-		Should.NotThrow(() => _sut.Dispose());
-
-		// Clear reference since it's disposed
-		_sut = null;
+		Should.Throw<InvalidOperationException>(() => _sut.Dispose());
+		await _sut.DisposeAsync();
+		await _sut.DisposeAsync();
+		A.CallTo(() => _outboxProcessor.DisposeAsync()).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]

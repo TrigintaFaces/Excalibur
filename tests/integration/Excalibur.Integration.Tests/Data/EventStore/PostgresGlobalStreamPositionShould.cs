@@ -73,6 +73,65 @@ public sealed class PostgresGlobalStreamPositionShould
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
+	[Fact]
+	public async Task PreserveTenantIdentityAcrossBothGlobalQueryMethods()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue();
+		await _fixture.EnsureInitializedAsync();
+		await _fixture.CleanupTableAsync();
+		string[] tenants = ["Acme", "acme", "__untenanted__"];
+		var sharedId = Guid.NewGuid().ToString("N");
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+		for (var index = 0; index < tenants.Length; index++)
+		{
+			var originalId = sharedId + index;
+			_ = await AppendAsync(Store(), originalId, -1);
+			await using var command = new NpgsqlCommand(
+				"UPDATE public.events SET tenant_id=@tenant, aggregate_id=@shared WHERE aggregate_id=@original", connection);
+			_ = command.Parameters.AddWithValue("tenant", tenants[index]);
+			_ = command.Parameters.AddWithValue("shared", sharedId);
+			_ = command.Parameters.AddWithValue("original", originalId);
+			(await command.ExecuteNonQueryAsync()).ShouldBe(1);
+		}
+
+		await using var dataSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+		var query = Query(dataSource);
+		var all = await query.ReadAllAsync(GlobalStreamPosition.Start, 100, CancellationToken.None);
+		all.Select(e => e.TenantId).ShouldBe(tenants);
+		all.Select(e => e.AggregateId).Distinct().ShouldBe([sharedId]);
+		var filtered = await query.ReadByEventTypeAsync(all[0].EventType, GlobalStreamPosition.Start, 100, CancellationToken.None);
+		filtered.Select(e => e.TenantId).ShouldBe(tenants);
+		filtered.Select(e => e.EventId).ShouldBe(all.Select(e => e.EventId));
+
+		// A separate legacy projection exercises nullable provenance without weakening shipped DDL.
+		await using var legacy = new NpgsqlCommand("""
+			CREATE TABLE public.legacy_tenant_events AS
+			SELECT position, event_id, aggregate_id, aggregate_type, event_type, event_data,
+			       metadata, version, timestamp, archived_at,
+			       NULLIF(tenant_id, '__untenanted__') AS tenant_id
+			FROM public.events
+			""", connection);
+		_ = await legacy.ExecuteNonQueryAsync();
+		try
+		{
+			var legacyQuery = new PostgresGlobalStreamQuery(dataSource, Options.Create(new PostgresEventSourcingOptions
+			{
+				EventStoreSchema = "public",
+				EventStoreTable = "legacy_tenant_events",
+			}));
+			var legacyAll = await legacyQuery.ReadAllAsync(GlobalStreamPosition.Start, 100, CancellationToken.None);
+			legacyAll.Select(e => e.TenantId).ShouldBe(tenants);
+			var legacyFiltered = await legacyQuery.ReadByEventTypeAsync(all[0].EventType, GlobalStreamPosition.Start, 100, CancellationToken.None);
+			legacyFiltered.Select(e => e.TenantId).ShouldBe(tenants);
+		}
+		finally
+		{
+			await using var cleanup = new NpgsqlCommand("DROP TABLE public.legacy_tenant_events", connection);
+			_ = await cleanup.ExecuteNonQueryAsync();
+		}
+	}
+
 	private PostgresEventStore Store() =>
 		new(_fixture.ConnectionString, NullLogger<PostgresEventStore>.Instance, SingleTenantTestContext.Instance);
 

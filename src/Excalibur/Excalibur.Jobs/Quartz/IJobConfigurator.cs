@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Excalibur.Jobs.Quartz;
 
@@ -39,6 +40,20 @@ public interface IJobConfigurator
 		string cronExpression, TContext context, string? jobKey = null)
 		where TJob : class, IBackgroundJob<TContext>
 		where TContext : class;
+
+	/// <summary>Adds a job with explicitly supplied JSON metadata for trimming and Native AOT.</summary>
+	/// <typeparam name="TJob">The job implementation.</typeparam>
+	/// <typeparam name="TContext">The context type.</typeparam>
+	/// <param name="cronExpression">The schedule.</param>
+	/// <param name="context">The initial persisted context.</param>
+	/// <param name="typeInfo">The serialization metadata, registered again on every host startup.</param>
+	/// <param name="contextVersion">The persisted codec version. Change it when the JSON contract changes and migrate existing payloads.</param>
+	/// <param name="jobKey">The stable job name.</param>
+	/// <returns>The configurator.</returns>
+	IJobConfigurator AddJob<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TJob, TContext>(
+		string cronExpression, TContext context, JsonTypeInfo<TContext> typeInfo, string? jobKey = null, string contextVersion = "1")
+		where TJob : class, IBackgroundJob<TContext>
+		where TContext : class => throw new NotSupportedException("This configurator does not support explicit JSON metadata.");
 
 	/// <summary>
 	/// Adds a one-time job that executes immediately.

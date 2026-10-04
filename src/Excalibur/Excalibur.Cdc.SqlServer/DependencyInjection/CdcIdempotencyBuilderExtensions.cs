@@ -49,88 +49,83 @@ public static class CdcIdempotencyBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		builder.Services.TryAddSingleton<ICdcIdempotencyFilter, InMemoryCdcIdempotencyFilter>();
+		// Delegates to the IServiceCollection overload so the job path and the builder path share ONE
+		// registration site and cannot drift apart.
+		_ = builder.Services.AddInMemoryCdcIdempotencyFilter();
 		return builder;
 	}
 
 	/// <summary>
-	/// Registers the SQL Server-backed CDC idempotency filter, which persists processed event
-	/// records in a database table for durable, multi-instance deduplication.
+	/// Registers the SQL Server-backed CDC idempotency filter against a connection string.
 	/// </summary>
 	/// <param name="builder">The CDC builder.</param>
+	/// <param name="connectionString">The connection string for the database holding the dedupe table.</param>
+	/// <param name="configure">Optionally configures schema, table, retention and cleanup batch size.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// Suitable for multi-instance deployments where multiple CDC consumers may process
-	/// the same events on crash/restart. The filter uses the CDC-native
-	/// <c>(tableName, LSN, seqVal)</c> composite key, stored in a SQL Server table.
+	/// <b>The connection source is required, and that is a correction.</b> This overload previously took no
+	/// connection at all: the filter injected an <see cref="System.Data.IDbConnection"/> that nothing in
+	/// this framework registers, so the registration succeeded and resolution failed at the first change
+	/// processed. Naming the database here makes the requirement visible at the call that creates it.
 	/// </para>
 	/// <para>
-	/// This replaces any previously registered <see cref="ICdcIdempotencyFilter"/>
-	/// (including the in-memory filter). Uses <c>AddSingleton</c> semantics.
+	/// The dedupe table is OUR bookkeeping, not the source database's, so it normally belongs beside the
+	/// CDC state store rather than in the database being captured.
 	/// </para>
 	/// <para>
-	/// Registers <see cref="SqlServerCdcIdempotencyFilterOptions"/> with
-	/// <see cref="IValidateOptions{TOptions}"/> validation and <c>ValidateOnStart()</c>.
+	/// Requires <c>Scripts/002_CreateCdcIdempotencySchema.sql</c> to have been run against that database;
+	/// the table is never created at runtime.
 	/// </para>
 	/// </remarks>
 	/// <example>
 	/// <code>
 	/// services.AddCdcProcessor(cdc =>
 	/// {
-	///     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
+	///     cdc.UseSqlServer(sql => sql.ConnectionString(sourceConnectionString))
 	///        .TrackTable("dbo.Orders", t => t.MapAll&lt;OrderChangedEvent&gt;())
-	///        .UseSqlServerIdempotencyFilter()
-	///        .EnableBackgroundProcessing();
-	/// });
-	/// </code>
-	/// </example>
-	public static ICdcBuilder UseSqlServerIdempotencyFilter(this ICdcBuilder builder)
-	{
-		ArgumentNullException.ThrowIfNull(builder);
-
-		return UseSqlServerIdempotencyFilter(builder, _ => { });
-	}
-
-	/// <summary>
-	/// Registers the SQL Server-backed CDC idempotency filter with custom options.
-	/// </summary>
-	/// <param name="builder">The CDC builder.</param>
-	/// <param name="configure">A delegate to configure the idempotency filter options.</param>
-	/// <returns>The builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// See <see cref="UseSqlServerIdempotencyFilter(ICdcBuilder)"/> for full details.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddCdcProcessor(cdc =>
-	/// {
-	///     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
-	///        .TrackTable("dbo.Orders", t => t.MapAll&lt;OrderChangedEvent&gt;())
-	///        .UseSqlServerIdempotencyFilter(opts =>
-	///        {
-	///            opts.SchemaName = "MySchema";
-	///            opts.RetentionPeriod = TimeSpan.FromHours(48);
-	///            opts.CleanupBatchSize = 5000;
-	///        })
+	///        .UseSqlServerIdempotencyFilter(stateConnectionString)
 	///        .EnableBackgroundProcessing();
 	/// });
 	/// </code>
 	/// </example>
 	public static ICdcBuilder UseSqlServerIdempotencyFilter(
 		this ICdcBuilder builder,
-		Action<SqlServerCdcIdempotencyFilterOptions> configure)
+		string connectionString,
+		Action<SqlServerCdcIdempotencyFilterOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
-		ArgumentNullException.ThrowIfNull(configure);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-		builder.Services.Configure(configure);
-		builder.Services.AddSingleton<IValidateOptions<SqlServerCdcIdempotencyFilterOptions>,
-			SqlServerCdcIdempotencyFilterOptionsValidator>();
-		builder.Services.AddOptionsWithValidateOnStart<SqlServerCdcIdempotencyFilterOptions>();
-		builder.Services.AddSingleton<ICdcIdempotencyFilter, SqlServerCdcIdempotencyFilter>();
+		_ = builder.Services.AddSqlServerCdcIdempotencyFilter(connectionString, configure);
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Registers the SQL Server-backed CDC idempotency filter against a connection factory.
+	/// </summary>
+	/// <param name="builder">The CDC builder.</param>
+	/// <param name="connectionFactory">
+	/// Resolves, from the provider, a delegate creating one connection per operation.
+	/// </param>
+	/// <param name="configure">Optionally configures schema, table, retention and cleanup batch size.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// Use this rather than the connection-string overload when a connection needs per-call construction
+	/// the string cannot express, such as acquiring a managed-identity access token. Both delegate to the
+	/// same <see cref="IServiceCollection"/> registration, which is the single registration site shared
+	/// with the config-driven job path.
+	/// </remarks>
+	public static ICdcBuilder UseSqlServerIdempotencyFilter(
+		this ICdcBuilder builder,
+		Func<IServiceProvider, Func<System.Data.IDbConnection>> connectionFactory,
+		Action<SqlServerCdcIdempotencyFilterOptions>? configure = null)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(connectionFactory);
+
+		_ = builder.Services.AddSqlServerCdcIdempotencyFilter(connectionFactory, configure);
 
 		return builder;
 	}

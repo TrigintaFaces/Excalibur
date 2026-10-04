@@ -757,17 +757,19 @@ public abstract class KeyManagementProviderConformanceTestKit : ConformanceTestK
 
 			using var start = new SemaphoreSlim(0, Writers);
 
+			async Task<KeyMetadata> ProvisionAsync()
+			{
+				await start.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+
+				return await provider
+					.CreateKeyIfAbsentAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, CancellationToken.None)
+					.ConfigureAwait(false);
+			}
+
 			var races = new Task<KeyMetadata>[Writers];
 			for (var i = 0; i < Writers; i++)
 			{
-				races[i] = Task.Run(async () =>
-				{
-					await start.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-
-					return await provider
-						.CreateKeyIfAbsentAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, CancellationToken.None)
-						.ConfigureAwait(false);
-				});
+				races[i] = ProvisionAsync();
 			}
 
 			// Released together so the writers overlap, which is what makes the race reachable at all.

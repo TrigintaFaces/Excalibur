@@ -43,6 +43,34 @@ public sealed class DataProcessingHostedServiceShould : UnitTestBase
 	}
 
 	[Fact]
+	public async Task MarkStoppedWhenNonCooperativeWorkExceedsTheDrainTimeout()
+	{
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => _mockManager.ProcessDataTasksAsync(A<CancellationToken>._))
+			.ReturnsLazily(() => { entered.TrySetResult(); return new ValueTask(release.Task); });
+		var state = new Excalibur.Data.DataProcessing.Diagnostics.DataProcessingHealthState();
+		using var service = new DataProcessingHostedService(CreateScopeFactory(),
+			Options.Create(new DataProcessingHostedServiceOptions { DrainTimeoutSeconds = 1 }),
+			NullLogger<DataProcessingHostedService>.Instance, state);
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			await service.StopAsync(CancellationToken.None);
+			state.IsRunning.ShouldBeFalse();
+			service.IsHealthy.ShouldBeFalse();
+			service.ExecuteTask!.IsCompleted.ShouldBeFalse();
+		}
+		finally
+		{
+			release.TrySetResult();
+			await service.ExecuteTask!;
+		}
+		state.TotalCycles.ShouldBe(0);
+	}
+
+	[Fact]
 	public void ThrowArgumentNullException_WhenScopeFactoryIsNull()
 	{
 		// Act & Assert

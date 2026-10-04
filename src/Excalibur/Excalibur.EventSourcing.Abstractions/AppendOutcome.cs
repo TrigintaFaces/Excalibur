@@ -8,7 +8,7 @@ namespace Excalibur.EventSourcing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why a discriminator and not another flag.</b> An append has four outcomes and exactly one of them
+/// <b>Why a discriminator and not another flag.</b> An append has five reported outcomes and exactly one of them
 /// holds at a time. Expressing that as independent booleans leaves three quarters of the combinations
 /// unreachable but still constructible, and each new flag doubles them — a named constructor per legal
 /// combination is this enumeration written longhand, with the illegal ones left representable.
@@ -56,5 +56,13 @@ public enum AppendOutcome
 	/// <summary>
 	/// The append failed for its own reasons. Nothing was written.
 	/// </summary>
-	Failed = 3
+	Failed = 3,
+
+	/// <summary>The provider cannot determine whether the complete atomic append committed.</summary>
+	/// <remarks>
+	/// Neither a failed acknowledgement nor an empty recovery read proves rollback. Preserve the
+	/// original operation identity, payloads and expected version for reconciliation. Do not regenerate
+	/// or rebase the operation merely because this outcome is not success.
+	/// </remarks>
+	Unknown = 4
 }

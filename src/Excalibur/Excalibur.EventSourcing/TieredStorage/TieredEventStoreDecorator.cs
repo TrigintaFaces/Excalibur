@@ -16,20 +16,25 @@ namespace Excalibur.EventSourcing.TieredStorage;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Write operations (AppendAsync) always go to the hot store. Read operations
-/// check the hot store first; if a version gap is detected (events start at
-/// version N &gt; 1 and no snapshot covers the gap), the cold store is queried
-/// for the missing range.
+/// Write operations always go to the hot store. Reads preserve the hot stream's membership and order,
+/// restoring payloads only for non-erased archive markers that lack readable hot data.
 /// </para>
 /// <para>
-/// Snapshot-aware: if a snapshot exists at version S and hot events start at
-/// version S+1, no cold read is needed (the snapshot covers the archived range).
+/// Missing non-erased payloads fail the read. A positive erasure marker takes precedence over
+/// archive metadata. This decorator does not expose a capability to erase cold storage.
+/// </para>
+/// <para>
+/// Each archive marker is rechecked after the cold fetch using the decorated hot store's authoritative
+/// reader. These observations do not form an atomic stream snapshot or fence subsequent erasure.
+/// Readable hot rows are not rechecked. An unavailable cold provider can still prevent the read.
 /// </para>
 /// </remarks>
 internal sealed class TieredEventStoreDecorator : IEventStore
 {
 	private readonly IEventStore _hotStore;
 	private readonly IColdEventStore _coldStore;
+	private readonly IEventStoreAuthoritativeReader _authoritativeReader;
+	private readonly TieredStorageCompositionReceipt _compositionReceipt;
 	private readonly ITenantContext _tenantContext;
 	private readonly ILogger<TieredEventStoreDecorator> _logger;
 
@@ -37,7 +42,8 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		IEventStore hotStore,
 		IColdEventStore coldStore,
 		ILogger<TieredEventStoreDecorator> logger,
-		ITenantContext tenantContext)
+		ITenantContext tenantContext,
+		TieredStorageCompositionReceipt? compositionReceipt = null)
 	{
 		ArgumentNullException.ThrowIfNull(hotStore);
 		ArgumentNullException.ThrowIfNull(coldStore);
@@ -48,6 +54,9 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
 		_logger = logger;
+		_compositionReceipt = compositionReceipt ?? new TieredStorageCompositionReceipt();
+		_authoritativeReader = hotStore.GetService(typeof(IEventStoreAuthoritativeReader)) as IEventStoreAuthoritativeReader
+			?? throw new InvalidOperationException("Tiered storage requires an authoritative event reader from the decorated hot store. Configure an owned primary read path and ensure decorators mediate the capability.");
 	}
 
 	/// <summary>
@@ -89,10 +98,11 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		string aggregateType,
 		CancellationToken cancellationToken)
 	{
+		var tenant = CurrentTenant;
 		var hotEvents = await _hotStore.LoadAsync(aggregateId, aggregateType, cancellationToken)
 			.ConfigureAwait(false);
 
-		return await HydrateArchivedPayloadsAsync(aggregateId, hotEvents, cancellationToken)
+		return await HydrateArchivedPayloadsAsync(tenant, aggregateId, aggregateType, hotEvents, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -103,10 +113,11 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
+		var tenant = CurrentTenant;
 		var hotEvents = await _hotStore.LoadAsync(aggregateId, aggregateType, fromVersion, cancellationToken)
 			.ConfigureAwait(false);
 
-		return await HydrateArchivedPayloadsAsync(aggregateId, hotEvents, cancellationToken)
+		return await HydrateArchivedPayloadsAsync(tenant, aggregateId, aggregateType, hotEvents, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -115,33 +126,53 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// An entry is archived exactly when it carries <see cref="StoredEvent.ArchivedAt"/>. That is a fact
-	/// recorded by the archive, not a property inferred from what is missing, so this cannot mistake an
-	/// ERASED event for an archived one -- an erased entry has no payload and no archive stamp, and its
-	/// payload is meant to stay gone.
+	/// An archive stamp identifies a moved payload. A positive erasure marker takes precedence even
+	/// when that stamp survives erasure. A missing payload alone does not establish erasure.
 	/// </para>
 	/// <para>
 	/// Cold storage is read once for the whole stream and indexed by version, rather than once per archived
 	/// entry: a stream with a thousand archived events would otherwise issue a thousand blob reads.
 	/// </para>
 	/// <para>
-	/// A cold payload that cannot be found is left as-is rather than throwing. The entry keeps its version
-	/// and position, so the stream stays contiguous and the caller sees an event whose payload is absent --
-	/// the same shape as an erased event, and one it must already tolerate. Throwing would take down a read
-	/// of the whole aggregate because one archived payload could not be fetched.
+	/// An unresolved non-erased payload fails the whole read. Returning it as an apparent erasure would
+	/// allow callers to omit a committed event while continuing through later versions.
 	/// </para>
 	/// </remarks>
 	private async ValueTask<IReadOnlyList<StoredEvent>> HydrateArchivedPayloadsAsync(
+		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		IReadOnlyList<StoredEvent> hotEvents,
 		CancellationToken cancellationToken)
 	{
 		var archivedCount = 0;
 		for (var i = 0; i < hotEvents.Count; i++)
 		{
-			if (hotEvents[i].ArchivedAt is not null)
+			var row = hotEvents[i];
+			if (!string.Equals(row.AggregateId, aggregateId, StringComparison.Ordinal)
+				|| !string.Equals(row.AggregateType, aggregateType, StringComparison.Ordinal)
+				|| (row.TenantId is not null && !string.Equals(row.TenantId, tenant.TenantId, StringComparison.Ordinal))
+				|| row.GlobalPosition < 0)
 			{
+				throw new InvalidOperationException("The hot event does not match the requested stream identity.");
+			}
+
+			if (ErasedEventMarker.IsErased(hotEvents[i].EventType))
+			{
+				continue;
+			}
+
+			if (hotEvents[i].ArchivedAt is not null && hotEvents[i].EventData is null)
+			{
+				if (row.TenantId is null)
+				{
+					throw new InvalidOperationException("An archived event requires recorded tenant provenance before cold storage can be accessed.");
+				}
 				archivedCount++;
+			}
+			else if (hotEvents[i].EventData is null)
+			{
+				throw new InvalidOperationException("A non-erased event has no payload or archive location.");
 			}
 		}
 
@@ -152,22 +183,23 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 
 		_logger.LoadingColdAndHotEvents(aggregateId, hotEvents.Count, archivedCount);
 
-		var coldEvents = await _coldStore.ReadAsync(CurrentTenant, aggregateId, cancellationToken)
+		var coldEvents = await _coldStore.ReadAsync(tenant, aggregateId, aggregateType, cancellationToken)
 			.ConfigureAwait(false);
 
-		var payloadByVersion = new Dictionary<long, byte[]?>(coldEvents.Count);
-		foreach (var cold in coldEvents)
-		{
-			payloadByVersion[cold.Version] = cold.EventData;
-		}
+		// Snapshot cold data, then observe each archived marker afresh. Erasure may commit during
+		// the cold fetch; the original hot read is not authority to restore an older payload.
+		var revalidator = new ArchivedEventRevalidator(tenant, aggregateId, aggregateType, coldEvents, _authoritativeReader);
 
 		var hydrated = new List<StoredEvent>(hotEvents.Count);
 		foreach (var hot in hotEvents)
 		{
-			hydrated.Add(
-				hot.ArchivedAt is not null && payloadByVersion.TryGetValue(hot.Version, out var payload)
-					? hot with { EventData = payload }
-					: hot);
+			if (ErasedEventMarker.IsErased(hot.EventType) || hot.EventData is not null)
+			{
+				hydrated.Add(hot);
+				continue;
+			}
+
+			hydrated.Add(await revalidator.ResolveAsync(hot, cancellationToken).ConfigureAwait(false));
 		}
 
 		return hydrated;
@@ -176,6 +208,11 @@ internal sealed class TieredEventStoreDecorator : IEventStore
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(TieredStorageCompositionReceipt))
+		{
+			return _compositionReceipt;
+		}
 
 		if (serviceType.IsInstanceOfType(this))
 		{

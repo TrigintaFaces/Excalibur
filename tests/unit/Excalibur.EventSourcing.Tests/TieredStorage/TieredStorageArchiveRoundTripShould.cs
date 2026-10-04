@@ -210,14 +210,14 @@ public sealed class TieredStorageArchiveRoundTripShould
         var toArchive = hot.Snapshot().Where(e => e.Version <= throughVersion).ToList();
 
         var watermark = await cold.WriteAsync(
-            KeyedTenantPartition.Untenanted, AggregateId, toArchive, CancellationToken.None);
+            KeyedTenantPartition.FromStoredValue(TenantDefaults.DefaultTenantId), AggregateId, AggregateType, toArchive, CancellationToken.None);
 
         watermark.ShouldBe(
             throughVersion,
             "the cold tier must confirm the archived range before any hot event is deleted.");
 
         _ = await ((IEventStoreArchive)hot).TombstoneArchivedEventsUpToVersionAsync(
-            KeyedTenantPartition.Untenanted, AggregateId, AggregateType, watermark, CancellationToken.None);
+            KeyedTenantPartition.FromStoredValue(TenantDefaults.DefaultTenantId), AggregateId, AggregateType, watermark, CancellationToken.None);
     }
 
     private static void SeedHot(InMemoryHotEventStore hot, params long[] versions)
@@ -242,7 +242,7 @@ public sealed class TieredStorageArchiveRoundTripShould
         EventData: Array.Empty<byte>(),
         Metadata: null,
         Version: version,
-        Timestamp: DateTimeOffset.UtcNow);
+        Timestamp: DateTimeOffset.UtcNow) { TenantId = TenantDefaults.DefaultTenantId };
 
     /// <summary>
     /// A hot tier with real append/read/trim semantics, implementing both interfaces directly (no first-party
@@ -251,6 +251,8 @@ public sealed class TieredStorageArchiveRoundTripShould
     /// </summary>
     private sealed class InMemoryHotEventStore : IEventStore, IEventStoreArchive, IEventStoreErasure
     {
+        public object? GetService(Type serviceType) => serviceType == typeof(IEventStoreAuthoritativeReader)
+            ? new TestEventStateReader(this) : serviceType.IsInstanceOfType(this) ? this : null;
         private readonly List<StoredEvent> _events = [];
 
         internal long[] Versions => _events.OrderBy(e => e.Version).Select(e => e.Version).ToArray();
@@ -322,7 +324,7 @@ public sealed class TieredStorageArchiveRoundTripShould
         private readonly Dictionary<string, List<StoredEvent>> _archived = [];
 
         public Task<long> WriteAsync(
-            KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events,
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, IReadOnlyList<StoredEvent> events,
             CancellationToken cancellationToken)
         {
             if (events.Count == 0)
@@ -345,16 +347,16 @@ public sealed class TieredStorageArchiveRoundTripShould
         }
 
         public Task<IReadOnlyList<StoredEvent>> ReadAsync(
-            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StoredEvent>>(Bucket(aggregateId).OrderBy(e => e.Version).ToList());
 
         public Task<IReadOnlyList<StoredEvent>> ReadAsync(
-            KeyedTenantPartition tenant, string aggregateId, long fromVersion, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, long fromVersion, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StoredEvent>>(
                 Bucket(aggregateId).Where(e => e.Version > fromVersion).OrderBy(e => e.Version).ToList());
 
         public Task<bool> HasArchivedEventsAsync(
-            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
             Task.FromResult(Bucket(aggregateId).Count > 0);
 
         private List<StoredEvent> Bucket(string aggregateId) =>

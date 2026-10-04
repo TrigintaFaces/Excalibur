@@ -14,39 +14,13 @@ using Microsoft.CodeAnalysis.Text;
 namespace Excalibur.Dispatch.SourceGenerators.Pipeline;
 
 /// <summary>
-/// Source generator that creates fully static middleware pipelines for deterministic message types.
+/// Generates call-site forwarding methods for supported dispatcher invocations.
 /// </summary>
-/// <remarks>
-/// <para>
-/// This generator implements Phase 3 of the middleware optimization,
-/// building on the <c>PipelineDeterminismAnalyzer</c> and <c>MiddlewareInvokerInterceptorGenerator</c>.
-/// </para>
-/// <para>
-/// For message types where <c>PipelineMetadata.IsDeterministic()</c> returns true, this generator
-/// creates interceptor methods with fully inlined middleware chains that eliminate delegate allocation.
-/// </para>
-/// <para>
-/// <b>Generation Strategy:</b> Per-message-type static methods
-/// <list type="bullet">
-/// <item>Avoids switch-based dispatch overhead</item>
-/// <item>Each message type gets its own optimized pipeline</item>
-/// <item>Uses C# 12 interceptors to redirect <c>DispatchAsync&lt;TMessage&gt;</c> calls</item>
-/// <item>Enables per-message-type benchmarking</item>
-/// </list>
-/// </para>
-/// <para>
-/// <b>Fallback Hierarchy:</b>
-/// <list type="number">
-/// <item>Static Pipeline (this generator) - Zero delegate allocation</item>
-/// <item>Middleware Registry - FrozenDictionary lookup</item>
-/// <item>Runtime Resolution (Original) - Full dynamic dispatch</item>
-/// </list>
-/// </para>
-/// </remarks>
+/// <remarks>Forwarding preserves the selected overload, returned task, exceptions and cancellation.
+/// Middleware remains owned and executed by the configured dispatcher.</remarks>
 [Generator]
 public sealed class StaticPipelineGenerator : IIncrementalGenerator
 {
-	private const string DispatcherInterfaceName = "IDispatcher";
 	private const string DispatchAsyncMethodName = "DispatchAsync";
 	private const string DispatchMessageInterfaceName = "IDispatchMessage";
 	private const string DispatchCommandInterfaceName = "IDispatchCommand";
@@ -135,8 +109,9 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 			return null;
 		}
 
-		var isDispatcher = containingType.Name == DispatcherInterfaceName ||
-						   containingType.AllInterfaces.Any(i => i.Name == DispatcherInterfaceName);
+		var isDispatcher = SymbolEqualityComparer.Default.Equals(containingType,
+			semanticModel.Compilation.GetTypeByMetadataName("Excalibur.Dispatch.IDispatcher"))
+			&& methodSymbol.Parameters.Length == 3;
 
 		if (!isDispatcher)
 		{
@@ -154,8 +129,9 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 			return null;
 		}
 
-		// Skip type parameters (generic method constraints)
-		if (methodSymbol.TypeArguments[0] is ITypeParameterSymbol)
+		// Forwarders live in a separate generated file, outside the caller's lexical scope.
+		if (!CanNameType(messageType, semanticModel.Compilation)
+			|| !CanNameType(methodSymbol.ReturnType, semanticModel.Compilation))
 		{
 			return null;
 		}
@@ -191,7 +167,7 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 
 		// Determine message kind and result type
 		var messageKind = DetermineMessageKind(messageType);
-		var (hasResult, resultType, resultTypeFullName) = DetermineResultType(methodSymbol, messageType);
+		var (hasResult, resultType, resultTypeFullName) = DetermineResultType(methodSymbol);
 
 		return new PipelineChainInfo
 		{
@@ -209,6 +185,22 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 			Line = lineSpan.StartLinePosition.Line + 1,
 			Column = lineSpan.StartLinePosition.Character + 1
 		};
+	}
+
+	private static bool CanNameType(ITypeSymbol type, Compilation compilation)
+	{
+		if (type is IArrayTypeSymbol array)
+		{
+			return CanNameType(array.ElementType, compilation);
+		}
+		if (type is not INamedTypeSymbol named || named.IsAnonymousType || named.IsUnboundGenericType
+			|| named.IsFileLocal || named.TypeKind == TypeKind.Error
+			|| !compilation.IsSymbolAccessibleWithin(named, compilation.Assembly))
+		{
+			return false;
+		}
+		return (named.ContainingType is null || CanNameType(named.ContainingType, compilation))
+			&& named.TypeArguments.All(argument => CanNameType(argument, compilation));
 	}
 
 	/// <summary>
@@ -282,26 +274,14 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 	/// Determines if the message returns a result and gets the result type.
 	/// </summary>
 	private static (bool HasResult, ITypeSymbol? ResultType, string? ResultTypeFullName) DetermineResultType(
-		IMethodSymbol methodSymbol,
-		INamedTypeSymbol messageType)
+		IMethodSymbol methodSymbol)
 	{
-		// Check method type arguments first
-		if (methodSymbol.TypeArguments.Length > 1)
+		if (methodSymbol.ReturnType is INamedTypeSymbol { TypeArguments.Length: 1 } task
+			&& task.TypeArguments[0] is INamedTypeSymbol { TypeArguments.Length: 1 } result)
 		{
-			var resultType = methodSymbol.TypeArguments[1];
+			var resultType = result.TypeArguments[0];
 			return (true, resultType, resultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 		}
-
-		// Check if message implements IDispatchAction<TResponse>
-		foreach (var @interface in messageType.AllInterfaces)
-		{
-			if (@interface.Name == "IDispatchAction" && @interface.TypeArguments.Length > 0)
-			{
-				var resultType = @interface.TypeArguments[0];
-				return (true, resultType, resultType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-			}
-		}
-
 		return (false, null, null);
 	}
 
@@ -327,35 +307,13 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 			return;
 		}
 
-		// Group by message type for deduplication
-		var byMessageType = staticPipelineCandidates
-			.GroupBy(c => c.MessageTypeFullName)
-			.ToDictionary(g => g.Key, g => g.ToList());
-
 		var sb = new StringBuilder();
-
-		// File header
 		_ = sb.AppendLine("// <auto-generated/>");
-		_ = sb.AppendLine($"// Static pipeline call sites: {staticPipelineCandidates.Count}");
-		_ = sb.AppendLine($"// Unique message types: {byMessageType.Count}");
-		_ = sb.AppendLine("// Full static pipeline generation with zero delegate allocation");
-		_ = sb.AppendLine();
-
-		// Required pragmas and usings
 		_ = sb.AppendLine("#nullable enable");
-		_ = sb.AppendLine("#pragma warning disable CS9113 // Parameter is unread");
-		_ = sb.AppendLine();
-
 		_ = sb.AppendLine("using System;");
-		_ = sb.AppendLine("using System.Runtime.CompilerServices;");
 		_ = sb.AppendLine("using System.Threading;");
 		_ = sb.AppendLine("using System.Threading.Tasks;");
 		_ = sb.AppendLine("using Excalibur.Dispatch;");
-		_ = sb.AppendLine("using Excalibur.Dispatch.Delivery;");
-		_ = sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
-		_ = sb.AppendLine();
-
-		// InterceptsLocationAttribute definition
 		_ = sb.AppendLine("namespace System.Runtime.CompilerServices");
 		_ = sb.AppendLine("{");
 		_ = sb.AppendLine("    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]");
@@ -364,164 +322,37 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		_ = sb.AppendLine("        public InterceptsLocationAttribute(int version, string data) { }");
 		_ = sb.AppendLine("    }");
 		_ = sb.AppendLine("}");
-		_ = sb.AppendLine();
-
-		// Static pipelines class
 		_ = sb.AppendLine("namespace Excalibur.Dispatch.Generated");
 		_ = sb.AppendLine("{");
-		_ = sb.AppendLine("    /// <summary>");
-		_ = sb.AppendLine("    /// Generated static pipelines for deterministic message types.");
-		_ = sb.AppendLine("    /// These methods intercept DispatchAsync calls and execute inlined middleware chains.");
-		_ = sb.AppendLine("    /// </summary>");
-		_ = sb.AppendLine("    /// <remarks>");
-		_ = sb.AppendLine("    /// <para>");
-		_ = sb.AppendLine("    /// Full static pipeline generation eliminates delegate allocation");
-		_ = sb.AppendLine("    /// for deterministic message types by inlining the middleware chain at compile time.");
-		_ = sb.AppendLine("    /// </para>");
-		_ = sb.AppendLine("    /// <para>");
-		_ = sb.AppendLine("    /// Fallback hierarchy:");
-		_ = sb.AppendLine("    /// <list type=\"number\">");
-		_ = sb.AppendLine("    /// <item>Static Pipeline (this) - Zero delegate allocation</item>");
-		_ = sb.AppendLine("    /// <item>Middleware Registry - FrozenDictionary lookup</item>");
-		_ = sb.AppendLine("    /// <item>Runtime Resolution - Full dynamic dispatch</item>");
-		_ = sb.AppendLine("    /// </list>");
-		_ = sb.AppendLine("    /// </para>");
-		_ = sb.AppendLine("    /// </remarks>");
 		_ = sb.AppendLine("    file static class StaticPipelines");
 		_ = sb.AppendLine("    {");
-
-		// Hot reload detection
-		_ = sb.AppendLine("        /// <summary>");
-		_ = sb.AppendLine("        /// Cached hot reload detection result.");
-		_ = sb.AppendLine("        /// </summary>");
-		_ = sb.AppendLine("        private static readonly bool _isHotReloadEnabled = IsHotReloadEnabled();");
-		_ = sb.AppendLine();
-
-		// Generate interceptor methods for each call site
-		foreach (var callSite in staticPipelineCandidates)
+		var ordinal = 0;
+		foreach (var callSite in staticPipelineCandidates.OrderBy(static site => site.FilePath, StringComparer.Ordinal)
+			.ThenBy(static site => site.Line).ThenBy(static site => site.Column))
 		{
-			GenerateStaticPipelineMethod(sb, callSite);
+			GenerateStaticPipelineMethod(sb, callSite, ordinal++);
 		}
-
-		// Hot reload detection helper
-		_ = sb.AppendLine("        /// <summary>");
-		_ = sb.AppendLine("        /// Detects if hot reload is enabled via environment variables.");
-		_ = sb.AppendLine("        /// </summary>");
-		_ = sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-		_ = sb.AppendLine("        private static bool IsHotReloadEnabled()");
-		_ = sb.AppendLine("        {");
-		_ = sb.AppendLine("            var dotnetWatch = Environment.GetEnvironmentVariable(\"DOTNET_WATCH\");");
-		_ = sb.AppendLine("            if (string.Equals(dotnetWatch, \"1\", StringComparison.OrdinalIgnoreCase) ||");
-		_ = sb.AppendLine("                string.Equals(dotnetWatch, \"true\", StringComparison.OrdinalIgnoreCase))");
-		_ = sb.AppendLine("            {");
-		_ = sb.AppendLine("                return true;");
-		_ = sb.AppendLine("            }");
-		_ = sb.AppendLine();
-		_ = sb.AppendLine("            var modifiableAssemblies = Environment.GetEnvironmentVariable(\"DOTNET_MODIFIABLE_ASSEMBLIES\");");
-		_ = sb.AppendLine("            if (string.Equals(modifiableAssemblies, \"debug\", StringComparison.OrdinalIgnoreCase))");
-		_ = sb.AppendLine("            {");
-		_ = sb.AppendLine("                return true;");
-		_ = sb.AppendLine("            }");
-		_ = sb.AppendLine();
-		_ = sb.AppendLine("            return false;");
-		_ = sb.AppendLine("        }");
-		_ = sb.AppendLine();
-
-		// Count property
-		_ = sb.AppendLine("        /// <summary>");
-		_ = sb.AppendLine("        /// Gets the number of static pipeline interceptions generated.");
-		_ = sb.AppendLine("        /// </summary>");
 		_ = sb.AppendLine($"        public static int InterceptionCount => {staticPipelineCandidates.Count};");
 		_ = sb.AppendLine("    }");
 		_ = sb.AppendLine("}");
-
 		context.AddSource("StaticPipelines.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
 	}
 
 	/// <summary>
 	/// Generates a single static pipeline interceptor method.
 	/// </summary>
-	private static void GenerateStaticPipelineMethod(StringBuilder sb, PipelineChainInfo callSite)
+	private static void GenerateStaticPipelineMethod(StringBuilder sb, PipelineChainInfo callSite, int ordinal)
 	{
-		var methodName = callSite.UniqueId;
-
-		// Comment header
-		_ = sb.AppendLine($"        // {callSite.MessageTypeName} ({callSite.MessageKind}) at {callSite.FilePath}:{callSite.Line}");
-
-		// InterceptsLocation attribute
+		var result = callSite.HasResult ? $"IMessageResult<{callSite.ResultTypeFullName}>" : "IMessageResult";
+		var arguments = callSite.HasResult
+			? $"{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}"
+			: callSite.MessageTypeFullName;
 		_ = sb.AppendLine($"        {callSite.InterceptableLocationData}");
-
-		// No ahead-of-time suppression is emitted. These methods call IDispatcher.DispatchAsync, and that
-		// interface carries no reflection annotation: the requirement is declared on the registration that
-		// has it, never pushed onto the dispatch contract a consumer implements. A suppression here would
-		// silence nothing, and would tell the next reader that generated pipelines hide a warning.
-
-		// Method signature
-		if (callSite.HasResult && callSite.ResultTypeFullName != null)
-		{
-			_ = sb.AppendLine($"        internal static async Task<IMessageResult<{callSite.ResultTypeFullName}>> {methodName}(");
-		}
-		else
-		{
-			_ = sb.AppendLine($"        internal static async Task<IMessageResult> {methodName}(");
-		}
-
+		_ = sb.AppendLine($"        internal static Task<{result}> Forward_{ordinal}(");
 		_ = sb.AppendLine("            this IDispatcher dispatcher,");
 		_ = sb.AppendLine($"            {callSite.MessageTypeFullName} message,");
 		_ = sb.AppendLine("            IMessageContext context,");
 		_ = sb.AppendLine("            CancellationToken cancellationToken)");
-		_ = sb.AppendLine("        {");
-
-		// Hot reload guard - fallback to dynamic pipeline
-		_ = sb.AppendLine("            // Skip static pipeline in hot reload mode");
-		_ = sb.AppendLine("            if (_isHotReloadEnabled)");
-		_ = sb.AppendLine("            {");
-		if (callSite.HasResult && callSite.ResultTypeFullName != null)
-		{
-			// Call through IDispatcher interface — this call site is in Excalibur.Dispatch.Generated
-			// namespace which the generator filters out, so it won't be intercepted again.
-			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}>(");
-		}
-		else
-		{
-			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}>(");
-		}
-		_ = sb.AppendLine("                    message, context, cancellationToken).ConfigureAwait(false);");
-		_ = sb.AppendLine("            }");
-		_ = sb.AppendLine();
-
-		// Static pipeline execution
-		_ = sb.AppendLine("            // Static pipeline with zero delegate allocation");
-		_ = sb.AppendLine("            // Phase 1: Execute through IDispatcher interface");
-		_ = sb.AppendLine("            // Future enhancement: Fully inlined middleware chain with Before/After decomposition");
-
-		// Call through IDispatcher interface — the generated code lives in Excalibur.Dispatch.Generated
-		// namespace which is filtered out by the generator's namespace check, preventing recursion.
-		_ = sb.AppendLine("            try");
-		_ = sb.AppendLine("            {");
-		if (callSite.HasResult && callSite.ResultTypeFullName != null)
-		{
-			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}, {callSite.ResultTypeFullName}>(");
-		}
-		else
-		{
-			_ = sb.AppendLine($"                return await dispatcher.DispatchAsync<{callSite.MessageTypeFullName}>(");
-		}
-		_ = sb.AppendLine("                    message, context, cancellationToken).ConfigureAwait(false);");
-		_ = sb.AppendLine("            }");
-		_ = sb.AppendLine("            catch (Exception ex)");
-		_ = sb.AppendLine("            {");
-		_ = sb.AppendLine("                // Pipeline-level exception handling");
-		if (callSite.HasResult && callSite.ResultTypeFullName != null)
-		{
-			_ = sb.AppendLine($"                return Excalibur.Dispatch.MessageResult.Failed<{callSite.ResultTypeFullName}>(ex);");
-		}
-		else
-		{
-			_ = sb.AppendLine("                return Excalibur.Dispatch.MessageResult.Failed(ex);");
-		}
-		_ = sb.AppendLine("            }");
-		_ = sb.AppendLine("        }");
-		_ = sb.AppendLine();
+		_ = sb.AppendLine($"            => dispatcher.DispatchAsync<{arguments}>(message, context, cancellationToken);");
 	}
 }

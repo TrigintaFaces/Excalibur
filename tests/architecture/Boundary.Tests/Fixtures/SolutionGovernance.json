@@ -1,0 +1,723 @@
+{
+  "files": {
+    "src/Dispatch/Widget/Widget.csproj": "<Project/>\n",
+    "src/Excalibur/Widget/Widget.csproj": "<Project/>\n",
+    "tests/unit/Provider.Tests/Provider.Tests.csproj": "<Project/>\n",
+    "samples/labs-extra/Sample/Sample.csproj": "<Project/>\n",
+    "templates/Excalibur.Dispatch.Templates.csproj": "<Project/>\n",
+    "templates/widget/Widget.csproj": "<Project/>\n",
+    "Excalibur.sln": "Microsoft Visual Studio Solution File, Format Version 12.00\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Widget\", \"src/Dispatch/Widget/Widget.csproj\", \"{00000000-0000-0000-0000-000000000001}\"\nEndProject\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Widget\", \"src/Excalibur/Widget/Widget.csproj\", \"{00000000-0000-0000-0000-000000000002}\"\nEndProject\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Provider.Tests\", \"tests/unit/Provider.Tests/Provider.Tests.csproj\", \"{00000000-0000-0000-0000-000000000003}\"\nEndProject\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Sample\", \"samples/labs-extra/Sample/Sample.csproj\", \"{00000000-0000-0000-0000-000000000004}\"\nEndProject\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Excalibur.Dispatch.Templates\", \"templates/Excalibur.Dispatch.Templates.csproj\", \"{00000000-0000-0000-0000-000000000005}\"\nEndProject\nProject(\"{2150E333-8FDC-42A3-9474-1A3956D46DE8}\") = \"templates\", \"templates\", \"{00000000-0000-0000-0000-000000000006}\"\n\tProjectSection(SolutionItems) = preProject\n\t\ttemplates/widget/Widget.csproj = templates/widget/Widget.csproj\n\tEndProjectSection\nEndProject\nProject(\"{2150E333-8FDC-42A3-9474-1A3956D46DE8}\") = \"Excalibur projects\", \"Excalibur projects\", \"{00000000-0000-0000-0000-000000000007}\"\nEndProject\nGlobal\n\tGlobalSection(NestedProjects) = preSolution\n\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n\tEndGlobalSection\n\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n\t\tDebug|Any CPU = Debug|Any CPU\n\t\tDebug|x64 = Debug|x64\n\t\tDebug|x86 = Debug|x86\n\t\tRelease|Any CPU = Release|Any CPU\n\t\tRelease|x64 = Release|x64\n\t\tRelease|x86 = Release|x86\n\tEndGlobalSection\n\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\n\t\t{00000000-0000-0000-0000-000000000001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Debug|Any CPU.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Debug|x64.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Debug|x64.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Debug|x86.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Debug|x86.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Release|Any CPU.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Release|Any CPU.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Release|x64.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Release|x64.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Release|x86.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000001}.Release|x86.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Debug|Any CPU.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Debug|x64.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Debug|x64.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Debug|x86.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Debug|x86.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Release|Any CPU.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Release|Any CPU.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Release|x64.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Release|x64.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Release|x86.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000002}.Release|x86.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Debug|Any CPU.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Debug|x64.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Debug|x64.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Debug|x86.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Debug|x86.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Release|Any CPU.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Release|Any CPU.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Release|x64.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Release|x64.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Release|x86.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000003}.Release|x86.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Debug|Any CPU.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Debug|x64.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Debug|x64.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Debug|x86.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Debug|x86.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Release|Any CPU.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Release|Any CPU.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Release|x64.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Release|x64.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Release|x86.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000004}.Release|x86.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Debug|Any CPU.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Debug|x64.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Debug|x64.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Debug|x86.ActiveCfg = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Debug|x86.Build.0 = Debug|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Release|Any CPU.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Release|Any CPU.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Release|x64.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Release|x64.Build.0 = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Release|x86.ActiveCfg = Release|Any CPU\n\t\t{00000000-0000-0000-0000-000000000005}.Release|x86.Build.0 = Release|Any CPU\n\tEndGlobalSection\nEndGlobal\n",
+    "eng/governance/project-manifest.yaml": "version: \"2.0\"\ngenerated_at: \"2026-10-02\"\ngovernance:\n  solution_file: \"Excalibur.sln\"\ngoverned_directories:\n  - src/**\n  - tests/**\n  - samples/**\n  - benchmarks/**\n  - load-tests/**\nexclusions:\n  - path: templates/**\n    reason: \"Raw payloads are solution items\"\n  - path: labs/**\n    reason: \"Experimental\"\nprojects:\n  - path: src/Dispatch/Widget/Widget.csproj\n    classification: Shipping\n    in_solution: true\n  - path: src/Excalibur/Widget/Widget.csproj\n    classification: Shipping\n    in_solution: true\n  - path: tests/unit/Provider.Tests/Provider.Tests.csproj\n    classification: Test\n    in_solution: true\n  - path: samples/labs-extra/Sample/Sample.csproj\n    classification: Sample\n    in_solution: true\n  - path: templates/Excalibur.Dispatch.Templates.csproj\n    classification: Template\n    in_solution: true\n",
+    "tests/unit/Provider.Tests/Test.cs": "public class Tests { [Fact] public void Test() {} }\n",
+    "eng/ci/shards/ShippingOnly.slnf": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"src/Dispatch/Widget/Widget.csproj\",\n      \"src/Excalibur/Widget/Widget.csproj\"\n    ]\n  }\n}\n",
+    "eng/ci/shards/SamplesOnly.slnf": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"samples/labs-extra/Sample/Sample.csproj\"\n    ]\n  }\n}\n",
+    "eng/ci/shards/Provider.slnf": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n"
+  },
+  "cases": [
+    {
+      "name": "valid-exact-paths-duplicate-display-names-and-platform-remap",
+      "pass": true
+    },
+    {
+      "name": "omitted-same-basename-project",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Widget\", \"src/Dispatch/Widget/Widget.csproj\", \"{00000000-0000-0000-0000-000000000001}\"\nEndProject\n",
+          "after": ""
+        }
+      ],
+      "error": "Solution (missing|membership)|[Dd]uplicate solution path"
+    },
+    {
+      "name": "substituted-same-basename-project",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "src/Dispatch/Widget/Widget.csproj",
+          "after": "src/Excalibur/Widget/Widget.csproj"
+        }
+      ],
+      "error": "Solution (missing|membership)|[Dd]uplicate solution path"
+    },
+    {
+      "name": "missing-build-configuration",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000001}.Release|x64.Build.0 = Release|Any CPU\n",
+          "after": ""
+        }
+      ],
+      "error": "ActiveCfg/Build\\.0"
+    },
+    {
+      "name": "mismatched-build-configuration",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "{00000000-0000-0000-0000-000000000001}.Release|x64.Build.0 = Release|Any CPU",
+          "after": "{00000000-0000-0000-0000-000000000001}.Release|x64.Build.0 = Debug|Any CPU"
+        }
+      ],
+      "error": "ActiveCfg/Build\\.0"
+    },
+    {
+      "name": "duplicate-guid",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "{00000000-0000-0000-0000-000000000001}",
+          "after": "{00000000-0000-0000-0000-000000000002}"
+        }
+      ],
+      "error": "GUID"
+    },
+    {
+      "name": "wrong-solution-path-case",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "src/Dispatch/Widget/Widget.csproj",
+          "after": "src/dispatch/Widget/Widget.csproj"
+        }
+      ],
+      "error": "Solution (missing|membership)|[Dd]uplicate solution path"
+    },
+    {
+      "name": "duplicate-manifest-key",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "    classification: Shipping",
+          "after": "    classification: Shipping\n    classification: Shipping"
+        }
+      ],
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "duplicate-manifest-path",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "src/Dispatch/Widget/Widget.csproj",
+          "after": "src/Excalibur/Widget/Widget.csproj"
+        }
+      ],
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "malformed-manifest-boolean",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "in_solution: true",
+          "after": "in_solution: yes"
+        }
+      ],
+      "error": "manifest boolean|in_solution"
+    },
+    {
+      "name": "quoted-manifest-boolean",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "in_solution: true",
+          "after": "in_solution: \"true\""
+        }
+      ],
+      "error": "manifest boolean|in_solution"
+    },
+    {
+      "name": "missing-manifest-metadata",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "    classification: Test\n",
+          "after": ""
+        }
+      ],
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "manifest-removes-required-root",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "  - samples/**\n",
+          "after": ""
+        }
+      ],
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "manifest-excludes-governed-root",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "path: labs/**",
+          "after": "path: samples/**"
+        }
+      ],
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "exclusion-prefix-does-not-hide-sample",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "samples/labs-extra/Sample/Sample.csproj",
+          "after": "samples/labs/Sample/Sample.csproj"
+        }
+      ],
+      "error": "filter|SamplesOnly"
+    },
+    {
+      "name": "omitted-sample-filter-member",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "\"samples/labs-extra/Sample/Sample.csproj\"",
+          "after": ""
+        }
+      ],
+      "error": "filter|SamplesOnly"
+    },
+    {
+      "name": "wrong-filter-solution",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "../../../Excalibur.sln",
+          "after": "../../../Other.sln"
+        }
+      ],
+      "error": "filter|SamplesOnly"
+    },
+    {
+      "name": "filter-substituted-path",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "samples/labs-extra/Sample/Sample.csproj",
+          "after": "samples/Other/Sample.csproj"
+        }
+      ],
+      "error": "filter|SamplesOnly"
+    },
+    {
+      "name": "filter-duplicate-path",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "\"samples/labs-extra/Sample/Sample.csproj\"",
+          "after": "\"samples/labs-extra/Sample/Sample.csproj\", \"samples/labs-extra/Sample/Sample.csproj\""
+        }
+      ],
+      "error": "filter|SamplesOnly"
+    },
+    {
+      "name": "filter-case-mismatch",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "samples/labs-extra/Sample/Sample.csproj",
+          "after": "samples/labs-extra/sample/sample.csproj"
+        }
+      ],
+      "error": "filter|SamplesOnly"
+    },
+    {
+      "name": "raw-template-item-omitted",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\ttemplates/widget/Widget.csproj = templates/widget/Widget.csproj\n",
+          "after": ""
+        }
+      ],
+      "error": "Template solution items"
+    },
+    {
+      "name": "unlisted-project-on-disk",
+      "pass": false,
+      "add": {
+        "src/Dispatch/New/New.csproj": "<Project/>"
+      },
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "stale-project-path",
+      "pass": false,
+      "delete": [
+        "src/Dispatch/Widget/Widget.csproj"
+      ],
+      "error": "manifest|governed|duplicate key"
+    },
+    {
+      "name": "new-template-payload-omitted",
+      "pass": false,
+      "add": {
+        "templates/second/Second.csproj": "<Project/>"
+      },
+      "error": "Template solution items"
+    },
+    {
+      "name": "generated-project-does-not-enter-inventory",
+      "pass": true,
+      "add": {
+        "src/Dispatch/Widget/obj/Generated.csproj": "<Project/>",
+        "samples/.scratch/Probe.csproj": "<Project/>"
+      }
+    },
+    {
+      "name": "backslash-filter-paths",
+      "pass": true,
+      "edits": [
+        {
+          "path": "eng/ci/shards/SamplesOnly.slnf",
+          "before": "samples/labs-extra/Sample/Sample.csproj",
+          "after": "samples\\\\labs-extra\\\\Sample\\\\Sample.csproj"
+        }
+      ]
+    },
+    {
+      "name": "missing-project-terminator",
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "EndProject\n",
+          "after": ""
+        }
+      ],
+      "error": "solution structure",
+      "pass": false
+    },
+    {
+      "name": "missing-global-terminator",
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "EndGlobal\n",
+          "after": ""
+        }
+      ],
+      "error": "solution structure",
+      "pass": false
+    },
+    {
+      "name": "missing-section-terminator",
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "EndGlobalSection\n",
+          "after": ""
+        }
+      ],
+      "error": "solution structure",
+      "pass": false
+    },
+    {
+      "name": "invalid-solution-header",
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "Microsoft Visual Studio Solution File, Format Version 12.00",
+          "after": "not a solution"
+        }
+      ],
+      "error": "solution structure",
+      "pass": false
+    },
+    {
+      "name": "invalid-project-type-guid",
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}",
+          "after": "{not-a-guid}"
+        }
+      ],
+      "error": "project type GUID",
+      "pass": false
+    },
+    {
+      "name": "scalar-projects",
+      "edits": [
+        {
+          "path": "eng/ci/shards/Provider.slnf",
+          "before": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n",
+          "after": "{\"solution\": {\"path\": \"../../../Excalibur.sln\", \"projects\": \"tests/unit/Provider.Tests/Provider.Tests.csproj\"}}"
+        }
+      ],
+      "error": "filter shape",
+      "pass": false
+    },
+    {
+      "name": "null-projects",
+      "edits": [
+        {
+          "path": "eng/ci/shards/Provider.slnf",
+          "before": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n",
+          "after": "{\"solution\": {\"path\": \"../../../Excalibur.sln\", \"projects\": null}}"
+        }
+      ],
+      "error": "filter shape",
+      "pass": false
+    },
+    {
+      "name": "object-projects",
+      "edits": [
+        {
+          "path": "eng/ci/shards/Provider.slnf",
+          "before": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n",
+          "after": "{\"solution\": {\"path\": \"../../../Excalibur.sln\", \"projects\": {}}}"
+        }
+      ],
+      "error": "filter shape",
+      "pass": false
+    },
+    {
+      "name": "non-string-projects",
+      "edits": [
+        {
+          "path": "eng/ci/shards/Provider.slnf",
+          "before": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n",
+          "after": "{\"solution\": {\"path\": \"../../../Excalibur.sln\", \"projects\": [1]}}"
+        }
+      ],
+      "error": "filter shape",
+      "pass": false
+    },
+    {
+      "name": "case-distinct-bin-is-not-excluded",
+      "pass": false,
+      "add": {
+        "src/Dispatch/Bin/Probe.csproj": "<Project/>"
+      },
+      "error": "Manifest"
+    },
+    {
+      "name": "leading-blank-solution-header",
+      "pass": true,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "Microsoft Visual Studio Solution File",
+          "after": "\nMicrosoft Visual Studio Solution File"
+        }
+      ]
+    },
+    {
+      "name": "singleton-array-filter-root",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/ci/shards/Provider.slnf",
+          "before": "{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n",
+          "after": "[{\n  \"solution\": {\n    \"path\": \"../../../Excalibur.sln\",\n    \"projects\": [\n      \"tests/unit/Provider.Tests/Provider.Tests.csproj\"\n    ]\n  }\n}\n]"
+        }
+      ],
+      "error": "filter shape"
+    },
+    {
+      "name": "duplicate-display-name-in-same-folder",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": ""
+        }
+      ],
+      "error": "Duplicate solution display name"
+    },
+    {
+      "name": "invalid-solution-folder-reference",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000008}\n"
+        }
+      ],
+      "error": "solution folder reference"
+    },
+    {
+      "name": "cyclic-solution-folder-nesting",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n\t\t{00000000-0000-0000-0000-000000000007} = {00000000-0000-0000-0000-000000000007}\n"
+        }
+      ],
+      "error": "Cyclic solution folder"
+    },
+    {
+      "name": "filename-collision-hidden-by-aliases",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": ""
+        },
+        {
+          "path": "Excalibur.sln",
+          "before": "\"Widget\", \"src/Dispatch",
+          "after": "\"DispatchAlias\", \"src/Dispatch"
+        },
+        {
+          "path": "Excalibur.sln",
+          "before": "\"Widget\", \"src/Excalibur",
+          "after": "\"ExcaliburAlias\", \"src/Excalibur"
+        }
+      ],
+      "error": "Duplicate solution display name"
+    },
+    {
+      "name": "case-only-filename-collision",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": ""
+        },
+        {
+          "path": "Excalibur.sln",
+          "before": "src/Excalibur/Widget/Widget.csproj",
+          "after": "src/Excalibur/Widget/widget.csproj"
+        },
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "src/Excalibur/Widget/Widget.csproj",
+          "after": "src/Excalibur/Widget/widget.csproj"
+        },
+        {
+          "path": "eng/ci/shards/ShippingOnly.slnf",
+          "before": "src/Excalibur/Widget/Widget.csproj",
+          "after": "src/Excalibur/Widget/widget.csproj"
+        }
+      ],
+      "delete": [
+        "src/Excalibur/Widget/Widget.csproj"
+      ],
+      "add": {
+        "src/Excalibur/Widget/widget.csproj": "<Project/>"
+      },
+      "error": "Duplicate solution display name"
+    },
+    {
+      "name": "project-and-folder-names-have-separate-scopes",
+      "pass": true,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\"Excalibur projects\", \"Excalibur projects\"",
+          "after": "\"Widget\", \"Widget\""
+        }
+      ]
+    },
+    {
+      "name": "duplicate-parent-assignment",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n"
+        }
+      ],
+      "error": "Duplicate solution nesting"
+    },
+    {
+      "name": "undefined-nested-child",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": "\t\t{00000000-0000-0000-0000-000000000008} = {00000000-0000-0000-0000-000000000007}\n"
+        }
+      ],
+      "error": "solution folder reference"
+    },
+    {
+      "name": "nonfolder-parent",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000001}\n"
+        }
+      ],
+      "error": "solution folder reference"
+    },
+    {
+      "name": "multihop-folder-cycle",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n",
+          "after": "\t\t{00000000-0000-0000-0000-000000000002} = {00000000-0000-0000-0000-000000000007}\n\t\t{00000000-0000-0000-0000-000000000007} = {00000000-0000-0000-0000-000000000006}\n\t\t{00000000-0000-0000-0000-000000000006} = {00000000-0000-0000-0000-000000000007}\n"
+        }
+      ],
+      "error": "Cyclic solution folder"
+    },
+    {
+      "name": "indented-project-declarations",
+      "pass": true,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\nProject(",
+          "after": "\n  Project("
+        }
+      ]
+    },
+    {
+      "name": "indented-rogue-project",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\nGlobal\n",
+          "after": "\n  Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Rogue\", \"src/Dispatch/Rogue/Rogue.csproj\", \"{00000000-0000-0000-0000-000000000008}\"\nEndProject\nGlobal\n"
+        }
+      ],
+      "error": "Solution (unexpected|membership:.*unexpected)"
+    },
+    {
+      "name": "indented-duplicate-guid",
+      "pass": false,
+      "edits": [
+        {
+          "path": "Excalibur.sln",
+          "before": "\nGlobal\n",
+          "after": "\n  Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Widget\", \"src/Dispatch/Widget/Widget.csproj\", \"{00000000-0000-0000-0000-000000000001}\"\nEndProject\nGlobal\n"
+        }
+      ],
+      "error": "(Duplicate solution|Invalid or duplicate) GUID"
+    },
+    {
+      "name": "mapping-generated-at",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "generated_at: \"2026-10-02\"",
+          "after": "generated_at: {value: date}"
+        }
+      ],
+      "error": "(Unsupported manifest scalar|Expected untagged plain or double-quoted manifest scalar)"
+    },
+    {
+      "name": "sequence-exclusion-reason",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "reason: \"Experimental\"",
+          "after": "reason: [experimental]"
+        }
+      ],
+      "error": "(Unsupported manifest scalar|Expected untagged plain or double-quoted manifest scalar)"
+    },
+    {
+      "name": "mapping-optional-metadata",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "    classification: Shipping",
+          "after": "    classification: Shipping\n    notes: {value: note}"
+        }
+      ],
+      "error": "(Unsupported manifest scalar|Expected untagged plain or double-quoted manifest scalar)"
+    },
+    {
+      "name": "sequence-optional-metadata",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "    classification: Shipping",
+          "after": "    classification: Shipping\n    tier: [unit]"
+        }
+      ],
+      "error": "(Unsupported manifest scalar|Expected untagged plain or double-quoted manifest scalar)"
+    },
+    {
+      "name": "explicit-string-boolean-tag",
+      "pass": false,
+      "edits": [
+        {
+          "path": "eng/governance/project-manifest.yaml",
+          "before": "in_solution: true",
+          "after": "in_solution: !!str true"
+        }
+      ],
+      "error": "(Expected literal manifest boolean|Expected untagged plain or double-quoted manifest scalar)"
+    },
+    {
+      "name": "nested-filter-same-basename",
+      "pass": true,
+      "add": {
+        "eng/ci/shards/nested/ShippingOnly.slnf": "{\"solution\": {\"path\": \"../../../../Excalibur.sln\", \"projects\": [\"src/Dispatch/Widget/Widget.csproj\", \"src/Excalibur/Widget/Widget.csproj\"]}}"
+      }
+    },
+    {
+      "name": "nested-filter-rogue-project",
+      "pass": false,
+      "add": {
+        "eng/ci/shards/nested/ShippingOnly.slnf": "{\"solution\": {\"path\": \"../../../../Excalibur.sln\", \"projects\": [\"src/Dispatch/Rogue/Rogue.csproj\"]}}"
+      },
+      "error": "(Filter project absent from solution|Duplicate or missing solution project in filter)"
+    },
+    {
+      "name": "nested-filter-malformed",
+      "pass": false,
+      "add": {
+        "eng/ci/shards/nested/ShippingOnly.slnf": "{\"solution\":{\"path\":\"../../../../Excalibur.sln\",\"projects\":null}}"
+      },
+      "error": "Invalid filter shape"
+    },
+    {
+      "name": "nested-sample-filter-cannot-replace-required-root",
+      "pass": false,
+      "delete": [
+        "eng/ci/shards/SamplesOnly.slnf"
+      ],
+      "add": {
+        "eng/ci/shards/nested/SamplesOnly.slnf": "{\"solution\": {\"path\": \"../../../../Excalibur.sln\", \"projects\": [\"samples/labs-extra/Sample/Sample.csproj\"]}}"
+      },
+      "error": "Missing (complete filter: SamplesOnly.slnf|SamplesOnly filter)"
+    }
+  ]
+}

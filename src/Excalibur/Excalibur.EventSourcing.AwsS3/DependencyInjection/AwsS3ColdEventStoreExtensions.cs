@@ -70,6 +70,11 @@ public static class AwsS3ColdEventStoreExtensions
 		// Configure options from builder state
 		_ = builder.Services.Configure<AwsS3ColdEventStoreOptions>(opt =>
 		{
+			if (s3Builder.LayoutValue.HasValue)
+			{
+				opt.Layout = s3Builder.LayoutValue.Value;
+			}
+
 			if (s3Builder.BucketNameValue is not null)
 			{
 				opt.BucketName = s3Builder.BucketNameValue;
@@ -135,7 +140,8 @@ public static class AwsS3ColdEventStoreExtensions
 				s3Client,
 				options.BucketName!,
 				options.KeyPrefix,
-				sp.GetRequiredService<ILogger<AwsS3ColdEventStore>>());
+				sp.GetRequiredService<ILogger<AwsS3ColdEventStore>>(),
+				options.Layout);
 		});
 	}
 

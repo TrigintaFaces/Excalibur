@@ -303,14 +303,55 @@ public interface IMaterializedViewStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Saves the last processed position for a view.
+    /// Advances the last processed position, and reports whether the advance was taken.
     /// </summary>
-    ValueTask SavePositionAsync(
+    ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
         string viewName,
         long position,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Clears the recorded position, so the next read reports no checkpoint at all.
+    /// </summary>
+    ValueTask ResetPositionAsync(
+        string viewName,
+        CancellationToken cancellationToken);
 }
 ```
+
+#### The advance is monotonic, and it tells you when it refused
+
+Every store enforces the advance **server-side**: a write carrying a position at or below the stored one
+is refused and nothing changes. That guard exists because a delayed or retried write must not rewind a
+checkpoint — if it did, the projection would replay events it has already applied.
+
+```csharp
+public enum ViewPositionSaveOutcome
+{
+    Advanced,        // the checkpoint moved to the requested position
+    RefusedAsStale,  // the stored checkpoint was already at or beyond it; nothing was written
+}
+```
+
+`RefusedAsStale` is a **normal outcome, not an error**. For a competing writer that lost a race it is the
+guard working, and you can discard it. It matters when you did not expect it — if you need a checkpoint to
+move *backwards*, this method cannot do it and will tell you so.
+
+#### To move a checkpoint backwards, reset it
+
+Lowering a position is a different operation from advancing one, so it is a different method rather than a
+flag on this one. `ResetPositionAsync` is unconditional, and it **clears** the checkpoint rather than
+setting it to zero: `GetPositionAsync` already returns `null` for a view with no checkpoint, so absence is
+the existing representation of "start from the beginning", and a stored zero would be indistinguishable
+from a view legitimately checkpointed at position zero.
+
+```csharp
+// Rebuild a view from the beginning.
+await store.ResetPositionAsync("OrderSummary", ct);   // no checkpoint remains
+// ... replay the global stream from the start, then checkpoint forward as normal.
+```
+
+Clearing an already-absent checkpoint is success, not a refusal, so a reset is safe to repeat.
 
 ### IAtomicMaterializedViewStore
 
@@ -773,7 +814,15 @@ position says:
 // The framework handles this automatically, but for manual scenarios:
 var position = await _store.GetPositionAsync("OrderSummary", ct);
 // Process events from position...
-await _store.SavePositionAsync("OrderSummary", newPosition, ct);
+var outcome = await _store.SavePositionAsync("OrderSummary", newPosition, ct);
+
+if (outcome == ViewPositionSaveOutcome.RefusedAsStale)
+{
+    // Another writer is already further ahead, so this advance was declined and nothing was written.
+    // Normally that is the guard working and you can ignore it. Treat it as a failure only if YOU
+    // expected the checkpoint to move -- in particular, if you were trying to move it BACKWARDS, which
+    // this method cannot do: use ResetPositionAsync for that.
+}
 ```
 
 ### 4. Handle Build Failures Gracefully
@@ -870,7 +919,7 @@ public class ViewMaintenanceController : ControllerBase
     [HttpPost("views/{viewName}/catch-up")]
     public async Task<IActionResult> CatchUp(string viewName, CancellationToken ct)
     {
-        // Reads from last saved position + 1 for this view
+        // Reads exclusively after the last saved global position for this view
         await _processor.CatchUpAsync(viewName, ct);
         return Ok();
     }
@@ -878,12 +927,22 @@ public class ViewMaintenanceController : ControllerBase
     [HttpPost("views/rebuild")]
     public async Task<IActionResult> RebuildAll(CancellationToken ct)
     {
-        // Resets ALL view positions to 0 and replays the entire global stream
+        // Clears ALL view checkpoints and replays the global stream
         await _processor.RebuildAsync(ct);
         return Ok();
     }
 }
 ```
+
+An empty page does not necessarily mean replay is complete. If the processor subsequently observes a
+stream head ahead of its current position, it throws `InvalidOperationException` and does not report
+catch-up or rebuild completion. A catch-up records this as a refresh failure. A concurrent append can
+cause this conservative outcome; the observation does not prove that a gap is permanent.
+
+Retry `CatchUpAsync` to resume exclusively after the last saved checkpoint. Previously applied progress
+is retained, and the processor does not advance to the observed head. Calling `RebuildAsync` again
+clears checkpoints and starts replay again. Cancellation propagates as `OperationCanceledException`
+without recording refresh success or treating host shutdown as a refresh failure.
 
 #### Batch Processing
 

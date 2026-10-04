@@ -128,10 +128,10 @@ public sealed class CdcFailedChangeBarrierSpansTheRunShould : UnitTestBase
 	/// </remarks>
 	private sealed class SkipsOneChange(byte alreadyProcessedLsn) : ICdcIdempotencyFilter
 	{
-		public Task<bool> IsProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, string consumerId, CancellationToken cancellationToken) =>
+		public Task<bool> IsProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, CdcConsumerIdentity consumer, CancellationToken cancellationToken) =>
 			Task.FromResult(lsn.Length > 0 && lsn[0] == alreadyProcessedLsn);
 
-		public Task MarkProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, string consumerId, CancellationToken cancellationToken) =>
+		public Task MarkProcessedAsync(string tableName, byte[] lsn, byte[] seqVal, CdcConsumerIdentity consumer, CancellationToken cancellationToken) =>
 			Task.CompletedTask;
 	}
 

@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
+using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Queries;
+using Excalibur.EventSourcing.SqlServer.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,12 +59,12 @@ public sealed class SqlServerEventStoreTenantIsolationShould
 		public bool HasTenant => TenantId is not null;
 	}
 
-	private SqlServerEventStore StoreFor(string? tenantId) =>
+	private SqlServerEventStore StoreFor(string? tenantId, string? table = null) =>
 		new(
 			() => _fixture.CreateConnection(),
 			NullLogger<SqlServerEventStore>.Instance,
 			schema: _fixture.SchemaName,
-			table: _fixture.TableName,
+			table: table ?? _fixture.TableName,
 			tenantContext: tenantId is null ? UntenantedTestTenantContext.Instance : (ITenantContext)new FixedTenant(tenantId));
 
 [MessageName("Test.SqlServerEventStoreTenantIsolation.OrderPlaced")]
@@ -68,6 +73,165 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 		public string EventId { get; init; } = Guid.NewGuid().ToString();
 		public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 		public IDictionary<string, object>? Metadata { get; init; }
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	[Trait("Pattern", "Integration")]
+	public async Task UseResolvedLocationForBothAppendsAndGlobalReads(bool useAdvancedSource, bool ownedPrimary)
+	{
+		_fixture.DockerAvailable.ShouldBeTrue();
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var outerFactoryCalls = 0;
+		new ExcaliburEventSourcingBuilder(services).UseSqlServer(builder =>
+		{
+			if (useAdvancedSource)
+			{
+				Func<Microsoft.Data.SqlClient.SqlConnection> CreateFactory(IServiceProvider _)
+				{
+					Interlocked.Increment(ref outerFactoryCalls).ShouldBe(1,
+						"the outer source factory must be resolved only once for writes, snapshots and global reads");
+					return () => _fixture.CreateConnection();
+				}
+				if (ownedPrimary)
+				{
+					builder.OwnedPrimaryConnectionFactory(CreateFactory);
+				}
+				else
+				{
+					builder.ConnectionFactory(CreateFactory);
+				}
+			}
+			else
+			{
+				builder.ConnectionString(_fixture.ConnectionString);
+			}
+			builder
+			.EventStoreSchema("unused_builder_schema")
+			.EventStoreTable("unused_builder_table")
+			.SnapshotStoreSchema("unused_snapshot_schema")
+			.SnapshotStoreTable("unused_snapshot_table");
+		});
+		services.PostConfigure<SqlServerEventSourcingOptions>(options =>
+		{
+			options.EventStoreSchema = _fixture.SchemaName;
+			options.EventStoreTable = _fixture.TableName;
+			options.SnapshotStoreSchema = _fixture.SchemaName;
+			options.SnapshotStoreTable = "EventStoreSnapshots";
+		});
+		await using var provider = services.BuildServiceProvider();
+		var store = provider.GetRequiredKeyedService<IEventStore>("default");
+		var eventId = Guid.NewGuid().ToString("N");
+		var aggregateId = "configured-" + eventId;
+		(await store.AppendAsync(aggregateId, AggregateType,
+			[new OrderPlaced(aggregateId, 0) { EventId = eventId }], -1, CancellationToken.None)
+			.ConfigureAwait(false)).Success.ShouldBeTrue();
+		var loaded = await store.LoadAsync(aggregateId, AggregateType, CancellationToken.None).ConfigureAwait(false);
+		loaded.Single().EventId.ShouldBe(eventId);
+		var capability = store.GetService(typeof(IEventStoreAuthoritativeReader));
+		if (!useAdvancedSource || ownedPrimary)
+		{
+			var reader = capability.ShouldBeAssignableTo<IEventStoreAuthoritativeReader>();
+			var state = await reader.ReadCurrentAsync(KeyedTenantPartition.FromStoredValue(loaded.Single().TenantId!),
+				aggregateId, AggregateType, eventId, 0, CancellationToken.None).ConfigureAwait(false);
+			state.ShouldNotBeNull();
+			state.EventId.ShouldBe(eventId);
+		}
+		else
+		{
+			capability.ShouldBeNull("an ordinary custom factory has not transferred independent connection ownership");
+		}
+		var query = provider.GetRequiredService<IGlobalStreamQuery>();
+		var global = await query.ReadAllAsync(GlobalStreamPosition.Start, 100, CancellationToken.None).ConfigureAwait(false);
+		global.ShouldContain(e => e.EventId == eventId && e.AggregateId == aggregateId);
+		var snapshots = provider.GetRequiredKeyedService<ISnapshotStore>("default");
+		var snapshot = new ConfiguredSnapshot(Guid.NewGuid().ToString("N"), aggregateId, AggregateType,
+			0, DateTimeOffset.UtcNow, new byte[] { 1, 2, 3 }, null, null);
+		await snapshots.SaveSnapshotAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+		var restored = await snapshots.GetLatestSnapshotAsync(aggregateId, AggregateType, CancellationToken.None).ConfigureAwait(false);
+		restored.ShouldNotBeNull();
+		restored.SnapshotId.ShouldBe(snapshot.SnapshotId);
+		restored.Data.ToArray().ShouldBe(snapshot.Data.ToArray());
+		outerFactoryCalls.ShouldBe(useAdvancedSource ? 1 : 0);
+	}
+
+	[Fact]
+	public async Task PreserveTenantProvenanceAcrossAggregateLoadOverloads()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue("tenant provenance requires a real provider test");
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+		var aggregateId = "provenance-" + Guid.NewGuid().ToString("N");
+		var originals = new Dictionary<string, OrderPlaced[]>(StringComparer.Ordinal);
+		foreach (var tenantId in new string?[] { "Acme", "acme", null })
+		{
+			var tenant = tenantId ?? KeyedTenantPartition.Untenanted.TenantId;
+			var events = new[] { new OrderPlaced(aggregateId, 0), new OrderPlaced(aggregateId, 1) };
+			originals.Add(tenant, events);
+			var store = StoreFor(tenantId);
+			(await store.AppendAsync(aggregateId, AggregateType, events, -1, CancellationToken.None))
+				.Success.ShouldBeTrue();
+			(await store.TombstoneArchivedEventsUpToVersionAsync(
+				KeyedTenantPartition.FromStoredValue(tenant), aggregateId, AggregateType, 0, CancellationToken.None))
+				.ShouldBe(1);
+		}
+
+		foreach (var tenantId in new string?[] { "Acme", "acme", null })
+		{
+			var tenant = tenantId ?? KeyedTenantPartition.Untenanted.TenantId;
+			var store = StoreFor(tenantId);
+			var all = await store.LoadAsync(aggregateId, AggregateType, CancellationToken.None);
+			all.Select(e => e.TenantId).ShouldBe(new[] { tenant, tenant });
+			all.Select(e => e.EventId).ShouldBe(originals[tenant].Select(e => e.EventId));
+			all.Select(e => e.Version).ShouldBe(new long[] { 0, 1 });
+			all[0].EventData.ShouldBeNull();
+			all[0].ArchivedAt.ShouldNotBeNull();
+			all[0].GlobalPosition.ShouldBeGreaterThan(0);
+
+			var suffix = await store.LoadAsync(aggregateId, AggregateType, 0, CancellationToken.None);
+			suffix.Count.ShouldBe(1);
+			suffix[0].TenantId.ShouldBe(tenant);
+			suffix[0].EventId.ShouldBe(originals[tenant][1].EventId);
+			suffix[0].Version.ShouldBe(1);
+		}
+
+		// Exercise legacy nullable tenant storage without weakening the shipped table.
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+		await using var copy = new Microsoft.Data.SqlClient.SqlCommand("""
+			SELECT EventId, AggregateId, AggregateType, EventType, EventData, Metadata,
+			       Version, Timestamp, Position, ArchivedAt,
+			       NULLIF(TenantId, '__untenanted__') AS TenantId
+			INTO dbo.LegacyAggregateTenantEvents FROM dbo.EventStoreEvents
+			""", connection);
+		_ = await copy.ExecuteNonQueryAsync();
+		try
+		{
+			var legacyStore = StoreFor(null, "LegacyAggregateTenantEvents");
+			var all = await legacyStore.LoadAsync(aggregateId, AggregateType, CancellationToken.None);
+			all.Select(e => e.TenantId).ShouldBe(new[]
+			{
+				KeyedTenantPartition.Untenanted.TenantId, KeyedTenantPartition.Untenanted.TenantId,
+			});
+			all.Select(e => e.EventId).ShouldBe(originals[KeyedTenantPartition.Untenanted.TenantId].Select(e => e.EventId));
+			all[0].EventData.ShouldBeNull();
+			all[0].ArchivedAt.ShouldNotBeNull();
+			var suffix = await legacyStore.LoadAsync(aggregateId, AggregateType, 0, CancellationToken.None);
+			suffix.Count.ShouldBe(1);
+			suffix[0].TenantId.ShouldBe(KeyedTenantPartition.Untenanted.TenantId);
+			suffix[0].EventId.ShouldBe(originals[KeyedTenantPartition.Untenanted.TenantId][1].EventId);
+			suffix[0].Version.ShouldBe(1);
+		}
+		finally
+		{
+			await using var cleanup = new Microsoft.Data.SqlClient.SqlCommand("DROP TABLE dbo.LegacyAggregateTenantEvents", connection);
+			_ = await cleanup.ExecuteNonQueryAsync();
+		}
 	}
 
 	[Fact]
@@ -150,4 +314,8 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 				+ "(the __untenanted__ sentinel, onto which COALESCE folds legacy NULL rows) excludes tenant-scoped rows; the empty-branch predicate disclosed every "
 				+ "tenant's events to an unscoped host");
 	}
+	private sealed record ConfiguredSnapshot(string SnapshotId, string AggregateId, string AggregateType,
+		long Version, DateTimeOffset CreatedAt, ReadOnlyMemory<byte> Data,
+		IDictionary<string, object>? Metadata, string? TenantId) : ISnapshot;
+
 }

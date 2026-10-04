@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 /// Extended tests for <see cref="EphemeralProjectionEngine"/> covering:
 /// - Custom JsonSerializerOptions injection (new feature)
 /// - Cache hit path (return cached without replay)
-/// - Skipping events where deserialization returns null
+/// - Refusing incomplete projections when deserialization returns null
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -157,10 +157,10 @@ public sealed class EphemeralProjectionEngineExtendedShould
 	}
 
 	[Fact]
-	public async Task SkipEventsWhereDeserializationReturnsNull()
+	public async Task RefuseNullDeserializationWithoutCachingIncompleteProjection()
 	{
 		// Arrange — serializer returns null for one event
-		RegisterOrderSummaryProjection();
+		RegisterOrderSummaryProjection(cacheTtl: TimeSpan.FromMinutes(5));
 
 		A.CallTo(() => _serializer.ResolveType("GoodEvent")).Returns(typeof(TestOrderPlaced));
 		A.CallTo(() => _serializer.ResolveType("NullEvent")).Returns(typeof(TestOrderPlaced));
@@ -179,16 +179,16 @@ public sealed class EphemeralProjectionEngineExtendedShould
 				new("e2", "order-1", "Order", "NullEvent", new byte[] { 2 }, null, 2, DateTimeOffset.UtcNow),
 			});
 
+		var cache = A.Fake<IDistributedCache>();
+		A.CallTo(() => cache.GetAsync(A<string>._, A<CancellationToken>._)).Returns((byte[]?)null);
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger);
+			_eventStore, _serializer, _registry, _logger, cache);
 
-		// Act
-		var result = await engine.BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None)
-			.ConfigureAwait(false);
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			engine.BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None));
 
-		// Assert — only the good event was applied, null event skipped
-		result.Total.ShouldBe(50m);
-		result.EventCount.ShouldBe(1);
+		A.CallTo(() => cache.SetAsync(A<string>._, A<byte[]>._, A<DistributedCacheEntryOptions>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]

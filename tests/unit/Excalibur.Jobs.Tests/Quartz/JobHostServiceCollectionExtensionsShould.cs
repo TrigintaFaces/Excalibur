@@ -88,7 +88,7 @@ public sealed class JobHostServiceCollectionExtensionsShould
 	{
 		// Arrange
 		IServiceCollection? services = null;
-		Action<IServiceCollectionQuartzConfigurator> config = _ => { };
+		Action<IQuartzBuilder> config = _ => { };
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -200,7 +200,7 @@ public sealed class JobHostServiceCollectionExtensionsShould
 	{
 		// Arrange
 		IServiceCollection? services = null;
-		Action<IServiceCollectionQuartzConfigurator> quartzConfig = _ => { };
+		Action<IQuartzBuilder> quartzConfig = _ => { };
 		Action<ExcaliburJobConfigurator> jobConfig = _ => { };
 
 		// Act & Assert

@@ -5,6 +5,7 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Globalization;
 
 using Excalibur.Data.DataProcessing;
 using Excalibur.Data.DataProcessing.Diagnostics;
@@ -77,7 +78,7 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		services.TryAddSingleton(Options.Options.Create(configuration));
+		RegisterSuppliedOptions(services, configuration);
 		services.AddOptions<DataProcessingOptions>()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
@@ -101,7 +102,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the AOT-safe, appsettings-driven alternative. Uses
-	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>IValidateOptions&lt;T&gt;</c>
+	/// <c>an options factory that initializes immutable properties</c> with <c>IValidateOptions&lt;T&gt;</c>
 	/// and <c>ValidateOnStart</c> for fail-fast validation.
 	/// </para>
 	/// </remarks>
@@ -127,9 +128,8 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 
-		services.AddOptions<DataProcessingOptions>()
-			.BindConfiguration(sectionPath)
-			.ValidateOnStart();
+        RegisterConfiguredOptions(services, _ => configuration.GetSection(sectionPath));
+        services.AddOptions<DataProcessingOptions>().ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
@@ -195,7 +195,7 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configuration);
 
-		services.TryAddSingleton(Microsoft.Extensions.Options.Options.Create(configuration));
+		RegisterSuppliedOptions(services, configuration);
 		services.AddOptions<DataProcessingOptions>()
 			.ValidateOnStart();
 		services.TryAddEnumerable(
@@ -217,7 +217,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the AOT-safe, appsettings-driven alternative. Uses
-	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>IValidateOptions&lt;T&gt;</c>
+	/// <c>an options factory that initializes immutable properties</c> with <c>IValidateOptions&lt;T&gt;</c>
 	/// and <c>ValidateOnStart</c> for fail-fast validation.
 	/// </para>
 	/// </remarks>
@@ -243,9 +243,8 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 
-		services.AddOptions<DataProcessingOptions>()
-			.BindConfiguration(sectionPath)
-			.ValidateOnStart();
+        RegisterConfiguredOptions(services, _ => configuration.GetSection(sectionPath));
+        services.AddOptions<DataProcessingOptions>().ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
@@ -315,9 +314,8 @@ public static class DataProcessingServiceCollectionExtensions
 		// Register BindConfiguration if set
 		if (builder.BindConfigurationPath is not null)
 		{
-			services.AddOptions<DataProcessingOptions>()
-				.BindConfiguration(builder.BindConfigurationPath)
-				.ValidateOnStart();
+            RegisterConfiguredOptions(services, sp => sp.GetRequiredService<IConfiguration>().GetSection(builder.BindConfigurationPath));
+            services.AddOptions<DataProcessingOptions>().ValidateOnStart();
 			services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 		}
@@ -409,9 +407,8 @@ public static class DataProcessingServiceCollectionExtensions
 			_ = services.AddScoped(interfaceType, implementationType);
 		}
 
-		services.AddOptions<DataProcessingOptions>()
-			.BindConfiguration(configurationSection)
-			.ValidateOnStart();
+        RegisterConfiguredOptions(services, _ => configuration.GetSection(configurationSection));
+        services.AddOptions<DataProcessingOptions>().ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<DataProcessingOptions>, DataProcessingOptionsValidator>());
 
@@ -497,7 +494,7 @@ public static class DataProcessingServiceCollectionExtensions
 	/// <remarks>
 	/// <para>
 	/// This is the AOT-safe, appsettings-driven alternative. Uses
-	/// <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with <c>IValidateOptions&lt;T&gt;</c>
+	/// <c>an options factory that initializes immutable properties</c> with <c>IValidateOptions&lt;T&gt;</c>
 	/// and <c>ValidateOnStart</c> for fail-fast validation.
 	/// </para>
 	/// </remarks>
@@ -523,7 +520,7 @@ public static class DataProcessingServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 
 		services.AddOptions<DataProcessingHostedServiceOptions>()
-			.BindConfiguration(sectionPath)
+			.Bind(configuration.GetSection(sectionPath))
 			.ValidateOnStart();
 
 		services.TryAddEnumerable(
@@ -537,4 +534,82 @@ public static class DataProcessingServiceCollectionExtensions
 
 		return services;
 	}
+    private sealed record ProcessingConfiguration(IConfiguration Section);
+    private sealed record SuppliedProcessingOptions(DataProcessingOptions Value);
+
+    private static void RegisterOptionsFactory(IServiceCollection services)
+    {
+        services.TryAddTransient<IOptionsFactory<DataProcessingOptions>>(sp => new SuppliedOptionsFactory(() =>
+        {
+            var options = sp.GetService<SuppliedProcessingOptions>()?.Value ?? new DataProcessingOptions();
+            foreach (var source in sp.GetServices<ProcessingConfiguration>())
+            {
+                options = ReadConfiguration(source.Section, options);
+            }
+            return options;
+        }, sp.GetServices<IConfigureOptions<DataProcessingOptions>>(),
+            sp.GetServices<IPostConfigureOptions<DataProcessingOptions>>(),
+            sp.GetServices<IValidateOptions<DataProcessingOptions>>()));
+    }
+
+    private static void RegisterConfiguredOptions(IServiceCollection services, Func<IServiceProvider, IConfigurationSection> sectionFactory)
+    {
+        RegisterOptionsFactory(services);
+        services.AddSingleton(sp => new ProcessingConfiguration(sectionFactory(sp)));
+        services.AddSingleton<IOptionsChangeTokenSource<DataProcessingOptions>>(sp =>
+            new ConfigurationChangeTokenSource<DataProcessingOptions>(Options.Options.DefaultName, sectionFactory(sp)));
+    }
+
+    // Init-only options cannot be populated by the generated Bind(existingInstance) path.
+    // Construct them explicitly so managed and Native AOT hosts use the same values.
+    private static DataProcessingOptions ReadConfiguration(IConfiguration configuration, DataProcessingOptions defaults)
+    {
+        return new DataProcessingOptions
+        {
+            SchemaName = configuration[nameof(DataProcessingOptions.SchemaName)] ?? defaults.SchemaName,
+            TableName = configuration[nameof(DataProcessingOptions.TableName)] ?? defaults.TableName,
+            DispatcherTimeoutMilliseconds = ReadInt(configuration, nameof(DataProcessingOptions.DispatcherTimeoutMilliseconds), defaults.DispatcherTimeoutMilliseconds),
+            MaxAttempts = ReadInt(configuration, nameof(DataProcessingOptions.MaxAttempts), defaults.MaxAttempts),
+            QueueSize = ReadInt(configuration, nameof(DataProcessingOptions.QueueSize), defaults.QueueSize),
+            ProducerBatchSize = ReadInt(configuration, nameof(DataProcessingOptions.ProducerBatchSize), defaults.ProducerBatchSize),
+            ConsumerBatchSize = ReadInt(configuration, nameof(DataProcessingOptions.ConsumerBatchSize), defaults.ConsumerBatchSize),
+        };
+    }
+
+    private static int ReadInt(IConfiguration configuration, string key, int fallback) =>
+        configuration[key] is { } value ? int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture) : fallback;
+
+    private static void RegisterSuppliedOptions(IServiceCollection services, DataProcessingOptions configuration)
+    {
+        RegisterOptionsFactory(services);
+        services.TryAddSingleton(new SuppliedProcessingOptions(configuration));
+    }
+
+    private sealed class SuppliedOptionsFactory(
+        Func<DataProcessingOptions> seed,
+        IEnumerable<IConfigureOptions<DataProcessingOptions>> configure,
+        IEnumerable<IPostConfigureOptions<DataProcessingOptions>> postConfigure,
+        IEnumerable<IValidateOptions<DataProcessingOptions>> validate)
+        : OptionsFactory<DataProcessingOptions>(configure, postConfigure, validate)
+    {
+        protected override DataProcessingOptions CreateInstance(string name)
+        {
+            if (name != Options.Options.DefaultName)
+            {
+                return new DataProcessingOptions();
+            }
+            var supplied = seed();
+            return new DataProcessingOptions
+            {
+                SchemaName = supplied.SchemaName,
+                TableName = supplied.TableName,
+                DispatcherTimeoutMilliseconds = supplied.DispatcherTimeoutMilliseconds,
+                MaxAttempts = supplied.MaxAttempts,
+                QueueSize = supplied.QueueSize,
+                ProducerBatchSize = supplied.ProducerBatchSize,
+                ConsumerBatchSize = supplied.ConsumerBatchSize,
+            };
+        }
+    }
+
 }

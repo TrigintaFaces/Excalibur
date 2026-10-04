@@ -49,13 +49,13 @@ public sealed class CdcIdempotencyKeyInjectivityShould : UnitTestBase
 
 		// Consumer "a:b" processes a change on table "c".
 		// Under the bare join this recorded the key "a:b:c:00000001:00000001".
-		await sharedStore.MarkProcessedAsync("c", Lsn, SeqVal, "a:b", CancellationToken.None)
+		await sharedStore.MarkProcessedAsync("c", Lsn, SeqVal, new CdcConsumerIdentity("a:b", "testdb"), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// A DIFFERENT consumer, "a", asks about a DIFFERENT table, "b:c".
 		// Under the bare join this composed the identical key and read as already-processed.
 		var alreadySeen = await sharedStore
-			.IsProcessedAsync("b:c", Lsn, SeqVal, "a", CancellationToken.None)
+			.IsProcessedAsync("b:c", Lsn, SeqVal, new CdcConsumerIdentity("a", "testdb"), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		alreadySeen.ShouldBeFalse(
@@ -77,11 +77,11 @@ public sealed class CdcIdempotencyKeyInjectivityShould : UnitTestBase
 	{
 		var store = CreateFilter();
 
-		await store.MarkProcessedAsync("dbo.Orders", Lsn, SeqVal, "orders-projector", CancellationToken.None)
+		await store.MarkProcessedAsync("dbo.Orders", Lsn, SeqVal, new CdcConsumerIdentity("orders-projector", "testdb"), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var seenAgain = await store
-			.IsProcessedAsync("dbo.Orders", Lsn, SeqVal, "orders-projector", CancellationToken.None)
+			.IsProcessedAsync("dbo.Orders", Lsn, SeqVal, new CdcConsumerIdentity("orders-projector", "testdb"), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		seenAgain.ShouldBeTrue(
@@ -102,9 +102,9 @@ public sealed class CdcIdempotencyKeyInjectivityShould : UnitTestBase
 	{
 		var store = CreateFilter();
 
-		await store.MarkProcessedAsync("c", Lsn, SeqVal, "a:b", CancellationToken.None).ConfigureAwait(false);
+		await store.MarkProcessedAsync("c", Lsn, SeqVal, new CdcConsumerIdentity("a:b", "testdb"), CancellationToken.None).ConfigureAwait(false);
 
-		var seenAgain = await store.IsProcessedAsync("c", Lsn, SeqVal, "a:b", CancellationToken.None)
+		var seenAgain = await store.IsProcessedAsync("c", Lsn, SeqVal, new CdcConsumerIdentity("a:b", "testdb"), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		seenAgain.ShouldBeTrue(
@@ -120,11 +120,11 @@ public sealed class CdcIdempotencyKeyInjectivityShould : UnitTestBase
 	{
 		var store = CreateFilter();
 
-		await store.MarkProcessedAsync("c", Lsn, SeqVal, "a:b", CancellationToken.None).ConfigureAwait(false);
+		await store.MarkProcessedAsync("c", Lsn, SeqVal, new CdcConsumerIdentity("a:b", "testdb"), CancellationToken.None).ConfigureAwait(false);
 
 		byte[] laterSeqVal = [0x00, 0x00, 0x00, 0x02];
 
-		var laterSeen = await store.IsProcessedAsync("c", Lsn, laterSeqVal, "a:b", CancellationToken.None)
+		var laterSeen = await store.IsProcessedAsync("c", Lsn, laterSeqVal, new CdcConsumerIdentity("a:b", "testdb"), CancellationToken.None)
 			.ConfigureAwait(false);
 
 		laterSeen.ShouldBeFalse(

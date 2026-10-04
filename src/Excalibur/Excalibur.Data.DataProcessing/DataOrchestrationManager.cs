@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Transactions;
 
 using Excalibur.Data.DataProcessing.Requests;
 using Excalibur.Dispatch.Messaging;
@@ -20,11 +21,11 @@ namespace Excalibur.Data.DataProcessing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This class follows the <strong>connection-per-operation</strong> pattern: each database operation
-/// (insert, select, update, delete) creates a fresh <see cref="IDbConnection"/> from the injected
-/// <c>Func&lt;IDbConnection&gt;</c> factory and disposes it immediately after the operation completes.
-/// This avoids holding long-lived connections during potentially slow processor runs and ensures
-/// connections are returned to the pool promptly.
+/// Enqueue and discovery use fresh connections. Each claimed task owns one SQL Server session
+/// until processing and cleanup finish. Claims disable pooling so uncertain lock acknowledgments cannot
+/// leave a lock on a pooled session. Session application locks prevent competing workers from
+/// updating the same task; every owned write verifies the lock on that same session. The connection
+/// factory must return a new, closed connection. Handler effects remain at least once.
 /// </para>
 /// <para>
 /// The connection factory is registered as a keyed singleton using
@@ -47,8 +48,8 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 	/// <summary>
 	/// Lazily resolved resilience policy for wrapping database operations with retry and
 	/// circuit breaker logic. When <see cref="IDataAccessPolicyFactory"/> is registered
-	/// (e.g., via <c>Excalibur.Data.SqlServer</c>), all DB calls are wrapped in its
-	/// comprehensive policy. When not registered, DB calls execute directly.
+	/// (e.g., via <c>Excalibur.Data.SqlServer</c>), enqueue and discovery use its
+	/// comprehensive policy. Owned writes do not reopen or retry on another session.
 	/// </summary>
 	private volatile IAsyncPolicy? _resiliencePolicy;
 
@@ -125,6 +126,11 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 	/// <inheritdoc />
 	public async ValueTask ProcessDataTasksAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+		if (Transaction.Current is not null)
+		{
+			throw new InvalidOperationException("Drain data tasks outside an ambient transaction; enqueue may participate in a business transaction.");
+		}
 		List<DataTaskRequest> requests = [];
 		await ResiliencePolicy.ExecuteAsync(async () =>
 		{
@@ -137,6 +143,8 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			requests = (await connection.Ready().ResolveAsync(req).ConfigureAwait(false)).ToList();
 		}).ConfigureAwait(false);
 
+		cancellationToken.ThrowIfCancellationRequested();
+
 		if (requests.Count == 0)
 		{
 			return;
@@ -145,157 +153,142 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 		await ProcessRequestsAsync(requests, cancellationToken).ConfigureAwait(false);
 	}
 
-	private async Task ProcessRequestsAsync(IList<DataTaskRequest> dataTaskRequests, CancellationToken cancellationToken)
+	private async Task ProcessRequestsAsync(IList<DataTaskRequest> requests, CancellationToken cancellationToken)
 	{
-		foreach (var request in dataTaskRequests)
+		List<Exception>? failures = null;
+		foreach (var candidate in requests)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-
-			if (!_processorRegistry.TryGetFactory(request.RecordType, out var factory))
-			{
-				await TryUpdateAttemptsAsync(request.DataTaskId, request.Attempts + 1, cancellationToken).ConfigureAwait(false);
-
-				LogProcessorNotFound(request.RecordType);
-				continue;
-			}
-
+			Exception? taskFailure = null;
 			try
 			{
-				// The scope owns the processor lifetime — DisposeAsync is called
-				// automatically when the scope is disposed via IAsyncDisposable.
-				await using var scope = _serviceProvider.CreateAsyncScope();
-				var dataProcessor = factory(scope.ServiceProvider);
-
-				// Task-scoped CTS: signals the processor to abort when the underlying
-				// task row disappears (e.g., after a database restore). The processor
-				// receives the linked token and stops cleanly.
-				using var taskScopedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-				_ = await dataProcessor.RunAsync(
-					request.CompletedCount,
-					request.ProcessedCursor,
-					(complete, processedCursor, ct) =>
-						UpdateCompletedCountAsync(request.DataTaskId, complete, processedCursor, taskScopedCts, ct),
-					taskScopedCts.Token).ConfigureAwait(false);
-
-				await TryDeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
+				await using var claim = await SqlDataTaskClaim.TryAcquireAsync(
+					_connectionFactory, candidate.DataTaskId, _configuration.Value, cancellationToken).ConfigureAwait(false);
+				if (claim is null)
+				{
+					continue;
+				}
+				try
+				{
+					// Discovery was only a hint. Another worker may have completed or changed it.
+					var request = await claim.ReadEligibleAsync(cancellationToken).ConfigureAwait(false);
+					if (request is not null)
+					{
+						await ProcessClaimedRequestAsync(claim, request, cancellationToken).ConfigureAwait(false);
+					}
+				}
+				catch (Exception ex)
+				{
+					taskFailure = ex;
+					throw;
+				}
 			}
-			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				// Task-scoped cancellation: the task row was deleted or replaced
-				// (typically after a database restore). Log and move to the next task.
-				LogDataTaskStale(request.DataTaskId, request.RecordType);
+				throw;
 			}
 			catch (Exception ex)
 			{
-				await TryUpdateAttemptsAsync(request.DataTaskId, request.Attempts + 1, cancellationToken).ConfigureAwait(false);
-
-				LogProcessingDataTaskError(request.RecordType, request.Attempts + 1, ex);
-
-				// Continue processing remaining tasks instead of aborting the batch
+				(failures ??= []).Add(taskFailure is not null && !ReferenceEquals(taskFailure, ex)
+					? new AggregateException("Data task processing and ownership cleanup both failed.", taskFailure, ex)
+					: ex);
 			}
 		}
+		cancellationToken.ThrowIfCancellationRequested();
+		if (failures is not null)
+		{
+			throw new AggregateException("One or more data tasks failed.", failures);
+		}
 	}
 
-	/// <summary>
-	/// Updates the attempt count for a data task. Failures are logged but do not propagate —
-	/// the database may be unavailable during restore, and crashing the loop would
-	/// prevent processing of remaining tasks.
-	/// </summary>
-	private async Task TryUpdateAttemptsAsync(Guid dataTaskId, int attempts, CancellationToken cancellationToken)
+	private async Task ProcessClaimedRequestAsync(SqlDataTaskClaim claim, DataTaskRequest request, CancellationToken cancellationToken)
 	{
+		using var stale = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		using var deadlineStop = new CancellationTokenSource();
+		using var processing = CancellationTokenSource.CreateLinkedTokenSource(stale.Token);
+		var deadline = CancelAtDeadlineAsync(processing, request, deadlineStop.Token);
 		try
 		{
-			await ResiliencePolicy.ExecuteAsync(async () =>
+			if (!_processorRegistry.TryGetFactory(request.RecordType, out var factory))
 			{
-				var req = new UpdateDataTaskAttempts(
-					dataTaskId,
-					attempts,
-					_configuration.Value,
-					DbTimeouts.RegularTimeoutSeconds,
-					cancellationToken);
-
-				using var connection = _connectionFactory();
-				_ = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
-			}).ConfigureAwait(false);
+				LogProcessorNotFound(request.RecordType);
+				throw new InvalidOperationException($"No data processor registered for record type '{request.RecordType}'.");
+			}
+			await using (var scope = _serviceProvider.CreateAsyncScope())
+			{
+				var processor = factory(scope.ServiceProvider);
+				_ = await processor.RunAsync(request.CompletedCount, request.ProcessedCursor,
+					async (count, cursor, token) =>
+					{
+						if (await claim.CheckpointAsync(count, cursor, token).ConfigureAwait(false) == 0)
+						{
+							LogUpdateCompletedCountMismatch(request.DataTaskId);
+							await stale.CancelAsync().ConfigureAwait(false);
+							stale.Token.ThrowIfCancellationRequested();
+						}
+					}, processing.Token).ConfigureAwait(false);
+			}
+			await deadlineStop.CancelAsync().ConfigureAwait(false);
+			await deadline.ConfigureAwait(false);
+			processing.Token.ThrowIfCancellationRequested();
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// Host shutdown — let it propagate naturally on next cancellation check
+			throw;
+		}
+		catch (OperationCanceledException) when (stale.IsCancellationRequested)
+		{
+			LogDataTaskStale(request.DataTaskId, request.RecordType);
+			return;
 		}
 		catch (Exception ex)
 		{
-			// Database unavailable — log but don't crash the processing loop.
-			// The attempt count stays honest: it only increments when we can persist it.
-			LogUpdateAttemptsFailed(dataTaskId, ex);
+			cancellationToken.ThrowIfCancellationRequested();
+			var failure = processing.IsCancellationRequested
+				? new TimeoutException($"Data task '{request.DataTaskId}' exceeded its configured processing timeout.", ex)
+				: ex;
+			try
+			{
+				await claim.UpdateAttemptsAsync(checked(request.Attempts + 1), cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+			catch (Exception updateError) { LogUpdateAttemptsFailed(request.DataTaskId, updateError); }
+			LogProcessingDataTaskError(request.RecordType, request.Attempts + 1, failure);
+			System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+			throw;
 		}
+
+		finally
+		{
+			await deadlineStop.CancelAsync().ConfigureAwait(false);
+			await deadline.ConfigureAwait(false);
+		}
+
+		// Completed work is retryable if cleanup fails; do not charge another processing failure.
+		cancellationToken.ThrowIfCancellationRequested();
+		try { await claim.DeleteAsync(cancellationToken).ConfigureAwait(false); }
+		catch (Exception ex) { LogDeleteTaskFailed(request.DataTaskId, ex); throw; }
 	}
 
-	/// <summary>
-	/// Updates the completed count and processed cursor, and signals the processor to abort
-	/// if the task row no longer exists (0 rows affected). This detects database restores and
-	/// manual deletions, preventing the processor from doing wasted work against orphaned state.
-	/// </summary>
-	private async Task UpdateCompletedCountAsync(
-		Guid dataTaskId,
-		long complete,
-		string? processedCursor,
-		CancellationTokenSource taskScopedCts,
-		CancellationToken cancellationToken)
-	{
-		var affected = 0;
-		await ResiliencePolicy.ExecuteAsync(async () =>
-		{
-			var req = new UpdateDataTaskCompletedCount(
-				dataTaskId,
-				complete,
-				processedCursor,
-				_configuration.Value,
-				DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken);
-
-			using var connection = _connectionFactory();
-			affected = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
-		}).ConfigureAwait(false);
-
-		if (affected == 0)
-		{
-			LogUpdateCompletedCountMismatch(dataTaskId);
-
-			// Signal the processor to stop — the task row no longer exists.
-			// The consumer loop will see the cancellation and exit cleanly.
-			await taskScopedCts.CancelAsync().ConfigureAwait(false);
-		}
-	}
-
-	/// <summary>
-	/// Deletes a completed task row. Failures are logged but do not propagate —
-	/// if the delete fails (DB unavailable or row already gone), the task will be
-	/// re-selected on the next poll but the processor should handle it idempotently.
-	/// </summary>
-	private async Task TryDeleteRequestAsync(Guid dataTaskId, CancellationToken cancellationToken)
+	private async Task CancelAtDeadlineAsync(CancellationTokenSource processing, DataTaskRequest request, CancellationToken stop)
 	{
 		try
 		{
-			await ResiliencePolicy.ExecuteAsync(async () =>
-			{
-				var req = new DeleteDataTask(
-					dataTaskId,
-					_configuration.Value,
-					DbTimeouts.RegularTimeoutSeconds,
-					cancellationToken);
-
-				using var connection = _connectionFactory();
-				_ = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
-			}).ConfigureAwait(false);
+			await Task.Delay(TimeSpan.FromMilliseconds(_configuration.Value.DispatcherTimeoutMilliseconds), stop).ConfigureAwait(false);
 		}
-		catch (OperationCanceledException)
+		catch (OperationCanceledException) when (stop.IsCancellationRequested)
 		{
-			// Host shutdown — let it propagate naturally
+			return;
 		}
-		catch (Exception ex)
+		try
 		{
-			LogDeleteTaskFailed(dataTaskId, ex);
+			await processing.CancelAsync().ConfigureAwait(false);
+		}
+		catch (Exception callbackError)
+		{
+			// Observe user cancellation callbacks on this task, never on a timer thread.
+			LogProcessingDataTaskError(request.RecordType, request.Attempts + 1, callbackError);
 		}
 	}
+
 }

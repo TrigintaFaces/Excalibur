@@ -15,6 +15,23 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 public sealed class StoredEventShould
 {
 	[Fact]
+	public void PreserveUnknownTenantWhenReadingLegacyJson()
+	{
+		const string json = """
+			{"EventId":"e1","AggregateId":"a1","AggregateType":"Order","EventType":"Created","EventData":"AQ==","Metadata":null,"Version":1,"Timestamp":"2026-01-01T00:00:00Z"}
+			""";
+		var stored = System.Text.Json.JsonSerializer.Deserialize<StoredEvent>(json).ShouldNotBeNull();
+		stored.TenantId.ShouldBeNull();
+		stored.EventData.ShouldBe(new byte[] { 1 });
+		var scoped = stored with { TenantId = "Acme" };
+		var roundTrip = System.Text.Json.JsonSerializer.Deserialize<StoredEvent>(
+			System.Text.Json.JsonSerializer.Serialize(scoped)).ShouldNotBeNull();
+		roundTrip.TenantId.ShouldBe("Acme");
+		(scoped with { TenantId = "acme" }).ShouldNotBe(scoped);
+		(scoped with { TenantId = "__untenanted__" }).ShouldNotBe(stored);
+	}
+
+	[Fact]
 	public void CreateStoredEvent_WithAllProperties()
 	{
 		// Arrange

@@ -30,15 +30,15 @@ public class InMemoryEventStoreBenchmarks
 	private string _aggregateWith10000Events = null!;
 
 	[GlobalSetup]
-	public void GlobalSetup()
+	public async Task GlobalSetup()
 	{
 		_eventStore = new InMemoryEventStore(UntenantedContext.Instance);
 
 		// Pre-populate aggregates with different event counts
-		_aggregateWith10Events = CreateAggregateWithEvents(10);
-		_aggregateWith100Events = CreateAggregateWithEvents(100);
-		_aggregateWith1000Events = CreateAggregateWithEvents(1000);
-		_aggregateWith10000Events = CreateAggregateWithEvents(10000);
+		_aggregateWith10Events = await CreateAggregateWithEventsAsync(10).ConfigureAwait(false);
+		_aggregateWith100Events = await CreateAggregateWithEventsAsync(100).ConfigureAwait(false);
+		_aggregateWith1000Events = await CreateAggregateWithEventsAsync(1000).ConfigureAwait(false);
+		_aggregateWith10000Events = await CreateAggregateWithEventsAsync(10000).ConfigureAwait(false);
 	}
 
 	[GlobalCleanup]
@@ -192,11 +192,11 @@ public class InMemoryEventStoreBenchmarks
 		return events;
 	}
 
-	private string CreateAggregateWithEvents(int eventCount)
+	private async Task<string> CreateAggregateWithEventsAsync(int eventCount)
 	{
 		var aggregateId = Guid.NewGuid().ToString();
 		var events = CreateEvents(aggregateId, eventCount);
-		_ = _eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None).GetAwaiter().GetResult();
+		_ = await _eventStore.AppendAsync(aggregateId, "TestAggregate", events, -1, CancellationToken.None).ConfigureAwait(false);
 		return aggregateId;
 	}
 

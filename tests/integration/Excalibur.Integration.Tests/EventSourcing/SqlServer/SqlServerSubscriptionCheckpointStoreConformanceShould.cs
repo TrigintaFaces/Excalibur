@@ -28,6 +28,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 [Trait("Component", "EventStore")]
+[Trait("Pattern", "Conformance")]
 public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 	: SubscriptionCheckpointStoreConformanceTestKit,
 		IClassFixture<SqlServerEventStoreContainerFixture>,
@@ -68,6 +69,14 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 
 		return services.BuildServiceProvider().GetRequiredService<ISubscriptionCheckpointStore>();
 	}
+
+	[Fact]
+	public Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing_Test() =>
+		Advance_WithInvalidPositions_ShouldThrowAndChangeNothing();
+
+	[Fact]
+	public Task Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership_Test() =>
+		Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership();
 
 	[Fact]
 	public Task GetCheckpoint_ForUnknownSubscription_ShouldReturnNull_Test() =>

@@ -12,20 +12,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Benchmarks.Aot;
 
-/// <summary>
-/// AOT vs JIT dispatch throughput benchmarks.
-/// </summary>
+/// <summary>Managed-process comparison of expression and container handler activation.</summary>
 /// <remarks>
-/// <para>
-/// Compares the AOT-safe dispatch path (source-generated handler activation, registry-based lookup)
-/// against the JIT reflection path (expression-compiled delegates, generic type construction).
-/// </para>
-/// <para>
-/// Phase D1 requirement R-D1: AOT-specific benchmarks for dispatch throughput.
-/// Target: AOT path dispatch throughput >= 100% of JIT path.
-/// </para>
+/// Both arms run under HostProcess with the same runtime-selected handler invoker. The second arm
+/// selects AotHandlerActivator, but this is not a Native AOT versus JIT runtime comparison.
+/// Warm-up validates actual handler/context execution before timing; owned contexts are returned.
+/// Publish and execute a native consumer separately to establish Native AOT compatibility.
 /// </remarks>
-[BenchmarkCategory("AOT")]
+[BenchmarkCategory("ManagedActivatorComparison")]
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class AotPathDispatchBenchmarks
@@ -72,6 +66,13 @@ public class AotPathDispatchBenchmarks
         _aotDispatcher = _aotProvider.GetRequiredService<IDispatcher>();
         _aotContextFactory = _aotProvider.GetRequiredService<IMessageContextFactory>();
 
+        if (_jitProvider.GetRequiredService<IHandlerActivator>() is not HandlerActivator
+            || _aotProvider.GetRequiredService<IHandlerActivator>() is not AotHandlerActivator
+            || _jitProvider.GetRequiredService<IHandlerInvoker>().GetType() != _aotProvider.GetRequiredService<IHandlerInvoker>().GetType())
+        {
+            throw new InvalidOperationException("Activator comparison selected unexpected activation or invocation services.");
+        }
+
         // Warm up both paths
         WarmUp(_jitDispatcher, _jitContextFactory).GetAwaiter().GetResult();
         WarmUp(_aotDispatcher, _aotContextFactory).GetAwaiter().GetResult();
@@ -85,36 +86,33 @@ public class AotPathDispatchBenchmarks
     }
 
     /// <summary>
-    /// JIT path: Full dispatch with expression-compiled handler activation (baseline).
+    /// Expression activator: Full dispatch with expression-compiled handler activation (baseline).
     /// </summary>
     [Benchmark(Baseline = true)]
-    public Task<IMessageResult> JitPath_Dispatch()
+    public Task<IMessageResult> ExpressionActivator_Dispatch()
     {
-        var context = _jitContextFactory.CreateContext();
-        return _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+        return DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
     }
 
     /// <summary>
-    /// AOT path: Full dispatch with service-provider handler activation.
+    /// Container activator: Full dispatch with service-provider handler activation.
     /// </summary>
     [Benchmark]
-    public Task<IMessageResult> AotPath_Dispatch()
+    public Task<IMessageResult> ContainerActivator_Dispatch()
     {
-        var context = _aotContextFactory.CreateContext();
-        return _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+        return DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
     }
 
     /// <summary>
-    /// JIT path: 100 sequential dispatches (throughput).
+    /// Expression activator: 100 sequential dispatches (throughput).
     /// </summary>
     [Benchmark]
-    public async Task<int> JitPath_Throughput100()
+    public async Task<int> ExpressionActivator_Throughput100()
     {
         var count = 0;
         for (var i = 0; i < 100; i++)
         {
-            var context = _jitContextFactory.CreateContext();
-            var result = await _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            var result = await DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
             if (result.Succeeded)
             {
                 count++;
@@ -125,16 +123,15 @@ public class AotPathDispatchBenchmarks
     }
 
     /// <summary>
-    /// AOT path: 100 sequential dispatches (throughput).
+    /// Container activator: 100 sequential dispatches (throughput).
     /// </summary>
     [Benchmark]
-    public async Task<int> AotPath_Throughput100()
+    public async Task<int> ContainerActivator_Throughput100()
     {
         var count = 0;
         for (var i = 0; i < 100; i++)
         {
-            var context = _aotContextFactory.CreateContext();
-            var result = await _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            var result = await DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
             if (result.Succeeded)
             {
                 count++;
@@ -145,16 +142,15 @@ public class AotPathDispatchBenchmarks
     }
 
     /// <summary>
-    /// JIT path: 10 concurrent dispatches (parallel throughput).
+    /// Expression activator: 10 concurrent dispatches (parallel throughput).
     /// </summary>
     [Benchmark]
-    public async Task<int> JitPath_Concurrent10()
+    public async Task<int> ExpressionActivator_Concurrent10()
     {
         var tasks = new Task<IMessageResult>[10];
         for (var i = 0; i < 10; i++)
         {
-            var context = _jitContextFactory.CreateContext();
-            tasks[i] = _jitDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            tasks[i] = DispatchAndReturnAsync(_jitDispatcher, _jitContextFactory, _command);
         }
 
         var results = await Task.WhenAll(tasks);
@@ -162,20 +158,45 @@ public class AotPathDispatchBenchmarks
     }
 
     /// <summary>
-    /// AOT path: 10 concurrent dispatches (parallel throughput).
+    /// Container activator: 10 concurrent dispatches (parallel throughput).
     /// </summary>
     [Benchmark]
-    public async Task<int> AotPath_Concurrent10()
+    public async Task<int> ContainerActivator_Concurrent10()
     {
         var tasks = new Task<IMessageResult>[10];
         for (var i = 0; i < 10; i++)
         {
-            var context = _aotContextFactory.CreateContext();
-            tasks[i] = _aotDispatcher.DispatchAsync(_command, context, CancellationToken.None);
+            tasks[i] = DispatchAndReturnAsync(_aotDispatcher, _aotContextFactory, _command);
         }
 
         var results = await Task.WhenAll(tasks);
         return results.Count(r => r.Succeeded);
+    }
+
+    private static async Task<IMessageResult> DispatchAndReturnAsync(IDispatcher dispatcher,
+        IMessageContextFactory factory, BenchmarkCommand command, bool verifyExecution = false)
+    {
+        var context = factory.CreateContext();
+        try
+        {
+            var result = await dispatcher.DispatchAsync(command, context, CancellationToken.None).ConfigureAwait(false);
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(result.ErrorMessage ?? "Benchmark dispatch failed.");
+            }
+            if (verifyExecution)
+            {
+                if (!context.Items.ContainsKey("benchmark-handler"))
+                {
+                    throw new InvalidOperationException("Benchmark did not execute its handler.");
+                }
+            }
+            return result;
+        }
+        finally
+        {
+            factory.Return(context);
+        }
     }
 
     private static async Task WarmUp(IDispatcher dispatcher, IMessageContextFactory contextFactory)
@@ -183,8 +204,7 @@ public class AotPathDispatchBenchmarks
         var cmd = new BenchmarkCommand { OrderId = Guid.NewGuid(), CustomerId = "warmup" };
         for (var i = 0; i < 5; i++)
         {
-            var ctx = contextFactory.CreateContext();
-            await dispatcher.DispatchAsync(cmd, ctx, CancellationToken.None);
+            await DispatchAndReturnAsync(dispatcher, contextFactory, cmd, verifyExecution: true);
         }
     }
 
@@ -196,12 +216,16 @@ public class AotPathDispatchBenchmarks
         public string CustomerId { get; init; } = string.Empty;
     }
 
-    internal sealed class BenchmarkCommandHandler : IActionHandler<BenchmarkCommand>
+    internal sealed class BenchmarkCommandHandler : IActionHandler<BenchmarkCommand>, IMessageContextAware
     {
         public IMessageContext? Context { get; set; }
 
+        public void SetContext(IMessageContext context) => Context = context;
+
         public Task HandleAsync(BenchmarkCommand command, CancellationToken cancellationToken)
         {
+            var context = Context ?? throw new InvalidOperationException("Handler did not receive the message context.");
+            context.Items["benchmark-handler"] = true;
             _ = command.OrderId;
             return Task.CompletedTask;
         }

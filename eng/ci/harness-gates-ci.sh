@@ -417,6 +417,20 @@ fi
 # battery that reds for a non-defect teaches everyone to stop reading it. It carries its own interpreter,
 # so it gets its own run call. Self-test FIRST: a gate's non-vacuity must report before its verdict is
 # believed. Keep this above the real-repo run.
+run "self-test: required-test-evidence" python3 eng/ci/required-test-evidence.test.py
+run "self-test: nightly-integration-wiring" python3 eng/ci/nightly-integration-evidence.wiring.test.py
+run "self-test: release-version-data" python3 eng/ci/resolve-release-version.test.py
+run "self-test: scanner-installation" python3 eng/ci/install-gitleaks.test.py
+run "self-test: reproducible-build" python3 eng/ci/verify-reproducible-build.test.py
+run "self-test: official-handoff" python3 eng/ci/official-handoff.test.py
+run "self-test: CI SLI populations" python3 eng/ci/ci-sli-report.test.py
+run "self-test: cache restore observations" python3 eng/ci/record-cache-observation.test.py
+run "self-test: cache restore population" python3 eng/ci/cache-restore-report.test.py
+run "self-test: hosted cache evidence" python3 eng/ci/collect-cache-evidence.test.py
+run "self-test: solution-governance" pwsh -NoProfile -File eng/validate-solution.test.ps1
+run "self-test: unit-shard-governance" pwsh -NoProfile -File eng/ci/validate-unit-shards.ps1 -SelfTest
+run "self-test: shard-coverage" python3 eng/ci/shard-coverage-gate.py --self-test
+run "self-test: raw-shard-results" pwsh -NoProfile -File eng/ci/validate-shard-results.test.ps1
 run "self-test: ddl-pack-completeness" python3 eng/ci/ddl-pack-completeness.py --self-test
 
 run "ddl-pack-completeness (real repo)" python3 eng/ci/ddl-pack-completeness.py

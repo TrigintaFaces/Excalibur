@@ -15,11 +15,15 @@ namespace Boundary.Tests.Architecture;
 
 [Trait("Category", "Integration")]
 [Trait("Component", "Architecture")]
+[Trait("Pattern", "Governance")]
 public sealed class PackageTestCoverageMappingTests
 {
     private static readonly string RepoRoot = TestHelpers.GetRepositoryRoot();
     private static readonly string GovernancePath = Path.Combine(RepoRoot, "eng", "governance", "framework-governance.json");
     private static readonly string ShippingFilterPath = Path.Combine(RepoRoot, "eng", "ci", "shards", "ShippingOnly.slnf");
+    private static readonly SolutionInventory Solution = SolutionInventory.ReadSolution(RepoRoot);
+    private static readonly HashSet<string> ShardProjects = Directory.GetFiles(Path.Combine(RepoRoot, "eng/ci/shards"), "*.slnf")
+        .SelectMany(path => SolutionInventory.ReadFilter(RepoRoot, path, Solution.Projects)).ToHashSet(StringComparer.Ordinal);
 
     [Fact]
     public void CriticalPackageTestMatrix_ShouldPointToExistingProjectsAndSuites()
@@ -27,6 +31,7 @@ public sealed class PackageTestCoverageMappingTests
         using var doc = LoadGovernanceJson();
         var root = doc.RootElement;
         var missing = new List<string>();
+        root.GetProperty("criticalPackageTestMatrix").GetArrayLength().ShouldBeGreaterThan(0);
 
         foreach (var entry in root.GetProperty("criticalPackageTestMatrix").EnumerateArray())
         {
@@ -38,7 +43,7 @@ public sealed class PackageTestCoverageMappingTests
                 missing.Add($"Missing critical package project '{projectPath}' for {package}.");
             }
 
-            if (!entry.TryGetProperty("suites", out var suites))
+            if (!entry.TryGetProperty("suites", out var suites) || suites.ValueKind != JsonValueKind.Object || !suites.EnumerateObject().Any())
             {
                 missing.Add($"Critical package '{package}' has no suite mapping.");
                 continue;
@@ -55,6 +60,7 @@ public sealed class PackageTestCoverageMappingTests
                 foreach (var suitePathElement in suite.Value.EnumerateArray())
                 {
                     var suitePath = ToAbsolutePath(suitePathElement.GetString());
+                    AssertSuiteMembership(suitePathElement.GetString()!, Solution.Projects.Keys, ShardProjects);
                     if (!File.Exists(suitePath))
                     {
                         missing.Add($"Critical package '{package}' suite '{suite.Name}' references missing project '{suitePath}'.");
@@ -78,12 +84,15 @@ public sealed class PackageTestCoverageMappingTests
             var name = rule.GetProperty("name").GetString() ?? "<unnamed rule>";
             var pattern = rule.GetProperty("packagePattern").GetString() ?? string.Empty;
             var regex = new Regex(pattern, RegexOptions.Compiled);
+            rule.GetProperty("suites").EnumerateObject().ShouldNotBeEmpty();
 
             foreach (var suite in rule.GetProperty("suites").EnumerateObject())
             {
+                suite.Value.GetArrayLength().ShouldBeGreaterThan(0);
                 foreach (var suitePathElement in suite.Value.EnumerateArray())
                 {
                     var suitePath = ToAbsolutePath(suitePathElement.GetString());
+                    AssertSuiteMembership(suitePathElement.GetString()!, Solution.Projects.Keys, ShardProjects);
                     if (!File.Exists(suitePath))
                     {
                         throw new InvalidOperationException($"Mapping rule '{name}' references missing suite project '{suitePath}'.");
@@ -93,6 +102,7 @@ public sealed class PackageTestCoverageMappingTests
 
             return (name, regex);
         }).ToArray();
+        rules.ShouldNotBeEmpty();
 
         var uncoveredPackages = new List<string>();
         foreach (var project in shippingDoc.RootElement.GetProperty("solution").GetProperty("projects").EnumerateArray())
@@ -149,6 +159,28 @@ public sealed class PackageTestCoverageMappingTests
         return JsonDocument.Parse(File.ReadAllText(GovernancePath));
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void ProviderSuiteOmission_MustNotBeSatisfiedByASameNamedSuite(bool inSolution, bool inShard)
+    {
+        const string provider = "tests/unit/Provider/Provider.Tests.csproj";
+        const string substitute = "tests/unit/Other/Provider.Tests.csproj";
+        var solution = new[] { inSolution ? provider : substitute };
+        var shards = new[] { inShard ? provider : substitute };
+        Should.Throw<InvalidDataException>(() => AssertSuiteMembership(provider, solution, shards));
+        AssertSuiteMembership(provider, [provider, substitute], [provider]);
+    }
+
+    private static void AssertSuiteMembership(string path, IEnumerable<string> solution, IEnumerable<string> shards)
+    {
+        var canonical = SolutionInventory.CanonicalPath(path);
+        if (!solution.Contains(canonical, StringComparer.Ordinal) || !shards.Contains(canonical, StringComparer.Ordinal))
+        {
+            throw new InvalidDataException($"Mapped test suite is absent from the solution or every CI shard: {canonical}");
+        }
+    }
+
     private static string ReadPackageId(string projectPath)
     {
         var content = File.ReadAllText(projectPath);
@@ -167,12 +199,11 @@ public sealed class PackageTestCoverageMappingTests
 
     private static string ToAbsolutePath(string? relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath))
+        var normalized = SolutionInventory.CanonicalPath(relativePath ?? string.Empty);
+        if (!Solution.Projects.ContainsKey(normalized))
         {
-            return string.Empty;
+            throw new InvalidDataException($"Mapped project is absent from the solution: {normalized}");
         }
-
-        var normalized = relativePath.Replace('\\', Path.DirectorySeparatorChar);
         return Path.GetFullPath(Path.Combine(RepoRoot, normalized));
     }
 }

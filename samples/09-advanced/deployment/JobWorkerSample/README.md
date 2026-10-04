@@ -113,8 +113,8 @@ lifetime of the process.
 
 The in-memory store loses all scheduling state on restart. For
 production scenarios that need persisted schedules, add the appropriate
-Quartz ADO provider package (e.g. `Quartz.Extensions.DependencyInjection`
-+ a provider such as `Quartz.Serialization.Json` and your chosen
+Quartz ADO provider package (e.g. `Quartz`
++ a provider such as `Quartz 4 built-in System.Text.Json` and your chosen
 database driver) and replace `q.UseInMemoryStore()` with the matching
 `q.UsePersistentStore(...)` configuration. The Excalibur Job Host does
 not prescribe which Quartz provider to use — pick the one that matches
@@ -219,3 +219,6 @@ The sample demonstrates proper separation of concerns:
 - **Logging**: Structured logging with Serilog
 
 This architecture supports easy testing, maintenance, and extension of the job system.
+Quartz integration targets 4.3.0. Dependency injection is built into Quartz. Existing SQL deployments must run the Quartz 3-to-4 and applicable 4.2/4.3 schema migrations before upgrading workers; ProvisionSchema is only for new databases.
+
+This sample uses the in-memory Quartz store in every environment. Production JSON does not override that code registration. To persist schedules, replace UseInMemoryStore in Program.cs with UsePersistentStore and an explicit database provider factory, then provision or migrate the database.

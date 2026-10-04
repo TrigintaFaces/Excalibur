@@ -163,8 +163,9 @@ public interface IEventStore : IServiceProvider
 	/// <b>Outcome or defect.</b> The line between a returned <see cref="AppendResult"/> and a thrown
 	/// exception is whether the identical call could ever succeed without a change to the calling program.
 	/// A version clash could, once the caller reloads, so it is reported as a result carrying
-	/// <see cref="AppendResult.IsConcurrencyConflict"/>; a transient store fault could, on retry, so it is
-	/// reported as a failed result. An event type the configured resolver does not declare could not — no
+	/// <see cref="AppendResult.IsConcurrencyConflict"/>; an infrastructure fault may be reported as Failed only when non-commit is established.
+	/// A lost commit acknowledgement with inconclusive recovery is Unknown, even if a later read sees
+	/// a different stream version or no matching rows. Retry classification does not establish commit certainty. An event type the configured resolver does not declare could not — no
 	/// retry, reload or reconfiguration reaches it — so it throws, as do a blank identifier, a batch above
 	/// the provider's atomic limit, and cancellation. Every implementation of this interface answers the
 	/// same way; a caller may rely on that rather than on which provider is configured.
@@ -173,6 +174,9 @@ public interface IEventStore : IServiceProvider
 	/// <b>Cancellation propagates.</b> A cancelled append raises
 	/// <see cref="OperationCanceledException"/> rather than reporting a failed result: reporting it as a
 	/// store failure would invite a caller to retry inside a scope that has already been cancelled.
+	/// Cancellation after dispatch does not prove rollback. Reconcile outside the cancelled operation
+	/// using the original tenant, stream, event identities, payloads and expected version; do not regenerate
+	/// events or rebase the append merely because its acknowledgement was not received.
 	/// </para>
 	/// <para>
 	/// Confined to the ambient tenant established for this store instance: the appended events join only

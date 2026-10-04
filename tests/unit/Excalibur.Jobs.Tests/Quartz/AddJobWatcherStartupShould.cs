@@ -50,11 +50,11 @@ public sealed class AddJobWatcherStartupShould
 		_ = services.AddLogging();
 		_ = services.AddQuartz(q =>
 		{
-			_ = q.AddJob<NoopJob>(jobKey);
+			_ = q.AddJob<NoopJob>(j => j.WithIdentity(jobKey));
 			_ = q.AddTrigger(t => t
 				.ForJob(jobKey)
 				.WithIdentity(triggerKey)
-				.WithSimpleSchedule(s => s.WithIntervalInHours(1).RepeatForever()));
+				.WithSimpleSchedule(s => s.WithInterval(TimeSpan.FromHours(1)).RepeatForever()));
 		});
 
 		var config = BuildJobConfig(disabled: true);
@@ -109,6 +109,6 @@ public sealed class AddJobWatcherStartupShould
 	[DisallowConcurrentExecution]
 	private sealed class NoopJob : IJob
 	{
-		public Task Execute(IJobExecutionContext context) => Task.CompletedTask;
+		public ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 	}
 }

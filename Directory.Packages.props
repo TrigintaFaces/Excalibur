@@ -114,11 +114,8 @@
 		<PackageVersion Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
 		<!-- Quartz scheduling -->
 		<PackageVersion Include="NCrontab" Version="3.4.0" />
-		<PackageVersion Include="Quartz" Version="3.18.0" />
-		<PackageVersion Include="Quartz.Extensions.Hosting" Version="3.18.0" />
-		<PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.18.0" />
-		<PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="3.18.0" />
-		<PackageVersion Include="Quartz.Plugins" Version="3.18.0" />
+		<PackageVersion Include="Quartz" Version="4.3.0" />
+		<PackageVersion Include="Quartz.Plugins" Version="4.3.0" />
 		<PackageVersion Include="AspNetCore.HealthChecks.Uris" Version="9.0.0" />
 		<PackageVersion Include="AspNetCore.HealthChecks.System" Version="9.0.0" />
 		<PackageVersion Include="AspNetCore.HealthChecks.UI.InMemory.Storage" Version="9.0.0" />

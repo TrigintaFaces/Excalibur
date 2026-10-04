@@ -50,12 +50,15 @@ public sealed class TieredEventStoreDecoratorShould
 	private readonly IColdEventStore _coldStore = A.Fake<IColdEventStore>();
 	private readonly TieredEventStoreDecorator _decorator;
 
-	public TieredEventStoreDecoratorShould() =>
+	public TieredEventStoreDecoratorShould()
+	{
+		A.CallTo(() => _hotStore.GetService(typeof(IEventStoreAuthoritativeReader))).Returns(new TestEventStateReader(_hotStore));
 		_decorator = new TieredEventStoreDecorator(
 			_hotStore,
 			_coldStore,
 			NullLogger<TieredEventStoreDecorator>.Instance,
 			tenantContext: TestTenantContext.SingleTenantDefault);
+	}
 
 	private static StoredEvent Event(
 		string aggregateId,
@@ -74,6 +77,7 @@ public sealed class TieredEventStoreDecoratorShould
 		{
 			GlobalPosition = version,
 			ArchivedAt = archivedAt,
+			TenantId = TenantDefaults.DefaultTenantId,
 		};
 
 	private void HotReturns(string aggregateId, params StoredEvent[] events) =>
@@ -81,7 +85,7 @@ public sealed class TieredEventStoreDecoratorShould
 			.Returns(events);
 
 	private void ColdReturns(string aggregateId, params StoredEvent[] events) =>
-		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, aggregateId, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, aggregateId, AggregateType, A<CancellationToken>._))
 			.Returns(events);
 
 	[Fact]
@@ -107,7 +111,7 @@ public sealed class TieredEventStoreDecoratorShould
 
 		// SAFETY -- cold storage is a network call. Consulting it on every read of an unarchived stream
 		// would be a per-read cost paid by every consumer who never enabled archival.
-		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, AggregateType, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -138,16 +142,59 @@ public sealed class TieredEventStoreDecoratorShould
 		result.Select(static e => e.GlobalPosition).ShouldBe(new long[] { 1, 2, 3 });
 	}
 
-	[Fact]
-	public async Task NotResurrectAnErasedPayload()
+	[Theory]
+	[InlineData(null, false)]
+	[InlineData(null, true)]
+	[InlineData("", false)]
+	[InlineData("", true)]
+	[InlineData(" ", false)]
+	[InlineData(" ", true)]
+	public async Task RejectUnknownArchivedTenantBeforeColdAccess(string? recordedTenant, bool fromVersion)
 	{
-		// An ERASED event also has a null payload -- and must stay that way. The discriminator is the
-		// archive stamp, which erasure does not set. Inferring "archived" from "payload is missing" is
-		// exactly the mistake this arm exists to prevent: it would hand back data a data-subject request
-		// removed, from a cold copy that predates the erasure.
+		var marker = Event("agg-1", 2, null, DateTimeOffset.UnixEpoch) with { TenantId = recordedTenant };
+		HotReturns("agg-1", marker);
+		A.CallTo(() => _hotStore.LoadAsync("agg-1", AggregateType, 1L, A<CancellationToken>._))
+			.Returns(new[] { marker });
+		// A matching archive exists. Rejecting must precede any access to it, even for the
+		// default tenant context; that context cannot supply missing row provenance.
+		ColdReturns("agg-1", Event("agg-1", 2, [22]));
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+		{
+			if (fromVersion)
+			{
+				await _decorator.LoadAsync("agg-1", AggregateType, 1, CancellationToken.None);
+			}
+			else
+			{
+				await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None);
+			}
+		});
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task RejectMissingArchiveProvenanceForExplicitUntenantedContext()
+	{
+		HotReturns("agg-1", Event("agg-1", 1, null, DateTimeOffset.UnixEpoch) with { TenantId = null });
+		var decorator = new TieredEventStoreDecorator(_hotStore, _coldStore,
+			NullLogger<TieredEventStoreDecorator>.Instance, UntenantedContext.Instance);
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, A<string>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task NotResurrectAnErasedPayload(bool retainedArchiveStamp)
+	{
+		// Positive erasure takes precedence over a retained archive stamp and any surviving cold copy.
 		HotReturns(
 			"agg-1",
-			Event("agg-1", 1, payload: null, archivedAt: null),
+			Event("agg-1", 1, payload: null,
+				archivedAt: retainedArchiveStamp ? DateTimeOffset.UnixEpoch : null) with { EventType = "$erased" },
 			Event("agg-1", 2, payload: null, archivedAt: DateTimeOffset.UnixEpoch.AddDays(1)));
 
 		ColdReturns("agg-1", Event("agg-1", 1, [11]), Event("agg-1", 2, [22]));
@@ -184,12 +231,12 @@ public sealed class TieredEventStoreDecoratorShould
 
 		// SAFETY -- one read for the stream, not one per archived entry. Cold storage is blob storage;
 		// a per-entry read turns a 25-event load into 25 network round-trips.
-		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", A<CancellationToken>._))
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, "agg-1", AggregateType, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
-	public async Task LeaveAnArchivedEntryInPlaceWhenColdHasNoPayloadForIt()
+	public async Task FailWhenColdHasNoPayloadForAnArchivedEntry()
 	{
 		var archivedAt = DateTimeOffset.UnixEpoch.AddDays(1);
 		HotReturns(
@@ -199,23 +246,137 @@ public sealed class TieredEventStoreDecoratorShould
 
 		ColdReturns("agg-1");
 
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task PreserveHotProvenanceWhenLegacyColdPositionIsUnknown()
+	{
+		var hot = Event("agg-1", 1, null, DateTimeOffset.UnixEpoch) with { Metadata = [9], GlobalPosition = 42 };
+		HotReturns("agg-1", hot);
+		ColdReturns("agg-1", hot with { EventData = [7], Metadata = [9], GlobalPosition = 0 });
 		var result = await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None);
+		result[0].GlobalPosition.ShouldBe(42);
+		result[0].Metadata.ShouldBeSameAs(hot.Metadata);
+		result[0].ArchivedAt.ShouldBe(hot.ArchivedAt);
+		result[0].EventData.ShouldBe(new byte[] { 7 });
+	}
 
-		// SAFETY -- a missing cold payload does not take down the read of the whole aggregate, and the
-		// entry keeps its version and position so the stream stays contiguous. The caller sees an event
-		// with no payload, which is a shape it must already tolerate for erased events.
-		result.Count.ShouldBe(2);
-		result[0].EventData.ShouldBeNull();
-		result[0].Version.ShouldBe(1);
+	[Theory]
+	[InlineData("event-id")]
+	[InlineData("event-type")]
+	[InlineData("aggregate-id")]
+	[InlineData("aggregate-type")]
+	[InlineData("tenant")]
+	[InlineData("timestamp")]
+	[InlineData("position")]
+	[InlineData("metadata")]
+	[InlineData("metadata-bytes")]
+	[InlineData("metadata-null")]
+	public async Task RefuseColdIdentityMismatch(string mismatch)
+	{
+		var hot = Event("agg-1", 1, null, DateTimeOffset.UnixEpoch);
+		if (mismatch is "metadata-bytes" or "metadata-null")
+		{
+			hot = hot with { Metadata = [9] };
+		}
+		HotReturns("agg-1", hot);
+		var cold = hot with { EventData = [7] };
+		cold = mismatch switch
+		{
+			"event-id" => cold with { EventId = "other" },
+			"event-type" => cold with { EventType = "OtherEvent" },
+			"aggregate-id" => cold with { AggregateId = "other" },
+			"aggregate-type" => cold with { AggregateType = "OtherAggregate" },
+			"tenant" => cold with { TenantId = "other-tenant" },
+			"timestamp" => cold with { Timestamp = cold.Timestamp.AddSeconds(1) },
+			"position" => cold with { GlobalPosition = 2 },
+			"metadata-null" => cold with { Metadata = null },
+			_ => cold with { Metadata = [8] },
+		};
+		ColdReturns("agg-1", cold);
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+	}
 
-		// LIVENESS -- the rest of the stream is unaffected.
-		result[1].EventData.ShouldBe(new byte[] { 22 });
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RejectAmbiguousColdIdentity(bool duplicateVersion)
+	{
+		HotReturns("agg-1", Event("agg-1", 1, null, DateTimeOffset.UnixEpoch));
+		var cold = Event("agg-1", 1, [7]);
+		ColdReturns("agg-1", cold, duplicateVersion
+			? cold with { EventId = "other" }
+			: cold with { Version = 2 });
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task RejectWrongHotTenantBeforeNoColdEarlyReturn(bool erased)
+	{
+		HotReturns("agg-1", Event("agg-1", 1, [7]) with
+		{
+			TenantId = "other-tenant",
+			EventType = erased ? "$erased" : "OrderPlaced",
+		});
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task PreserveReadableHotPayloadDespiteArchiveStamp()
+	{
+		var readable = Event("agg-1", 1, [42], DateTimeOffset.UnixEpoch);
+		HotReturns("agg-1", readable);
+		var result = await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None);
+		result.ShouldBe([readable]);
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, AggregateType, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task AvoidColdStorageForAnErasedOnlyStreamWithRetainedArchiveStamp()
+	{
+		var erased = Event("agg-1", 1, payload: null, archivedAt: DateTimeOffset.UnixEpoch)
+			with { EventType = "$erased" };
+		HotReturns("agg-1", erased);
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, AggregateType, A<CancellationToken>._))
+			.Throws(new InvalidOperationException("Cold storage must not be consulted."));
+		var result = await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None);
+		result.ShouldBe([erased]);
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, AggregateType, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task FailWhenMatchingColdEventHasNoPayload()
+	{
+		HotReturns("agg-1", Event("agg-1", 1, payload: null, archivedAt: DateTimeOffset.UnixEpoch));
+		ColdReturns("agg-1", Event("agg-1", 1, payload: null));
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task RejectUnexplainedNullInsteadOfTreatingItAsErased()
+	{
+		HotReturns("agg-1", Event("agg-1", 1, payload: null));
+		await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await _decorator.LoadAsync("agg-1", AggregateType, CancellationToken.None));
+		A.CallTo(() => _coldStore.ReadAsync(A<KeyedTenantPartition>._, A<string>._, AggregateType, A<CancellationToken>._))
+			.MustNotHaveHappened();
 	}
 
 	[Fact]
 	public async Task RestoreArchivedPayloadsOnTheFromVersionOverloadToo()
 	{
 		var archivedAt = DateTimeOffset.UnixEpoch.AddDays(1);
+		HotReturns("agg-1", Event("agg-1", 2, payload: null, archivedAt));
 		A.CallTo(() => _hotStore.LoadAsync("agg-1", AggregateType, 1L, A<CancellationToken>._))
 			.Returns(new[] { Event("agg-1", 2, payload: null, archivedAt) });
 		ColdReturns("agg-1", Event("agg-1", 2, [22]));

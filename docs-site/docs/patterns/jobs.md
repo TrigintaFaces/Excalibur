@@ -93,7 +93,7 @@ services.AddExcalibur(excalibur => excalibur.AddJobs(
     configureQuartz: q =>
     {
         // Low-level Quartz configuration (optional)
-        q.UseMicrosoftDependencyInjectionJobFactory();
+        // Quartz 4 uses dependency injection by default.
     },
     configureJobs: jobs =>
     {
@@ -273,7 +273,7 @@ services.AddRecurringJob<OutboxProcessorJob>(TimeSpan.FromSeconds(10));
 
 By default, Quartz.NET uses an in-memory store (`RAMJobStore`): schedule state is lost on restart, and every instance runs its own independent copy of every trigger. For production — especially multi-instance deployments — configure a **persistent** ADO store, optionally with **clustering**.
 
-Excalibur does not wrap or hide Quartz's store configuration. `AddJobs(...)` forwards the `configureQuartz` delegate straight to Quartz's `IServiceCollectionQuartzConfigurator`, so you use Quartz's own [`UsePersistentStore`](https://www.quartz-scheduler.net/documentation/quartz-3.x/packages/microsoft-di-integration.html) API directly:
+Excalibur does not wrap or hide Quartz's store configuration. `AddJobs(...)` forwards the `configureQuartz` delegate straight to Quartz's `IQuartzBuilder`, so you use Quartz's own [`UsePersistentStore`](https://www.quartz-scheduler.net/documentation/quartz-4.x/tutorial/using-quartz.html) API directly:
 
 ```csharp
 builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
@@ -283,8 +283,8 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddJobs(
         {
             store.UseProperties = true;       // store job data as strings (AOT/serialization-friendly)
             store.UseClustering();            // enable the clustered scheduler
-            store.UseSqlServer(sql => sql.ConnectionString = connectionString);
-            store.UseSystemTextJsonSerializer();
+            store.UseSqlServer(Microsoft.Data.SqlClient.SqlClientFactory.Instance, connectionString);
+            // Source-generated System.Text.Json serialization is built in.
         });
 
         // Built-in jobs are scheduled the same way regardless of store.
@@ -566,3 +566,55 @@ This registers:
 - [Resilience with Polly](../operations/resilience-polly.md) - Retry policies for job resilience
 - [Health Checks](../observability/health-checks.md) - Monitoring job health
 - [Configuration](../core-concepts/configuration.md) - Dispatch configuration options
+
+## Upgrading an existing Quartz deployment
+
+The Quartz integration packages target Quartz 4.3.0 together. Upgrade `Excalibur.Jobs`,
+`Excalibur.Jobs.Cdc`, `Excalibur.Jobs.DataProcessing`, and `Excalibur.Hosting.Jobs` as a unit.
+The hosting callback now accepts `IQuartzBuilder`; native Quartz jobs implement
+`ValueTask Execute(IJobExecutionContext, CancellationToken)`. Excalibur's existing
+one-argument execution methods forward the context token for direct callers.
+
+Apply the version-specific SQL migrations before starting the upgraded workers. Fresh
+schema provisioning does not migrate existing tables. Preserve scheduler names, table
+prefixes, job keys, trigger keys, and persisted context. Test against a restored copy of
+an existing database and validate pending triggers, restart, cancellation, and recovery.
+See the [Quartz migration guide](https://www.quartz-scheduler.net/documentation/quartz-4.x/migration-guide.html)
+and [schema changes](https://www.quartz-scheduler.net/documentation/database/schema-changes.html).
+
+For Native AOT, register jobs using typed APIs, provide `SqlClientFactory.Instance` for
+SQL Server, and pass source-generated `JsonTypeInfo<TContext>` to context-bearing jobs:
+
+```csharp
+jobs.AddJob<ReportJob, ReportContext>(
+    "0 0 * * * ?", context, ReportJsonContext.Default.ReportContext, "daily-report");
+```
+
+Register the same metadata on every startup. Pass a new `contextVersion` when changing converters or naming policy, and explicitly migrate existing persisted payloads. Missing codec versions fail before invoking the job. Legacy reflection payloads retain their original decoding policy and must be migrated before Native AOT execution. Metadata is scoped to the job identity;
+context JSON, its type identity, and its serialization mode/version are persisted. The legacy overload uses reflection
+serialization in managed applications and rejects reflection-disabled registration with
+a message directing callers to the metadata overload. Assembly-scanning hosting overloads
+remain unsuitable for Native AOT; use explicit registration.
+
+### Scheduled Outbox drains
+
+Outbox jobs invoke your registered `IOutboxDispatcher`, preserving custom implementations
+and decorators. Register the dispatcher as well as the job; missing registration fails
+the firing rather than reporting a healthy no-op.
+
+The framework `MessageOutbox` runs one cycle per call, matching the dispatcher interface.
+With standard DI registration, each cycle owns a fresh processor scope and releases it
+before success is reported. Disposing the dispatcher cancels and joins its active cycles.
+The original constructor accepting an existing processor remains available; use a stable
+dispatcher identity and sequential calls with that constructor. Use `DisposeAsync` for
+active cycles or an async-only supplied processor.
+
+This corrects the previous concrete implementation's continuous loop and swallowed
+failures. Schedule repeated cycles when continuous operation is required.
+`SignalNewMessage()` is retained as a compatibility no-op; saving or signaling alone
+will not schedule a cycle.
+
+`PerRunTotal` must be positive. It bounds reserved rows per firing, including repeated
+identities; it is not a wall-clock timeout. Stores and handlers must cooperate with
+cancellation. An individual processor supports sequential drains, rejects overlapping
+runs, and keeps the same dispatcher identity throughout its lifetime.

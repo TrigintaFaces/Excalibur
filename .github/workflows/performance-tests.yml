@@ -235,8 +235,10 @@ jobs:
 
       - name: Run hot path benchmarks
         shell: pwsh
+        env:
+          BENCHMARK_FILTER: ${{ github.event.inputs.benchmark_filter || '*HotPath*' }}
         run: |
-          $filter = "${{ github.event.inputs.benchmark_filter || '*HotPath*' }}"
+          $filter = $env:BENCHMARK_FILTER
           Write-Host "Running hot path benchmarks with filter: $filter" -ForegroundColor Green
 
           $benchmarkArgs = @(

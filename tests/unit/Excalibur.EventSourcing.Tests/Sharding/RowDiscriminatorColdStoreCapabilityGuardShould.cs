@@ -132,21 +132,21 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
         // it is the tenant-unaware leak vector the guard must reject. Accepting the parameter keeps it a
         // compiling implementation of the current contract; honouring it would defeat the test.
         public Task<long> WriteAsync(
-            KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events,
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, IReadOnlyList<StoredEvent> events,
             CancellationToken cancellationToken) =>
             Task.FromResult(events.Count > 0 ? events[^1].Version : -1);
 
         public Task<IReadOnlyList<StoredEvent>> ReadAsync(
-            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StoredEvent>>([]);
 
         public Task<IReadOnlyList<StoredEvent>> ReadAsync(
-            KeyedTenantPartition tenant, string aggregateId, long fromVersion,
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, long fromVersion,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StoredEvent>>([]);
 
         public Task<bool> HasArchivedEventsAsync(
-            KeyedTenantPartition tenant, string aggregateId, CancellationToken cancellationToken) =>
+            KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken) =>
             Task.FromResult(false);
     }
 

@@ -2,6 +2,10 @@ name: 'Build and Test'
 description: 'Composite action: SDK install, NuGet cache, restore, build, and test a solution filter. Requires actions/checkout BEFORE this action.'
 
 inputs:
+  telemetry-matrix:
+    description: 'Optional caller matrix context as JSON; absent context remains unknown'
+    required: false
+    default: ''
   solution-filter:
     description: 'Solution filter path (.slnf) to restore, build, and test'
     required: true
@@ -44,6 +48,10 @@ inputs:
     description: 'Extra RunSettings/xUnit args appended after the RunSettings separator (e.g. "xUnit.MaxParallelThreads=1 xUnit.ParallelizeTestCollections=false"). Requires collect-coverage or a session timeout so a "--" separator precedes them.'
     required: false
     default: ''
+  provider:
+    description: 'Provider context whose required tests this invocation proves'
+    required: false
+    default: 'in-process'
 
 runs:
   using: 'composite'
@@ -69,20 +77,34 @@ runs:
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
       with:
         global-json-file: global.json
+    - name: Capture NuGet cache request
+      id: cache-request
+      shell: bash
+      env:
+        PRIMARY_KEY: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        RESTORE_KEY: ${{ runner.os }}-nuget-
+      run: |
+        printf 'primary-key=%s\nrestore-key=%s\n' "$PRIMARY_KEY" "$RESTORE_KEY" >> "$GITHUB_OUTPUT"
+
     - name: Cache NuGet packages
+      id: nuget-cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: .nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        key: ${{ steps.cache-request.outputs.primary-key }}
         restore-keys: |
-          ${{ runner.os }}-nuget-
+          ${{ steps.cache-request.outputs.restore-key }}
 
     - name: Restore dependencies
       shell: bash
-      run: dotnet restore ${{ inputs.solution-filter }} --verbosity quiet
+      env:
+        SOLUTION_FILTER: ${{ inputs.solution-filter }}
+      run: dotnet restore "$SOLUTION_FILTER" --verbosity quiet
 
     - name: Build
       shell: bash
+      env:
+        SOLUTION_FILTER: ${{ inputs.solution-filter }}
       # -p:BuildExamplesAndTests=true is REQUIRED, and its absence is silent.
       #
       # Directory.Build.targets sets SkipProjectBuild on any project whose path contains \tests\,
@@ -104,7 +126,7 @@ runs:
       #
       # The sibling setup-dotnet-build action already did all of this. This one did none of it.
       run: |
-        dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
+        dotnet build "$SOLUTION_FILTER" --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
           -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log
 
     - name: Assert the build actually compiled the test projects
@@ -117,15 +139,25 @@ runs:
       if: inputs.quarantine-mode != 'None'
       id: filter
       shell: pwsh
+      env:
+        BASE_TEST_FILTER: ${{ inputs.base-test-filter }}
+        QUARANTINE_MODE: ${{ inputs.quarantine-mode }}
       run: |
-        $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter '${{ inputs.base-test-filter }}' -Mode ${{ inputs.quarantine-mode }} -AsJson | ConvertFrom-Json
+        $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $env:BASE_TEST_FILTER -Mode $env:QUARANTINE_MODE -AsJson | ConvertFrom-Json
+        if ($filterInfo.filter -match '[\r\n]') { throw 'Test filter must be a single line.' }
         "TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
         Write-Host "Using test filter with $($filterInfo.count) quarantine adjustments."
 
     - name: Set default test filter
       if: inputs.quarantine-mode == 'None'
       shell: bash
-      run: echo "TEST_FILTER=${{ inputs.test-filter }}" >> $GITHUB_ENV
+      env:
+        INPUT_TEST_FILTER: ${{ inputs.test-filter }}
+      run: |
+        case "$INPUT_TEST_FILTER" in
+          *$'\r'*|*$'\n'*) echo '::error::Test filter must be a single line.'; exit 1 ;;
+        esac
+        printf 'TEST_FILTER=%s\n' "$INPUT_TEST_FILTER" >> "$GITHUB_ENV"
 
     # THE ENTRY POINT COMPOSES THIS, not the action.
     #
@@ -140,21 +172,95 @@ runs:
     # same code that CI runs rather than a lookalike. The traps are asserted against the composed
     # argv by eng/ci/build-entrypoint-compose.test.sh, which is where a comment cannot help: these
     # defects are invisible at runtime by construction.
-    - name: Run tests
+    - name: Verify required-test evidence controls
+      if: inputs.results-prefix == 'unit-tests-core' || inputs.results-prefix == 'unit-tests-windows-deterministic' || inputs.results-prefix == 'unit-tests-macos-deterministic'
       shell: pwsh
       run: |
+        $hostPath = (Get-Command dotnet -CommandType Application | Select-Object -First 1).Source
+        $resolvedHost = [IO.File]::ResolveLinkTarget($hostPath, $true)
+        if ($null -ne $resolvedHost) { $hostPath = $resolvedHost.FullName }
+        $sdkVersion = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+        $sdkPath = Join-Path ([IO.Path]::GetDirectoryName($hostPath)) "sdk/$sdkVersion"
+        $packageCache = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $env:GITHUB_WORKSPACE '.nuget/packages' }
+        ./eng/ci/discover-required-tests.test.ps1 -DotnetPath $hostPath -SdkDirectory $sdkPath -PackageCache $packageCache
+
+    - name: Preserve required-test control evidence
+      if: always() && (inputs.results-prefix == 'unit-tests-core' || inputs.results-prefix == 'unit-tests-windows-deterministic' || inputs.results-prefix == 'unit-tests-macos-deterministic')
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: required-discovery-controls-${{ inputs.results-prefix }}
+        path: |
+          artifacts/tools/required-discovery-control-*/**/*.log
+          artifacts/tools/required-discovery-control-*/**/*.json
+          artifacts/tools/required-discovery-control-*/**/*.trx
+        if-no-files-found: error
+
+    - name: Run tests
+      shell: pwsh
+      env:
+        EVIDENCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        EVIDENCE_SOURCE: ${{ inputs.solution-filter }}
+        EVIDENCE_SHARD: ${{ inputs.results-prefix }}
+        EVIDENCE_PROVIDER: ${{ inputs.provider }}
+        TEST_BLAME_TIMEOUT: ${{ inputs.blame-timeout }}
+        TEST_COLLECT_COVERAGE: ${{ inputs.collect-coverage }}
+        TEST_MAX_CPU_COUNT: ${{ inputs.max-cpu-count }}
+        TEST_SESSION_TIMEOUT: ${{ inputs.test-session-timeout }}
+        TEST_EXTRA_RUN_SETTINGS: ${{ inputs.extra-run-settings }}
+      run: |
+        if ((git rev-parse HEAD) -cne $env:EVIDENCE_SHA) { throw 'Checkout differs from expected test candidate.' }
+        $contextPath = Join-Path $env:RUNNER_TEMP "$env:EVIDENCE_SHARD.required-context.json"
+        @{
+          candidateSha = $env:EVIDENCE_SHA
+          runId = $env:GITHUB_RUN_ID
+          runAttempt = $env:GITHUB_RUN_ATTEMPT
+          job = $env:GITHUB_JOB
+          shard = $env:EVIDENCE_SHARD
+          os = $env:RUNNER_OS
+          provider = $env:EVIDENCE_PROVIDER
+          source = $env:EVIDENCE_SOURCE.Replace('\','/')
+          sourceSha256 = (Get-FileHash -LiteralPath $env:EVIDENCE_SOURCE -Algorithm SHA256).Hash
+          filter = [string]$env:TEST_FILTER
+        } | ConvertTo-Json | Set-Content -LiteralPath $contextPath -Encoding utf8NoBOM
         $params = @{
           Test             = $true
           NoRestore        = $true
           NoBuild          = $true
-          Project          = '${{ inputs.solution-filter }}'
+          Project          = $env:EVIDENCE_SOURCE
           ResultsDirectory = './TestResults'
-          ResultsPrefix    = '${{ inputs.results-prefix }}'
-          BlameTimeout     = '${{ inputs.blame-timeout }}'
+          ResultsPrefix    = $env:EVIDENCE_SHARD
+          BlameTimeout     = $env:TEST_BLAME_TIMEOUT
+          RequiredTestContext = $contextPath
         }
         if ($env:TEST_FILTER)                         { $params.TestFilter         = $env:TEST_FILTER }
-        if ('${{ inputs.collect-coverage }}' -eq 'true') { $params.Coverage        = $true }
-        if ('${{ inputs.max-cpu-count }}')            { $params.MaxCpuCount        = '${{ inputs.max-cpu-count }}' }
-        if ('${{ inputs.test-session-timeout }}')     { $params.TestSessionTimeout = '${{ inputs.test-session-timeout }}' }
-        if ('${{ inputs.extra-run-settings }}')       { $params.ExtraRunSettings   = '${{ inputs.extra-run-settings }}' }
+        if ($env:TEST_COLLECT_COVERAGE -eq 'true')    { $params.Coverage           = $true }
+        if ($env:TEST_MAX_CPU_COUNT)                 { $params.MaxCpuCount        = $env:TEST_MAX_CPU_COUNT }
+        if ($env:TEST_SESSION_TIMEOUT)               { $params.TestSessionTimeout = $env:TEST_SESSION_TIMEOUT }
+        if ($env:TEST_EXTRA_RUN_SETTINGS)            { $params.ExtraRunSettings   = $env:TEST_EXTRA_RUN_SETTINGS }
         & "$env:GITHUB_WORKSPACE/eng/build.ps1" @params
+
+    # Record after required work so diagnostic failure cannot prevent these build/test steps.
+    # This observes restore only; actions/cache saves in a later post-job step.
+    - name: Record NuGet cache restore observation
+      id: cache-observation
+      if: always()
+      shell: bash
+      env:
+        CI_CACHE_ACTION: build-and-test
+        CI_CACHE_FILTER: ${{ inputs.solution-filter }}
+        CI_CACHE_MATRIX: ${{ inputs.telemetry-matrix }}
+        CI_CACHE_KEY: ${{ steps.cache-request.outputs.primary-key }}
+        CI_CACHE_RESTORE_KEYS: ${{ steps.cache-request.outputs.restore-key }}
+        CI_CACHE_OUTCOME: ${{ steps.nuget-cache.outcome }}
+        CI_CACHE_CONCLUSION: ${{ steps.nuget-cache.conclusion }}
+        CI_CACHE_HIT: ${{ steps.nuget-cache.outputs.cache-hit }}
+      run: python3 eng/ci/record-cache-observation.py
+
+    - name: Preserve NuGet cache restore observation
+      if: always() && steps.cache-observation.outputs.id != ''
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ci-cache-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.cache-observation.outputs.id }}
+        path: ${{ steps.cache-observation.outputs.path }}
+        if-no-files-found: error
+        retention-days: 14

@@ -60,10 +60,11 @@ public sealed class DataProcessingOptions
 	public string QualifiedTableName => $"[{SchemaName}].[{TableName}]";
 
 	/// <summary>
-	/// Gets the timeout, in milliseconds, for a dispatcher to process data tasks.
+	/// Gets the cooperative timeout, in milliseconds, for processing one claimed task, including scope cleanup.
 	/// </summary>
 	/// <value> The timeout must be greater than 0. The default value is 60000 milliseconds (60 seconds). </value>
 	/// <exception cref="ArgumentOutOfRangeException"> Thrown when the value is less than or equal to 0. </exception>
+	/// <remarks>Cancellation requests a stop; the manager joins processing before releasing task ownership.</remarks>
 	[Range(1, int.MaxValue)]
 	public int DispatcherTimeoutMilliseconds
 	{

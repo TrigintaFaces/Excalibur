@@ -9,9 +9,13 @@
   </PropertyGroup>
  <!-- Pure Dispatch sample - NO Excalibur packages -->
  <!-- Updated paths for reorganized sample structure -->
-  <ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
   <!-- Logging infrastructure (standard .NET - not Excalibur) -->
   <ItemGroup>

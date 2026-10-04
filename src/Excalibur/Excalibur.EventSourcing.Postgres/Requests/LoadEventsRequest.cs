@@ -39,7 +39,16 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		CancellationToken cancellationToken,
 		string schema = "public",
 		string table = "events")
+		: this(aggregateId, aggregateType, fromVersion, KeyedTenantPartition.FromScope(scope), long.MaxValue, schema, table, cancellationToken)
 	{
+	}
+
+	internal LoadEventsRequest(
+		string aggregateId, string aggregateType, long fromVersion, KeyedTenantPartition partition,
+		long upToVersion, string schema, string table, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(partition);
+		ArgumentOutOfRangeException.ThrowIfNegative(upToVersion);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
@@ -49,16 +58,16 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		// __untenanted__ sentinel when unscoped — so an un-partitioned (all-tenants) read is unconstructable.
 		// COALESCE folds a legacy NULL tenant (a pre-migration untenanted row not yet backfilled) to the
 		// sentinel, matching the erase/IsErased siblings; a bare `= @TenantId` would miss those rows.
-		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND COALESCE(tenant_id, @UntenantedSentinel) = @TenantId";
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
 		var sql = $"""
 			SELECT event_id AS EventId, aggregate_id AS AggregateId, aggregate_type AS AggregateType,
 			       event_type AS EventType, event_data AS EventData, metadata AS Metadata,
-			       version AS Version, timestamp AS Timestamp, archived_at AS ArchivedAt
+			       version AS Version, timestamp AS Timestamp, archived_at AS ArchivedAt,
+			       position AS GlobalPosition, COALESCE(tenant_id, @UntenantedSentinel) AS TenantId
 			FROM {qualifiedTable}
-			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion{tenantPredicate}
+			WHERE aggregate_id = @AggregateId AND aggregate_type = @AggregateType AND version > @FromVersion AND version <= @UpToVersion{tenantPredicate}
 			ORDER BY version ASC
 			""";
 #pragma warning restore CA2100
@@ -67,6 +76,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@FromVersion", fromVersion);
+		parameters.Add("@UpToVersion", upToVersion);
 		parameters.Add("@TenantId", partition.TenantId);
 		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
@@ -90,6 +100,8 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 					row.Timestamp)
 				{
 					ArchivedAt = row.ArchivedAt,
+					GlobalPosition = row.GlobalPosition,
+					TenantId = row.TenantId,
 				});
 			}
 
@@ -107,6 +119,8 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 /// constructor, and Dapper matches a result set to a CONSTRUCTOR. Selecting the column without this row
 /// type fails at runtime with "a parameterless default constructor or one matching signature ... is
 /// required", which no compiler can see.
+/// Npgsql exposes TIMESTAMPTZ as UTC DateTime to Dapper's constructor matching. The row uses that
+/// native type; assigning it to StoredEvent converts it to DateTimeOffset while preserving the instant.
 /// </remarks>
 internal sealed record LoadedEventRow(
 	string EventId,
@@ -116,5 +130,7 @@ internal sealed record LoadedEventRow(
 	byte[]? EventData,
 	byte[]? Metadata,
 	long Version,
-	DateTimeOffset Timestamp,
-	DateTimeOffset? ArchivedAt);
+	DateTime Timestamp,
+	DateTime? ArchivedAt,
+	long GlobalPosition,
+	string TenantId);

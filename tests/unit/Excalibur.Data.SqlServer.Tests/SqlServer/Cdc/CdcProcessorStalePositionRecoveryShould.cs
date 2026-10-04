@@ -1,320 +1,237 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
 using System.Reflection;
-
 using Excalibur.Cdc;
 using Excalibur.Cdc.SqlServer;
-
+using Excalibur.Domain;
+using Excalibur.Data.SqlServer.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
-
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
-
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
-/// <summary>
-/// Characterization tests pinning the per-<see cref="StalePositionRecoveryStrategy"/> behavior of
-/// <c>CdcProcessor.RecoverFromStalePositionAsync</c>. The recovery method is exercised through the
-/// <see cref="ICdcRepository"/> seam: a fake repository is injected into the composed
-/// <see cref="CdcProcessor"/> so each strategy's min/max plumbing and callback notification are
-/// deterministic without live SQL Server (per the injected-seam ruling — determinism over real infra).
-/// </summary>
-/// <remarks>
-/// <para>
-/// The <c>Throw</c> strategy is intentionally not covered here: the producer loop rethrows on
-/// <c>Throw</c> <em>before</em> calling recovery, so <c>RecoverFromStalePositionAsync</c> is only ever
-/// reached for <see cref="StalePositionRecoveryStrategy.FallbackToEarliest"/>,
-/// <see cref="StalePositionRecoveryStrategy.FallbackToLatest"/>, and
-/// <see cref="StalePositionRecoveryStrategy.InvokeCallback"/>.
-/// </para>
-/// <para>
-/// Each strategy is asserted with BOTH a liveness arm (the permitted position query happens and a
-/// resume position is produced) AND a safety arm (the other strategy's position query does NOT happen),
-/// so a recovery method that silently did nothing — or queried the wrong bound — fails the test.
-/// </para>
-/// </remarks>
-[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait("Category", "Unit")]
 [Trait("Component", "Data.SqlServer")]
-[Trait(TraitNames.Feature, TestFeatures.CDC)]
-public sealed class CdcProcessorStalePositionRecoveryShould : UnitTestBase
+[Trait("Pattern", "Regression")]
+public sealed class CdcProcessorStalePositionRecoveryShould
 {
-	private static readonly MethodInfo RecoverMethod = typeof(CdcProcessor)
-		.GetMethod("RecoverFromStalePositionAsync", BindingFlags.NonPublic | BindingFlags.Instance)
-		?? throw new InvalidOperationException("Expected private RecoverFromStalePositionAsync method on CdcProcessor.");
+    [Fact]
+    public async Task RetryAtAQuiescentBoundaryWhenHeadChangesAfterInitialization()
+    {
+        var (processor, repo, config) = Create();
+        await using var owned = processor;
+        // Initial bounds accept checkpoint 5; detector observes restored maximum 3.
+        var heads = new Queue<byte[]>([new byte[] { 10 }, new byte[] { 3 }, new byte[] { 3 }, new byte[] { 3 }]);
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).ReturnsLazily(() => heads.Dequeue());
+        var resets = 0;
+        config.RecoveryOptions!.OnPositionReset = (_, _) => { resets++; return Task.CompletedTask; };
+        (await processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None)).ShouldBe(0);
+        resets.ShouldBe(1);
+        heads.ShouldBeEmpty();
+    }
 
-	private static readonly FieldInfo CdcRepositoryField = typeof(CdcProcessor)
-		.GetField("_cdcRepository", BindingFlags.NonPublic | BindingFlags.Instance)
-		?? throw new InvalidOperationException("Expected _cdcRepository field on CdcProcessor.");
+    [Fact]
+    public async Task BoundRetriesWhenHistoryKeepsChanging()
+    {
+        var (processor, repo, config) = Create();
+        await using var owned = processor;
+        config.RecoveryOptions!.MaxRecoveryAttempts = 2;
+        var calls = 0;
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._))
+            .ReturnsLazily(() => new byte[] { ++calls % 2 == 1 ? (byte)10 : (byte)3 });
+        await Should.ThrowAsync<SqlServerCdcStalePositionException>(() => processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None));
+        calls.ShouldBe(6);
+    }
 
-	private static readonly byte[] MinLsn = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05];
-	private static readonly byte[] MaxLsn = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A];
+    [Fact]
+    public async Task PreserveHealthySequenceWhileRecoveringOnlyTheStaleTable()
+    {
+        var repo = A.Fake<ICdcRepository>();
+        var state = A.Fake<ISqlServerCdcStateStore>();
+        var config = A.Fake<IDatabaseOptions>();
+        A.CallTo(() => config.CaptureInstances).Returns(["stale", "healthy"]);
+        A.CallTo(() => config.RecoveryOptions).Returns(new CdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest });
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).Returns(new byte[] { 10 });
+        A.CallTo(() => repo.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).Returns(new byte[] { 2 });
+        A.CallTo(() => state.GetLastProcessedPositionAsync(A<string>._, A<string>._, A<CancellationToken>._)).Returns(new[]
+        {
+            new CdcProcessingState { TableName = "stale", LastProcessedLsn = [1], LastProcessedSequenceValue = [7] },
+            new CdcProcessingState { TableName = "healthy", LastProcessedLsn = [5], LastProcessedSequenceValue = [8] },
+        });
+        var checkpoints = new CdcCheckpointManager(config, repo, state, NullLogger.Instance);
+        await checkpoints.InitializeTrackingAsync(CancellationToken.None);
+        checkpoints.GetTracking("stale")!.Lsn.ShouldBe(new byte[] { 10 });
+        checkpoints.GetTracking("stale")!.SequenceValue.ShouldBeNull();
+        checkpoints.GetTracking("healthy")!.Lsn.ShouldBe(new byte[] { 5 });
+        checkpoints.GetTracking("healthy")!.SequenceValue.ShouldBe(new byte[] { 8 });
+    }
 
-	[Fact]
-	public async Task FallbackToEarliest_QueriesMinPerCaptureInstance_AndNeverQueriesMax()
-	{
-		var (processor, repo) = CreateProcessorWithFakeRepo("dbo_orders", "dbo_customers");
-		using (processor)
-		{
-			var options = new CdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToEarliest };
+    [Fact]
+    public async Task WaitForTheActiveHandlerBeforeReloadingStateAfterProducerFailure()
+    {
+        var (processor, repo, config) = Create();
+        await using var owned = processor;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).ReturnsLazily(() =>
+        {
+            Interlocked.Increment(ref reads);
+            return new byte[] { 10 };
+        });
+        var fetches = 0;
+        A.CallTo(() => repo.FetchChangesAsync(A<string>._, A<int>._, A<byte[]>._, A<byte[]>._, A<byte[]?>._,
+            A<CdcOperationCodes>._, A<CancellationToken>._, A<string?>._)).ReturnsLazily(async call =>
+        {
+            if (Interlocked.Increment(ref fetches) == 1)
+            {
+                return (IEnumerable<CdcRow>)new List<CdcRow> { new() { TableName = "dbo_items", Lsn = [5], SeqVal = [1],
+                    OperationCode = CdcOperationCodes.Insert, Changes = new Dictionary<string, object> { ["Id"] = 1 },
+                    DataTypes = new Dictionary<string, Type> { ["Id"] = typeof(int) } } };
+            }
+            if (fetches == 2)
+            {
+                await entered.Task;
+                throw new SqlServerCdcStalePositionException(new CdcPositionResetEventArgs
+                { ProcessorId = "consumer", ProviderType = "SqlServer", ReasonCode = StalePositionReasonCodes.CdcCleanup });
+            }
+            return new List<CdcRow>();
+        });
+        var run = processor.ProcessBatchAsync(async (_, token) =>
+        {
+            using var callback = token.Register(() => { canceled.SetResult(); throw new InvalidOperationException("callback failure"); });
+            entered.SetResult();
+            await release.Task;
+            token.ThrowIfCancellationRequested();
+        }, CancellationToken.None);
+        try
+        {
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            reads.ShouldBe(2, "a retry must not read new bounds while the old handler is active");
+            run.IsCompleted.ShouldBeFalse();
+        }
+        finally { release.TrySetResult(); }
+        (await run.WaitAsync(TimeSpan.FromSeconds(10))).ShouldBe(0);
+        reads.ShouldBe(4);
+    }
 
-			var newPosition = await InvokeRecoverAsync(processor, sqlException: null, options).ConfigureAwait(false);
+    [Fact]
+    public async Task JoinActiveWorkBeforeBothDisposersCompleteAndRejectQueuedWork()
+    {
+        var (processor, repo, _) = Create();
+        Set(processor, "_cdcRepository", repo);
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).Returns(new byte[] { 10 });
+        var fetches = 0;
+        A.CallTo(() => repo.FetchChangesAsync(A<string>._, A<int>._, A<byte[]>._, A<byte[]>._, A<byte[]?>._,
+            A<CdcOperationCodes>._, A<CancellationToken>._, A<string?>._)).ReturnsLazily(() =>
+                Interlocked.Increment(ref fetches) == 1
+                    ? new[] { new CdcRow { TableName = "dbo_items", Lsn = [5], SeqVal = [1], OperationCode = CdcOperationCodes.Insert,
+                        Changes = new Dictionary<string, object> { ["Id"] = 1 }, DataTypes = new Dictionary<string, Type> { ["Id"] = typeof(int) } } }
+                    : Array.Empty<CdcRow>());
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = processor.ProcessBatchAsync(async (_, token) =>
+        {
+            using var registration = token.Register(() => { canceled.TrySetResult(); throw new InvalidOperationException("callback failure"); });
+            entered.TrySetResult();
+            await release.Task;
+            token.ThrowIfCancellationRequested();
+        }, CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var queued = processor.ProcessBatchAsync((_, _) => throw new InvalidOperationException("Queued handler must not run"), CancellationToken.None);
+        var first = processor.DisposeAsync().AsTask();
+        var second = processor.DisposeAsync().AsTask();
+        try
+        {
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            first.IsCompleted.ShouldBeFalse();
+            second.IsCompleted.ShouldBeFalse();
+            A.CallTo(() => repo.DisposeAsync()).MustNotHaveHappened();
+        }
+        finally { release.TrySetResult(); }
+        await Should.ThrowAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+        await Should.ThrowAsync<OperationCanceledException>(() => queued.WaitAsync(TimeSpan.FromSeconds(10)));
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
+        A.CallTo(() => repo.DisposeAsync()).MustHaveHappenedOnceExactly();
+    }
 
-			// Liveness: the earliest position was queried for EVERY capture instance and a resume position produced.
-			A.CallTo(() => repo.GetMinPositionAsync("dbo_orders", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-			A.CallTo(() => repo.GetMinPositionAsync("dbo_customers", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-			_ = newPosition.ShouldNotBeNull();
+    [Fact]
+    public async Task CancelInitializationOnHostStoppingAndAllowSafeDisposal()
+    {
+        using var stopping = new CancellationTokenSource();
+        var lifetime = A.Fake<IHostApplicationLifetime>();
+        A.CallTo(() => lifetime.ApplicationStopping).Returns(stopping.Token);
+        var (processor, repo, _) = Create(lifetime);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).ReturnsLazily(async (CancellationToken token) =>
+        {
+            entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return new byte[] { 10 };
+        });
+        var run = processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await stopping.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+        await processor.DisposeAsync();
+    }
 
-			// Safety: FallbackToEarliest must never consult the LATEST position (that is the data-loss strategy).
-			A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).MustNotHaveHappened();
-		}
-	}
+    [Fact]
+    public async Task AllowDisposalAfterAnActivityListenerThrows()
+    {
+        var (processor, _, _) = Create();
+        var targetCall = new AsyncLocal<bool>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == CdcTelemetryConstants.ActivitySource.Name,
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) =>
+                targetCall.Value ? throw new InvalidOperationException("Listener failed") : System.Diagnostics.ActivitySamplingResult.None,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        targetCall.Value = true;
+        try
+        {
+            await Should.ThrowAsync<InvalidOperationException>(() => processor.ProcessBatchAsync((_, _) => Task.CompletedTask, CancellationToken.None));
+        }
+        finally { targetCall.Value = false; }
+        await processor.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+    }
 
-	[Fact]
-	public async Task FallbackToLatest_ResetsToMaxPosition_AndNeverQueriesMin()
-	{
-		var (processor, repo) = CreateProcessorWithFakeRepo("dbo_orders");
-		using (processor)
-		{
-			var options = new CdcRecoveryOptions { RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest };
-
-			var newPosition = await InvokeRecoverAsync(processor, sqlException: null, options).ConfigureAwait(false);
-
-			// Liveness: the latest position was queried once and returned verbatim as the resume position.
-			A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-			newPosition.ShouldBe(MaxLsn);
-
-			// Safety: FallbackToLatest must never consult the EARLIEST position.
-			A.CallTo(() => repo.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
-		}
-	}
-
-	[Fact]
-	public async Task InvokeCallback_WithoutHandler_ThrowsInvalidOperationException()
-	{
-		var (processor, repo) = CreateProcessorWithFakeRepo("dbo_orders");
-		using (processor)
-		{
-			var options = new CdcRecoveryOptions
-			{
-				RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback,
-				OnPositionReset = null,
-			};
-
-			// Safety: a callback strategy with no callback must FAIL LOUD, not silently proceed with no recovery.
-			_ = await Should.ThrowAsync<InvalidOperationException>(
-				() => InvokeRecoverAsync(processor, sqlException: null, options)).ConfigureAwait(false);
-
-			// And it must fail BEFORE touching the repository (no position was reset).
-			A.CallTo(() => repo.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
-			A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).MustNotHaveHappened();
-		}
-	}
-
-	[Fact]
-	public async Task InvokeCallback_WithHandler_NotifiesCallback_AndResetsViaMinPath()
-	{
-		var (processor, repo) = CreateProcessorWithFakeRepo("dbo_orders");
-		using (processor)
-		{
-			var callbackCount = 0;
-			CdcPositionResetEventArgs? observed = null;
-			var options = new CdcRecoveryOptions
-			{
-				RecoveryStrategy = StalePositionRecoveryStrategy.InvokeCallback,
-				OnPositionReset = (args, _) =>
-				{
-					callbackCount++;
-					observed = args;
-					return Task.CompletedTask;
-				},
-			};
-
-			var ex = CreateSqlException(errorNumber: 22037, message: "Stale CDC position");
-			var newPosition = await InvokeRecoverAsync(processor, ex, options).ConfigureAwait(false);
-
-			// Liveness: the callback fired exactly once and recovery took the earliest (min) path.
-			callbackCount.ShouldBe(1);
-			A.CallTo(() => repo.GetMinPositionAsync("dbo_orders", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-			_ = observed.ShouldNotBeNull();
-			observed.NewPosition.ShouldBe(newPosition);
-		}
-	}
-
-	[Fact]
-	public async Task FallbackToLatest_WithHandler_AlsoNotifiesCallback()
-	{
-		var (processor, _) = CreateProcessorWithFakeRepo("dbo_orders");
-		using (processor)
-		{
-			var callbackCount = 0;
-			var options = new CdcRecoveryOptions
-			{
-				RecoveryStrategy = StalePositionRecoveryStrategy.FallbackToLatest,
-				OnPositionReset = (_, _) =>
-				{
-					callbackCount++;
-					return Task.CompletedTask;
-				},
-			};
-
-			var ex = CreateSqlException(errorNumber: 22037, message: "Stale CDC position");
-			_ = await InvokeRecoverAsync(processor, ex, options).ConfigureAwait(false);
-
-			// The position-reset callback fires for observability on EVERY strategy, not just InvokeCallback.
-			callbackCount.ShouldBe(1);
-		}
-	}
-
-	private static async Task<byte[]?> InvokeRecoverAsync(CdcProcessor processor, SqlException? sqlException, CdcRecoveryOptions options)
-	{
-		// RecoverFromStalePositionAsync is an async method: an exception thrown in its synchronous prologue
-		// (e.g. the missing-callback guard) is captured onto the returned Task, so awaiting surfaces it.
-		var task = (Task<byte[]?>)RecoverMethod.Invoke(processor, [sqlException, options, CancellationToken.None])!;
-		return await task.ConfigureAwait(false);
-	}
-
-	private static (CdcProcessor Processor, ICdcRepository Repo) CreateProcessorWithFakeRepo(params string[] captureInstances)
-	{
-		var appLifetime = A.Fake<IHostApplicationLifetime>();
-		var dbConfig = A.Fake<IDatabaseOptions>();
-		var policyFactory = A.Fake<IDataAccessPolicyFactory>();
-		var logger = A.Fake<ILogger<CdcProcessor>>();
-
-		A.CallTo(() => dbConfig.QueueSize).Returns(32);
-		A.CallTo(() => dbConfig.ProducerBatchSize).Returns(16);
-		A.CallTo(() => dbConfig.ConsumerBatchSize).Returns(8);
-		A.CallTo(() => dbConfig.DatabaseConnectionIdentifier).Returns("test-connection");
-		A.CallTo(() => dbConfig.DatabaseName).Returns("test-db");
-		A.CallTo(() => dbConfig.CaptureInstances).Returns(captureInstances.Length == 0 ? ["dbo_orders"] : captureInstances);
-
-		var noOpPolicy = Policy.NoOpAsync();
-		A.CallTo(() => policyFactory.GetComprehensivePolicy()).Returns(noOpPolicy);
-		A.CallTo(() => policyFactory.GetRetryPolicy()).Returns(noOpPolicy);
-		A.CallTo(() => policyFactory.CreateCircuitBreakerPolicy()).Returns(noOpPolicy);
-
-		var processor = new CdcProcessor(
-			appLifetime,
-			dbConfig,
-			new CdcRepository(new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true")),
-			() => new SqlConnection("Server=localhost;Database=master;Encrypt=false;TrustServerCertificate=true"),
-			stateStoreOptions: null,
-			policyFactory,
-			TimeProvider.System,
-			logger);
-
-		// Inject the deterministic repository seam. RecoverFromStalePositionAsync reads GetMin/GetMax through
-		// the _cdcRepository field; the in-memory checkpoint manager (built from the real repo in the ctor) is
-		// never touched for its DB path during recovery, so no live SQL is required.
-		var repo = A.Fake<ICdcRepository>();
-		A.CallTo(() => repo.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).Returns(MinLsn);
-		A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).Returns(MaxLsn);
-		CdcRepositoryField.SetValue(processor, repo);
-
-		return (processor, repo);
-	}
-
-	// ── SqlException factory (lifted from CdcStalePositionDetectorShould) ─────────────────────────────
-	// SqlException has no public constructor; the recovery method's signature requires one for the callback
-	// paths (CreateEventArgs rejects a null exception). Reflection over the internal factory is the project's
-	// established way to synthesize a SqlException in a unit test.
-	private static SqlException CreateSqlException(int errorNumber, string message)
-	{
-		var createExceptionMethod = typeof(SqlException).GetMethod(
-			"CreateException",
-			BindingFlags.Static | BindingFlags.NonPublic,
-			null,
-			[typeof(SqlErrorCollection), typeof(string)],
-			null);
-
-		var sqlError = CreateSqlError(errorNumber, message);
-
-		var errorCollection = (SqlErrorCollection)Activator.CreateInstance(
-			typeof(SqlErrorCollection),
-			BindingFlags.Instance | BindingFlags.NonPublic,
-			null,
-			null,
-			null)!;
-
-		var addMethod = typeof(SqlErrorCollection).GetMethod(
-			"Add",
-			BindingFlags.Instance | BindingFlags.NonPublic);
-		_ = addMethod!.Invoke(errorCollection, [sqlError]);
-
-		if (createExceptionMethod != null)
-		{
-			return (SqlException)createExceptionMethod.Invoke(null, [errorCollection, "1.0.0"])!;
-		}
-
-		throw new InvalidOperationException("Could not synthesize SqlException via reflection.");
-	}
-
-	private static SqlError CreateSqlError(int errorNumber, string message)
-	{
-		var ctors = typeof(SqlError).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic);
-
-		foreach (var ctor in ctors)
-		{
-			var parameters = ctor.GetParameters();
-			try
-			{
-				var args = new object?[parameters.Length];
-				for (int i = 0; i < parameters.Length; i++)
-				{
-					var param = parameters[i];
-					if (param.ParameterType == typeof(int))
-					{
-						args[i] = Array.FindIndex(parameters, 0, i, p => p.ParameterType == typeof(int)) >= 0
-							? 1          // subsequent int is the line number
-							: errorNumber;
-					}
-					else if (param.ParameterType == typeof(byte))
-					{
-						args[i] = (byte)0;
-					}
-					else if (param.ParameterType == typeof(string))
-					{
-						args[i] = param.Name switch
-						{
-							"server" => "server",
-							"message" or "errorMessage" => message,
-							"procedure" or "procName" or "source" => "procedure",
-							_ => message,
-						};
-					}
-					else if (param.ParameterType == typeof(uint))
-					{
-						args[i] = (uint)0;
-					}
-					else if (param.ParameterType == typeof(Exception))
-					{
-						args[i] = null;
-					}
-					else if (param.HasDefaultValue)
-					{
-						args[i] = param.DefaultValue;
-					}
-					else if (Nullable.GetUnderlyingType(param.ParameterType) != null)
-					{
-						args[i] = null;
-					}
-					else
-					{
-						args[i] = Activator.CreateInstance(param.ParameterType);
-					}
-				}
-
-				if (ctor.Invoke(args) is SqlError error)
-				{
-					return error;
-				}
-			}
-			catch (TargetInvocationException)
-			{
-				// Try the next constructor overload.
-			}
-		}
-
-		throw new InvalidOperationException("Could not synthesize SqlError via reflection.");
-	}
+    private static (CdcProcessor Processor, ICdcRepository Repo, IDatabaseOptions Config) Create(IHostApplicationLifetime? lifetime = null)
+    {
+        var config = A.Fake<IDatabaseOptions>();
+        A.CallTo(() => config.QueueSize).Returns(2);
+        A.CallTo(() => config.ProducerBatchSize).Returns(2);
+        A.CallTo(() => config.ConsumerBatchSize).Returns(1);
+        A.CallTo(() => config.CaptureInstances).Returns(["dbo_items"]);
+        A.CallTo(() => config.DatabaseName).Returns("source");
+        A.CallTo(() => config.DatabaseConnectionIdentifier).Returns("consumer");
+        A.CallTo(() => config.RecoveryOptions).Returns(new CdcRecoveryOptions { RecoveryAttemptDelay = TimeSpan.Zero });
+        var policy = A.Fake<IDataAccessPolicyFactory>();
+        A.CallTo(() => policy.GetComprehensivePolicy()).Returns(Policy.NoOpAsync());
+        var processor = new CdcProcessor(lifetime ?? A.Fake<IHostApplicationLifetime>(), config,
+            new CdcRepository(new SqlConnection()), () => new SqlConnection(), null,
+            policy, TimeProvider.System, NullLogger<CdcProcessor>.Instance);
+        var repo = A.Fake<ICdcRepository>();
+        var mapping = A.Fake<ICdcRepositoryLsnMapping>();
+        var state = A.Fake<ISqlServerCdcStateStore>();
+        A.CallTo(() => repo.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).Returns(new byte[] { 1 });
+        A.CallTo(() => repo.FetchChangesAsync(A<string>._, A<int>._, A<byte[]>._, A<byte[]>._, A<byte[]?>._,
+            A<CdcOperationCodes>._, A<CancellationToken>._, A<string?>._)).Returns(Array.Empty<CdcRow>());
+        A.CallTo(() => mapping.GetNextLsnAsync(A<string>._, A<byte[]>._, A<CancellationToken>._)).Returns(Task.FromResult<byte[]?>(null));
+        A.CallTo(() => state.GetLastProcessedPositionAsync(A<string>._, A<string>._, A<CancellationToken>._))
+            .Returns(new[] { new CdcProcessingState { TableName = "dbo_items", LastProcessedLsn = [5] } });
+        var checkpoints = new CdcCheckpointManager(config, repo, state, NullLogger.Instance, policy);
+        // Inject storage seams into the composed components; exercise the PUBLIC batch operation.
+        Set(processor, "_checkpointManager", checkpoints);
+        Set(processor, "_changeDetector", new CdcChangeDetector(repo, mapping, config, policy, checkpoints, NullLogger.Instance));
+        var ordered = (OrderedEventProcessor)typeof(CdcProcessor).GetField("_orderedEventProcessor", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(processor)!;
+        Set(processor, "_changeApplier", new CdcChangeApplier(config, policy, checkpoints, ordered, NullLogger.Instance, null, null));
+        return (processor, repo, config);
+    }
+    private static void Set(CdcProcessor processor, string field, object value) =>
+        typeof(CdcProcessor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(processor, value);
 }

@@ -1,116 +1,90 @@
-# Test Suite
+# Test suite
 
-This directory contains all tests for the Excalibur solution.
+This directory contains contributor tests for Dispatch and Excalibur. Support libraries
+also live here; not every project under `tests/` is an executable test assembly.
 
-## Test Organization
+## Navigation
 
-```
-tests/
-├── unit/                    # Fast, isolated unit tests
-├── integration/             # TestContainer-based integration tests
-├── functional/              # End-to-end workflow tests
-├── conformance/             # Transport conformance tests
-├── requirements/            # Requirement verification tests
-├── ArchitectureTests/       # Architecture enforcement tests
-└── Tests.Shared/            # Shared utilities and fixtures
-```
+| Path | Purpose |
+| --- | --- |
+| [unit/](unit/) | Unit tests grouped by source package or merged test project |
+| [integration/](integration/) | Integration tests, including real databases and brokers |
+| [functional/](functional/) | Application workflow tests |
+| [conformance/](conformance/) | Provider and transport contract implementations |
+| [contract/](contract/) | Contract checks |
+| [smoke/](smoke/) | Smoke tests |
+| [performance/](performance/) | Performance tests |
+| [property/](property/) | Property-based tests |
+| [architecture/Boundary.Tests/](architecture/Boundary.Tests/) | Architecture and repository boundary enforcement |
+| [Shared/Tests.Shared/](Shared/Tests.Shared/) | Common bases, fixtures and conformance helpers |
+| [Shared/Excalibur.Dispatch.Testing/](Shared/Excalibur.Dispatch.Testing/) | Dispatch testing support library |
 
-## Running Tests
+The solution filters in [eng/ci/shards](../eng/ci/shards/) define CI project sets.
+Source packages can map to merged test projects: ASP.NET Core hosting tests, for
+example, live in [Excalibur.Dispatch.Hosting.Tests](unit/Excalibur.Dispatch.Hosting.Tests/).
+Consult the [critical package test matrix](../eng/governance/framework-governance.json)
+and shard files when moving projects. Update solution membership and validation
+manifests together.
 
-### By Category
+## Running tests
 
-```bash
-# Unit tests only (target: <30s)
-dotnet test --filter "Category=Unit"
+Run commands from the repository root. Install the SDK pinned in
+[global.json](../global.json); `rollForward: disable` requires that exact version.
+The [build entry point](../eng/build.ps1) composes restore, build, test settings and
+result checks for local and CI use.
 
-# Integration tests only (target: <2min)
-dotnet test --filter "Category=Integration"
+```powershell
+# One source-aligned test project.
+pwsh ./eng/build.ps1 -Test -Project tests/unit/Excalibur.Dispatch.Hosting.Tests/Excalibur.Dispatch.Hosting.Tests.csproj
 
-# Functional tests only
-dotnet test --filter "Category=Functional"
+# The existing core shard, filtered to unit tests.
+pwsh ./eng/build.ps1 -Test -Project eng/ci/shards/UnitTests-Core.slnf -TestFilter "Category=Unit"
 
-# Architecture tests only
-dotnet test --filter "Category=Architecture"
-```
+# Architecture project: run its population instead of assuming a common trait.
+pwsh ./eng/build.ps1 -Test -Project tests/architecture/Boundary.Tests/Boundary.Tests.csproj
 
-### By Project Type
-
-```bash
-# All unit test projects
-dotnet test tests/unit
-
-# All integration tests
-dotnet test tests/integration
-```
-
-## Test Categorization
-
-Tests inherit categories from their base class:
-
-- `UnitTestBase` → Category=Unit
-- `IntegrationTestBase` → Category=Integration
-- `FunctionalTestBase` → Category=Functional
-
-Or use attribute-based categorization:
-
-```csharp
-using Tests.Shared.Categories;
-
-[UnitTest]
-public class MyTests
-{
-    // tests automatically tagged as Unit
-}
+# Full solution. Required integration scenarios need their infrastructure available.
+pwsh ./eng/build.ps1 -Test -Project Excalibur.sln
 ```
 
-## TestContainers Sharing
+Pass a project, solution or solution filter. `tests/unit` and `tests/integration` are
+organizational directories, not aggregate test projects. A category filter only selects
+tests in the supplied projects; it does not establish whole-repository coverage.
+Use `-NoBuild -NoRestore` only after building the same candidate and configuration.
+Empty discovery, skipped fixtures and unavailable infrastructure are not passing tests.
+Preserve test identities, counts, TRX files and candidate/package identities as required
+by the relevant [CI gate](../docs/ci-gates.md).
 
-For optimal performance, share containers across tests using collections:
+## Traits and fixtures
 
-```csharp
-using Tests.Shared.Fixtures;
+Use the required `Category`, `Component` and `Pattern` traits according to the
+[test standards](../docs/testing/test-standards.md) and
+[filtering guide](../docs/testing/ci-filtering-guide.md). Constants live in
+[TestCategories.cs](Shared/Tests.Shared/Categories/TestCategories.cs).
+`UnitTestBase`, `IntegrationTestBase` and `FunctionalTestBase` provide their respective
+category traits; inheriting a category does not supply all other required traits.
 
-[Collection(ContainerCollections.Postgres)]
-public class MyDatabaseTests
-{
-    private readonly PostgresContainerFixture _fixture;
+Use the existing [container collections](Shared/Tests.Shared/Fixtures/ContainerCollections.cs)
+and their fixtures rather than allocating a container per test. Follow the
+[container setup](../docs/testing/testcontainers-setup.md) and
+[fixture guidance](../docs/testing/test-fixtures.md) for prerequisites and cleanup.
+Shared resources must preserve tenant, database and message isolation.
 
-    public MyDatabaseTests(PostgresContainerFixture fixture)
-    {
-        _fixture = fixture;
-    }
+Parallelism depends on each assembly's `xunit.runner.json`, collection definitions and
+run settings. A collection name alone does not specify whether parallelization with
+other collections is disabled. Check the applicable configuration.
 
-    [Fact]
-    public void Test()
-    {
-        var connectionString = _fixture.ConnectionString;
-        // Use shared container
-    }
-}
-```
+Elapsed time depends on the selected population, platform, container startup and runner
+capacity. Historical whole-suite targets are not measured completion guarantees. Keep
+performance assertions and timeout budgets tied to current retained evidence.
 
-Available collections: Postgres, SqlServer, Redis, MongoDB, Kafka, RabbitMQ, Elasticsearch
+## More guidance
 
-## Performance Targets
+- [Testing index](../docs/testing/README.md)
+- [Test organization](../docs/testing/test-organization.md)
+- [Architecture checks](../docs/testing/architecture-tests.md)
+- [Transport conformance](../docs/testing/transport-conformance.md)
+- [Quarantine policy](../docs/testing/flaky-test-quarantine.md)
 
-- **Unit tests**: Complete in <30 seconds total
-- **Integration tests**: Complete in <2 minutes total
-- **Functional tests**: Complete in <5 minutes total
-
-## Parallel Execution
-
-Parallel execution is enabled by default via `xunit.runner.json` and `test.runsettings`.
-
-To disable for specific test classes:
-
-```csharp
-[Collection("Sequential")]
-public class MySequentialTests { }
-```
-
-## Test Frameworks
-
-- **xUnit** - Test runner
-- **Shouldly** - Assertions
-- **FakeItEasy** - Mocking
-- **TestContainers** - Integration test infrastructure
+All required tests must pass for release acceptance. A focused local run proves only
+its selected population, not completion of the full release matrix.

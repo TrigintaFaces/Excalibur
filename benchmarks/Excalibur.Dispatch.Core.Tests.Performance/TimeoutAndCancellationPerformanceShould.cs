@@ -13,7 +13,7 @@ using Excalibur.Dispatch.Middleware;
 using Excalibur.Inbox.InMemory;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Shouldly;
@@ -65,7 +65,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 		const int operationCount = 1_000;
 		const int timeoutMs = 100;
 
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 		var inboxStore = new InMemoryInboxStore(
 			Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions
 			{
@@ -116,6 +116,15 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 		};
 
 		allocationMetrics.Add(baselineMetrics);
+
+		inboxStore.Dispose();
+		inboxStore = new InMemoryInboxStore(
+			Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions
+			{
+				MaxEntries = operationCount + 100,
+				EnableAutomaticCleanup = false
+			}), logger, UntenantedContext.Instance);
+		_disposables.Add(inboxStore);
 
 		// Act - Test with timeout enforcement
 		await Task.Delay(100, _testCancellation.Token).ConfigureAwait(false); // Brief pause
@@ -361,7 +370,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 		const int warmupCount = 100;
 		const int concurrentOperations = 4;
 
-		var logger = new FakeLogger<InMemoryInboxStore>();
+		var logger = NullLogger<InMemoryInboxStore>.Instance;
 		var latencyMetrics = new ConcurrentQueue<LatencyMeasurement>();
 
 		// Test scenarios: without timeout, with timeout, with budget calculation
@@ -397,11 +406,11 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 						var operationStopwatch = Stopwatch.StartNew();
 						var messageId = $"{scenario.Name}-{workerId}-{msgIndex}";
 
+						CancellationTokenSource? timeoutCts = null;
+						CancellationTokenSource? combinedCts = null;
 						try
 						{
 							CancellationToken token = _testCancellation.Token;
-							CancellationTokenSource? timeoutCts = null;
-							CancellationTokenSource? combinedCts = null;
 
 							if (scenario.UseTimeout)
 							{
@@ -442,14 +451,17 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 							operationStopwatch.Stop();
 							workerLatencies.Add(operationStopwatch.Elapsed.TotalMicroseconds);
 
-							timeoutCts?.Dispose();
-							combinedCts?.Dispose();
 						}
 						catch (OperationCanceledException)
 						{
 							operationStopwatch.Stop();
 							// Record cancelled operations with their elapsed time
 							workerLatencies.Add(operationStopwatch.Elapsed.TotalMicroseconds);
+						}
+						finally
+						{
+							combinedCts?.Dispose();
+							timeoutCts?.Dispose();
 						}
 					}
 
@@ -547,7 +559,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 
 		foreach (var pressureLevel in timeoutPressureLevels)
 		{
-			var logger = new FakeLogger<InMemoryInboxStore>();
+			var logger = NullLogger<InMemoryInboxStore>.Instance;
 			var inboxStore = new InMemoryInboxStore(
 				Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions
 				{
@@ -572,10 +584,10 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 						var operationStopwatch = Stopwatch.StartNew();
 						var messageId = $"throughput-{pressureLevel:F1}-{workerId}-{operationIndex}";
 
+						var shouldTimeout = Random.Shared.NextDouble() < pressureLevel;
 						try
 						{
 							// Calculate timeout based on pressure level
-							var shouldTimeout = Random.Shared.NextDouble() < pressureLevel;
 							var timeoutMs = shouldTimeout ? 1 : baseTimeoutMs; // Very short timeout to force timeout
 
 							using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs));
@@ -624,7 +636,7 @@ public sealed class TimeoutAndCancellationPerformanceShould : IDisposable
 								Duration = operationStopwatch.Elapsed,
 								WasSuccessful = false,
 								GlobalElapsed = globalStopwatch.Elapsed,
-								WasExpectedToTimeout = true
+								WasExpectedToTimeout = shouldTimeout
 							});
 						}
 

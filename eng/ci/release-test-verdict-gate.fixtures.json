@@ -1,0 +1,26 @@
+{
+  "source": "https://api.github.com/repos/TrigintaFaces/Excalibur/actions/runs/31004778042/attempts/1/jobs?per_page=100",
+  "observed": "2026-10-02",
+  "jobs": [
+    {
+      "id": 92301961600,
+      "run_id": 31004778042,
+      "run_attempt": 1,
+      "head_sha": "9a3d702ae14bea3710fed23282633d3b74fc7a8c",
+      "name": "Unit Tests (${{ matrix.shard.name }})",
+      "status": "completed",
+      "conclusion": "skipped",
+      "steps": []
+    },
+    {
+      "id": 92301961722,
+      "run_id": 31004778042,
+      "run_attempt": 1,
+      "head_sha": "9a3d702ae14bea3710fed23282633d3b74fc7a8c",
+      "name": "Unit Tests - Async Risk (${{ matrix.shard.name }})",
+      "status": "completed",
+      "conclusion": "skipped",
+      "steps": []
+    }
+  ]
+}

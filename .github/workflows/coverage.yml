@@ -138,9 +138,11 @@ jobs:
       - name: Changed-code coverage (display only)
         if: inputs.pr-base-sha != ''
         shell: bash
+        env:
+          INPUT_BASE_SHA: ${{ inputs.pr-base-sha }}
         run: |
           set -uo pipefail
-          BASE='${{ inputs.pr-base-sha }}'
+          BASE="$INPUT_BASE_SHA"
           if ! git fetch --no-tags --depth=1 origin "$BASE" >/dev/null 2>&1; then
             echo "::warning::Could not fetch base ${BASE}; changed-code coverage was NOT computed. That is 'not measured', which is not the same as '0% covered'."
             exit 0
@@ -316,10 +318,13 @@ jobs:
           merge-multiple: true
       - name: List changed files
         shell: bash
+        env:
+          INPUT_PR_NUMBER: ${{ inputs.pr-number }}
+          INPUT_BASE_SHA: ${{ inputs.pr-base-sha }}
         run: |
           set -euo pipefail
-          PR_NUMBER="${{ inputs.pr-number }}"
-          BASE_SHA="${{ inputs.pr-base-sha }}"
+          PR_NUMBER="$INPUT_PR_NUMBER"
+          BASE_SHA="$INPUT_BASE_SHA"
           PR_REF="refs/remotes/origin/pr-${PR_NUMBER}"
 
           # Use git-based PR head ref resolution to avoid transient GitHub API failures.

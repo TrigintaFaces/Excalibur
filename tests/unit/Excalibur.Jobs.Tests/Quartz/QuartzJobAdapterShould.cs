@@ -28,6 +28,8 @@ public sealed class QuartzJobAdapterShould
 		_fakeScopeFactory = A.Fake<IServiceScopeFactory>();
 		_fakeScope = A.Fake<IServiceScope>();
 		_fakeServiceProvider = A.Fake<IServiceProvider>();
+		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IEnumerable<RegisteredJobType>)))
+			.Returns(Array.Empty<RegisteredJobType>());
 
 		A.CallTo(() => _fakeScopeFactory.CreateScope()).Returns(_fakeScope);
 		A.CallTo(() => _fakeScope.ServiceProvider).Returns(_fakeServiceProvider);

@@ -160,19 +160,68 @@ GO
 :::caution What gapless ordering costs you
 
 The counter row buys a contiguous position sequence, and it is not free: it serialises appends. Every
-writer takes the same row lock and holds it until COMMIT, so concurrent appends queue behind one
-another. Measured on SQL Server against a table differing only in how the position is produced:
+writer takes the same row lock and holds it until COMMIT, so appends commit one at a time.
 
-| Concurrent writers | Events per append | IDENTITY | Counter row (what ships) |
-|---:|---:|---:|---:|
-| 8 | 1 | 8.91 ms | 44.16 ms — **4.96x** |
-| 8 | 5 | 10.97 ms | 48.59 ms — **4.44x** |
-| 32 | 1 | 26.74 ms | 280.28 ms — **10.52x** |
-| 32 | 5 | 43.91 ms | 236.20 ms — **6.08x** |
+**The allocation itself is free. What you pay for is one durable commit per append, and what gaplessness
+costs you is scaling — not latency.** Measured on SQL Server, with the two arms interleaved one iteration
+at a time so neither inherits a slow moment:
 
-**The cost rises with concurrency**, which is the shape a serialisation bottleneck has rather than a
-fixed per-append overhead. It also falls as you batch: five events per append costs little more than
-one, so an aggregate that emits several events per command amortises most of it.
+| | ms per operation |
+|---|---:|
+| a plain insert in its own transaction | 2.00 |
+| **the same insert plus the counter allocation, one transaction** | **1.91** |
+| the counter allocation and insert, with the commit removed from the measurement | 0.020 |
+
+Taking the counter row out would buy you nothing: the allocation is about 20 microseconds of work and it
+does not show up against the cost of committing. **At one writer, or a few, the gapless guarantee is
+free.**
+
+What it costs is **concurrency scaling**. A database can *group-commit* — batch several concurrent
+transactions' log records into a single flush — but only when nothing serialises them. Every appender here
+takes the same counter row lock and holds it to COMMIT, so appends cannot share a flush:
+
+```
+gapless positions:   store throughput  ~=  1 / commit_latency     -- flat, however many writers
+gaps permitted:      store throughput  ~=  N / commit_latency     -- N writers share a flush
+```
+
+So adding writers past a handful neither helps nor hurts: they queue, and the queue drains at the commit
+rate. An `IDENTITY` column keeps climbing instead — and buys that by **not** producing a total order:
+positions then have gaps, and a subscriber cannot tell a gap that will never fill from one that is about
+to. **This gap does not close on faster storage**, because both sides get faster together.
+
+**Measure your own commit latency rather than taking a number from here.** It varies by orders of magnitude
+between a developer laptop and a production write path — on one container volume it moved between 1.9 ms
+and 4.2 ms within half an hour, so a single reading is not a capacity figure. The cheapest probe:
+
+```sql
+-- per-commit cost in milliseconds; invert it for the store's append ceiling
+DECLARE @i INT = 0, @t0 DATETIME2(7) = SYSUTCDATETIME();
+WHILE @i < 1000
+BEGIN
+    BEGIN TRAN;
+    INSERT dbo.YourProbeTable (Payload) VALUES ('x');
+    COMMIT;
+    SET @i += 1;
+END
+SELECT CAST(DATEDIFF_BIG(microsecond, @t0, SYSUTCDATETIME()) / 1000.0 / 1000 AS DECIMAL(10, 3)) AS ms_per_commit;
+```
+
+Run it a few times: if the spread is wide, your storage is the variable, not the store.
+
+**Batching helps and is the lever you control.** The counter allocates one block per append, so several
+events written in one append share a single serialisation — an aggregate that emits three or four events
+per command pays close to the same price as one that emits one.
+
+:::note On the numbers above
+
+These are a floor from one machine, not a specification, and your hardware's log-flush rate will move
+them. We have deliberately dropped the finer-grained comparison table that used to sit here: the
+benchmark it came from reports a multimodal distribution, for which a mean and a standard deviation are
+not valid statistics, so the three-significant-figure ratios it produced asserted a precision the
+underlying data does not support.
+
+:::
 
 **Why you may want to pay it.** Without a contiguous sequence, a subscriber cannot treat the highest
 position it has seen as a high-water mark — a hole that fills in after the subscriber has passed it is
@@ -399,6 +448,17 @@ An event identifier names a **business event**, not an attempt at writing one.
 ## Event Streams
 
 For global stream reading and projections, see the [Projections](projections.md) documentation.
+
+SQL Server and PostgreSQL global queries span tenants. Both `ReadAllAsync` and
+`ReadByEventTypeAsync` return each row's stored tenant term in `StoredEvent.TenantId`.
+Tenant identifiers retain their casing; `Acme` and `acme` remain distinct. Legacy database rows
+with a null tenant column are reported with the explicit `__untenanted__` term.
+
+A null `StoredEvent.TenantId` means the provider or serialized representation did not supply
+tenant provenance. It does not mean the event is untenanted. Do not substitute an ambient tenant
+or use an unknown value to select a tenant's cold-storage partition. Older archive records without
+this property remain readable with an unknown value. This property describes provenance; it does
+not add authorization or tenant filtering to the estate-wide global query.
 
 > **Note:** The base `IEventStore` interface focuses on aggregate-level operations. Global stream reading is typically handled by projection infrastructure or CDC (Change Data Capture) patterns.
 

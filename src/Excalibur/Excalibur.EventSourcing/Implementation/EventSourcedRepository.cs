@@ -704,9 +704,8 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	[RequiresDynamicCode("Event deserialization may require dynamic code generation.")]
 	private IDomainEvent? DeserializeEvent(StoredEvent storedEvent)
 	{
-		// A tombstoned event carries no payload. There is nothing to deserialize, and the caller already
-		// treats a null result as an event it cannot materialize.
-		if (storedEvent.EventData is null)
+		// Only explicit erasure permits omission. A missing archived payload must fail the load.
+		if (ErasedEventMarker.IsErased(storedEvent.EventType))
 		{
 			return null;
 		}
@@ -714,7 +713,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		try
 		{
 			var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-			return _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType);
+			return _eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType);
 		}
 		catch (Exception ex) when (ex is JsonException or TypeLoadException or InvalidOperationException)
 		{
@@ -1071,6 +1070,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		if (result.Success)
 		{
 			return;
+		}
+
+		if (result.Outcome == AppendOutcome.Unknown)
+		{
+			throw new AppendOutcomeUnknownException();
 		}
 
 		if (result.IsConcurrencyConflict)

@@ -7,7 +7,7 @@
 // Demonstrates Native AOT compilation with Dispatch source generators:
 // - Compile-time handler discovery (no reflection)
 // - Source-generated JSON serialization
-// - Static pipeline generation
+// - Generated handler invocation with runtime middleware composition
 // - Zero runtime code generation
 // ============================================================================
 
@@ -34,6 +34,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Excalibur.EventSourcing.InMemory;
 
+if (args.Contains("--quartz-sql-smoke", StringComparer.Ordinal))
+{
+    await Excalibur.Dispatch.Aot.Sample.QuartzSqlSmoke.RunAsync();
+    return;
+}
+
 Console.WriteLine("================================================");
 Console.WriteLine("  Excalibur.Dispatch.Aot.Sample - Native AOT Demo");
 Console.WriteLine("================================================");
@@ -43,9 +49,9 @@ Console.WriteLine();
 // AOT-Compatible Service Configuration
 // ============================================================================
 // Key differences from reflection-based configuration:
-// 1. AddHandlersFromAssembly works because source generators pre-discover handlers
+// 1. AddDiscoveredHandlers uses compile-time handler discovery
 // 2. JSON serialization uses AppJsonSerializerContext
-// 3. No runtime code generation (all pipelines are static)
+// 3. AOT-safe activation/invocation; middleware still runs through the configured pipeline
 // ============================================================================
 
 var services = new ServiceCollection();
@@ -65,7 +71,11 @@ services.AddSingleton<IHandlerActivator, AotHandlerActivator>();
 services.AddAotEventSerializer(AppJsonSerializerContext.Default);
 
 // Configure Dispatch with source-generator-discovered handlers (AOT-safe, zero reflection)
-services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
+services.AddDispatch(dispatch =>
+{
+	dispatch.AddDiscoveredHandlers();
+	dispatch.UseMiddleware<Excalibur.Dispatch.Aot.Sample.VerificationMiddleware>();
+});
 
 // Register InMemory transport (zero native dependencies, AOT-safe)
 services.AddInMemoryTransport("demo");
@@ -84,7 +94,7 @@ services.AddSingleton(AppJsonSerializerContext.Default.Options);
 services.Configure<InMemoryEventStoreOptions>(
 	options => options.EventTypeInfoResolver = AppJsonSerializerContext.Default);
 
-var provider = services.BuildServiceProvider();
+await using var provider = services.BuildServiceProvider();
 
 // Initialize the local message bus
 _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
@@ -92,6 +102,8 @@ _ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 // Get services
 var dispatcher = provider.GetRequiredService<IDispatcher>();
 var contextFactory = provider.GetService<IMessageContextFactory>();
+await Excalibur.Dispatch.Aot.Sample.PipelineVerification.RunAsync(dispatcher, provider).ConfigureAwait(false);
+await Excalibur.Dispatch.Aot.Sample.DataProcessingSmoke.RunAsync().ConfigureAwait(false);
 
 // ============================================================================
 // Demo 1: Command with Response
@@ -154,6 +166,7 @@ var queryContext = contextFactory?.CreateContext() ?? new MessageContext();
 var queryResult = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(query, queryContext, cancellationToken: default)
 	.ConfigureAwait(false);
 var order = queryResult.ReturnValue;
+contextFactory?.Return(queryContext);
 Console.WriteLine("Order retrieved (source-generated serialization):");
 var orderJson = JsonSerializer.Serialize(order, AppJsonSerializerContext.Default.OrderDto);
 Console.WriteLine($"  {orderJson}");
@@ -167,14 +180,22 @@ Console.WriteLine("--- Demo 4: Query Non-Existent Order ---");
 
 var missingQuery = new GetOrderQuery { OrderId = Guid.NewGuid() };
 var missingContext = contextFactory?.CreateContext() ?? new MessageContext();
-// The pipeline captures a handler exception into a failed IMessageResult rather than letting it
-// escape DispatchAsync, so the not-found outcome is read off Succeeded -- a catch here never runs.
-var missingResult = await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(missingQuery, missingContext, cancellationToken: default)
-	.ConfigureAwait(false);
-Console.WriteLine(missingResult.Succeeded
-	? "Unexpected: found order"
-	// ErrorMessage carries the handler exception's full ToString(); the first line is the message.
-	: $"Order not found (as expected): {missingResult.ErrorMessage?.Split(Environment.NewLine)[0]}");
+// Without exception-mapping middleware, a handler fault propagates to the caller.
+// Source-generated forwarding preserves that behavior instead of converting it to success/failure.
+try
+{
+	await dispatcher.DispatchAsync<GetOrderQuery, OrderDto>(missingQuery, missingContext, cancellationToken: default)
+		.ConfigureAwait(false);
+	throw new InvalidOperationException("The missing-order handler unexpectedly completed.");
+}
+catch (InvalidOperationException exception) when (exception.Message == $"Order '{missingQuery.OrderId}' was not found.")
+{
+	Console.WriteLine($"Order not found (as expected): {exception.Message}");
+}
+finally
+{
+	contextFactory?.Return(missingContext);
+}
 
 Console.WriteLine();
 

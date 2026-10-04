@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch;
 using System.Reflection;
+using System.Threading.Channels;
+using Microsoft.Extensions.Time.Testing;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.TieredStorage;
 using Microsoft.Extensions.Logging;
@@ -21,6 +23,7 @@ namespace Excalibur.EventSourcing.Tests.TieredStorage;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "EventSourcing")]
 public sealed class EventArchiveServiceShould
 {
 	/// <summary>The tenant every candidate in this fixture belongs to; the archive service must carry it
@@ -28,8 +31,88 @@ public sealed class EventArchiveServiceShould
 	private static readonly KeyedTenantPartition TestTenant = KeyedTenantPartition.Scoped("tenant-a");
 
 	private readonly IEventStoreArchive _archiveSource = A.Fake<IEventStoreArchive>();
-	private readonly IEventStore _hotStore = A.Fake<IEventStore>();
+	private readonly IEventStoreArchiveReader _hotStore = A.Fake<IEventStoreArchiveReader>();
 	private readonly IColdEventStore _coldStore = A.Fake<IColdEventStore>();
+
+	[Fact]
+	public async Task ContinueArchivingAfterThePreviousCycleLeftHotMarkers()
+	{
+		var original = CreateEvents("agg-1", 0, 1);
+		var cold = new List<StoredEvent>();
+		var submissions = new List<long[]>();
+		var ceiling = 0;
+		A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() => new List<ArchiveCandidate> { new(TestTenant, "agg-1", "Order", ceiling, ceiling) });
+		A.CallTo(() => _coldStore.WriteAsync(TestTenant, "agg-1", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			.ReturnsLazily((KeyedTenantPartition tenant, string id, string aggregateType, IReadOnlyList<StoredEvent> batch, CancellationToken _) =>
+			{
+				submissions.Add(batch.Select(e => e.Version).ToArray());
+				cold.AddRange(ColdArchiveBatch.GetAdditions(tenant, id, cold, batch));
+				return Task.FromResult(ColdArchiveBatch.ContiguousDurablePrefix(cold));
+			});
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-1", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent> { original[0] });
+		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
+		await InvokeArchiveCycleAsync(service);
+		cold.Select(e => e.Version).ShouldBe([0L]);
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(TestTenant, "agg-1", "Order", 0, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		ceiling = 1;
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-1", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent> { original[0] with { EventData = null, ArchivedAt = DateTimeOffset.UnixEpoch }, original[1] });
+		await InvokeArchiveCycleAsync(service);
+
+		submissions.Count.ShouldBe(2);
+		submissions[0].ShouldBe([0L]);
+		submissions[1].ShouldBe([1L]);
+		cold.Select(e => e.Version).ShouldBe([0L, 1L]);
+		cold.ShouldAllBe(e => e.EventData != null);
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(TestTenant, "agg-1", "Order", 1, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RefuseErasedEventsEvenWhenTheyHaveAnArchiveStampOrReplacementPayload(bool replacementPayload)
+	{
+		A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.Returns(new List<ArchiveCandidate> { new(TestTenant, "agg-1", "Order", 1, 1) });
+		var original = CreateEvents("agg-1", 0, 1);
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-1", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent> { original[0] with { EventType = "$erased", EventData = replacementPayload ? [0] : null, ArchivedAt = DateTimeOffset.UnixEpoch }, original[1] });
+		await InvokeArchiveCycleAsync(CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) }));
+		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, A<string>._, "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, A<string>._, A<string>._, A<long>._, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task DistinguishPreviouslyArchivedMarkersFromUnresolvedPayloads(bool archived)
+	{
+		A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
+			.Returns(new List<ArchiveCandidate> { new(TestTenant, "agg-1", "Order", 1, 1) });
+		var original = CreateEvents("agg-1", 0, 1);
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-1", "Order", A<long>._, A<CancellationToken>._))
+			.Returns(new List<StoredEvent> { original[0] with { EventData = null, ArchivedAt = archived ? DateTimeOffset.UnixEpoch : null }, original[1] });
+		A.CallTo(() => _coldStore.WriteAsync(TestTenant, "agg-1", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._)).Returns(1L);
+		await InvokeArchiveCycleAsync(CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) }));
+		if (archived)
+		{
+			A.CallTo(() => _coldStore.WriteAsync(TestTenant, "agg-1", "Order",
+				A<IReadOnlyList<StoredEvent>>.That.Matches(events => events.Count == 1 && events[0].Version == 1 && events[0].EventData != null),
+				A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+			A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(TestTenant, "agg-1", "Order", 1, A<CancellationToken>._))
+				.MustHaveHappenedOnceExactly();
+		}
+		else
+		{
+			A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, A<string>._, "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._)).MustNotHaveHappened();
+			A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, A<string>._, A<string>._, A<long>._, A<CancellationToken>._)).MustNotHaveHappened();
+		}
+	}
 
 	[Fact]
 	public async Task ArchiveEventsFromHotToCold()
@@ -40,10 +123,10 @@ public sealed class EventArchiveServiceShould
 			.Returns(candidates);
 
 		var events = CreateEvents("agg-1", 1, 2, 3, 4, 5);
-		_ = A.CallTo(() => _hotStore.LoadAsync("agg-1", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-1", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(events);
 		// Cold store confirms the full range durable (watermark = 5), so hot delete is authorized up to 5.
-		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(5L);
 		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
 			.Returns(5);
@@ -54,7 +137,7 @@ public sealed class EventArchiveServiceShould
 		await InvokeArchiveCycleAsync(service);
 
 		// Assert
-		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-1", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-1", "Order", 5, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -72,9 +155,9 @@ public sealed class EventArchiveServiceShould
 			.Returns(candidates);
 
 		var events = CreateEvents("agg-p", 1, 2, 3, 4, 5);
-		_ = A.CallTo(() => _hotStore.LoadAsync("agg-p", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-p", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(events);
-		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-p", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-p", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(3L);
 		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-p", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(3);
@@ -102,9 +185,9 @@ public sealed class EventArchiveServiceShould
 			.Returns(candidates);
 
 		var events = CreateEvents("agg-n", 1, 2, 3);
-		_ = A.CallTo(() => _hotStore.LoadAsync("agg-n", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-n", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(events);
-		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-n", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-n", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(-1L);
 
 		var service = CreateService(new ArchivePolicy { MaxAge = TimeSpan.FromDays(30) });
@@ -125,9 +208,9 @@ public sealed class EventArchiveServiceShould
 		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
 			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
 			.Returns(candidates);
-		_ = A.CallTo(() => _hotStore.LoadAsync("agg-z", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-z", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(CreateEvents("agg-z", 1, 2, 3));
-		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-z", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-z", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(3L);
 		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-z", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(0);
@@ -147,9 +230,9 @@ public sealed class EventArchiveServiceShould
 		_ = A.CallTo(() => _archiveSource.GetArchiveCandidatesAsync(
 			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
 			.Returns(candidates);
-		_ = A.CallTo(() => _hotStore.LoadAsync("agg-y", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "agg-y", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(CreateEvents("agg-y", 1, 2, 3));
-		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-y", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "agg-y", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(3L);
 		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "agg-y", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(3);
@@ -185,13 +268,13 @@ public sealed class EventArchiveServiceShould
 			A<ArchivePolicy>._, A<int>._, A<CancellationToken>._))
 			.Returns(candidates);
 
-		_ = A.CallTo(() => _hotStore.LoadAsync("fail-agg", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "fail-agg", "Order", A<long>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("DB unavailable"));
 
 		var events = CreateEvents("ok-agg", 1, 2);
-		_ = A.CallTo(() => _hotStore.LoadAsync("ok-agg", "Order", A<CancellationToken>._))
+		_ = A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "ok-agg", "Order", A<long>._, A<CancellationToken>._))
 			.Returns(events);
-		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.Returns(2L);
 		_ = A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(A<KeyedTenantPartition>._, "ok-agg", "Order", 2, A<CancellationToken>._))
 			.Returns(2);
@@ -200,7 +283,7 @@ public sealed class EventArchiveServiceShould
 
 		await InvokeArchiveCycleAsync(service);
 
-		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+		A.CallTo(() => _coldStore.WriteAsync(A<KeyedTenantPartition>._, "ok-agg", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -216,7 +299,7 @@ public sealed class EventArchiveServiceShould
 		await InvokeArchiveCycleAsync(service);
 
 		A.CallTo(() => _coldStore.WriteAsync(
-			A<KeyedTenantPartition>._, A<string>._, A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
+			A<KeyedTenantPartition>._, A<string>._, "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -226,7 +309,7 @@ public sealed class EventArchiveServiceShould
 		var pm = new OptionsMonitorWrapper<ArchivePolicy>(new ArchivePolicy());
 		var om = new OptionsMonitorWrapper<EventArchiveServiceOptions>(new EventArchiveServiceOptions());
 		Should.Throw<ArgumentNullException>(() => new EventArchiveService(
-			null!, _hotStore, _coldStore, pm, om, NullLogger<EventArchiveService>.Instance));
+			null!, _hotStore, new SinglePageScanner(_archiveSource), _coldStore, pm, om, NullLogger<EventArchiveService>.Instance));
 	}
 
 	[Fact]
@@ -235,7 +318,7 @@ public sealed class EventArchiveServiceShould
 		var pm = new OptionsMonitorWrapper<ArchivePolicy>(new ArchivePolicy());
 		var om = new OptionsMonitorWrapper<EventArchiveServiceOptions>(new EventArchiveServiceOptions());
 		Should.Throw<ArgumentNullException>(() => new EventArchiveService(
-			_archiveSource, null!, _coldStore, pm, om, NullLogger<EventArchiveService>.Instance));
+			_archiveSource, null!, new SinglePageScanner(_archiveSource), _coldStore, pm, om, NullLogger<EventArchiveService>.Instance));
 	}
 
 	[Fact]
@@ -244,7 +327,137 @@ public sealed class EventArchiveServiceShould
 		var pm = new OptionsMonitorWrapper<ArchivePolicy>(new ArchivePolicy());
 		var om = new OptionsMonitorWrapper<EventArchiveServiceOptions>(new EventArchiveServiceOptions());
 		Should.Throw<ArgumentNullException>(() => new EventArchiveService(
-			_archiveSource, _hotStore, null!, pm, om, NullLogger<EventArchiveService>.Instance));
+			_archiveSource, _hotStore, new SinglePageScanner(_archiveSource), null!, pm, om, NullLogger<EventArchiveService>.Instance));
+	}
+
+	[Fact]
+	public async Task AdvancePastPoisonAndEmptyPagesThenRetryOnTheNextRound()
+	{
+		var scanner = A.Fake<IEventStoreArchiveScanner>();
+		var first = new TestCursor();
+		var second = new TestCursor();
+		var poison = new ArchiveCandidate(TestTenant, "poison", "Order", 0, 1);
+		var healthy = new ArchiveCandidate(TestTenant, "healthy", "Order", 0, 1);
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, null, A<CancellationToken>._))
+			.Returns(new ArchiveScanPage([poison], first));
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, first, A<CancellationToken>._))
+			.Returns(new ArchiveScanPage([], second));
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, second, A<CancellationToken>._))
+			.Returns(new ArchiveScanPage([healthy], null));
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "poison", "Order", 0, A<CancellationToken>._))
+			.Throws(new InvalidOperationException("Permanent poison stream"));
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "healthy", "Order", 0, A<CancellationToken>._))
+			.Returns(CreateEvents("healthy", 0));
+		A.CallTo(() => _coldStore.WriteAsync(TestTenant, "healthy", "Order", A<IReadOnlyList<StoredEvent>>._, A<CancellationToken>._)).Returns(0L);
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(TestTenant, "healthy", "Order", 0, A<CancellationToken>._)).Returns(1);
+		var service = CreateService(new ArchivePolicy { RetainRecentCount = 1 }, NullLogger<EventArchiveService>.Instance, scanner);
+		await InvokeArchiveCycleAsync(service);
+		await InvokeArchiveCycleAsync(service);
+		await InvokeArchiveCycleAsync(service);
+		await InvokeArchiveCycleAsync(service);
+		A.CallTo(() => _archiveSource.TombstoneArchivedEventsUpToVersionAsync(TestTenant, "healthy", "Order", 0, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "poison", "Order", 0, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+	}
+
+	[Fact]
+	public async Task RetainThePreviousContinuationWhenCancelledInsideAPage()
+	{
+		var scanner = A.Fake<IEventStoreArchiveScanner>();
+		var previous = new TestCursor();
+		var cursor = new TestCursor();
+		var candidates = new[] { new ArchiveCandidate(TestTenant, "first", "Order", 0, 1), new ArchiveCandidate(TestTenant, "second", "Order", 0, 1) };
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, null, A<CancellationToken>._))
+			.Returns(new ArchiveScanPage([], previous));
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, previous, A<CancellationToken>._))
+			.Returns(new ArchiveScanPage(candidates, cursor));
+		using var cancellation = new CancellationTokenSource();
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "first", "Order", 0, cancellation.Token))
+			.Invokes(() => cancellation.Cancel()).Throws(new OperationCanceledException(cancellation.Token));
+		var service = CreateService(new ArchivePolicy { RetainRecentCount = 1 }, NullLogger<EventArchiveService>.Instance, scanner);
+		await InvokeArchiveCycleAsync(service);
+		await Should.ThrowAsync<OperationCanceledException>(() => InvokeArchiveCycleAsync(service, cancellation.Token));
+		A.CallTo(() => _hotStore.LoadArchiveEventsAsync(TestTenant, "second", "Order", 0, A<CancellationToken>._)).MustNotHaveHappened();
+		await InvokeArchiveCycleAsync(service);
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, previous, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, null, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, cursor, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task ScheduleContinuationImmediatelyButDelayFailedFetchAndNewRound()
+	{
+		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+		var clock = new ObservedClock();
+		var scanner = A.Fake<IEventStoreArchiveScanner>();
+		var cursor = new TestCursor();
+		var calls = Channel.CreateUnbounded<ArchiveScanCursor?>();
+		var count = 0;
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, A<ArchiveScanCursor?>._, A<CancellationToken>._))
+			.ReturnsLazily((ArchivePolicy _, int _, ArchiveScanCursor? continuation, CancellationToken _) =>
+			{
+				calls.Writer.TryWrite(continuation).ShouldBeTrue();
+				var call = Interlocked.Increment(ref count);
+				if (call == 2)
+				{
+					throw new InvalidOperationException("Transient fetch failure");
+				}
+				return new ValueTask<ArchiveScanPage>(new ArchiveScanPage([], call == 1 ? cursor : null));
+			});
+		using var service = CreateService(new ArchivePolicy { RetainRecentCount = 1 }, NullLogger<EventArchiveService>.Instance, scanner, clock);
+		await service.StartAsync(timeout.Token);
+		(await clock.Delays.Reader.ReadAsync(timeout.Token)).ShouldBe(TimeSpan.FromHours(1));
+		clock.Advance(TimeSpan.FromHours(1));
+		(await calls.Reader.ReadAsync(timeout.Token)).ShouldBeNull();
+		(await calls.Reader.ReadAsync(timeout.Token)).ShouldBeSameAs(cursor);
+		// No second clock advance was needed to fetch the next page, but failure now installs a delay.
+		(await clock.Delays.Reader.ReadAsync(timeout.Token)).ShouldBe(TimeSpan.FromHours(1));
+		Volatile.Read(ref count).ShouldBe(2);
+		clock.Advance(TimeSpan.FromHours(1));
+		(await calls.Reader.ReadAsync(timeout.Token)).ShouldBeSameAs(cursor);
+		(await clock.Delays.Reader.ReadAsync(timeout.Token)).ShouldBe(TimeSpan.FromHours(1));
+		Volatile.Read(ref count).ShouldBe(3);
+		await service.StopAsync(timeout.Token);
+	}
+
+	[Fact]
+	public async Task StopBeforeAnotherPageWhenCancellationArrivesDuringFetch()
+	{
+		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+		using var lifetime = new CancellationTokenSource();
+		var clock = new ObservedClock();
+		var scanner = A.Fake<IEventStoreArchiveScanner>();
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, A<ArchiveScanCursor?>._, A<CancellationToken>._))
+			.Invokes(() => lifetime.Cancel()).Returns(new ArchiveScanPage([], new TestCursor()));
+		using var service = CreateService(new ArchivePolicy { RetainRecentCount = 1 }, NullLogger<EventArchiveService>.Instance, scanner, clock);
+		await service.StartAsync(lifetime.Token);
+		await clock.Delays.Reader.ReadAsync(timeout.Token);
+		clock.Advance(TimeSpan.FromHours(1));
+		await service.ExecuteTask.ShouldNotBeNull().WaitAsync(timeout.Token);
+		A.CallTo(() => scanner.ScanArchiveCandidatesAsync(A<ArchivePolicy>._, A<int>._, A<ArchiveScanCursor?>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	private sealed class ObservedClock : TimeProvider
+	{
+		private readonly FakeTimeProvider _clock = new();
+		internal Channel<TimeSpan> Delays { get; } = Channel.CreateUnbounded<TimeSpan>();
+		internal void Advance(TimeSpan interval) => _clock.Advance(interval);
+		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+		{
+			var timer = _clock.CreateTimer(callback, state, dueTime, period);
+			Delays.Writer.TryWrite(dueTime).ShouldBeTrue();
+			return timer;
+		}
+	}
+
+	private sealed class TestCursor : ArchiveScanCursor;
+
+	// Existing payload tests use a deliberately single-page fixture; fairness tests supply their own scanner.
+	private sealed class SinglePageScanner(IEventStoreArchive source) : IEventStoreArchiveScanner
+	{
+		public async ValueTask<ArchiveScanPage> ScanArchiveCandidatesAsync(ArchivePolicy policy, int scanSize,
+			ArchiveScanCursor? continuation, CancellationToken cancellationToken) =>
+			new(await source.GetArchiveCandidatesAsync(policy, scanSize, cancellationToken), null);
 	}
 
 	// --- Helpers ---
@@ -252,23 +465,24 @@ public sealed class EventArchiveServiceShould
 	/// <summary>
 	/// Invokes RunArchiveCycleAsync directly via reflection for deterministic testing.
 	/// </summary>
-	private static async Task InvokeArchiveCycleAsync(EventArchiveService service)
+	private static async Task InvokeArchiveCycleAsync(EventArchiveService service, CancellationToken cancellationToken = default)
 	{
 		var method = typeof(EventArchiveService).GetMethod(
 			"RunArchiveCycleAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-		var task = (Task)method!.Invoke(service, [CancellationToken.None])!;
+		var task = (Task)method!.Invoke(service, [cancellationToken])!;
 		await task.ConfigureAwait(false);
 	}
 
 	private EventArchiveService CreateService(ArchivePolicy policy) =>
 		CreateService(policy, NullLogger<EventArchiveService>.Instance);
 
-	private EventArchiveService CreateService(ArchivePolicy policy, ILogger<EventArchiveService> logger)
+	private EventArchiveService CreateService(ArchivePolicy policy, ILogger<EventArchiveService> logger, IEventStoreArchiveScanner? scanner = null, TimeProvider? clock = null)
 	{
 		var pm = new OptionsMonitorWrapper<ArchivePolicy>(policy);
 		var om = new OptionsMonitorWrapper<EventArchiveServiceOptions>(
 			new EventArchiveServiceOptions { ArchiveInterval = TimeSpan.FromHours(1) });
-		return new EventArchiveService(_archiveSource, _hotStore, _coldStore, pm, om, logger);
+		return new EventArchiveService(_archiveSource, _hotStore, scanner ?? new SinglePageScanner(_archiveSource), _coldStore, pm, om, logger)
+		{ TimeProvider = clock ?? TimeProvider.System };
 	}
 
 	/// <summary>Records the event ids the service logged, so a test can assert the reported outcome.</summary>

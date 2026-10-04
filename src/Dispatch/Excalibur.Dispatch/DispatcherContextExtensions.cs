@@ -65,7 +65,16 @@ public static class DispatcherContextExtensions
 		}
 
 		var rented = factory.CreateContext();
-		var dispatchTask = dispatcher.DispatchAsync(message, rented, cancellationToken);
+		Task<IMessageResult> dispatchTask;
+		try
+		{
+			dispatchTask = dispatcher.DispatchAsync(message, rented, cancellationToken);
+		}
+		catch
+		{
+			factory.Return(rented);
+			throw;
+		}
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
 			factory.Return(rented);
@@ -122,7 +131,16 @@ public static class DispatcherContextExtensions
 		}
 
 		var rented = factory.CreateContext();
-		var dispatchTask = dispatcher.DispatchAsync<TMessage, TResponse>(message, rented, cancellationToken);
+		Task<IMessageResult<TResponse>> dispatchTask;
+		try
+		{
+			dispatchTask = dispatcher.DispatchAsync<TMessage, TResponse>(message, rented, cancellationToken);
+		}
+		catch
+		{
+			factory.Return(rented);
+			throw;
+		}
 		if (dispatchTask.IsCompletedSuccessfully)
 		{
 			factory.Return(rented);

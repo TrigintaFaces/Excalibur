@@ -9,13 +9,13 @@ namespace Excalibur.EventSourcing.TieredStorage;
 internal sealed class EventArchiveServiceOptions
 {
 	/// <summary>
-	/// Gets or sets the interval between archive cycles.
+	/// Gets or sets the delay before a new scan round or after a page-fetch failure.
 	/// </summary>
 	/// <value>Default is 1 hour.</value>
 	public TimeSpan ArchiveInterval { get; set; } = TimeSpan.FromHours(1);
 
 	/// <summary>
-	/// Gets or sets the maximum number of aggregates to process per cycle.
+	/// Gets or sets the maximum number of stream identities to examine per page, including ineligible streams.
 	/// </summary>
 	/// <value>Default is 100.</value>
 	public int BatchSize { get; set; } = 100;

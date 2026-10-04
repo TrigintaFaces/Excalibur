@@ -67,45 +67,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  packages:
-    name: Build Official Packages
+  build-packages:
+    name: Build Unsigned Packages
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
-      # Provenance is a SIGNED statement about these bytes, so this job needs an OIDC identity to
-      # sign with and permission to record the attestation. Scoped to this job alone.
-      id-token: write
-      attestations: write
     outputs:
-      version: ${{ steps.receipt.outputs.version }}
-    # Signing-certificate availability is read by a step-level `if:` below, so it MUST be declared
-    # at JOB scope: a step's own `env:` block is not in scope for that step's `if:`, which silently
-    # makes such a condition reference an always-empty value and the guarded step unreachable.
-    env:
-      NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
-      NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
-      # A repository VARIABLE, not a secret, and deliberately: it is a decision, not a credential,
-      # and a decision to ship unsigned should be readable by anyone looking at the repository
-      # rather than hidden among the secrets. Job scope for the reason stated directly above.
-      #
-      # DEFAULTS TO true BECAUSE NO SIGNING CERTIFICATE IS CURRENTLY AVAILABLE. Author signing needs
-      # a certificate from a public CA -- nuget.org rejects self-issued ones -- and there is none to
-      # configure at the moment. Without this default a release could not be produced at all, since
-      # the step below correctly refuses to treat a missing certificate as consent to ship unsigned.
-      # The default supplies the consent that is otherwise missing, in the open, in the repository,
-      # where it can be read and reversed, rather than as an environment setting someone has to know
-      # to look for.
-      #
-      # REMOVE THIS DEFAULT WHEN A CERTIFICATE IS OBTAINED. Configure the two secrets above and drop
-      # the `|| 'true'`; the refusal then goes back to protecting a signing pipeline that exists,
-      # which is the state this control was written for. Leaving the default in place afterwards
-      # would mean a certificate that expired, rotated or was renamed would silently stop being used
-      # and nothing would say so.
-      #
-      # A repository variable, if set, still wins in BOTH directions: a non-empty value takes
-      # precedence over the default here, so setting it to false restores the refusal.
-      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}
+      version: ${{ steps.version.outputs.version }}
+      handoff-id: ${{ steps.handoff.outputs.artifact-id }}
+      handoff-digest: ${{ steps.handoff.outputs.artifact-digest }}
+      manifest-sha256: ${{ steps.transfer.outputs.manifest-sha256 }}
     steps:
       - name: Checkout the exact commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -137,24 +110,10 @@ jobs:
       - name: Resolve the version to stamp
         id: version
         shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
         run: |
-          set -euo pipefail
-          case "${GITHUB_REF}" in
-            refs/tags/v*) VERSION="${GITHUB_REF#refs/tags/v}" ;;
-            *)            VERSION="${{ github.event.inputs.version }}" ;;
-          esac
-
-          if [ -n "$VERSION" ]; then
-            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-]+(\.[0-9]+)?)?$ ]]; then
-              echo "::error::REFUSE: version '${VERSION}' is not X.Y.Z or X.Y.Z-prerelease. Building it would stamp packages with an identifier the feed will not accept."
-              exit 1
-            fi
-            echo "stamping explicit version: ${VERSION}"
-          else
-            echo "no explicit version: MinVer's height-based version stands (branch build, not a release candidate)"
-          fi
-
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          bash eng/ci/resolve-release-version.sh official
 
       # --locked-mode: resolve exactly the package graph the committed lock files record, and fail
       # rather than resolve a different one. RestorePackagesWithLockFile is on, so an unlocked
@@ -167,9 +126,11 @@ jobs:
 
       - name: Build shipping projects
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
           # MinVer auto-detects the version from git tags. MinVerVersionOverride is what makes a
           # manual dispatch -- which has no matching tag -- produce the intended version instead of
           # a height-based one.
@@ -182,9 +143,11 @@ jobs:
 
       - name: Create the canonical packages
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${RELEASE_VERSION}"
           # The version is already baked into the assemblies by MinVer during build. The
           # PackageVersion override is defense-in-depth for the NuGet metadata specifically, so the
           # package identity and the assembly identity cannot drift apart.
@@ -259,36 +222,185 @@ jobs:
 
           Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
 
-      # SIGNING HAPPENS HERE, BEFORE THE MANIFEST AND BEFORE THE ATTESTATION. The ordering is the
-      # whole point, not a preference.
-      #
-      # `dotnet nuget sign` rewrites a .nupkg IN PLACE -- the signature becomes an entry in the
-      # archive, so the file's hash changes. Everything downstream of a package is a statement about
-      # bytes, so a signature applied AFTER those statements invalidates all of them at once and says
-      # nothing while doing it: the manifest would describe a file that no longer exists, the
-      # attestation's subject digest would no longer match the package, and any install test
-      # performed in between would have proven something about bytes no consumer will ever receive.
-      #
-      # Signed first, exactly ONE artifact exists from pack through push: these bytes are hashed,
-      # attested, admitted, staged, install-tested and published without ever being rewritten. "These
-      # bytes were validated" then describes the bytes a consumer installs, which is the only version
-      # of that claim worth making.
-      #
-      # It is also the ONLY ordering under which provenance can cover a signed package at all.
-      # Attestation must be minted at the origin, over the bytes as built; a signature applied
-      # anywhere later can only break it, and re-attesting the resigned copy would be provenance
-      # describing a journey rather than an origin.
+      - name: Generate CycloneDX SBOM for the shipping set
+        run: |
+          # Pinned in .config/dotnet-tools.json rather than installed at whatever version is newest
+          # today, so the tool that produces our supply-chain evidence cannot change between runs.
+          dotnet tool restore
+          dotnet CycloneDX ./src -o ./sbom -F Json -t
+
+      - name: Assert the SBOM exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(find ./sbom -name 'bom.json' -o -name 'bom.xml' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::REFUSE: no SBOM generated. An absent SBOM is not an empty one, and the attestation below would have nothing to bind."
+            exit 1
+          fi
+          echo "SBOM file(s): $count"
+
+      - name: Record the unsigned handoff
+        id: transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil
+          root = pathlib.Path('official-handoff')
+          root.mkdir()
+          shutil.copytree('packages', root / 'packages')
+          shutil.copytree('sbom', root / 'sbom')
+          files = {}
+          for path in sorted(root.rglob('*')):
+              if path.is_symlink():
+                  raise SystemExit('REFUSE: linked handoff input')
+              if path.is_file():
+                  files[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+          context = {key: os.environ[key] for key in ('GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT')}
+          manifest = root / 'handoff.json'
+          manifest.write_text(json.dumps({'context': context, 'files': files}, sort_keys=True) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('manifest-sha256=' + hashlib.sha256(manifest.read_bytes()).hexdigest() + '\n')
+          PY
+
+      - name: Upload the internal unsigned handoff
+        id: handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: official-build-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: official-handoff/
+          if-no-files-found: error
+          retention-days: 7
+
+  packages:
+    name: Finalize Official Packages
+    needs: build-packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Signing credentials belong only in this environment. Its actual protection
+    # settings must be configured and verified before author signing is enabled.
+    environment: package-signing
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    outputs:
+      version: ${{ steps.receipt.outputs.version }}
+    env:
+      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}
+      HANDOFF_ARTIFACT_ID: ${{ needs.build-packages.outputs.handoff-id }}
+      HANDOFF_MANIFEST_SHA256: ${{ needs.build-packages.outputs.manifest-sha256 }}
+      RELEASE_CANDIDATE_VERSION: ${{ needs.build-packages.outputs.version }}
+    steps:
+      # Fresh runner: no source checkout, build cache, local action, project
+      # evaluation, tool restore, or execution of anything from the handoff.
+      - name: Verify the handoff artifact identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_ARTIFACT_DIGEST: ${{ needs.build-packages.outputs.handoff-digest }}
+        run: |
+          set -euo pipefail
+          [[ "$HANDOFF_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]] || exit 1
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$HANDOFF_ARTIFACT_ID" > "$RUNNER_TEMP/handoff-artifact.json"
+          python3 - <<'PY'
+          import json, os, pathlib
+          a = json.loads((pathlib.Path(os.environ['RUNNER_TEMP']) / 'handoff-artifact.json').read_text())
+          def require(ok, reason):
+              if not ok: raise SystemExit('REFUSE: ' + reason)
+          require(str(a['id']) == os.environ['HANDOFF_ARTIFACT_ID'], 'artifact ID mismatch')
+          require(a['name'] == 'official-build-handoff-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'], 'artifact attempt/name mismatch')
+          require(a['expired'] is False, 'expired artifact')
+          require(str(a['workflow_run']['id']) == os.environ['GITHUB_RUN_ID'], 'artifact run mismatch')
+          require(a['workflow_run']['head_sha'] == os.environ['GITHUB_SHA'], 'artifact source mismatch')
+          require(a['digest'] == 'sha256:' + os.environ['EXPECTED_ARTIFACT_DIGEST'].removeprefix('sha256:'), 'artifact digest mismatch')
+          PY
+
+      - name: Download the verified unsigned handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build-packages.outputs.handoff-id }}
+          path: official-handoff
+          merge-multiple: true
+          digest-mismatch: error
+
+      - name: Verify unsigned handoff contents
+        id: verify-handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, shutil, zipfile
+          import xml.etree.ElementTree as ET
+          root = pathlib.Path('official-handoff')
+          def require(ok, reason):
+              if not ok: raise SystemExit('REFUSE: ' + reason)
+          manifest = root / 'handoff.json'
+          require(not manifest.is_symlink(), 'linked manifest')
+          require(hashlib.sha256(manifest.read_bytes()).hexdigest() == os.environ['HANDOFF_MANIFEST_SHA256'], 'handoff manifest hash mismatch')
+          model = json.loads(manifest.read_text())
+          context = {key: os.environ[key] for key in ('GITHUB_REPOSITORY', 'GITHUB_SHA', 'GITHUB_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT')}
+          require(model['context'] == context, 'handoff invocation mismatch')
+          actual = {}
+          for path in root.rglob('*'):
+              require(not path.is_symlink(), 'linked handoff file')
+              if path.is_file() and path != manifest:
+                  name = path.relative_to(root).as_posix()
+                  require(bool(re.fullmatch(r'packages/[A-Za-z0-9_.+-]+\.(nupkg|snupkg)|sbom/bom\.(json|xml)', name)), 'unexpected handoff file')
+                  actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+          require(actual == model['files'], 'handoff file membership/hash mismatch')
+          require('sbom/bom.json' in actual, 'missing SBOM')
+          packages = sorted((root / 'packages').glob('*.nupkg'))
+          require(bool(packages), 'no shipping packages')
+          versions, identities, payloads = set(), set(), {}
+          for package in packages:
+              with zipfile.ZipFile(package) as archive:
+                  names = archive.namelist()
+                  require(len(names) == len(set(names)), 'duplicate ZIP entry')
+                  require('.signature.p7s' not in names, 'handoff package already signed')
+                  nuspecs = [name for name in names if '/' not in name and name.endswith('.nuspec')]
+                  require(len(nuspecs) == 1, 'ambiguous package identity')
+                  metadata = ET.fromstring(archive.read(nuspecs[0]))
+                  identity = metadata.findtext('.//{*}metadata/{*}id')
+                  version = metadata.findtext('.//{*}metadata/{*}version')
+                  require(bool(identity and version) and identity not in identities, 'missing or duplicate package identity')
+                  identities.add(identity); versions.add(version)
+                  payloads[package.name] = {name: hashlib.sha256(archive.read(name)).hexdigest() for name in names}
+          require(len(versions) == 1, 'inconsistent package versions')
+          require(not os.environ.get('RELEASE_CANDIDATE_VERSION') or versions == {os.environ['RELEASE_CANDIDATE_VERSION']}, 'requested version mismatch')
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'unsigned-payloads.json').write_text(json.dumps(payloads, sort_keys=True))
+          shutil.copytree(root / 'packages', 'packages')
+          shutil.copytree(root / 'sbom', 'sbom')
+          PY
+
+      - name: Setup the pinned signing SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: '10.0.400'
+
       - name: Decide whether this build must be signed
+        id: signing
         shell: bash
         env:
           # A build carrying an EXPLICIT version is a release candidate -- it is the only kind the
           # release workflow can promote, because admission asserts every package carries the
           # release version and a height-based branch version cannot match one.
-          RELEASE_CANDIDATE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_CANDIDATE_VERSION: ${{ needs.build-packages.outputs.version }}
+          NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+          NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
         run: |
           set -euo pipefail
 
+          echo "sign=false" >> "$GITHUB_OUTPUT"
+          if { [ -n "${NUGET_SIGNING_CERT_BASE64:-}" ] && [ -z "${NUGET_SIGNING_CERT_PASSWORD:-}" ]; } ||
+             { [ -z "${NUGET_SIGNING_CERT_BASE64:-}" ] && [ -n "${NUGET_SIGNING_CERT_PASSWORD:-}" ]; }; then
+            echo "::error::REFUSE: incomplete signing credentials"
+            exit 1
+          fi
           if [ -n "${NUGET_SIGNING_CERT_BASE64:-}" ] && [ -n "${NUGET_SIGNING_CERT_PASSWORD:-}" ]; then
+            echo "sign=true" >> "$GITHUB_OUTPUT"
             echo "signing certificate is configured -- packages will be author-signed"
             exit 0
           fi
@@ -326,8 +438,34 @@ jobs:
       #
       # Only .nupkg is signed -- the same subject set that is attested and pushed. A .snupkg is never
       # published, so signing one would change bytes no consumer receives.
+      - name: Verify signing environment protections
+        if: steps.signing.outputs.sign == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/environments/package-signing" > "$RUNNER_TEMP/signing-environment.json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/environments/package-signing/deployment-branch-policies" > "$RUNNER_TEMP/signing-ref-policies.json"
+          python3 - <<'PY'
+          import json, os, pathlib
+          model = json.loads(pathlib.Path(os.environ['RUNNER_TEMP'], 'signing-environment.json').read_text())
+          reviewers = [rule for rule in model.get('protection_rules', []) if rule.get('type') == 'required_reviewers']
+          policy = model.get('deployment_branch_policy') or {}
+          pages = json.loads(pathlib.Path(os.environ['RUNNER_TEMP'], 'signing-ref-policies.json').read_text())
+          allowed = [(rule.get('type'), rule.get('name')) for page in pages for rule in page['branch_policies']]
+          if (model.get('can_admins_bypass') is not False or
+              not any(rule.get('reviewers') and rule.get('prevent_self_review') is True for rule in reviewers) or
+              policy.get('custom_branch_policies') is not True or policy.get('protected_branches') is not False or
+              sorted(allowed) != [('branch', 'main'), ('tag', 'v*')]):
+              raise SystemExit('REFUSE: author signing requires non-bypassable review, no self-review, and restricted deployment refs')
+          PY
+
       - name: Sign the shipping packages
-        if: env.NUGET_SIGNING_CERT_BASE64 != ''
+        if: steps.signing.outputs.sign == 'true'
+        env:
+          NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+          NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
         shell: bash
         working-directory: packages
         run: |
@@ -378,6 +516,22 @@ jobs:
       # later from a download, which would attest to whatever arrived rather than to what was built.
       # This is what makes divergence detectable at all: without it, "the same packages" is an
       # assertion nobody can check after the fact.
+      - name: Verify signing preserved package payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, zipfile
+          expected = json.loads(pathlib.Path(os.environ['RUNNER_TEMP'], 'unsigned-payloads.json').read_text())
+          actual = {}
+          for path in pathlib.Path('packages').glob('*.nupkg'):
+              with zipfile.ZipFile(path) as archive:
+                  names = archive.namelist()
+                  if len(names) != len(set(names)): raise SystemExit('REFUSE: duplicate signed ZIP entry')
+                  actual[path.name] = {name: hashlib.sha256(archive.read(name)).hexdigest() for name in names if name != '.signature.p7s'}
+          if actual != expected: raise SystemExit('REFUSE: signing changed package payloads')
+          PY
+
       - name: Record package hashes
         shell: bash
         working-directory: packages
@@ -468,6 +622,8 @@ jobs:
             commit_sha                 = $env:GITHUB_SHA
             ref                        = $env:GITHUB_REF
             version                    = $version
+            unsigned_handoff_artifact_id = $env:HANDOFF_ARTIFACT_ID
+            unsigned_handoff_manifest_sha256 = $env:HANDOFF_MANIFEST_SHA256
             packages                   = @($entries)
           } | ConvertTo-Json -Depth 5 | Set-Content -Path 'build-receipt.json'
 
@@ -475,39 +631,6 @@ jobs:
           Write-Host "packed version: $version ($($entries.Count) package(s))"
           Get-Content 'build-receipt.json'
 
-      # The SBOM is generated HERE, next to the packages it describes, rather than in a parallel
-      # job. Same commit is an argument, not evidence: a consumer holding a .nupkg and an SBOM
-      # produced elsewhere has no way to tell whether the second describes the first. The
-      # attestation below is what turns that into something checkable.
-      - name: Generate CycloneDX SBOM for the shipping set
-        run: |
-          # Pinned in .config/dotnet-tools.json rather than installed at whatever version is newest
-          # today, so the tool that produces our supply-chain evidence cannot change between runs.
-          dotnet tool restore
-          dotnet CycloneDX ./src -o ./sbom -F Json -t
-
-      - name: Assert the SBOM exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          count=$(find ./sbom -name 'bom.json' -o -name 'bom.xml' | wc -l)
-          if [ "$count" -eq 0 ]; then
-            echo "::error::REFUSE: no SBOM generated. An absent SBOM is not an empty one, and the attestation below would have nothing to bind."
-            exit 1
-          fi
-          echo "SBOM file(s): $count"
-
-      # Build provenance: a signed, verifiable statement binding these exact bytes to this
-      # repository, this workflow, and this commit. Consumers verify with `gh attestation verify`,
-      # and so does the release workflow before it admits anything.
-      #
-      # Only .nupkg is attested, not .snupkg: the shipping artifact is what a consumer installs, and
-      # attesting symbol packages adds subjects without adding assurance about what runs.
-      #
-      # This runs at the ORIGIN on purpose. Attesting anywhere later would attest to a downloaded
-      # copy -- provenance describing an artifact's journey rather than its birth, which is the
-      # opposite of the point. It also cannot be produced from untrusted pull-request code: this
-      # workflow runs only on the default branch, on tags, and on manual dispatch.
       - name: Attest build provenance for the canonical package set
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
@@ -571,6 +694,8 @@ jobs:
     steps:
       - name: Report the official build result
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.packages.outputs.version }}
         run: |
           set -euo pipefail
           result="${{ needs.packages.result }}"
@@ -583,7 +708,7 @@ jobs:
             echo "| commit | \`${GITHUB_SHA}\` |"
             echo "| ref | \`${GITHUB_REF}\` |"
             echo "| run id | \`${GITHUB_RUN_ID}\` |"
-            echo "| version | \`${{ needs.packages.outputs.version }}\` |"
+            echo "| version | \`${RELEASE_VERSION}\` |"
             echo "| packages | ${result} |"
           } >> "$GITHUB_STEP_SUMMARY"
 

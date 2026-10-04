@@ -17,6 +17,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — a projection rebuild silently failed to reset view positions, on every provider
+
+`MaterializedViewProcessor.RebuildAsync` cleared each view's checkpoint by **advancing** it to zero.
+Every store enforces the advance monotonically and server-side — SQL Server and PostgreSQL by a
+greater-than predicate, MongoDB by `$max`, Elasticsearch and OpenSearch by document versioning — so a
+write of zero against an existing checkpoint was refused by design. `SavePositionAsync` returned
+`ValueTask`, so the refusal was unobservable, every store then logged a successful save, and the rebuild
+reported completion. Measured against real Elasticsearch, the write answers HTTP 409 and the stored
+position is unchanged.
+
+The monotonic guard is correct and is unchanged: a delayed or retried write must not rewind a checkpoint,
+or the projection replays events it has already applied.
+
+**Breaking, `IMaterializedViewStore`.** Lowering a checkpoint is a different operation from advancing one,
+so it is now a different member rather than a flag on the advance:
+
+- `SavePositionAsync` returns `ViewPositionSaveOutcome` (`Advanced` / `RefusedAsStale`) instead of
+  `ValueTask`. An operation that can decline to act now says so in its signature. A refusal is a normal
+  outcome — for a writer that lost a race it is the guard working — and callers may discard it.
+- `ResetPositionAsync` is new, unconditional, and **clears** the checkpoint rather than storing zero.
+  `GetPositionAsync` already reports `null` for a view with no checkpoint, and a stored zero would be
+  indistinguishable from a view legitimately checkpointed at position zero. Resetting an absent checkpoint
+  is success, so it is safe to repeat.
+
+If you implement `IMaterializedViewStore` yourself, both members must be supplied. If you only call it,
+the advance now returns a value you may ignore.
+
+### Fixed — on Elasticsearch and OpenSearch the position was its own document version, so a reset blocked the next advance
+
+The first repair above used the view position as the document's **external version**, which refuses a
+lower value. That cannot express a reset, and it does not survive one either: a delete does not forget a
+version, it increments it and retains a tombstone, so a low advance stayed refused even after the document
+was removed — `"current version [4000002] is higher than the one provided [1]"`, measured on both engines,
+and unaffected by `index.gc_deletes`.
+
+External versioning exists to mirror a monotonic version owned by an external system, and a projection
+checkpoint must be resettable, so it was the wrong mechanism and both defects were symptoms of that one
+mismatch. The monotonic comparison now runs in a server-side script under normal internal versioning. The
+behaviour is unchanged for the three non-search providers, and no consumer API changes beyond the entry
+above.
+
+### Fixed — projection lag reported "nothing is behind" when it could not measure lag at all
+
+`IProjectionLagReadModel.GetLagAsync` returned an empty list when no event-store head source was
+registered, which was indistinguishable from "no subscription is behind". The dashboard's
+`GET {prefix}/api/projections/lag` then served `configured: true` with an empty `streams` array — which a
+monitoring UI renders as every projection caught up. The `configured` field was documented as "true when
+an event-store head source is available" but was set true whenever the read model merely resolved.
+
+**Breaking, `IProjectionLagReadModel`.** `GetLagAsync` returns `ProjectionLagReport` instead of
+`IReadOnlyList<ProjectionLag>`. Its `Availability` distinguishes `Measured` from `NoHeadSource`, so an
+empty result now means one or the other and never both. It still does not throw — a missing head source is
+a host configuration gap, not a runtime fault — it simply no longer degrades silently. The dashboard
+derives `configured` from the availability, so that field now means what its documentation always claimed.
+
+The lag type also now names the guarantee it depends on: subtracting a checkpoint from a head is an event
+*count* only because committed global positions are dense, which is guaranteed elsewhere and was
+referenced from neither the interface nor the record.
+
+
+### Fixed — the shipped `IdentityMap` table could not store the identifiers its own columns allow
+
+`Excalibur.Data.IdentityMap.SqlServer` declared `PK_IdentityMap` as a **clustered** primary key over
+`(ExternalSystem, ExternalId, AggregateType)`. Those columns total 1280 bytes and SQL Server caps a
+clustered index key at 900, so `CREATE TABLE` succeeded with only a warning and the table then rejected
+any row whose three key values exceeded roughly 450 characters combined — failing on first write rather
+than at deployment. The key is now `NONCLUSTERED`, where the limit is 1700 bytes, and the table is
+clustered on `(ExternalSystem, ExternalId)` (768 bytes), which is also the order the resolver looks rows
+up in. Uniqueness is unchanged.
+
+This affects every published version up to and including `10.0.0-alpha.14`, and because it is a schema
+change an **existing table needs a migration** — it is in the known-issues page, with the exact statements,
+verified against a populated table. The same correction is applied to the package README, the
+documentation site and the sample setup scripts, since those are DDL a consumer runs against their own
+database.
+
+### Changed — read this before upgrading if you map an event-sourcing health check to a readiness probe
+
+**The health checks named for the event store and the snapshot store now actually read those stores.**
+Previously, registering SQL Server or PostgreSQL event sourcing with health checks enabled produced two
+checks named `sqlserver-event-store` / `sqlserver-snapshot-store` (and the PostgreSQL equivalents) that
+were the stock database connectivity probe: they opened a connection and asked nothing about the store.
+A deployment whose event-store table was missing a column the read path binds therefore reported
+**Healthy** while every aggregate load failed. Both names now resolve to probes that issue a real read,
+so a table that is absent — or present but missing a column the provider's read statement binds — is
+reported as **Unhealthy**.
+
+**Why this can change your deployment's behaviour even though the new answer is the more correct one.**
+If your schema is already current, nothing changes. If your schema is stale, a check that previously
+reported Healthy will now report Unhealthy, and an orchestrator configured to withhold traffic or
+restart on readiness failure will act on it. That is the signal working as intended, but it is a change
+in observable behaviour on a published surface, so: **apply any outstanding schema migrations before
+upgrading**, or confirm the new checks report Healthy in a non-production environment first. The
+configured check names (`EventStoreHealthCheckName`, `SnapshotStoreHealthCheckName`) are unchanged and
+still mean what they say, so no probe configuration needs editing.
+
+Two further corrections to the same checks:
+
+- **Cancellation is no longer reported as a fault.** A probe cancelled because the host is shutting down
+  previously surfaced as Unhealthy, which raised an alarm for a clean shutdown during a rolling deploy.
+  Cancellation now propagates instead.
+- **An unprobeable store reports `Degraded`, not `Unhealthy`.** Under tenant sharding a health check runs
+  with no ambient tenant, so no shard is resolvable unless a default is configured. That is a
+  configuration state rather than a store fault; reporting it as Unhealthy marked a working store broken,
+  and reporting it as Healthy would have claimed a verification that never happened. The description says
+  explicitly that nothing about the schema was verified.
+
+### Fixed — a materialized-view refresh that failed forever reported healthy
+
+The materialized-view refresh service logged a give-up after exhausting its retries and recorded nothing,
+while the materialized-view health check derives its whole verdict from those recorded outcomes. With
+nothing writing to them, the staleness and failure-rate signals were both zero by construction, so the
+check could only ever report Healthy: a projection that had been failing for hours was indistinguishable
+from one that had just succeeded. Each catch-up now records its outcome, so a stalled projection becomes
+visible through the health check and the published metrics. A host shutdown is deliberately not counted
+as a refresh failure, so the failure rate is not inflated by every deploy.
+
+**Known gap, stated rather than implied:** a stale view still reports `Degraded` rather than `Unhealthy`,
+and most readiness mappings treat Degraded as serving. The threshold at which a lagging view should take
+an instance out of rotation depends on your configured refresh cadence — a cron-scheduled refresh makes
+high staleness normal — so the framework does not guess it. Monitor the published staleness metric and
+set your own alerting until a configurable escalation threshold ships.
+
+
 ### Removed from the public API (breaking)
 
 Twenty-five public members were withdrawn. They are listed because the baseline records a withdrawal

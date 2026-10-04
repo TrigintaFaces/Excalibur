@@ -317,11 +317,11 @@ Excalibur provides cursor-based (keyset) pagination that maps directly to Elasti
 ```csharp
 [HttpGet("search")]
 public async Task<CursorPagedResult<OrderSearchProjection>> Search(
+    CancellationToken cancellationToken,
     [FromQuery] string? query,
     [FromQuery] int pageSize = 20,
     [FromQuery] string? cursor = null,
-    [FromQuery] PageNavigation navigation = PageNavigation.Next,
-    CancellationToken cancellationToken = default)
+    [FromQuery] PageNavigation navigation = PageNavigation.Next)
 {
     // Decode cursor into ES sort values (null for first page / First & Last navigation)
     var searchAfter = ElasticSearchCursorHelper.DecodeCursor(cursor);

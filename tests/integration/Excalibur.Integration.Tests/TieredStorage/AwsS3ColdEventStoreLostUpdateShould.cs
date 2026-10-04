@@ -97,14 +97,14 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 	}
 
 	private static StoredEvent Event(string aggregateId, long version) => new(
-		EventId: Guid.NewGuid().ToString(),
+		EventId: $"{aggregateId}:{version}",
 		AggregateId: aggregateId,
 		AggregateType: AggregateType,
 		EventType: "TestEvent",
 		EventData: System.Text.Encoding.UTF8.GetBytes($"data-{version}"),
 		Metadata: null,
 		Version: version,
-		Timestamp: DateTimeOffset.UtcNow);
+		Timestamp: DateTimeOffset.UnixEpoch.AddSeconds(version));
 
 	/// <summary>
 	/// Number of independent aggregates raced in one run.
@@ -143,17 +143,17 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 		foreach (var aggregateId in aggregateIds)
 		{
 			_ = await _store!.WriteAsync(
-				Tenant, aggregateId, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
+				Tenant, aggregateId, AggregateType, [Event(aggregateId, 0), Event(aggregateId, 1), Event(aggregateId, 2)], ct);
 		}
 
 		// Concurrent superset/subset archive, per aggregate. Every writer is started before any is awaited,
 		// so the pairs genuinely overlap rather than running one pair at a time.
 		await Task.WhenAll(aggregateIds.SelectMany(aggregateId => new[]
 		{
-			_store!.WriteAsync(Tenant, aggregateId, [Event(aggregateId, 3), Event(aggregateId, 4)], ct),
+			_store!.WriteAsync(Tenant, aggregateId, AggregateType, [Event(aggregateId, 3), Event(aggregateId, 4)], ct),
 			_store.WriteAsync(
 				Tenant,
-				aggregateId,
+				aggregateId, AggregateType,
 				[Event(aggregateId, 3), Event(aggregateId, 4), Event(aggregateId, 5), Event(aggregateId, 6)],
 				ct),
 		})).ConfigureAwait(false);
@@ -164,7 +164,7 @@ public sealed class AwsS3ColdEventStoreLostUpdateShould : IAsyncLifetime
 		var lost = new List<string>();
 		foreach (var aggregateId in aggregateIds)
 		{
-			var versions = (await _store!.ReadAsync(Tenant, aggregateId, ct)).Select(e => e.Version).ToArray();
+			var versions = (await _store!.ReadAsync(Tenant, aggregateId, AggregateType, ct)).Select(e => e.Version).ToArray();
 			if (!versions.SequenceEqual(expected))
 			{
 				lost.Add($"{aggregateId}: [{string.Join(",", versions)}]");

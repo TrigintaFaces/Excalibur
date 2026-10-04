@@ -51,7 +51,12 @@ internal sealed class MessageContextPool : IMessageContextPool
 			return context;
 		}
 
-		return _pool.Get();
+		var pooledContext = _pool.Get();
+		if (!ReferenceEquals(pooledContext.RequestServices, _serviceProvider))
+		{
+			pooledContext.RequestServices = _serviceProvider;
+		}
+		return pooledContext;
 	}
 
 	/// <inheritdoc />

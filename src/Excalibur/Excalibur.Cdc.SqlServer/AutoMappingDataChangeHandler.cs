@@ -5,6 +5,7 @@ using Excalibur.Data.SqlServer.Diagnostics;
 using Excalibur.Dispatch;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Cdc.SqlServer;
 
@@ -62,15 +63,20 @@ internal sealed partial class AutoMappingDataChangeHandler : IDataChangeHandler
 
 		try
 		{
-			var domainEvent = mapperDelegate(_serviceProvider, cdcChanges, cdcChangeType);
+			await using var scope = _serviceProvider.CreateAsyncScope();
+			var domainEvent = mapperDelegate(scope.ServiceProvider, cdcChanges, cdcChangeType);
 
 			if (domainEvent is IDispatchMessage message)
 			{
-				await _dispatcher.DispatchAsync(message, cancellationToken).ConfigureAwait(false);
+				var result = await _dispatcher.DispatchAsync(message, cancellationToken).ConfigureAwait(false);
+				if (!result.Succeeded || result.Disposition == MessageDisposition.AcceptedForBackgroundExecution)
+				{
+					throw new InvalidOperationException("CDC mapped dispatch did not complete successfully; the change cannot be checkpointed.");
+				}
 			}
 			else
 			{
-				LogMappedEventNotDispatchable(_logger, _tableOptions.TableName, domainEvent.GetType().Name);
+				throw new CdcMappingException("The CDC mapper must return a non-null IDispatchMessage.");
 			}
 		}
 		catch (CdcMappingException ex)

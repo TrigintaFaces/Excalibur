@@ -254,6 +254,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	/// is refused outright under <see cref="ServiceProviderOptions.ValidateScopes"/> and succeeds silently
 	/// without it, which is the worse half: one middleware graph, and everything it was constructed with,
 	/// shared by every dispatch for the life of the process.
+	/// Probe dependencies must support synchronous disposal. For async-only disposable dependencies,
+	/// register through <c>UseDeferred</c> with explicit stage and message-kind metadata instead.
 	/// </remarks>
 	public IDispatchPipeline Build()
 	{
@@ -349,16 +351,17 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			// instance resolved above is released with the composition scope.
 			IDispatchMiddleware entry;
 			if (canResolvePerDispatch
-				&& registration.Type is not null
-				&& scopeResolver.RequiresScope(registration.Type))
+				&& (registration.Type is null || scopeResolver.RequiresScope(registration.Type)))
 			{
 				entry = new ScopeResolvedMiddleware(
-					registration.Type,
+					registration.Type ?? MiddlewareIdentity.TypeOf(middleware),
 					registration.Factory,
 					middleware.Stage,
 					middleware.ApplicableMessageKinds,
 					scopeResolver,
-					_serviceProvider);
+					_serviceProvider,
+					registration.Criticality,
+					registration.Type is not null);
 			}
 			else if (canResolvePerDispatch && registration.Type is not null)
 			{
@@ -368,7 +371,21 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 				// dispatch. The walk above has proven the type root-safe, so resolving it from root cannot
 				// capture a scoped dependency. This is how convention middleware lives in ASP.NET Core:
 				// constructed once from the application's services, for the application's lifetime.
-				entry = registration.Factory(_serviceProvider) ?? middleware;
+				var rootMiddleware = registration.Factory(_serviceProvider);
+				if (rootMiddleware is null)
+				{
+					if (registration.Criticality == MiddlewareCriticality.Required)
+					{
+						(unresolvedRequired ??= []).Add(
+							(registration.Type, Resources.PipelineBuilder_MiddlewareNotRegistered));
+					}
+					else
+					{
+						LogSkippedMiddleware(_serviceProvider, registration.Type);
+					}
+					continue;
+				}
+				entry = rootMiddleware;
 			}
 			else
 			{

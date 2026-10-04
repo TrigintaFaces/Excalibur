@@ -24,10 +24,8 @@ def scan(files, floor):
     drift = []
     checked = 0
     for f in files:
-        try:
-            txt = io.open(f, encoding='utf-8-sig', errors='ignore').read()
-        except OSError:
-            continue
+        with io.open(f, encoding='utf-8-sig') as source:
+            txt = source.read()
         for i, line in enumerate(txt.split('\n'), 1):
             if line.lstrip().startswith('#'):
                 continue                      # a comment recording history is not a declaration
@@ -49,10 +47,22 @@ def self_test():
     c2, d2 = scan([ok], 44)
     safety = len(d1) == 1 and d1[0][2] == 65
     liveness = len(d2) == 0 and c2 == 1
+    invalid = os.path.join(d, 'invalid.yml')
+    with open(invalid, 'wb') as source:
+        source.write(b'coverage-threshold: 65\xff')
+    refused = []
+    for path in (os.path.join(d, 'missing.yml'), d, invalid):
+        try:
+            scan([ok, path], 44)
+            refused.append(False)
+        except (OSError, UnicodeError):
+            refused.append(True)
+    readable = all(refused)
     print(f"  safety:   a declaration that disagrees with policy IS caught -- {'PASS' if safety else 'FAIL'}")
     print(f"  liveness: a declaration that agrees is NOT flagged, and IS counted -- {'PASS' if liveness else 'FAIL'}")
-    print("SELF-TEST " + ("PASS (safety + liveness, non-vacuous)" if safety and liveness else "FAIL"))
-    sys.exit(0 if (safety and liveness) else 1)
+    print(f"  refusal: missing, unreadable and malformed input cannot vanish -- {'PASS' if readable else 'FAIL'}")
+    print("SELF-TEST " + ("PASS (safety + liveness + refusal)" if safety and liveness and readable else "FAIL"))
+    sys.exit(0 if (safety and liveness and readable) else 1)
 
 if __name__ == '__main__':
     if '--self-test' in sys.argv:
@@ -61,12 +71,24 @@ if __name__ == '__main__':
     if not os.path.exists(pol_path):
         print(f"REFUSE: {pol_path} missing; there is no policy to check against. NOT a pass.", file=sys.stderr)
         sys.exit(2)
-    floor = int(json.load(io.open(pol_path, encoding='utf-8'))['coverage']['regressionFloor'])
+    try:
+        with io.open(pol_path, encoding='utf-8') as source:
+            floor = json.load(source)['coverage']['regressionFloor']
+        if type(floor) not in (int, float) or not 0 <= floor <= 100 or floor != int(floor):
+            raise ValueError('coverage regressionFloor must be an integer-valued percentage')
+        floor = int(floor)
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+        print(f'REFUSE: invalid quality policy: {exc}', file=sys.stderr)
+        sys.exit(2)
     files = sorted(glob.glob('.github/workflows/*.yml')) + sorted(glob.glob('.github/workflows/*.md'))
     if not files:
         print("REFUSE: no workflow files found. NOT a pass.", file=sys.stderr)
         sys.exit(2)
-    checked, drift = scan(files, floor)
+    try:
+        checked, drift = scan(files, floor)
+    except (OSError, UnicodeError) as exc:
+        print(f'REFUSE: cannot read every policy input: {exc}', file=sys.stderr)
+        sys.exit(2)
     if checked == 0:
         print("REFUSE: no threshold declaration found anywhere. Either the patterns rotted or the "
               "policy is unenforced; both are failures, neither is a pass.", file=sys.stderr)

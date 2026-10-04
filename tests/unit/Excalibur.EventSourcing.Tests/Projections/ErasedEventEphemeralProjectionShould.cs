@@ -81,6 +81,32 @@ public sealed class ErasedEventEphemeralProjectionShould
 		A.CallTo(() => _serializer.ResolveType(ErasedEventMarker.EventType)).MustNotHaveHappened();
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task RefuseMissingNonErasedPayload(bool archived)
+	{
+		RegisterProjection();
+		ReturnStream(new StoredEvent("missing", "order-1", "Order", "OrderPlaced", null, null, 1, DateTimeOffset.UtcNow)
+		{
+			ArchivedAt = archived ? DateTimeOffset.UtcNow : null,
+		});
+		var error = await Should.ThrowAsync<InvalidOperationException>(() =>
+			CreateEngine().BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None));
+		error.Message.ShouldContain("missing");
+	}
+
+	[Fact]
+	public async Task RefuseNullDeserializationRatherThanReturnIncompleteProjection()
+	{
+		RegisterProjection();
+		ReturnStream(new StoredEvent("null-result", "order-1", "Order", "OrderPlaced", [1], null, 1, DateTimeOffset.UtcNow));
+		A.CallTo(() => _serializer.ResolveType("OrderPlaced")).Returns(typeof(TestOrderPlaced));
+		A.CallTo(() => _serializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns((IDomainEvent)null!);
+		_ = await Should.ThrowAsync<InvalidOperationException>(() =>
+			CreateEngine().BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None));
+	}
+
 	[Fact]
 	public async Task StillThrowForAGenuinelyUnresolvableEvent()
 	{

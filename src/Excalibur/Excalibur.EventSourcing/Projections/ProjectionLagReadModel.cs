@@ -38,12 +38,16 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 	}
 
 	/// <inheritdoc />
-	public async ValueTask<IReadOnlyList<ProjectionLag>> GetLagAsync(CancellationToken cancellationToken)
+	public async ValueTask<ProjectionLagReport> GetLagAsync(CancellationToken cancellationToken)
 	{
-		// Fail open: without an event-store head source, lag is undefined — report none rather than throw.
+		// Without an event-store head source there is nothing to subtract a checkpoint from, so lag is
+		// UNDEFINED. This still does not throw -- a missing head source is a host configuration gap, not a
+		// runtime fault, and a monitoring read should degrade rather than fail. What changed is that it no
+		// longer degrades SILENTLY: returning an empty list here was indistinguishable from "no
+		// subscription is behind", which a dashboard renders as healthy.
 		if (_globalStream is null)
 		{
-			return [];
+			return new ProjectionLagReport(ProjectionLagAvailability.NoHeadSource, []);
 		}
 
 		var head = await _globalStream.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
@@ -51,20 +55,37 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 			.EnumerateCheckpointsAsync(cancellationToken)
 			.ConfigureAwait(false);
 
+		// Measured, and nothing to report: the head WAS read, there are simply no subscriptions. This is
+		// the good-news empty, and it is now distinguishable from the one above.
 		if (checkpoints.Count == 0)
 		{
-			return [];
+			return new ProjectionLagReport(ProjectionLagAvailability.Measured, []);
 		}
 
 		var result = new List<ProjectionLag>(checkpoints.Count);
+
+		// A checkpoint ABOVE the head is impossible while the head source and the event store describe the
+		// same stream, because the head is at least every delivered position. The clamp below keeps lag
+		// non-negative, which is correct arithmetic; on its own it also throws away the only evidence that
+		// the wiring is wrong, and then reports the result as a measurement that found nothing behind.
+		// Record the contradiction instead of absorbing it.
+		var contradicted = false;
+
 		foreach (var checkpoint in checkpoints)
 		{
-			// Structural safe-op: lag can never go negative even if a checkpoint transiently
-			// reports ahead of the observed head.
+			if (checkpoint.Position > head)
+			{
+				contradicted = true;
+			}
+
+			// Structural safe-op: lag can never go negative, whether the disagreement is transient or the
+			// permanent kind the flag above now reports.
 			var lag = Math.Max(0, head - checkpoint.Position);
 			result.Add(new ProjectionLag(checkpoint.SubscriptionName, checkpoint.Position, head, lag));
 		}
 
-		return result;
+		return new ProjectionLagReport(
+			contradicted ? ProjectionLagAvailability.CheckpointAheadOfHead : ProjectionLagAvailability.Measured,
+			result);
 	}
 }

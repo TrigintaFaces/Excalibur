@@ -525,14 +525,14 @@ using Microsoft.Extensions.Caching.Distributed;
 public class CustomDistributedCache : IDistributedCache
 {
     public byte[]? Get(string key) { /* ... */ }
-    public Task<byte[]?> GetAsync(string key, CancellationToken token = default) { /* ... */ }
+    public Task<byte[]?> GetAsync(string key, CancellationToken token) { /* ... */ }
     public void Set(string key, byte[] value, DistributedCacheEntryOptions options) { /* ... */ }
     public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options,
-        CancellationToken token = default) { /* ... */ }
+        CancellationToken token) { /* ... */ }
     public void Refresh(string key) { /* ... */ }
-    public Task RefreshAsync(string key, CancellationToken token = default) { /* ... */ }
+    public Task RefreshAsync(string key, CancellationToken token) { /* ... */ }
     public void Remove(string key) { /* ... */ }
-    public Task RemoveAsync(string key, CancellationToken token = default) { /* ... */ }
+    public Task RemoveAsync(string key, CancellationToken token) { /* ... */ }
 }
 ```
 

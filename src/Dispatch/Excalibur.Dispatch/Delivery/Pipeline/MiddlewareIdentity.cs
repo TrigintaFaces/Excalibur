@@ -57,5 +57,16 @@ internal static class MiddlewareIdentity
 	/// middleware the container serves per scope, which would otherwise read as some other middleware and
 	/// force the chain to execute for no effect.
 	/// </remarks>
-	public static bool IsRouting(IDispatchMiddleware middleware) => TypeOf(middleware) == typeof(RoutingMiddleware);
+	public static bool IsRouting(IDispatchMiddleware middleware)
+	{
+		ArgumentNullException.ThrowIfNull(middleware);
+		while (middleware is IMiddlewareDecorator decorator)
+		{
+			middleware = decorator.Inner;
+		}
+
+		// An opaque factory's composition probe cannot prove what subsequent calls will return.
+		return middleware is not ScopeResolvedMiddleware { HasKnownType: false }
+			&& TypeOf(middleware) == typeof(RoutingMiddleware);
+	}
 }

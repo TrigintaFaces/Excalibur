@@ -2,6 +2,10 @@ name: 'Setup .NET Build Environment'
 description: 'Composite action for shared .NET build setup: checkout, SDK install, NuGet cache, and optional restore/build.'
 
 inputs:
+  telemetry-matrix:
+    description: 'Optional caller matrix context as JSON; absent context remains unknown'
+    required: false
+    default: ''
   checkout-ref:
     description: >-
       Git ref to checkout. Empty (the default) means the ref that triggered the
@@ -60,22 +64,36 @@ runs:
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
       with:
         global-json-file: global.json
+    - name: Capture NuGet cache request
+      id: cache-request
+      shell: bash
+      env:
+        PRIMARY_KEY: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        RESTORE_KEY: ${{ runner.os }}-nuget-
+      run: |
+        printf 'primary-key=%s\nrestore-key=%s\n' "$PRIMARY_KEY" "$RESTORE_KEY" >> "$GITHUB_OUTPUT"
+
     - name: Cache NuGet packages
+      id: nuget-cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: .nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+        key: ${{ steps.cache-request.outputs.primary-key }}
         restore-keys: |
-          ${{ runner.os }}-nuget-
+          ${{ steps.cache-request.outputs.restore-key }}
 
     - name: Restore dependencies
       if: inputs.solution-filter != ''
       shell: bash
-      run: dotnet restore ${{ inputs.solution-filter }} --verbosity quiet
+      env:
+        SOLUTION_FILTER: ${{ inputs.solution-filter }}
+      run: dotnet restore "$SOLUTION_FILTER" --verbosity quiet
 
     - name: Build
       if: inputs.solution-filter != '' && inputs.restore-only != 'true'
       shell: bash
+      env:
+        SOLUTION_FILTER: ${{ inputs.solution-filter }}
       # The file logger is what makes the next step possible. A project can be skipped -- its source
       # removed -- and still exit 0 printing "0 Error(s)", so the ONLY thing distinguishing a skipped
       # project from a compiled one is a High-importance log line that `--verbosity quiet` discards.
@@ -92,7 +110,7 @@ runs:
         # below grades; the binlog is what a human needs when the assertion PASSES and the build was
         # still wrong. It records every target, property and skip decision, which a Verbosity=normal
         # text log does not, and it is the standard diagnostic in .NET repositories for this reason.
-        dotnet build ${{ inputs.solution-filter }} --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
+        dotnet build "$SOLUTION_FILTER" --configuration Release --no-restore --verbosity quiet -p:BuildExamplesAndTests=true \
           -fileLoggerParameters:Verbosity=normal\;LogFile=build-verbosity-normal.log \
           -bl:build.binlog
 
@@ -121,4 +139,30 @@ runs:
           build-verbosity-normal.log
           build.binlog
         if-no-files-found: warn
+        retention-days: 14
+
+    # Record after required work so diagnostic failure cannot prevent these build/test steps.
+    # This observes restore only; actions/cache saves in a later post-job step.
+    - name: Record NuGet cache restore observation
+      id: cache-observation
+      if: always()
+      shell: bash
+      env:
+        CI_CACHE_ACTION: setup-dotnet-build
+        CI_CACHE_FILTER: ${{ inputs.solution-filter }}
+        CI_CACHE_MATRIX: ${{ inputs.telemetry-matrix }}
+        CI_CACHE_KEY: ${{ steps.cache-request.outputs.primary-key }}
+        CI_CACHE_RESTORE_KEYS: ${{ steps.cache-request.outputs.restore-key }}
+        CI_CACHE_OUTCOME: ${{ steps.nuget-cache.outcome }}
+        CI_CACHE_CONCLUSION: ${{ steps.nuget-cache.conclusion }}
+        CI_CACHE_HIT: ${{ steps.nuget-cache.outputs.cache-hit }}
+      run: python3 eng/ci/record-cache-observation.py
+
+    - name: Preserve NuGet cache restore observation
+      if: always() && steps.cache-observation.outputs.id != ''
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ci-cache-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.cache-observation.outputs.id }}
+        path: ${{ steps.cache-observation.outputs.path }}
+        if-no-files-found: error
         retention-days: 14

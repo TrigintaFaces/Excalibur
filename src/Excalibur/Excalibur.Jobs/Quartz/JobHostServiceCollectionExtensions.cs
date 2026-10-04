@@ -54,7 +54,7 @@ internal static class JobHostServiceCollectionExtensions
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Job host assembly scanning constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburJobHost(this IServiceCollection services,
-		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
+		Action<IQuartzBuilder>? configureQuartz,
 		params Assembly[] assemblies)
 	{
 		return services.AddExcaliburJobHost(configureQuartz, configureJobs: null, assemblies);
@@ -93,7 +93,7 @@ internal static class JobHostServiceCollectionExtensions
 	[RequiresUnreferencedCode("Job host assembly scanning discovers handlers and validators via reflection.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	internal static IServiceCollection AddExcaliburJobHost(this IServiceCollection services,
-		Action<IServiceCollectionQuartzConfigurator>? configureQuartz,
+		Action<IQuartzBuilder>? configureQuartz,
 		Action<IJobConfigurator>? configureJobs,
 		params Assembly[] assemblies)
 	{

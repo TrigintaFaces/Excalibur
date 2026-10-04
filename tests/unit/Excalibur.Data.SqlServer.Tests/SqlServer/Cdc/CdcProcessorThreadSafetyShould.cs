@@ -11,32 +11,15 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
 /// <summary>
 /// Tests verifying CdcProcessor thread-safety fixes (S543.10-13):
-/// - ConcurrentBag&lt;Task&gt; for background task tracking (S543.10)
 /// - ConcurrentDictionary for _tracking (S543.11)
 /// - volatile bool _isRunning (S543.12)
-/// - CancellationTokenSource disposal timeout (S543.13)
+/// Active-work disposal behavior is covered by CdcProcessorStalePositionRecoveryShould.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Data.SqlServer")]
 [Trait(TraitNames.Feature, TestFeatures.CDC)]
 public sealed class CdcProcessorThreadSafetyShould : UnitTestBase
 {
-	#region S543.10: ConcurrentBag<Task> Background Task Tracking
-
-	[Fact]
-	public void HaveBackgroundTasksBag()
-	{
-		// Arrange
-		var field = typeof(CdcProcessor)
-			.GetField("_backgroundTasks", BindingFlags.NonPublic | BindingFlags.Instance);
-
-		// Assert
-		field.ShouldNotBeNull("CdcProcessor should have _backgroundTasks field");
-		field.FieldType.ShouldBe(typeof(ConcurrentBag<Task>));
-	}
-
-	#endregion
-
 	#region S543.11: ConcurrentDictionary for Tracking
 
 	[Fact]

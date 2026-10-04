@@ -39,11 +39,14 @@ public interface ISubscriptionCheckpointStore
 	/// no checkpoint exists yet. "No checkpoint" and "a checkpoint of 0" are different states and must
 	/// stay distinguishable, which is why this is nullable rather than a sentinel value.
 	/// </param>
-	/// <param name="newPosition">The position to advance to.</param>
+	/// <param name="newPosition">
+	/// A nonnegative position at least as large as <paramref name="expectedPosition"/> when supplied.
+	/// Equal positions are accepted only if the atomic comparison still matches.
+	/// </param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
-	/// <see cref="CheckpointAdvanceOutcome.Advanced"/> when the checkpoint moved, or
-	/// <see cref="CheckpointAdvanceOutcome.Superseded"/> when another writer had already moved it, in
+	/// <see cref="CheckpointAdvanceOutcome.Advanced"/> when the comparison matched and the position was accepted (including an equal position), or
+	/// <see cref="CheckpointAdvanceOutcome.Superseded"/> when the expected checkpoint state did not match, in
 	/// which case NOTHING was written.
 	/// </returns>
 	/// <remarks>
@@ -60,12 +63,20 @@ public interface ISubscriptionCheckpointStore
 	/// does so invisibly -- the signature would still look correct.
 	/// </para>
 	/// <para>
-	/// A refusal is REPORTED, never thrown. Losing the race is an expected outcome for a subscription
-	/// that has been superseded, and the caller's correct response is to stop rather than to retry. An
-	/// operation that can decline has to be able to say so: a method returning nothing here would make
-	/// "it advanced" and "it declined" the same observation.
+	/// A comparison mismatch is reported as Superseded. Invalid negative or descending arguments throw
+	/// before storage access, even when the expectation would not match. These checks and the atomic
+	/// comparison together prevent rewind within the same checkpoint lifetime. Deletion, restoration,
+	/// external writes, and legacy writers are outside that guarantee.
+	/// </para>
+	/// <para>
+	/// Acceptance is not exclusive ownership or fencing of projection effects. Multiple equal-position
+	/// calls may succeed. A caller receiving Superseded must reconcile its processing state before
+	/// continuing; the result alone does not prove that another reader remains active.
 	/// </para>
 	/// </remarks>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Either position is negative, or the new position is smaller than the supplied expected position.
+	/// </exception>
 	Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
 		string subscriptionName,
 		long? expectedPosition,
@@ -100,18 +111,16 @@ public readonly record struct SubscriptionCheckpoint(string SubscriptionName, lo
 public enum CheckpointAdvanceOutcome
 {
 	/// <summary>
-	/// The checkpoint moved to the requested position.
+	/// The expected state matched and the requested position was accepted, including an equal position.
 	/// </summary>
 	Advanced,
 
 	/// <summary>
-	/// Another writer had already moved the checkpoint, so this advance was refused and nothing was
-	/// written.
+	/// The expected checkpoint state did not match, so this advance was refused and nothing was written.
 	/// </summary>
 	/// <remarks>
-	/// This is the expected outcome for a reader that has been superseded -- a resumed instance, or a
-	/// second reader of the same subscription. The correct response is to stop processing this
-	/// subscription, not to re-read and retry: another reader owns it and is making progress.
+	/// The caller must reconcile its processing state before continuing. This outcome does not establish
+	/// ownership, fence effects, or prove that another reader is still making progress.
 	/// </remarks>
 	Superseded,
 }

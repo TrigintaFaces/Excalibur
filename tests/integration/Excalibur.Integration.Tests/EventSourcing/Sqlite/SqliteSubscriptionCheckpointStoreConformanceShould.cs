@@ -21,6 +21,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.Sqlite;
 [Trait("Category", "Integration")]
 [Trait("Database", "Sqlite")]
 [Trait("Component", "EventStore")]
+[Trait("Pattern", "Conformance")]
 public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 	: SubscriptionCheckpointStoreConformanceTestKit,
 		IClassFixture<SqliteEventStoreFixture>,
@@ -57,6 +58,14 @@ public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 
 		return services.BuildServiceProvider().GetRequiredService<ISubscriptionCheckpointStore>();
 	}
+
+	[Fact]
+	public Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing_Test() =>
+		Advance_WithInvalidPositions_ShouldThrowAndChangeNothing();
+
+	[Fact]
+	public Task Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership_Test() =>
+		Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership();
 
 	[Fact]
 	public Task GetCheckpoint_ForUnknownSubscription_ShouldReturnNull_Test() =>

@@ -258,7 +258,7 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask SavePositionAsync(
+	public async ValueTask<ViewPositionSaveOutcome> SavePositionAsync(
 		string viewName,
 		long position,
 		CancellationToken cancellationToken)
@@ -283,12 +283,46 @@ public sealed partial class MongoDbMaterializedViewStore : IAtomicMaterializedVi
 			.Set(d => d.ViewName, viewName)
 			.Set(d => d.UpdatedAt, now)
 			.SetOnInsert(d => d.CreatedAt, now);
-		var updateOptions = new UpdateOptions { IsUpsert = true };
+		// FindOneAndUpdate rather than UpdateOne, and the reason is specific to $max: the same update also
+		// Sets UpdatedAt, so ModifiedCount is 1 even when $max KEPT the higher stored position and the
+		// checkpoint did not move. The affected-row count is therefore not the outcome here -- the stored
+		// position after the write is. Reading it back in the same round trip is what makes the refusal
+		// reportable at all.
+		var updated = await _positionsCollection!.FindOneAndUpdateAsync(
+			filter,
+			update,
+			new FindOneAndUpdateOptions<MongoDbMaterializedViewPositionDocument>
+			{
+				IsUpsert = true,
+				ReturnDocument = ReturnDocument.After,
+			},
+			cancellationToken).ConfigureAwait(false);
 
-		_ = await _positionsCollection!.UpdateOneAsync(filter, update, updateOptions, cancellationToken)
-			.ConfigureAwait(false);
+		if (updated is not null && updated.Position != position)
+		{
+			return ViewPositionSaveOutcome.RefusedAsStale;
+		}
 
 		LogPositionSaved(viewName, position);
+		return ViewPositionSaveOutcome.Advanced;
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+		// Deletes rather than zeroing: GetPositionAsync already reports null for a view with no checkpoint.
+		// Unconditional by contract -- $max exists to refuse exactly this, which is why clearing cannot be
+		// expressed as a lower position.
+		var filter = Builders<MongoDbMaterializedViewPositionDocument>.Filter.Eq(
+			d => d.Id,
+			MongoDbMaterializedViewDocument.CreatePositionId(CurrentTenantPartition.TenantId, viewName));
+
+		_ = await _positionsCollection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>

@@ -39,6 +39,24 @@ public sealed class OutboxProcessorJobShould
 			NullLogger<OutboxProcessorJob>.Instance);
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task HonorCustomDispatcherWithOrWithoutAProcessor(bool registerProcessor)
+	{
+		var dispatcher = A.Fake<IOutboxDispatcher>();
+		var processor = A.Fake<IOutboxProcessor>();
+		var services = new ServiceCollection().AddLogging().AddSingleton(dispatcher).AddTransient<OutboxProcessorJob>();
+		if (registerProcessor)
+		{
+			services.AddSingleton(processor);
+		}
+		await using var provider = services.BuildServiceProvider();
+		await provider.GetRequiredService<OutboxProcessorJob>().ExecuteAsync(CancellationToken.None);
+		A.CallTo(() => dispatcher.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => processor.DispatchPendingMessagesAsync(A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
 	[Fact]
 	public void ThrowOnNullScopeFactory()
 	{
@@ -54,13 +72,13 @@ public sealed class OutboxProcessorJobShould
 	}
 
 	[Fact]
-	public async Task ReturnGracefullyWhenNoOutboxImplementation()
+	public async Task RejectMissingOutboxImplementation()
 	{
 		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IOutboxDispatcher)))
 			.Returns(null);
 
 		// Should not throw
-		await Should.NotThrowAsync(() =>
+		await Should.ThrowAsync<InvalidOperationException>(() =>
 			_sut.ExecuteAsync(CancellationToken.None));
 	}
 
@@ -75,14 +93,12 @@ public sealed class OutboxProcessorJobShould
 
 		await _sut.ExecuteAsync(CancellationToken.None);
 
-		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(
-			A<string>.That.StartsWith("job-"),
-			A<CancellationToken>._))
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
-	public async Task GenerateUniqueDispatcherId()
+	public async Task KeepDispatcherIdentityStableAcrossFirings()
 	{
 		var fakeOutbox = A.Fake<IOutboxDispatcher>();
 		var capturedIds = new List<string>();
@@ -90,14 +106,13 @@ public sealed class OutboxProcessorJobShould
 		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IOutboxDispatcher)))
 			.Returns(fakeOutbox);
 		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
-			.Invokes((string id, CancellationToken _) => capturedIds.Add(id))
-			.Returns(0);
+			.Invokes((string id, CancellationToken _) => capturedIds.Add(id)).Returns(0);
 
 		await _sut.ExecuteAsync(CancellationToken.None);
 		await _sut.ExecuteAsync(CancellationToken.None);
 
 		capturedIds.Count.ShouldBe(2);
-		capturedIds[0].ShouldNotBe(capturedIds[1]);
+		capturedIds[0].ShouldBe(capturedIds[1]);
 	}
 
 	[Fact]
@@ -123,7 +138,7 @@ public sealed class OutboxProcessorJobShould
 		A.CallTo(() => _fakeServiceProvider.GetService(typeof(IOutboxDispatcher)))
 			.Returns(null);
 
-		await _sut.ExecuteAsync(CancellationToken.None);
+		await Should.ThrowAsync<InvalidOperationException>(() => _sut.ExecuteAsync(CancellationToken.None));
 
 		A.CallTo(() => _fakeScopeFactory.CreateScope())
 			.MustHaveHappenedOnceExactly();
@@ -197,9 +212,7 @@ public sealed class OutboxProcessorJobShould
 
 		await _sut.ExecuteAsync(CancellationToken.None);
 
-		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(
-			A<string>.That.StartsWith("job-"),
-			A<CancellationToken>._))
+		A.CallTo(() => fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 }

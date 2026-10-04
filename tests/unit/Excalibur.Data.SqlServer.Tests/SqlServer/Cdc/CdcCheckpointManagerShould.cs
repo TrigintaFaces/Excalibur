@@ -74,6 +74,8 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 		var cdcRepository = A.Fake<ICdcRepository>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
+        A.CallTo(() => cdcRepository.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).Returns(new byte[] { 0, 0, 1 });
+		A.CallTo(() => cdcRepository.GetMaxPositionAsync(A<CancellationToken>._)).Returns(new byte[] { 0xFF, 0xFF, 0xFF });
 
 		A.CallTo(() => dbConfig.CaptureInstances).Returns(["dbo_orders"]);
 		A.CallTo(() => dbConfig.DatabaseConnectionIdentifier).Returns("test-conn");
@@ -110,6 +112,8 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 		var cdcRepository = A.Fake<ICdcRepository>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
+        A.CallTo(() => cdcRepository.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).Returns(new byte[] { 0, 0, 1 });
+		A.CallTo(() => cdcRepository.GetMaxPositionAsync(A<CancellationToken>._)).Returns(new byte[] { 0xFF, 0xFF, 0xFF });
 
 		A.CallTo(() => dbConfig.CaptureInstances).Returns(["dbo_orders"]);
 		A.CallTo(() => dbConfig.DatabaseConnectionIdentifier).Returns("conn");
@@ -135,6 +139,8 @@ public sealed class CdcCheckpointManagerShould : UnitTestBase
 		var cdcRepository = A.Fake<ICdcRepository>();
 		var stateStore = A.Fake<ISqlServerCdcStateStore>();
 		var sut = CreateSut(dbConfig, cdcRepository, stateStore);
+        A.CallTo(() => cdcRepository.GetMinPositionAsync(A<string>._, A<CancellationToken>._)).Returns(new byte[] { 0, 0, 1 });
+		A.CallTo(() => cdcRepository.GetMaxPositionAsync(A<CancellationToken>._)).Returns(new byte[] { 0xFF, 0xFF, 0xFF });
 
 		A.CallTo(() => dbConfig.CaptureInstances).Returns(["dbo_orders"]);
 		A.CallTo(() => dbConfig.DatabaseConnectionIdentifier).Returns("conn");

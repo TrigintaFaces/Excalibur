@@ -803,48 +803,68 @@ See [Data Providers](../data-providers/index.md) for provider-specific details a
 
 ## Cold Event Store Providers (Tiered Storage)
 
-For hot/cold storage separation at petabyte scale, archived events are moved from the primary (hot) store to a cold store in blob/object storage. All cold store providers implement `IColdEventStore` (4 methods: `WriteAsync`, `ReadAsync`, `ReadAsync(fromVersion)`, `HasArchivedEventsAsync`) and use a gzip-compressed JSON format.
+Tiered storage copies older event payloads from the primary database to object storage. The hot row remains, retaining event identity, tenant, aggregate version and global position; `EventData` becomes null and `ArchivedAt` records archival. This preserves the global stream for replay. All cold store providers implement `IColdEventStore` and use gzip-compressed JSON.
+
+Register a supported hot store before calling `UseTieredStorage`, and register one cold store. SQL Server and PostgreSQL tiered registrations restore archived payloads for aggregate reads and both global query methods. Registering a cold provider alone does not enable archival or read-through.
 
 #### `WriteAsync` returns a durable watermark
 
-`Task<long> WriteAsync(KeyedTenantPartition tenant, string aggregateId, IReadOnlyList<StoredEvent> events, CancellationToken cancellationToken)`
+`Task<long> WriteAsync(KeyedTenantPartition tenant, string aggregateId, string aggregateType, IReadOnlyList<StoredEvent> events, CancellationToken cancellationToken)`
 
-Every `IColdEventStore` method takes a `KeyedTenantPartition` as its first parameter. Cold storage keys are composed from that partition, so events archived under one tenant are not addressable from another tenant's read or watermark check.
+Every `IColdEventStore` method takes the tenant partition, aggregate ID and aggregate type. Identity comparisons are case-sensitive. Reads validate the complete archive before applying the exclusive `fromVersion` filter. Malformed data, conflicting identities and duplicate event identities fail rather than appearing absent.
 
-The returned value is the **durable low-water mark**: the highest version `V` such that *every* version `<= V` for that aggregate is durably committed in cold storage. It is a contiguous durable prefix, never the merely-submitted maximum. The archive service deletes hot events only up to this watermark, so a partial or deferred cold write bounds hot deletion instead of destroying the only remaining copy.
+The returned value is the **durable low-water mark**: the highest version `V` such that every version from zero through `V` for that stream is durably present in cold storage. The archive service clears hot payloads only through this prefix, bounded by its selected archive candidate. This receipt is an aggregate-version boundary, not a global subscription watermark.
 
 Defined returns:
 
 | Case | Return |
 |------|--------|
-| `events` is empty | `-1` — nothing durably added by this call; delete nothing |
-| Every submitted version is already present in cold storage | The confirmed maximum of the submitted range |
-| The upload receipt has been awaited and acknowledged | The submitted maximum |
-| Only part of the batch is durable (or a buffered write is deferred) | The highest contiguously-durable version |
+| `events` is empty | `-1` after successful layout/archive validation; otherwise throws. Clear no hot payloads. |
+| Every submitted event is already present and identical | The existing confirmed contiguous prefix |
+| A conditional upload has been acknowledged | The contiguous prefix of the complete merged archive |
+| The durable archive contains versions `0, 1, 5` | `1`; version `5` remains stored but does not bridge the gap |
+| The durable archive lacks version zero | `-1`, even when the upload succeeded |
 
 :::warning If you implement `IColdEventStore` yourself
-Return the submitted maximum **only after** the storage receipt confirms durability. Returning it earlier authorizes the caller to delete not-yet-archived events from the hot tier. Callers must likewise honour the returned value — awaiting a `Task<long>` and discarding the result compiles cleanly and reintroduces the data-loss path.
+An upload acknowledgement alone does not prove a contiguous prefix. Return only the prefix actually present after a durable write, and preserve existing events when retrying a conditional-write conflict. Callers must honor the returned boundary before clearing hot payloads.
 :::
+
+### Read-through and erasure
+
+An archive marker is not an erased event. Read-through fetches the cold payload and then rechecks that event's state against the authoritative primary hot store. If that observation reports the reserved `$erased` marker, the returned event has no payload or metadata. Otherwise the cold event must match the selected hot event's identity and immutable data. For a non-erased event, a missing or inconsistent archive fails the read; global reads return no partial page when a later restore fails. An authoritative erased result does not require a matching cold event. Cold fetch or parse failures still fail before that observation can occur.
+
+Each archived event is rechecked, even when its stream's cold data was already fetched for the page. This is a per-event freshness check, not an atomic snapshot or a fence against an erasure that commits after the check. Tiered read-through does not erase retained cold objects. The shipped tiered composition denies the event-store erasure capability: enabling event-store erasure with `UseTieredStorage` is rejected at host startup. An external cold-storage policy does not remove this guard.
+
+The hot provider must expose the authoritative-reader capability. SQL Server's connection-string registration supports this; a custom connection factory must use the explicit owned-primary factory contract. It must supply fresh owned connections to the same writable primary. Borrowed connections, ambient snapshots and replicas cannot provide the required freshness. Replacing the hot store with an incompatible read composition or provider binding is rejected. Compatible singleton decorators must preserve the tiered composition receipt and provider source identity.
 
 ### Azure Blob Storage
 
+In this example, `eventStoreConnectionString` comes from your application configuration.
+
 ```bash
 dotnet add package Excalibur.EventSourcing.AzureBlob
+dotnet add package Excalibur.EventSourcing.SqlServer
 ```
 
 ```csharp
+using Excalibur.EventSourcing.SqlServer;
+using Microsoft.Extensions.DependencyInjection;
+
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
+    builder.UseSqlServer(sql => sql.ConnectionString(eventStoreConnectionString));
     builder.UseAzureBlobColdEventStore(opts =>
     {
         opts.ConnectionString("DefaultEndpointsProtocol=https;...");
         opts.ContainerName("event-archive");
-        opts.BlobPrefix("events");
     });
+    builder.UseTieredStorage(policy => policy.MaxAge = TimeSpan.FromDays(90));
 }));
 ```
 
 ### AWS S3
+
+Use this cold registration in the same hot-store and `UseTieredStorage` configuration shown above.
 
 ```bash
 dotnet add package Excalibur.EventSourcing.AwsS3
@@ -863,6 +883,8 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 ```
 
 ### Google Cloud Storage
+
+Use this cold registration in the same hot-store and `UseTieredStorage` configuration shown above.
 
 ```bash
 dotnet add package Excalibur.EventSourcing.Gcs
@@ -887,16 +909,57 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 | **AWS S3** | `Excalibur.EventSourcing.AwsS3` | AWS SDK default credential chain |
 | **GCS** | `Excalibur.EventSourcing.Gcs` | Google Application Default Credentials |
 
-All providers store events as `{prefix}/{tenant}/{aggregateId}/events.json.gz` and support merge-on-write (read existing, append new, write back). Both the tenant and aggregate segments are encoded, so events archived under one tenant are not addressable from another tenant's read or watermark check.
+The default `ColdArchiveLayout.Legacy` layouts use Base64Url-encoded tenant and aggregate-ID segments:
+
+| Provider | Object key relative to its container or bucket |
+|----------|-----------------------------------------------|
+| Azure Blob | `{tenantSegment}/{aggregateSegment}.json.gz` |
+| S3 | `{keyPrefix}/{tenantSegment}/{aggregateSegment}/events.json.gz` |
+| GCS | `{objectPrefix}/{tenantSegment}/{aggregateSegment}/events.json.gz` |
+
+An empty S3/GCS prefix omits the prefix and its separator. Writes merge by version and use conditional updates to prevent lost concurrent additions.
+
+These legacy keys do not contain the aggregate type. If another type already occupies the same tenant/ID key, the provider rejects the operation. Each cloud provider builder accepts `.Layout(ColdArchiveLayout.TypedV2)` to select independent typed streams. The layout is fixed when the provider is constructed; changing options afterward does not switch it.
+
+| Provider | TypedV2 object key |
+|----------|--------------------|
+| Azure Blob | `v2/{tenantSegment}/{typeSegment}/{aggregateSegment}.json.gz` |
+| S3/GCS | `{configuredPrefix}/v2/{tenantSegment}/{typeSegment}/{aggregateSegment}/events.json.gz` |
+
+Every identity segment is independently encoded by `ColdStorageKey`; do not construct or rename keys manually. An empty prefix omits its separator.
+
+### Moving an archive namespace to TypedV2
+
+Custom hot providers must expose `IEventStoreArchive`, `IEventStoreArchiveReader` and `IEventStoreArchiveScanner` through their captured store's `GetService` capability path. The reader addresses the candidate's tenant explicitly and returns raw hot rows through its version ceiling. Restricting decorators must explicitly authorize or deny this payload capability. Tiered startup rejects missing readers/scanners and separately registered archive services that would split discovery, reading and tombstoning across different sources. SQL Server and PostgreSQL provide these capabilities.
+
+Successful pages with a continuation are processed immediately. The configured archive interval applies before a new round and after a page-fetch failure, rather than between every page. Large rounds can produce sustained database and cold-storage activity; the page size is not a rate limit or a bound on database I/O.
+
+Hosted archival scans a bounded number of stream identities per page, including streams that currently have no eligible work. Completed candidate failures do not reset paging. Progress requires successful page retrieval and completing candidate attempts; a hanging attempt or repeated fetch failure can still delay later streams. Policy values and the age evaluation instant are fixed for each scan round; configuration changes apply to the next round. New stream identities join a later round, while retention still considers new events appended to an existing stream. Cancellation retries the unfinished page. Scan continuations are process-local and restarting begins a new round; repeated restarts before a round finishes can still delay later streams. This continuation is unrelated to global subscriber checkpoints. Custom providers must implement the bounded scan contract before enabling hosted archival; there is no automatic fallback to repeated one-shot discovery.
+
+**Archive-policy compatibility:** age and global-position thresholds are alternative triggers; `MaxPosition` means strictly below that global position. Retention protects the newest N events by aggregate version, even when all events are old, and can be used alone. Earlier SQL implementations incorrectly combined triggers with AND, compared aggregate versions, and could reject entire streams with retention configured. Reassess existing settings when upgrading. A covering snapshot is no longer a prerequisite: the framework requires a durable, recoverable cold-history prefix before clearing hot payloads. Snapshots remain optional.
+
+This is an explicit administrative cutover, not an automatic upgrade. Changing the layout setting alone does not migrate existing archives. The migration capability does not enumerate archives: supply each exact tenant, aggregate ID and aggregate type from your authoritative inventory.
+
+1. Stop and drain all Legacy reads, writes and retries across the entire container or configured bucket prefix, including operations from updated binaries. Keep old binaries fenced out afterward. The framework does not acquire this external fence.
+2. Obtain `IColdEventStoreMigration` from the same captured `IColdEventStore` instance used by the application. A decorator may deny the capability; do not bypass it by resolving another provider or unwrapping it. Namespace activation needs namespace-wide administrative authority.
+3. Call `ActivateTypedLayoutAsync(cancellationToken)` once; retries are supported. This publishes a permanent namespace marker and blocks Legacy access, but does not establish that any stream has migrated.
+4. Call `MigrateAsync(tenant, aggregateId, aggregateType, cancellationToken)` for every occupied legacy slot. Missing, empty, ambiguous or conflicting archives fail rather than being assigned a guessed type. Retrying a completed migration validates its retained history.
+5. Run consumers and archival with `.Layout(ColdArchiveLayout.TypedV2)` against the same namespace. Activation does not change an already-created instance's layout. Verify migration coverage and application reads before resuming normal work.
+
+Retain the namespace marker, migration receipts, original archives and typed archives. Do not expire them through lifecycle rules, recreate the container/bucket, or replace them outside the protocol. Failure or cancellation may leave durable migration state; resume the operation rather than deleting that state to roll back. Migration does not authorize erasing retained data.
+
+Typed reads and writes validate retained migration history, including identical retries, empty batches, filtered reads and existence checks. An occupied legacy slot without a valid receipt is an error. After activation, new streams can use typed storage when no legacy slot exists, or for another aggregate type at the same tenant/ID after the occupied slot's migration receipt and retained baseline validate. Their namespace marker prevents a later Legacy restart from silently treating them as absent.
+
+**Client requirements:** S3 typed access and migration require endpoint discovery from the captured client and a fixed single-bucket namespace; access-point ARNs and multi-region aliases are rejected. Endpoint or addressing changes can invalidate persisted migration identity. GCS typed access requires a client that preserves compressed bytes. Framework-created GCS clients are configured accordingly and disposed with the provider. Supplied clients are not reconfigured or disposed by the store; factory-created DI clients retain DI ownership. An incompatible supplied client fails on typed access or migration. GCS absence checks also require bucket-metadata permission; authorization failures are not treated as empty storage.
 
 ### Archive Metrics
 
-Meter: `Excalibur.EventSourcing.Archive`
+The `ArchiveMetrics` type declares the following instruments in meter `Excalibur.EventSourcing.Archive`. Instrument declarations alone do not establish that a particular operation emits measurements; verify emission before using these names for operational alerts.
 
 | Metric | Type | Description |
 |--------|------|-------------|
 | `excalibur.eventsourcing.archive.events_archived` | Counter | Events moved to cold storage |
-| `excalibur.eventsourcing.archive.events_deleted` | Counter | Events removed from hot store |
+| `excalibur.eventsourcing.archive.events_deleted` | Counter | Hot payloads cleared after archival; the historical metric name is retained |
 | `excalibur.eventsourcing.archive.cold_reads` | Counter | Read-through operations from cold |
 | `excalibur.eventsourcing.archive.errors` | Counter | Archive operation failures |
 | `excalibur.eventsourcing.archive.duration_seconds` | Histogram | Batch archive duration |

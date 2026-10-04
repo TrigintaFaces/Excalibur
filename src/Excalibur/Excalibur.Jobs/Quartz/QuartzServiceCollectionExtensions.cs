@@ -23,12 +23,12 @@ public static class QuartzServiceCollectionExtensions
 	/// Adds Quartz services to the specified service collection and registers the Quartz hosted service.
 	/// </summary>
 	/// <param name="services"> The service collection to configure. </param>
-	/// <param name="withJobs"> An optional action to configure Quartz jobs via <see cref="IServiceCollectionQuartzConfigurator" />. </param>
+	/// <param name="withJobs"> An optional action to configure Quartz jobs via <see cref="IQuartzBuilder" />. </param>
 	/// <returns> The configured <see cref="IServiceCollection" />. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="services" /> is null. </exception>
 	public static IServiceCollection AddQuartzWithJobs(
 		this IServiceCollection services,
-		Action<IServiceCollectionQuartzConfigurator>? withJobs)
+		Action<IQuartzBuilder>? withJobs)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 

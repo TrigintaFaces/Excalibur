@@ -37,6 +37,13 @@ internal sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpo
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
+		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
+		if (expectedPosition is { } prior)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(prior, nameof(expectedPosition));
+			ArgumentOutOfRangeException.ThrowIfLessThan(newPosition, prior);
+		}
+
 
 		// TryAdd and TryUpdate are the atomic primitives ConcurrentDictionary offers. An indexer
 		// assignment would be the blind write the contract forbids, and a TryGetValue-then-assign would

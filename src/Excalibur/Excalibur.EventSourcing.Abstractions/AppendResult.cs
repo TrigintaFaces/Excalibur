@@ -25,8 +25,9 @@ public sealed class AppendResult
 	/// Gets what the append actually did.
 	/// </summary>
 	/// <remarks>
-	/// <see cref="Success"/> and <see cref="IsConcurrencyConflict"/> are derived from this, so a caller
-	/// that only asks "did it work" needs no change. Read this instead when the difference between an
+	/// <see cref="Success"/> and <see cref="IsConcurrencyConflict"/> are derived from this. Existing
+	/// success handling remains compatible, but false does not prove rejection: callers must handle
+	/// <see cref="AppendOutcome.Unknown"/> before retrying. Read this when the difference between an
 	/// append written by <em>this</em> call and one recognised as already durable matters — see
 	/// <see cref="AppendOutcome.AlreadyCommitted"/>.
 	/// </remarks>
@@ -39,7 +40,7 @@ public sealed class AppendResult
 	/// <remarks>
 	/// True for <see cref="AppendOutcome.Committed"/> and for
 	/// <see cref="AppendOutcome.AlreadyCommitted"/> alike: in both the events the caller asked to append
-	/// are durable, which is what this property has always meant.
+	/// are durable. False does not prove rollback: Unknown may represent a committed append.
 	/// </remarks>
 	public bool Success => Outcome is AppendOutcome.Committed or AppendOutcome.AlreadyCommitted;
 
@@ -72,8 +73,9 @@ public sealed class AppendResult
 	/// expected version echoed back, never a bound, and never derived from anything but a read. That is
 	/// what makes the two meanings of <c>-1</c> separable: a <c>-1</c> here is always "the stream
 	/// measurably does not exist", and "not measured" is <see langword="null"/> instead. A caller may pass
-	/// any non-null value straight back as the next expected version; on <see langword="null"/> it must
-	/// reload.
+	/// a measured version into a subsequent operation after applying its concurrency policy. For
+	/// <see cref="AppendOutcome.Unknown"/>, reconcile the original operation before rebasing or
+	/// regenerating events; a null version is not permission to retry as a new operation.
 	/// </para>
 	/// </remarks>
 	/// <value>The stream's current version after the append, or <see langword="null"/> when unavailable.</value>
@@ -184,6 +186,16 @@ public sealed class AppendResult
 					"Concurrency conflict: expected version {0}; the store could not determine the stream's "
 						+ "current version",
 					expectedVersion));
+
+	/// <summary>Reports that the provider cannot determine whether the atomic append committed.</summary>
+	/// <param name="errorMessage">The diagnostic reason the outcome could not be established.</param>
+	/// <returns>An unknown outcome, with no asserted version or global position.</returns>
+	/// <remarks>
+	/// Preserve the original operation identity and payloads for reconciliation. A negative read alone
+	/// cannot prove abortion while the original operation retains authority to commit.
+	/// </remarks>
+	public static AppendResult CreateUnknown(string errorMessage) =>
+		new(AppendOutcome.Unknown, nextExpectedVersion: null, firstEventPosition: null, errorMessage);
 
 	/// <summary>
 	/// Creates a failed append result with custom error.

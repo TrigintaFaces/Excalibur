@@ -37,7 +37,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task AbortBatch_WhenConsecutiveFailuresExceedThreshold()
+	public async Task FailRun_OnFirstRecordFailure()
 	{
 		// Arrange — 10 records, handler throws on every record
 		var records = Enumerable.Range(1, 10).Select(i => $"record-{i}").ToArray();
@@ -49,7 +49,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		var completedCounts = new List<long>();
 
 		// Act
-		var result = await processor.RunAsync(
+		await Should.ThrowAsync<InvalidOperationException>(() => processor.RunAsync(
 			0,
 			null,
 			(count, cursor, ct) =>
@@ -57,11 +57,10 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 				completedCounts.Add(count);
 				return Task.CompletedTask;
 			},
-			CancellationToken.None).ConfigureAwait(false);
+			CancellationToken.None)).ConfigureAwait(false);
 
-		// Assert — MaxConsecutiveRecordFailures = 5, so we should stop before processing all 10
-		// The processor should process fewer than all records due to the threshold
-		result.ShouldBeLessThan(10);
+		// Failed processing must not return success or advance the checkpoint.
+
 		// completedCounts should be empty since all records failed
 		completedCounts.ShouldBeEmpty();
 
@@ -69,7 +68,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task ResetConsecutiveFailures_OnSuccessfulRecord()
+	public async Task StopBeforeLaterSuccess_WhenARecordFails()
 	{
 		// Arrange — alternating success/failure pattern
 		var records = new[] { "ok-1", "fail", "ok-2", "fail", "ok-3" };
@@ -81,7 +80,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		var completedCounts = new List<long>();
 
 		// Act
-		var result = await processor.RunAsync(
+		await Should.ThrowAsync<InvalidOperationException>(() => processor.RunAsync(
 			0,
 			null,
 			(count, cursor, ct) =>
@@ -89,17 +88,16 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 				completedCounts.Add(count);
 				return Task.CompletedTask;
 			},
-			CancellationToken.None).ConfigureAwait(false);
+			CancellationToken.None)).ConfigureAwait(false);
 
-		// Assert — should process all 5 records, 3 successful
-		completedCounts.Count.ShouldBe(3); // 3 successful records
-		result.ShouldBe(3);
+		// Only the prefix preceding the first failure can be checkpointed.
+		completedCounts.ShouldBe([1L]);
 
 		await processor.DisposeAsync().ConfigureAwait(false);
 	}
 
 	[Fact]
-	public async Task ExitGracefully_WhenCancellationRequestedBetweenRecords()
+	public async Task PropagateCancellation_WhenRequestedBetweenRecords()
 	{
 		// Arrange — cancellation fires after first record
 		var records = Enumerable.Range(1, 100).Select(i => $"record-{i}").ToArray();
@@ -113,7 +111,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		var processor = CreateProcessor(records, sp);
 
 		// Act
-		var result = await processor.RunAsync(
+		await Should.ThrowAsync<OperationCanceledException>(() => processor.RunAsync(
 			0,
 			null,
 			(count, cursor, ct) =>
@@ -121,16 +119,16 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 				Interlocked.Increment(ref processedCount);
 				return Task.CompletedTask;
 			},
-			cts.Token).ConfigureAwait(false);
+			cts.Token)).ConfigureAwait(false);
 
 		// Assert — should not process all 100 records
-		result.ShouldBeLessThan(100);
+		processedCount.ShouldBe(0);
 
 		await processor.DisposeAsync().ConfigureAwait(false);
 	}
 
 	[Fact]
-	public async Task SkipRecord_WhenNoHandlerRegistered()
+	public async Task FailRun_WhenNoHandlerRegistered()
 	{
 		// Arrange — no handler registered
 		var records = new[] { "record1", "record2" };
@@ -140,7 +138,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 		var completedCounts = new List<long>();
 
 		// Act
-		var result = await processor.RunAsync(
+		await Should.ThrowAsync<InvalidOperationException>(() => processor.RunAsync(
 			0,
 			null,
 			(count, cursor, ct) =>
@@ -148,11 +146,10 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 				completedCounts.Add(count);
 				return Task.CompletedTask;
 			},
-			CancellationToken.None).ConfigureAwait(false);
+			CancellationToken.None)).ConfigureAwait(false);
 
-		// Assert — records are processed (handler null = skip), but checkpoint still advances
-		// The consumer sees the records but no handler does real work
-		result.ShouldBeGreaterThanOrEqualTo(0);
+		// No handler means no successful record or checkpoint.
+		completedCounts.ShouldBeEmpty();
 
 		await processor.DisposeAsync().ConfigureAwait(false);
 	}
@@ -186,7 +183,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 	}
 
 	[Fact]
-	public async Task HandleUpdateCompletedCountFailure_WithTaskScopedCancellation()
+	public async Task PropagateTaskScopedCheckpointCancellation()
 	{
 		// Arrange — updateCompletedCount cancels the task-scoped CTS
 		var records = Enumerable.Range(1, 10).Select(i => $"record-{i}").ToArray();
@@ -199,7 +196,7 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 
 		// Act — on first checkpoint, cancel
 		using var taskCts = new CancellationTokenSource();
-		var result = await processor.RunAsync(
+		await Should.ThrowAsync<OperationCanceledException>(() => processor.RunAsync(
 			0,
 			null,
 			async (count, cursor, ct) =>
@@ -210,10 +207,10 @@ public sealed class DataProcessorConsumerLoopShould : UnitTestBase
 					await taskCts.CancelAsync().ConfigureAwait(false);
 				}
 			},
-			taskCts.Token).ConfigureAwait(false);
+			taskCts.Token)).ConfigureAwait(false);
 
 		// Assert — should have stopped after cancellation
-		result.ShouldBeLessThan(10);
+
 
 		await processor.DisposeAsync().ConfigureAwait(false);
 	}

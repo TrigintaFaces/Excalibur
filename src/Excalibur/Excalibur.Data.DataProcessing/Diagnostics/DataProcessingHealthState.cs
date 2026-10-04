@@ -25,6 +25,11 @@ public sealed class DataProcessingHealthState
 	private long _totalCycles;
 	private long _lastActivityTicks;
 	private int _isRunning;
+	private int _hasStarted;
+	private int _consecutiveFailures;
+
+	internal bool HasStarted => Volatile.Read(ref _hasStarted) != 0;
+	internal int ConsecutiveFailures => Volatile.Read(ref _consecutiveFailures);
 
 	/// <summary>
 	/// Gets the total number of records processed since the service started.
@@ -74,8 +79,13 @@ public sealed class DataProcessingHealthState
 		if (!succeeded)
 		{
 			_ = Interlocked.Increment(ref _totalFailed);
+			_ = Interlocked.Increment(ref _consecutiveFailures);
 		}
 
+		else
+		{
+			_ = Interlocked.Exchange(ref _consecutiveFailures, 0);
+		}
 		_ = Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
 	}
 
@@ -96,6 +106,7 @@ public sealed class DataProcessingHealthState
 	/// </summary>
 	public void MarkStarted()
 	{
+		_ = Interlocked.Exchange(ref _hasStarted, 1);
 		_ = Interlocked.Exchange(ref _isRunning, 1);
 		_ = Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
 	}

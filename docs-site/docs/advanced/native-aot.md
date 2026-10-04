@@ -6,14 +6,13 @@ description: Native AOT compilation guide for Excalibur
 
 # Native AOT Support
 
-Excalibur provides first-class Native AOT support through source generators that eliminate all reflection in handler resolution, JSON serialization, and result creation. This guide explains how to enable AOT compilation and what the framework generates for you.
+Dispatch provides Native AOT paths through generated handler registration and invocation, together with explicit serialization metadata. Compatibility depends on the handlers, middleware, serializers, and integrations your application selects. Publish and execute your application to verify those paths.
 
 ## Before You Start
 
 - **.NET 10.0**
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Dispatch
   dotnet add package Excalibur.Dispatch
   ```
 - Familiarity with [source generators](../source-generators/getting-started.md) and [deployment patterns](../deployment/aspnet-core.md)
@@ -24,12 +23,14 @@ Native AOT compiles your application directly to machine code, eliminating the J
 
 | Benefit | Description |
 |---------|-------------|
-| **Instant startup** | No JIT warm-up, sub-millisecond startup times |
+| **Startup** | No JIT warm-up; measure total application startup on your deployment target |
 | **Smaller binaries** | IL trimming removes unused code |
 | **Lower memory** | No JIT compiler loaded in memory |
 | **Predictable perf** | No JIT-related latency spikes |
 
-Dispatch achieves AOT compatibility by generating all handler discovery, invocation, and serialization code at compile time via Roslyn source generators.
+Dispatch's generators cover supported handler shapes and generate direct invocation paths. Inaccessible or open generic shapes require a supported registration strategy; generated coverage is not a guarantee that every application dependency is AOT compatible. See [source generator coverage](./source-generators.md).
+
+For pipeline validation, run `samples/10-aot/Excalibur.Dispatch.Aot.Sample` as a published native executable. It asserts middleware execution, explicit handler-interface invocation, scoped asynchronous disposal, and background execution ownership. Middleware backed by asynchronous-only disposable services should use [the deferred factory registration](../pipeline/index.md); ordinary factory registration probes middleware synchronously during composition.
 
 ## Quick Start
 

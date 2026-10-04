@@ -38,7 +38,6 @@ public sealed class CdcProducerNeverWritesDurableStateShould : UnitTestBase
 {
 	private const string CaptureInstance = "dbo_Orders";
 
-	private static readonly byte[] StaleLsn = [0x00, 0x00, 0x00, 0x01];
 	private static readonly byte[] MinLsn = [0x00, 0x00, 0x00, 0x05];
 	private static readonly byte[] MaxLsn = [0x00, 0x00, 0x00, 0x0A];
 
@@ -105,13 +104,13 @@ public sealed class CdcProducerNeverWritesDurableStateShould : UnitTestBase
 			.Returns(Task.FromResult(1));
 
 		var checkpointManager = new CdcCheckpointManager(dbConfig, cdcRepository, stateStore, logger);
-		checkpointManager.UpdateLsnTracking(CaptureInstance, StaleLsn, seqVal: null);
+		checkpointManager.UpdateLsnTracking(CaptureInstance, MinLsn, seqVal: null);
 
 		var producer = new CdcChangeDetector(
 			cdcRepository, cdcLsnMapping, dbConfig, CreatePolicyFactory(), checkpointManager, logger);
 
 		await producer.ProducerLoopCoreAsync(
-				StaleLsn, Channel.CreateUnbounded<DataChangeEvent>().Writer, queueSize: 32, CancellationToken.None)
+				MinLsn, Channel.CreateUnbounded<DataChangeEvent>().Writer, queueSize: 32, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// CONTROL: the run really reached the zero-row path. Without this, a producer that never fetched

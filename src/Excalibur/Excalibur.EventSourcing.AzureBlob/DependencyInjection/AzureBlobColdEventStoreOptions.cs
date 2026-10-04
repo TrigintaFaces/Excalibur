@@ -10,6 +10,11 @@ namespace Excalibur.EventSourcing.AzureBlob.DependencyInjection;
 /// </summary>
 public sealed class AzureBlobColdEventStoreOptions
 {
+	/// <summary>Gets or sets the archive layout captured when the provider is constructed.</summary>
+	/// <value>Defaults to <see cref="ColdArchiveLayout.Legacy"/>.</value>
+	/// <remarks>TypedV2 requires explicit activation and migration. Changing options never migrates data.</remarks>
+	public ColdArchiveLayout Layout { get; set; } = ColdArchiveLayout.Legacy;
+
 	/// <summary>
 	/// Gets or sets the Azure Blob Storage connection string.
 	/// </summary>

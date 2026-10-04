@@ -101,6 +101,43 @@ public sealed class ErasedEventAsyncProjectionHostShould
 			new MultiStreamProjection<OrderSummary>(),
 			inlineApply: (events, ctx, sp, ct) => Task.CompletedTask));
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task RefuseCheckpointPastMissingNonErasedPayload(bool archived)
+	{
+		RegisterAsyncProjection();
+		var missing = Live("missing", "TestEvent", 1) with
+		{
+			EventData = null,
+			ArchivedAt = archived ? DateTimeOffset.UtcNow : null,
+		};
+		var nextPoll = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var reads = 0;
+		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (Interlocked.Increment(ref reads) == 1)
+				{
+					return new ValueTask<IReadOnlyList<StoredEvent>>(new[] { missing, Tombstoned("later", 2) });
+				}
+				nextPoll.TrySetResult();
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
+		using var host = CreateHost();
+		await host.StartAsync(CancellationToken.None);
+		try
+		{
+			await WaitHelpers.AwaitSignalAsync(nextPoll.Task, TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		}
+		finally
+		{
+			await host.StopAsync(CancellationToken.None);
+		}
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
 	private AsyncProjectionProcessingHost CreateHost()
 	{
 		var services = new ServiceCollection();

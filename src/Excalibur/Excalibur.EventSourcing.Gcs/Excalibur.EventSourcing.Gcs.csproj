@@ -18,6 +18,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.EventSourcing.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
       <PackageReference Include="Polly" />
 </ItemGroup>
   <ItemGroup>

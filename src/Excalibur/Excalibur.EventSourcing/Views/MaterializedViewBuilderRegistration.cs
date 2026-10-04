@@ -41,7 +41,5 @@ internal sealed record MaterializedViewBuilderRegistration(
 	/// position key MUST come through here, or it will silently address a view that does not exist.
 	/// </remarks>
 	internal string GetViewName() =>
-		(string)BuilderType
-			.GetProperty(nameof(IMaterializedViewBuilder<>.ViewName))!
-			.GetValue(BuilderInstance)!;
+		Accessor.GetViewName(BuilderInstance);
 }

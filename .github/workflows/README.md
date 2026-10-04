@@ -40,8 +40,9 @@ artifact, and verifies the hash manifest, the provenance attestation, and the em
 before any consumer sees it. If no successful official build exists for the commit, it refuses; it
 never falls back to building.
 
-Provenance is attested in the workflow that *produces* the artifact, never in one that downloaded
-it. An attestation minted over a downloaded copy describes a journey, not an origin.
+Provenance is attested in the official producing workflow. Its isolated finalizer verifies an
+internal handoff from that same run and attempt before it signs and attests the final bytes.
+The release workflow only consumes and verifies those attestations; it never re-attests a download.
 
 ### Why signing happens at the origin, before the hash manifest
 
@@ -51,11 +52,18 @@ the manifest, the attestation, and the staged install test, and all three descri
 longer exists, while the pipeline goes on reporting that these bytes were validated. That claim
 would then be false of every byte a consumer receives, on every release that signs.
 
-So `official-build.yml` signs immediately after packing and before it hashes. Exactly one artifact
-then exists from pack through push: these bytes are hashed, attested, admitted, staged,
-install-tested and published without ever being rewritten. It is also the only ordering under which
-provenance can cover a signed package at all, since the attestation must be minted at the origin
-over the bytes as built.
+`official-build.yml` builds and generates its SBOM without signing credentials or OIDC authority.
+A fresh finalizer downloads the unsigned handoff by artifact ID, verifies its run, attempt, source,
+manifest digest, complete file inventory and contents, and then optionally signs. It checks that
+signing preserved package payloads before generating the final manifest, receipt and attestations.
+Only this final canonical artifact is admitted, staged, install-tested and published.
+
+The finalizer executes no source checkout, build cache, downloaded helper or project/tool restore.
+Its exact job and inherited execution environment are bound by
+`eng/ci/official-finalizer-contract.json`. A deliberate change requires independent review and an
+explicit contract update; CI never regenerates that input to accept a changed privileged job.
+The handoff tests execute the actual inline workflow verifiers against substituted and incomplete
+artifacts. This contract and these tests complement code review; they do not prove hosted execution.
 
 `release.yml` therefore signs nowhere. It checks the **artifact** — that the packages carry a
 signature and that the signature is valid — rather than checking whether a certificate happens to be
@@ -70,11 +78,15 @@ defaults to `true` in both workflows, in the open, where it can be read and reve
 promotable build still emits a warning saying the set carries no author signature: unsigned by
 default must not become unsigned and silent, which is the entire reason the control exists.
 
-The signing steps remain in place and reachable, conditioned on the certificate being present, so
-they skip on their own while there is none. When a certificate is obtained, configuring the two
-signing secrets and removing the defaults restores the refusal — which then protects a signing
-pipeline that exists, and will catch a certificate that expires, rotates or is renamed. A repository
-variable, if set, takes precedence over the default in both directions.
+Signing remains optional. Before enabling it, the release owner must configure the `package-signing`
+environment with required reviewers, self-review disabled, administrator bypass disabled, and exactly
+the custom branch policy `main` and tag policy `v*`. Store both signing secrets in that environment,
+never at repository scope. Configure `ALLOW_UNSIGNED_RELEASE=false` when signed releases are required.
+The finalizer checks the actual protection rules before signing and refuses partial credentials or
+signing/verification failures. An environment name in YAML alone does not establish these protections.
+Certificate issuance, expiry monitoring, rotation and revocation remain the release owner's duties;
+rotate both secrets together and validate a new candidate before publication. No settings or secrets
+are provisioned by this repository change. Rehearsal receives no author-signing credentials.
 
 Consumers are unaffected in one respect worth stating plainly: nuget.org applies its own repository
 signature to everything it serves, so packages remain verifiable. What is absent is the second,
@@ -91,6 +103,16 @@ That contract is enforced structurally rather than by convention:
 signing order above — and runs as part of the release rehearsal. It carries a `--self-test` proving
 each assertion can fail. `python3 eng/ci/assert-packages-signed.py --self-test` does the same for the
 signature check the publishing job runs against the artifact.
+
+## Documentation permissions
+
+Documentation compilation runs without Pages write or OIDC permissions. The website
+build has `contents: read` and `pages: read` so it can read the existing Pages
+configuration. Only its deployment job receives `pages: write` and `id-token: write`,
+and that job depends on a successful build and is restricted to non-PR runs on `main`.
+The API-reference workflow generates an artifact and receives only `contents: read`.
+The `github-pages` environment declaration identifies the deployment environment;
+its actual protection rules must be checked in repository settings.
 
 ## Releasing
 

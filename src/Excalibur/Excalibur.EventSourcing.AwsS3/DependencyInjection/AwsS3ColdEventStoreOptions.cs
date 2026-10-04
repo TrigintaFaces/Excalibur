@@ -10,6 +10,11 @@ namespace Excalibur.EventSourcing.AwsS3.DependencyInjection;
 /// </summary>
 public sealed class AwsS3ColdEventStoreOptions
 {
+	/// <summary>Gets or sets the archive layout captured at provider construction.</summary>
+	/// <value>Defaults to <see cref="ColdArchiveLayout.Legacy"/>.</value>
+	/// <remarks>Configuration never activates or migrates archives. Routing must remain fixed for the instance lifetime.</remarks>
+	public ColdArchiveLayout Layout { get; set; } = ColdArchiveLayout.Legacy;
+
 	/// <summary>
 	/// Gets or sets the S3 bucket name for cold event storage.
 	/// </summary>

@@ -45,6 +45,12 @@ var provider = Environment.GetEnvironmentVariable("PROVIDER") ?? "aws";
 
 var builder = WebApplication.CreateBuilder(args);
 
+var layoutSetting = builder.Configuration["ColdStorage:Layout"] ?? nameof(ColdArchiveLayout.Legacy);
+if (!Enum.TryParse<ColdArchiveLayout>(layoutSetting, ignoreCase: true, out var coldLayout) || !Enum.IsDefined(coldLayout))
+{
+	throw new InvalidOperationException("ColdStorage:Layout must be Legacy or TypedV2.");
+}
+
 var eventStoreCs = builder.Configuration.GetConnectionString("EventStore")
 	?? "Server=localhost,1434;Database=EventStore;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True";
 
@@ -55,13 +61,11 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
 // On-demand archive runner so the hot→cold boundary is exercisable via HTTP.
-// ITenantContext is resolved with GetService, not GetRequiredService: this sample is a
-// single-tenant host and registers none, which yields the explicit untenanted partition.
-// Constructing the runner directly would fail here, because the container cannot supply an
-// unregistered dependency even where the parameter is nullable.
+// Tiered storage registers the framework's default tenant context for this single-tenant host.
+// The runner captures that partition and refuses candidates from any other tenant.
 builder.Services.AddSingleton(sp => new ManualArchiveRunner(
 	sp.GetRequiredService<IEventStoreArchive>(),
-	sp.GetRequiredService<IEventStore>(),
+	sp.GetRequiredService<IEventStoreArchiveReader>(),
 	sp.GetRequiredService<IColdEventStore>(),
 	sp.GetRequiredService<IOptionsMonitor<ArchivePolicy>>(),
 	sp.GetService<ITenantContext>(),
@@ -89,9 +93,9 @@ builder.Services.AddExcalibur(excalibur =>
 		// 30-90 day range.
 		es.UseTieredStorage(policy =>
 		{
-			policy.MaxAge = TimeSpan.FromMinutes(1);
-			policy.MaxPosition = 10_000_000;
-			policy.RetainRecentCount = 5;
+			policy.MaxAge = builder.Configuration.GetValue("TieredStorage:MaxAge", TimeSpan.FromMinutes(1));
+			policy.MaxPosition = builder.Configuration.GetValue<long>("TieredStorage:MaxPosition", 10_000_000);
+			policy.RetainRecentCount = builder.Configuration.GetValue("TieredStorage:RetainRecentCount", 5);
 		});
 
 		// Cold store -- pick one cloud provider
@@ -100,6 +104,7 @@ builder.Services.AddExcalibur(excalibur =>
 			case "AWS":
 				es.UseAwsS3ColdEventStore(s3 =>
 				{
+					s3.Layout(coldLayout);
 					s3.BucketName(builder.Configuration["AwsS3:BucketName"] ?? "excalibur-cold-events")
 	.KeyPrefix(builder.Configuration["AwsS3:KeyPrefix"] ?? "events/")
 	.Region(builder.Configuration["AwsS3:Region"] ?? "us-east-1");
@@ -109,16 +114,18 @@ builder.Services.AddExcalibur(excalibur =>
 			case "AZURE":
 				es.UseAzureBlobColdEventStore(blob =>
 				{
+					blob.Layout(coldLayout);
 					blob.ConnectionString(builder.Configuration.GetConnectionString("AzureBlob")
 	 ?? "UseDevelopmentStorage=true")
 	.ContainerName(builder.Configuration["AzureBlob:ContainerName"] ?? "cold-events")
-	.CreateContainerIfNotExists();
+	.CreateContainerIfNotExists(builder.Configuration.GetValue("AzureBlob:CreateContainerIfNotExists", true));
 				});
 				break;
 
 			case "GCS":
 				es.UseGcsColdEventStore(gcs =>
 				{
+					gcs.Layout(coldLayout);
 					gcs.ProjectId(builder.Configuration["Gcs:ProjectId"] ?? "my-gcp-project")
 	.BucketName(builder.Configuration["Gcs:BucketName"] ?? "excalibur-cold-events")
 	.ObjectPrefix(builder.Configuration["Gcs:ObjectPrefix"] ?? "events/");

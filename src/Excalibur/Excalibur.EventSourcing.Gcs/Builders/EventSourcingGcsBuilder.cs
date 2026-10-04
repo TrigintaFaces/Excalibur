@@ -7,6 +7,19 @@ namespace Excalibur.EventSourcing.Gcs;
 
 internal sealed class EventSourcingGcsBuilder : IEventSourcingGcsBuilder
 {
+	internal ColdArchiveLayout? LayoutValue { get; private set; }
+
+	public IEventSourcingGcsBuilder Layout(ColdArchiveLayout layout)
+	{
+		if (!Enum.IsDefined(layout))
+		{
+			throw new ArgumentOutOfRangeException(nameof(layout));
+		}
+
+		LayoutValue = layout;
+		return this;
+	}
+
 	internal string? ProjectIdValue { get; private set; }
 	internal string? BucketNameValue { get; private set; }
 	internal string? ObjectPrefixValue { get; private set; }

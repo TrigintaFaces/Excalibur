@@ -42,6 +42,38 @@ namespace Excalibur.EventSourcing;
 /// </remarks>
 public static class ColdStorageKey
 {
+	private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+
+	/// <summary>
+	/// Builds a versioned path identifying one tenant, aggregate type, and aggregate identifier.
+	/// </summary>
+	/// <param name="tenant">The owning tenant partition.</param>
+	/// <param name="aggregateType">The nonempty, case-sensitive aggregate type.</param>
+	/// <param name="aggregateId">The nonempty, case-sensitive aggregate identifier.</param>
+	/// <returns>The persisted <c>v2/tenant/type/id</c> path with independently encoded identity terms.</returns>
+	/// <remarks>
+	/// This format is distinct from legacy tenant/aggregate keys. Switching an existing store to it
+	/// requires migration of complete validated archives and a cutover that stops legacy writers.
+	/// Calling this helper does not migrate data or certify that a legacy archive was copied.
+	/// Identity terms are not normalized or trimmed; whitespace-only aggregate terms are preserved.
+	/// Strict UTF-8 has no
+	/// byte-order mark, Base64Url has no padding, and the path has no trailing slash. Invalid UTF-16
+	/// is rejected rather than replaced with bytes that could make distinct identities collide.
+	/// Providers must validate the complete key length, including their configured prefix and suffix.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="tenant"/> is null.</exception>
+	/// <exception cref="ArgumentException">An aggregate identity term is null or empty.</exception>
+	/// <exception cref="EncoderFallbackException">An identity term contains invalid UTF-16.</exception>
+	public static string StreamPath(KeyedTenantPartition tenant, string aggregateType, string aggregateId)
+	{
+		ArgumentNullException.ThrowIfNull(tenant);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
+		return $"v2/{Encode(tenant.TenantId)}/{Encode(aggregateType)}/{Encode(aggregateId)}";
+	}
+
+	private static string Encode(string value) => Base64Url.EncodeToString(StrictUtf8.GetBytes(value));
+
 	/// <summary>
 	/// Builds the tenant-qualified prefix segment for a cold-storage key.
 	/// </summary>

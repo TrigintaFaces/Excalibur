@@ -18,6 +18,14 @@ namespace Excalibur.EventSourcing;
 /// events are missing from the hot tier, and by <c>EventArchiveService</c> for
 /// writing archived events.
 /// </para>
+/// <para>
+/// Every operation identifies a stream by its case-sensitive tenant, aggregate type and aggregate ID.
+/// Reads validate the entire stored batch before version filtering and return ascending versions.
+/// Mismatched identities, duplicate events, missing payloads and malformed stored data must fail rather
+/// than appear absent or authorize hot deletion. Legacy archives may derive missing tenant provenance
+/// from their exact tenant-qualified key. A legacy key occupied by another aggregate type must fail;
+/// it must never be treated as the requested stream.
+/// </para>
 /// </remarks>
 public interface IColdEventStore
 {
@@ -33,13 +41,13 @@ public interface IColdEventStore
 	/// maximum. An implementation that persists only part of the batch (or defers a buffered write) MUST
 	/// return the highest contiguously-durable version, not the highest submitted one — returning the
 	/// submitted max while the write is not yet durable authorizes the caller to destroy the only other
-	/// copy of not-yet-archived events. Implementations that upload the whole batch atomically and await
-	/// the storage receipt return the submitted maximum only after that receipt confirms durability.
+	/// copy of not-yet-archived events. Even an acknowledged atomic upload may return <c>-1</c> when
+	/// the durable set does not contain version zero. The prefix must contain every version from zero.
 	/// </para>
 	/// <para>
 	/// Defined early-return acks: an empty <paramref name="events"/> input returns <c>-1</c> ("nothing
-	/// durably added by this call; delete nothing"); a batch already fully present returns the confirmed
-	/// existing maximum for the submitted range. The caller deletes hot events only up to the returned
+	/// proven by this call; delete nothing"); a batch already fully present returns the confirmed
+	/// existing contiguous prefix. The caller deletes hot events only up to the returned
 	/// watermark, so a partial or deferred cold write bounds hot deletion rather than losing data.
 	/// </para>
 	/// </remarks>
@@ -48,15 +56,17 @@ public interface IColdEventStore
 	/// archived under one tenant are unreachable from another tenant's read or watermark check.
 	/// </param>
 	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="aggregateType">The case-sensitive aggregate type belonging to this stream.</param>
 	/// <param name="events">The events to archive.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
-	/// The durable low-water-mark version safe to delete from the hot tier, or <c>-1</c> when nothing was
-	/// durably added by this call.
+	/// The durable low-water-mark version safe to delete from the hot tier, or <c>-1</c> when no
+	/// contiguous prefix from version zero is proven by this call.
 	/// </returns>
 	Task<long> WriteAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		IReadOnlyList<StoredEvent> events,
 		CancellationToken cancellationToken);
 
@@ -65,11 +75,13 @@ public interface IColdEventStore
 	/// </summary>
 	/// <param name="tenant">The tenant partition that owns the events.</param>
 	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="aggregateType">The case-sensitive aggregate type belonging to this stream.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The archived events in version order.</returns>
 	Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -77,12 +89,14 @@ public interface IColdEventStore
 	/// </summary>
 	/// <param name="tenant">The tenant partition that owns the events.</param>
 	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="aggregateType">The case-sensitive aggregate type belonging to this stream.</param>
 	/// <param name="fromVersion">The version to start reading from (exclusive).</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The archived events from the specified version in order.</returns>
 	Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		long fromVersion,
 		CancellationToken cancellationToken);
 
@@ -91,10 +105,12 @@ public interface IColdEventStore
 	/// </summary>
 	/// <param name="tenant">The tenant partition that owns the events.</param>
 	/// <param name="aggregateId">The aggregate identifier.</param>
+	/// <param name="aggregateType">The case-sensitive aggregate type belonging to this stream.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns><see langword="true"/> if archived events exist; otherwise, <see langword="false"/>.</returns>
 	Task<bool> HasArchivedEventsAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken);
 }

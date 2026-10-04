@@ -95,6 +95,12 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 		try
 		{
 			await base.StopAsync(combinedCts.Token).ConfigureAwait(false);
+			if (ExecuteTask is { IsCompleted: false })
+			{
+				_isHealthy = false;
+				_healthState?.MarkStopped();
+				LogDrainTimeoutExceeded(drainTimeout);
+			}
 		}
 		catch (OperationCanceledException) when (drainCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
 		{
@@ -115,56 +121,65 @@ internal sealed partial class DataProcessingHostedService : BackgroundService
 		_healthState?.MarkStarted();
 		LogBackgroundServiceStarting(_options.Value.PollingInterval);
 
-		while (!stoppingToken.IsCancellationRequested)
+		try
 		{
-			try
+			while (!stoppingToken.IsCancellationRequested)
 			{
-				var stopwatch = ValueStopwatch.StartNew();
-
-				// IDataOrchestrationManager is scoped (depends on scoped IDataProcessorRegistry).
-				// Create a fresh scope per polling cycle to avoid captive dependency.
-				await using var scope = _scopeFactory.CreateAsyncScope();
-				var orchestrationManager = scope.ServiceProvider.GetRequiredService<IDataOrchestrationManager>();
-				await orchestrationManager.ProcessDataTasksAsync(stoppingToken).ConfigureAwait(false);
-
-				Interlocked.Exchange(ref _consecutiveErrors, 0);
-				_isHealthy = true;
-				Interlocked.Exchange(ref _lastSuccessfulProcessingTicks, DateTimeOffset.UtcNow.UtcTicks);
-
-				_healthState?.RecordCycle(succeeded: true);
-
-				LogProcessedTasks(stopwatch.Elapsed.TotalMilliseconds);
-			}
-			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-			{
-				break;
-			}
-			catch (Exception ex)
-			{
-				var errors = Interlocked.Increment(ref _consecutiveErrors);
-				if (errors >= _options.Value.UnhealthyThreshold)
+				try
 				{
-					_isHealthy = false;
+					var stopwatch = ValueStopwatch.StartNew();
+
+					// IDataOrchestrationManager is scoped (depends on scoped IDataProcessorRegistry).
+					// Create a fresh scope per polling cycle to avoid captive dependency.
+					await using (var scope = _scopeFactory.CreateAsyncScope())
+					{
+						var orchestrationManager = scope.ServiceProvider.GetRequiredService<IDataOrchestrationManager>();
+						await orchestrationManager.ProcessDataTasksAsync(stoppingToken).ConfigureAwait(false);
+					}
+					stoppingToken.ThrowIfCancellationRequested();
+
+					Interlocked.Exchange(ref _consecutiveErrors, 0);
+					_isHealthy = true;
+					Interlocked.Exchange(ref _lastSuccessfulProcessingTicks, DateTimeOffset.UtcNow.UtcTicks);
+
+					_healthState?.RecordCycle(succeeded: true);
+
+					LogProcessedTasks(stopwatch.Elapsed.TotalMilliseconds);
+				}
+				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+				{
+					break;
+				}
+				catch (Exception ex)
+				{
+					var errors = Interlocked.Increment(ref _consecutiveErrors);
+					if (errors >= _options.Value.UnhealthyThreshold)
+					{
+						_isHealthy = false;
+					}
+
+					_healthState?.RecordCycle(succeeded: false);
+
+					LogBackgroundServiceError(ex);
 				}
 
-				_healthState?.RecordCycle(succeeded: false);
-
-				LogBackgroundServiceError(ex);
+				try
+				{
+					await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
 			}
 
-			try
-			{
-				await Task.Delay(_options.Value.PollingInterval, stoppingToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-			{
-				break;
-			}
 		}
-
-		_isHealthy = false;
-		_healthState?.MarkStopped();
-		LogBackgroundServiceStopped();
+		finally
+		{
+			_isHealthy = false;
+			_healthState?.MarkStopped();
+			LogBackgroundServiceStopped();
+		}
 	}
 
 	[LoggerMessage(DataProcessingEventId.BackgroundServiceDisabled, LogLevel.Information,

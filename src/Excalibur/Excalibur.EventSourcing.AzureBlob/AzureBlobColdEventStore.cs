@@ -14,6 +14,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.TieredStorage;
 
 namespace Excalibur.EventSourcing.AzureBlob;
 
@@ -22,12 +23,17 @@ namespace Excalibur.EventSourcing.AzureBlob;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Events are stored as gzip-compressed JSON blobs, one blob per aggregate.
-/// Blob naming convention: <c>{tenantSegment}/{aggregateSegment}.json.gz</c>, relative to the configured
+/// Events are stored as gzip-compressed JSON blobs. The default legacy naming convention is
+/// <c>{tenantSegment}/{aggregateSegment}.json.gz</c>, relative to the configured
 /// container. Both segments are Base64Url-encoded, so neither appears verbatim: write lifecycle rules and
 /// access policies against the encoded form, never against a raw tenant or aggregate identifier. No
 /// container prefix is prepended to the blob name — the container itself is the only scoping above the
 /// tenant segment.
+/// </para>
+/// <para>
+/// TypedV2 uses <see cref="ColdStorageKey.StreamPath"/> and separates aggregate types. It requires explicit
+/// namespace activation and migration of occupied legacy slots under an external legacy-operation fence.
+/// The layout is frozen at construction; activation does not change an existing instance's selection.
 /// </para>
 /// <para>
 /// Subsequent writes for the same aggregate append events by reading the existing
@@ -35,7 +41,7 @@ namespace Excalibur.EventSourcing.AzureBlob;
 /// using version-range blobs (future enhancement).
 /// </para>
 /// </remarks>
-internal sealed class AzureBlobColdEventStore : IColdEventStore
+internal sealed class AzureBlobColdEventStore : IColdEventStore, IColdEventStoreMigration
 {
 	private const int MaxConcurrencyRetries = 5;
 
@@ -76,6 +82,9 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 			.Build();
 
 	private readonly BlobContainerClient _containerClient;
+	private readonly ColdArchiveLayout _layout;
+	private readonly AzureBlobColdArchiveMigrationStorage _migrationStorage;
+	private readonly ColdArchiveMigrationCoordinator _migration;
 	private readonly ILogger<AzureBlobColdEventStore> _logger;
 
 	/// <summary>
@@ -98,33 +107,55 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 
 	internal AzureBlobColdEventStore(
 		BlobContainerClient containerClient,
-		ILogger<AzureBlobColdEventStore> logger)
+		ILogger<AzureBlobColdEventStore> logger,
+		ColdArchiveLayout layout = ColdArchiveLayout.Legacy)
 	{
 		ArgumentNullException.ThrowIfNull(containerClient);
 		ArgumentNullException.ThrowIfNull(logger);
+		if (!Enum.IsDefined(layout))
+		{
+			throw new ArgumentOutOfRangeException(nameof(layout));
+		}
 
 		_containerClient = containerClient;
+		_layout = layout;
+		_migrationStorage = new AzureBlobColdArchiveMigrationStorage(containerClient);
+		_migration = new ColdArchiveMigrationCoordinator(_migrationStorage);
 		_logger = logger;
 		_writeRetryPipeline = BuildWriteRetryPipeline();
 	}
 
 	/// <inheritdoc />
+	public Task ActivateTypedLayoutAsync(CancellationToken cancellationToken) =>
+		_migration.ActivateTypedLayoutAsync(cancellationToken);
+
+	/// <inheritdoc />
+	public Task MigrateAsync(KeyedTenantPartition tenant, string aggregateId, string aggregateType,
+		CancellationToken cancellationToken) =>
+		_migration.MigrateAsync(tenant, aggregateId, aggregateType, cancellationToken);
+
+	/// <inheritdoc />
 	public async Task<long> WriteAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		IReadOnlyList<StoredEvent> events,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 		ArgumentNullException.ThrowIfNull(events);
+
+		events = ColdArchiveBatch.Snapshot(events);
 
 		if (events.Count == 0)
 		{
+			_ = await ReadArchiveAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 			return -1;
 		}
 
-		var blobClient = GetBlobClient(tenant, aggregateId);
+		var blobClient = GetBlobClient(tenant, aggregateId, aggregateType);
 
 		// Optimistic-concurrency read-modify-write: a concurrent archive must not silently overwrite
 		// (lost update). We capture the source blob's ETag on read and write conditionally (IfMatch for an
@@ -133,14 +164,13 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 		return await _writeRetryPipeline.ExecuteAsync(
 			async ct =>
 			{
-				var (existingEvents, etag) = await TryDownloadForUpdateAsync(blobClient, ct)
+				var (existingEvents, etag) = await ReadArchiveAsync(tenant, aggregateId, aggregateType, ct)
 					.ConfigureAwait(false);
 
 			// Merge by version MEMBERSHIP, not by maximum. Selecting by "version greater than the existing
 			// max" silently DROPS a submitted version that falls into a gap below it — cold holding {0,1,5}
 			// would discard a submitted {2,3,4} as already-present. Presence is a set question.
-			var existingVersions = existingEvents.Select(e => e.Version).ToHashSet();
-			var newEvents = events.Where(e => !existingVersions.Contains(e.Version)).ToList();
+			var newEvents = ColdArchiveBatch.GetAdditions(tenant, aggregateId, existingEvents, events, aggregateType);
 			if (newEvents.Count == 0)
 			{
 				_logger.LogDebug("No new events to archive for {AggregateId}; all versions already in cold storage", aggregateId);
@@ -183,29 +213,28 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentNullException.ThrowIfNull(aggregateId);
+		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 
-		var blobClient = GetBlobClient(tenant, aggregateId);
-
-		if (!await BlobExistsAsync(blobClient, cancellationToken).ConfigureAwait(false))
-		{
-			return Array.Empty<StoredEvent>();
-		}
-
-		return await ReadEventsFromBlobAsync(blobClient, cancellationToken).ConfigureAwait(false);
+		var (events, _) = await ReadArchiveAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
+		ColdArchiveBatch.ValidateStream(events, tenant, aggregateId, aggregateType);
+		events.Sort(static (left, right) => left.Version.CompareTo(right.Version));
+		return events;
 	}
 
 	/// <inheritdoc />
 	public async Task<IReadOnlyList<StoredEvent>> ReadAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		long fromVersion,
 		CancellationToken cancellationToken)
 	{
-		var allEvents = await ReadAsync(tenant, aggregateId, cancellationToken).ConfigureAwait(false);
+		var allEvents = await ReadAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 		return allEvents.Where(e => e.Version > fromVersion).ToList();
 	}
 
@@ -213,19 +242,15 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 	public async Task<bool> HasArchivedEventsAsync(
 		KeyedTenantPartition tenant,
 		string aggregateId,
+		string aggregateType,
 		CancellationToken cancellationToken)
 	{
-		ArgumentNullException.ThrowIfNull(tenant);
-		ArgumentNullException.ThrowIfNull(aggregateId);
-
-		var blobClient = GetBlobClient(tenant, aggregateId);
-		return await BlobExistsAsync(blobClient, cancellationToken).ConfigureAwait(false);
+		return (await ReadAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false)).Count > 0;
 	}
 
 	/// <summary>
-	/// Returns the highest version <c>V</c> such that every version from the aggregate's lowest archived
-	/// version through <c>V</c> is present in <paramref name="ascendingEvents"/>, or <c>-1</c> when nothing
-	/// is archived.
+	/// Returns the highest version <c>V</c> such that every version from zero through <c>V</c> is
+	/// present in <paramref name="ascendingEvents"/>, or <c>-1</c> when no such prefix is proven.
 	/// </summary>
 	/// <remarks>
 	/// The interface promises a <strong>contiguous</strong> durable prefix, and a maximum is not a prefix.
@@ -233,36 +258,15 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 	/// that gap — destroying the only surviving copy of versions cold never stored. Scanning for the first
 	/// discontinuity is what makes the returned watermark mean what the contract says it means.
 	/// </remarks>
-	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents)
+	private static long ContiguousDurablePrefix(IReadOnlyList<StoredEvent> ascendingEvents) =>
+		ColdArchiveBatch.ContiguousDurablePrefix(ascendingEvents);
+
+	private BlobClient GetBlobClient(KeyedTenantPartition tenant, string aggregateId, string aggregateType)
 	{
-		if (ascendingEvents.Count == 0)
+		if (_layout == ColdArchiveLayout.TypedV2)
 		{
-			return -1;
+			return _containerClient.GetBlobClient(_migrationStorage.GetTypedKey(tenant, aggregateId, aggregateType));
 		}
-
-		var watermark = ascendingEvents[0].Version;
-		for (var i = 1; i < ascendingEvents.Count; i++)
-		{
-			var version = ascendingEvents[i].Version;
-			if (version == watermark)
-			{
-				// A duplicate version neither extends nor breaks the run.
-				continue;
-			}
-
-			if (version != watermark + 1)
-			{
-				break;
-			}
-
-			watermark = version;
-		}
-
-		return watermark;
-	}
-
-	private BlobClient GetBlobClient(KeyedTenantPartition tenant, string aggregateId)
-	{
 		// BOTH components are Base64Url-encoded (injective, alphabet excludes '/' and '\'), so the blob name
 		// is a function of the whole (tenant, aggregate) pair and distinct pairs cannot share a blob.
 		// Encoding the aggregate term is load-bearing, not belt-and-braces: the Replace-based sanitation this
@@ -272,53 +276,29 @@ internal sealed class AzureBlobColdEventStore : IColdEventStore
 		return _containerClient.GetBlobClient($"{tenantSegment}/{aggregateSegment}.json.gz");
 	}
 
-	private static async Task<bool> BlobExistsAsync(
-		BlobClient blobClient,
-		CancellationToken cancellationToken)
+	private async Task<(List<StoredEvent> Events, ETag? ETag)> ReadArchiveAsync(
+		KeyedTenantPartition tenant, string aggregateId, string aggregateType, CancellationToken cancellationToken)
 	{
-		var response = await blobClient.ExistsAsync(cancellationToken).ConfigureAwait(false);
-		return response.Value;
-	}
-
-	private async Task<List<StoredEvent>> ReadEventsFromBlobAsync(
-		BlobClient blobClient,
-		CancellationToken cancellationToken)
-	{
-		var downloadResponse = await blobClient.DownloadContentAsync(cancellationToken).ConfigureAwait(false);
-
-		using var compressedStream = downloadResponse.Value.Content.ToStream();
-		await using var gzipStream = new GZipStream(compressedStream, CompressionMode.Decompress);
-
-		var events = await JsonSerializer.DeserializeAsync(
-			gzipStream, ArchiveTypeInfo, cancellationToken).ConfigureAwait(false);
-
-		return events ?? [];
-	}
-
-	/// <summary>
-	/// Downloads the current archive blob (if any) and its ETag in a single request. Returns an empty
-	/// list and a <see langword="null"/> ETag when the blob does not yet exist (create path).
-	/// </summary>
-	private async Task<(List<StoredEvent> Events, ETag? ETag)> TryDownloadForUpdateAsync(
-		BlobClient blobClient,
-		CancellationToken cancellationToken)
-	{
-		try
+		ColdArchiveMigrationObject? archive;
+		if (_layout == ColdArchiveLayout.TypedV2)
 		{
-			var downloadResponse = await blobClient.DownloadContentAsync(cancellationToken).ConfigureAwait(false);
-
-			using var compressedStream = downloadResponse.Value.Content.ToStream();
-			await using var gzipStream = new GZipStream(compressedStream, CompressionMode.Decompress);
-
-			var events = await JsonSerializer.DeserializeAsync(
-				gzipStream, ArchiveTypeInfo, cancellationToken).ConfigureAwait(false);
-
-			return (events ?? [], downloadResponse.Value.Details.ETag);
+			archive = await _migration.ReadTypedAsync(tenant, aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
 		}
-		catch (RequestFailedException ex) when (ex.Status == 404)
+		else
+		{
+			await _migration.EnsureLegacyAllowedAsync(tenant, aggregateId, cancellationToken).ConfigureAwait(false);
+			archive = await _migrationStorage.ReadAsync(_migrationStorage.GetLegacyKey(tenant, aggregateId), cancellationToken).ConfigureAwait(false);
+		}
+
+		if (archive is null)
 		{
 			return ([], null);
 		}
+
+		var events = (await _migrationStorage.DecodeAsync(archive, cancellationToken).ConfigureAwait(false)).ToList();
+		ColdArchiveBatch.ValidateStream(events, tenant, aggregateId, aggregateType);
+		events.Sort(static (left, right) => left.Version.CompareTo(right.Version));
+		return (events, new ETag(archive.Revision));
 	}
 
 	private async Task WriteEventsToBlobAsync(

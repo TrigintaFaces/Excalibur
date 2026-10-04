@@ -16,10 +16,12 @@ public interface IDataProcessor : IAsyncDisposable
 	/// <param name="processedCursor">
 	/// The opaque cursor identifying the last durably processed page boundary,
 	/// or <see langword="null"/> when starting from the beginning. On crash recovery
-	/// the fetch cursor resets to this value so already-processed records are not re-fetched.
+	/// the fetch cursor resets to this value. Records within an incomplete page can be replayed;
+	/// handlers must tolerate duplicate effects.
 	/// </param>
 	/// <param name="updateCompletedCount"> A delegate for updating the count of completed records and cursor in the data task. </param>
 	/// <param name="cancellationToken"> A token to signal the cancellation of the processing operation. </param>
-	/// <returns> A task that represents the asynchronous operation. </returns>
+	/// <returns>The completed count after normal source exhaustion and successful processing.</returns>
+	/// <remarks>Failures and cancellation must propagate; returning successfully permits the orchestrator to delete the task.</remarks>
 	Task<long> RunAsync(long completedCount, string? processedCursor, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken);
 }

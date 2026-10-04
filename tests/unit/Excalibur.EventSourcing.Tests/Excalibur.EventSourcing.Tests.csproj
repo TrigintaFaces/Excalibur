@@ -14,7 +14,22 @@
     <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exercise the actual nonshipping benchmark and runner without referencing unrelated benchmarks. -->
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/AppendThroughputHarness.cs" Link="Benchmarks/AppendThroughputHarness.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/AppendAllocationStrategyBenchmarks.cs" Link="Benchmarks/AppendAllocationStrategyBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/BenchmarkExecution.cs" Link="Benchmarks/BenchmarkExecution.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/BenchmarkTenantContext.cs" Link="Benchmarks/BenchmarkTenantContext.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/TestDomainEvent.cs" Link="Benchmarks/TestDomainEvent.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/SqlServerConcurrentAppendBenchmarks.cs" Link="Benchmarks/SqlServerConcurrentAppendBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/EventSourcing/SqlServerEventStoreBenchmarks.cs" Link="Benchmarks/SqlServerEventStoreBenchmarks.cs" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/001_CreateEventStoreSchema.sql" LogicalName="BenchmarkSchema.001_CreateEventStoreSchema.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/002_CreateSnapshotSchema.sql" LogicalName="BenchmarkSchema.002_CreateSnapshotSchema.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/002_CreateEventStoreSchema.sql" LogicalName="BenchmarkSchema.Postgres.EventStore.sql" />
   </ItemGroup>
   <ItemGroup>
     <!-- ProjectReferences from all merged event sourcing test projects -->
@@ -65,5 +80,8 @@
     <!-- The shipped convergence scripts, linked so the suite reads the file a consumer actually runs.
          They are packed as content rather than embedded in their own assemblies, so without this
          nothing in the tree looks at them. -->
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\samples\09-advanced\persistence-patterns\CloudStorageSnapshots\Archive\ManualArchiveRunner.cs" Link="Samples\ManualArchiveRunner.cs" />
   </ItemGroup>
 </Project>

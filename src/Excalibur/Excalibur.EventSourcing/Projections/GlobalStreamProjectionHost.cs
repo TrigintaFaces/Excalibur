@@ -224,7 +224,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					// first tombstone forever, so honouring an erasure request would stop the projection. It is
 					// never handed to a projection handler, so it cannot populate state. Only the reserved marker
 					// is skipped: any other unresolvable event is still poison and still halts below.
-					if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+					if (ErasedEventMarker.IsErased(storedEvent.EventType))
 					{
 						LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
 
@@ -248,7 +248,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					try
 					{
 						var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
+						var domainEvent = _eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType)
 							?? throw new InvalidOperationException(
 								$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null; refusing to skip it.");
 

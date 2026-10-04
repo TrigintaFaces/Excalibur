@@ -183,6 +183,85 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Registers the SQL Server cursor-map store, which persists each projection's per-stream positions.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionFactory">Creates a connection to the database holding the cursor table.</param>
+	/// <returns>The service collection, for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Without this call the cursor map is IN-MEMORY, and nothing says so.</b> Enabling event
+	/// notification registers <c>InMemoryCursorMapStore</c> through <c>TryAdd</c>, so a host that wants
+	/// durable per-stream cursors and does not register this one silently gets a map that is empty after
+	/// every restart — the projection then re-reads from whatever its own checkpoint says rather than from
+	/// the per-stream positions it recorded.
+	/// </para>
+	/// <para>
+	/// <b>This registration was missing while the implementation, its public constructors and its schema
+	/// script all shipped.</b> Every sibling store in this package has an <c>Add*</c> extension; this one
+	/// did not, so the only way to get it was to construct it by hand and know to do so before event
+	/// notification had claimed the interface. That is the kind of thing a consumer cannot discover.
+	/// </para>
+	/// <para>
+	/// Requires <c>Scripts/003_CreateCursorMapSchema.sql</c>. The store does not create its table.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddSqlServerCursorMapStore(
+		this IServiceCollection services,
+		Func<SqlConnection> connectionFactory)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(connectionFactory);
+
+		// Self-sufficient rather than order-dependent, matching the snapshot store above: this store's
+		// constructor declares an ITenantContext, so wire the default here instead of relying on a sibling
+		// registration having run first. TryAdd keeps it idempotent and a consumer's own context still wins.
+		_ = services.AddDefaultTenantContext();
+
+		// AddTenantAwareStore builds the store AND emits the tenant-scoping capability marker inseparably,
+		// so a host cannot end up with a store that honors the ambient tenant while attesting nothing — or
+		// the reverse, which is the shape that lets a scoping check pass over an unscoped store.
+		_ = services.AddTenantAwareStore<ICursorMapStore, SqlServerCursorMapStore>(sp =>
+			new SqlServerCursorMapStore(
+				connectionFactory,
+				sp.GetRequiredService<ILogger<SqlServerCursorMapStore>>(),
+				sp.GetRequiredService<ITenantContext>()));
+
+		// AddSingleton rather than TryAdd, and the asymmetry is the whole point of this method. Enabling
+		// event notification registers the in-memory map through TryAdd, so whichever call ran first would
+		// otherwise decide -- and a host that asked for a durable cursor map would silently keep the
+		// in-memory one purely because AddProjection happened to run earlier. A durable choice must win
+		// however the two are sequenced, which is the same rule the CDC idempotency filter follows.
+		//
+		// It resolves the SAME instance the registration above created, never a second one: a second
+		// store would carry its own state.
+		_ = services.AddSingleton<ICursorMapStore>(
+			static sp => sp.GetRequiredService<SqlServerCursorMapStore>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers the SQL Server cursor-map store against a connection string.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="connectionString">The connection string for the database holding the cursor table.</param>
+	/// <returns>The service collection, for chaining.</returns>
+	/// <remarks>
+	/// The convenience overload. See the connection-factory overload for what this buys and what the
+	/// in-memory default does if it is omitted.
+	/// </remarks>
+	public static IServiceCollection AddSqlServerCursorMapStore(
+		this IServiceCollection services,
+		string connectionString)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		return AddSqlServerCursorMapStore(services, () => new SqlConnection(connectionString));
+	}
+
+	/// <summary>
 	/// Adds SQL Server snapshot store implementation with a connection factory.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
@@ -339,12 +418,10 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		if (options.HealthChecks.RegisterHealthChecks)
 		{
 			_ = services.AddHealthChecks()
-				.AddSqlServer(
-					options.ConnectionString,
+				.AddEventStoreHealthCheck(
 					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "sqlserver", "eventsourcing"])
-				.AddSqlServer(
-					options.ConnectionString,
+				.AddSnapshotStoreHealthCheck(
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"])
 				;
@@ -394,12 +471,10 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		if (options.HealthChecks.RegisterHealthChecks)
 		{
 			_ = services.AddHealthChecks()
-				.AddSqlServer(
-					options.ConnectionString,
+				.AddEventStoreHealthCheck(
 					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "sqlserver", "eventsourcing"])
-				.AddSqlServer(
-					options.ConnectionString,
+				.AddSnapshotStoreHealthCheck(
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"])
 				;

@@ -43,7 +43,7 @@ namespace Excalibur.Outbox.Tests.Core;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Outbox")]
-public sealed class OutboxTimeToLiveDoesNotDelayDeliveryShould : IDisposable
+public sealed class OutboxTimeToLiveDoesNotDelayDeliveryShould : IAsyncDisposable
 {
 	private readonly IOutboxStore _outboxStore = A.Fake<IOutboxStore>();
 	private readonly IOutboxProcessor _outboxProcessor = A.Fake<IOutboxProcessor>();
@@ -51,7 +51,7 @@ public sealed class OutboxTimeToLiveDoesNotDelayDeliveryShould : IDisposable
 	private readonly ILogger<MessageOutbox> _logger = A.Fake<ILogger<MessageOutbox>>();
 	private MessageOutbox? _sut;
 
-	public void Dispose() => _sut?.Dispose();
+	public ValueTask DisposeAsync() => _sut?.DisposeAsync() ?? ValueTask.CompletedTask;
 
 	/// <summary>
 	/// SAFETY — the arm the defect is about. A time-to-live must not become a not-before time.

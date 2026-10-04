@@ -15,6 +15,27 @@ namespace Excalibur.EventSourcing.Tests.Abstractions;
 public sealed class AppendResultShould
 {
 	[Fact]
+	public void PreserveUnknownAsNeitherSuccessNorDefiniteConflict()
+	{
+		var result = AppendResult.CreateUnknown("acknowledgement unavailable");
+		result.Outcome.ShouldBe(AppendOutcome.Unknown);
+		result.Success.ShouldBeFalse();
+		result.IsConcurrencyConflict.ShouldBeFalse();
+		result.NextExpectedVersion.ShouldBeNull();
+		result.FirstEventPosition.ShouldBeNull();
+		result.ErrorMessage.ShouldBe("acknowledgement unavailable");
+
+		var cloud = Excalibur.Data.CloudNative.CloudAppendResult.CreateUnknown(
+			"acknowledgement unavailable", 3.5, Excalibur.Dispatch.MessageFailureKind.Transient);
+		cloud.Outcome.ShouldBe(Excalibur.Data.CloudNative.CloudAppendOutcome.Unknown);
+		cloud.Success.ShouldBeFalse();
+		cloud.IsConcurrencyConflict.ShouldBeFalse();
+		cloud.NextExpectedVersion.ShouldBeNull();
+		cloud.RequestCharge.ShouldBe(3.5);
+		cloud.FailureKind.ShouldBe(Excalibur.Dispatch.MessageFailureKind.Transient);
+	}
+
+	[Fact]
 	public void CreateSuccessResult_WithValidParameters()
 	{
 		// Arrange

@@ -18,6 +18,7 @@ using Excalibur.Dispatch.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 // Common namespace is deprecated - using Messaging.Abstractions instead
+using Excalibur.Dispatch.Threading;
 using InboxOptions = Excalibur.Dispatch.Options.Configuration.InboxConfigurationOptions;
 using MR = Excalibur.Dispatch.MessageResult;
 
@@ -166,6 +167,11 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 		if (!_options.Enabled)
 		{
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
+		if (message is IExecuteInBackground)
+		{
+			return MessageResult.Failed("Inbox processing requires completed work. Background execution requires a durable outbox handoff.");
 		}
 
 		// Extract message identifier

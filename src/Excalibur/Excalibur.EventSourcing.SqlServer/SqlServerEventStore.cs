@@ -46,6 +46,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	private const byte EnvelopeFormatMarker = 0x01;
 
 	private readonly Func<SqlConnection> _connectionFactory;
+	private readonly SqlServerEventStoreCapabilities _capabilities;
 	private readonly ILogger<SqlServerEventStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
 
@@ -80,7 +81,11 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// <see cref="ArchivePolicy.MaxAge"/> deterministically instead of racing wall-clock time; internal
 	/// because the production path always uses the system clock.
 	/// </summary>
-	internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
+	internal TimeProvider TimeProvider
+	{
+		get => _capabilities.ArchiveTimeProvider;
+		init => _capabilities.ArchiveTimeProvider = value;
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerEventStore"/> class.
@@ -94,7 +99,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(string connectionString, ILogger<SqlServerEventStore> logger, ITenantContext tenantContext)
-		: this(CreateConnectionFactory(connectionString), logger, internalSerializer: null, payloadSerializer: null, schema: "dbo", table: "EventStoreEvents", tenantContext: tenantContext)
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext, null, null, "dbo", "EventStoreEvents", null, true)
 	{
 	}
 
@@ -115,7 +120,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		ILogger<SqlServerEventStore> logger,
 		ITenantContext tenantContext,
 		ISerializer? internalSerializer)
-		: this(CreateConnectionFactory(connectionString), logger, tenantContext, internalSerializer, payloadSerializer: null)
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext, internalSerializer, null, "dbo", "EventStoreEvents", null, true)
 	{
 	}
 
@@ -138,7 +143,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		ITenantContext tenantContext,
 		ISerializer? internalSerializer,
 		IPayloadSerializer? payloadSerializer)
-		: this(CreateConnectionFactory(connectionString), logger, tenantContext, internalSerializer, payloadSerializer)
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext, internalSerializer, payloadSerializer, "dbo", "EventStoreEvents", null, true)
 	{
 	}
 
@@ -170,6 +175,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// <remarks>
 	/// <para>
 	/// This is the advanced constructor for scenarios that need custom connection management:
+	/// It does not advertise <see cref="IEventStoreAuthoritativeReader"/>, because the factory may
+	/// return a borrowed connection. Use <see cref="CreateWithOwnedPrimaryConnectionFactory"/> to
+	/// explicitly supply fresh owned primary connections for independent authoritative rechecks.
 	/// </para>
 	/// <list type="bullet">
 	/// <item><description>Multi-database setups with marker interfaces (e.g., IDomainDb, IEventStoreDb)</description></item>
@@ -182,6 +190,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// new SqlServerEventStore(
 	///     () => (SqlConnection)domainDb.Connection,
 	///     logger,
+	///     tenantContext,
 	///     internalSerializer,
 	///     payloadSerializer);
 	/// </code>
@@ -196,8 +205,38 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		string schema = "dbo",
 		string table = "EventStoreEvents",
 		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver = null)
+		: this(connectionFactory, logger, tenantContext, internalSerializer, payloadSerializer, schema, table, eventTypeInfoResolver, false)
+	{
+	}
+
+	private SqlServerEventStore(
+		Func<SqlConnection> connectionFactory,
+		ILogger<SqlServerEventStore> logger,
+		ITenantContext tenantContext,
+		ISerializer? internalSerializer,
+		IPayloadSerializer? payloadSerializer,
+		string schema,
+		string table,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver,
+		bool ownedPrimaryConnection)
+		: this(connectionFactory, logger, tenantContext, internalSerializer, payloadSerializer, schema, table,
+			eventTypeInfoResolver, new SqlServerEventStoreCapabilities(connectionFactory, schema, table, tenantContext, ownedPrimaryConnection))
+	{
+	}
+
+	internal SqlServerEventStore(
+		Func<SqlConnection> connectionFactory,
+		ILogger<SqlServerEventStore> logger,
+		ITenantContext tenantContext,
+		ISerializer? internalSerializer,
+		IPayloadSerializer? payloadSerializer,
+		string schema,
+		string table,
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver,
+		SqlServerEventStoreCapabilities capabilities)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+		_capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_jsonOptions = Excalibur.Dispatch.EventSerializationDefaults.CreateCanonicalOptions();
 		_hasEventTypeInfoResolver = Excalibur.Dispatch.EventSerializationDefaults.TryApplyTypeInfoResolver(_jsonOptions, eventTypeInfoResolver);
@@ -208,6 +247,46 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		_positionTable = table + "Position";
 		ArgumentNullException.ThrowIfNull(tenantContext);
 		_tenantContext = tenantContext;
+	}
+
+	/// <summary>Creates a store whose factory transfers fresh closed primary connections to the store.</summary>
+	/// <param name="connectionFactory">Factory returning a new closed connection on every invocation, owned and disposed by the store.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="tenantContext">The tenant scope, checked again on each authoritative read.</param>
+	/// <param name="internalSerializer">Optional internal serializer.</param>
+	/// <param name="payloadSerializer">Optional payload serializer.</param>
+	/// <param name="schema">The event store schema.</param>
+	/// <param name="table">The event store table.</param>
+	/// <param name="eventTypeInfoResolver">Optional source-generated event type resolver.</param>
+	/// <returns>The configured event store.</returns>
+	/// <remarks>
+	/// Every connection must route to the same logical primary database as appends, without cached query
+	/// results. Recovery must preserve acknowledged erasures. Configure authentication on each connection
+	/// as needed. Authoritative reads suppress ambient transactions and own a separate connection; ensure
+	/// adequate pool capacity. An endpoint role check cannot identify an unrelated writable copy.
+	/// </remarks>
+	public static SqlServerEventStore CreateWithOwnedPrimaryConnectionFactory(
+		Func<SqlConnection> connectionFactory,
+		ILogger<SqlServerEventStore> logger,
+		ITenantContext tenantContext,
+		ISerializer? internalSerializer = null,
+		IPayloadSerializer? payloadSerializer = null,
+		string schema = "dbo",
+		string table = "EventStoreEvents",
+		System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? eventTypeInfoResolver = null) =>
+		new(connectionFactory, logger, tenantContext, internalSerializer, payloadSerializer, schema, table, eventTypeInfoResolver, true);
+
+	/// <summary>Resolves an optional capability supported by this configured store.</summary>
+	/// <param name="serviceType">The requested capability type.</param>
+	/// <returns>The capability, or null if this configuration does not support it.</returns>
+	/// <remarks>
+	/// Authoritative reads are available for string constructors and explicitly owned primary factories.
+	/// Resolve through the final decorated store so tenant, routing, and representation restrictions apply.
+	/// </remarks>
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+		return _capabilities.GetService(serviceType) ?? (serviceType.IsInstanceOfType(this) ? this : null);
 	}
 
 	/// <inheritdoc/>
@@ -970,9 +1049,16 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		// sustained append throughput is exactly one append per commit through it.
 		// ...and the allocation travels WITH the first insert, in one command, rather than as a round trip
 		// of its own. The counter's lock is held from that UPDATE until COMMIT, so a round trip issued
-		// between them is paid by every blocked appender rather than only by this one. Measured against a
-		// real SQL Server: 5.24x -> 3.94x slower than an identity column at 8 concurrent writers, and
-		// 6.75x -> 4.90x at 32. Nothing about the guarantee changes; only the width of the window does.
+		// between them is paid by every blocked appender rather than only by this one. Removing it narrows
+		// the window measurably on a real SQL Server. Nothing about the guarantee changes; only the width
+		// of the window does.
+		//
+		// No ratio is quoted here any more. The two it used to carry were the same pair deleted from the
+		// subsystem's ARCHITECTURE.md as box-specific rather than design-specific, and they survived here
+		// for a while afterwards -- a figure fixed in one place and left standing two files over, inside
+		// the shipped assembly. Re-measuring on a different instance moved them substantially. Run the
+		// fixed-window harness for a current number; it refuses rather than reporting when the machine
+		// stalls, which a comment cannot.
 		var firstChunkSize = Math.Min(InsertEventsBatchRequest.MaxEventsPerStatement, rows.Count);
 		var firstPosition = await connection.ResolveAsync(
 				new AllocateAndInsertEventsRequest(
@@ -1205,6 +1291,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			new Requests.IsErasedRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
+
 
 	/// <inheritdoc />
 	/// <remarks>

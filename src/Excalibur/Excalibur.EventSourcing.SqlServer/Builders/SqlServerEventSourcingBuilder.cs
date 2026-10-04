@@ -38,6 +38,9 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 	/// </summary>
 	internal Func<IServiceProvider, Func<SqlConnection>>? ConnectionFactoryFunc { get; private set; }
 
+	/// <summary>Gets whether the selected custom factory explicitly transfers fresh primary connections.</summary>
+	internal bool HasOwnedPrimaryConnectionFactory { get; private set; }
+
 	/// <summary>
 	/// Gets the connection string name for resolution from IConfiguration.
 	/// </summary>
@@ -72,6 +75,7 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 
 		_options.ConnectionString = connectionString;
 		ConnectionFactoryFunc = null;
+		HasOwnedPrimaryConnectionFactory = false;
 		ConnectionStringNameValue = null;
 		BindConfigurationPath = null;
 		return this;
@@ -84,9 +88,19 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
 		ConnectionFactoryFunc = connectionFactory;
+		HasOwnedPrimaryConnectionFactory = false;
 		_options.ConnectionString = null;
 		ConnectionStringNameValue = null;
 		BindConfigurationPath = null;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerEventSourcingBuilder OwnedPrimaryConnectionFactory(
+		Func<IServiceProvider, Func<SqlConnection>> connectionFactory)
+	{
+		ConnectionFactory(connectionFactory);
+		HasOwnedPrimaryConnectionFactory = true;
 		return this;
 	}
 
@@ -98,6 +112,7 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 		ConnectionStringNameValue = name;
 		_options.ConnectionString = null;
 		ConnectionFactoryFunc = null;
+		HasOwnedPrimaryConnectionFactory = false;
 		BindConfigurationPath = null;
 		return this;
 	}
@@ -110,6 +125,7 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 		BindConfigurationPath = sectionPath;
 		_options.ConnectionString = null;
 		ConnectionFactoryFunc = null;
+		HasOwnedPrimaryConnectionFactory = false;
 		ConnectionStringNameValue = null;
 		return this;
 	}

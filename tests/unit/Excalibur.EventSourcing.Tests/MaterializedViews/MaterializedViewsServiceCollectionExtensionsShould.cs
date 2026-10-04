@@ -569,7 +569,9 @@ public sealed class MaterializedViewsServiceCollectionExtensionsShould
 
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken cancellationToken) => default;
 
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken cancellationToken) => default;
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken cancellationToken) => default;
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken cancellationToken) => default;
 	}
 
 	/// <summary>

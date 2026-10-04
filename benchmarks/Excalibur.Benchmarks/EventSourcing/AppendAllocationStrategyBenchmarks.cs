@@ -1,102 +1,53 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics;
+using System.Globalization;
+
 using BenchmarkDotNet.Attributes;
+using Perfolizer.Mathematics.OutlierDetection;
 
 using Microsoft.Data.SqlClient;
 
 namespace Excalibur.Benchmarks.EventSourcing;
 
-/// <summary>
-/// A/B on how a global position is ALLOCATED, isolating that decision from everything else an append
-/// does.
-/// </summary>
+/// <summary>SQL Server diagnostics for synthetic identity and transactional-counter append shapes.</summary>
 /// <remarks>
-/// <para>
-/// <b>Why this exists.</b> The event store changed from an IDENTITY column to a counter row updated
-/// inside the appending transaction, which is what makes the committed stream gapless. That change costs
-/// something, and a whole-store benchmark cannot say how much: it measures serialization, the version
-/// pre-check, the insert, the transaction and the network together, so any delta is unattributable.
-/// </para>
-/// <para>
-/// These arms issue the SAME statements against two tables that differ ONLY in how the position is
-/// produced. The difference between them is the price of the guarantee, and nothing else.
-/// </para>
-/// <list type="bullet">
-/// <item><b>Identity</b> — the old shape: BEGIN, version check, INSERT (database assigns), COMMIT.</item>
-/// <item><b>CounterRow</b> — the current shape: BEGIN, version check, UPDATE counter, INSERT, COMMIT.</item>
-/// <item><b>CounterRowBatched</b> — the candidate optimisation: identical to CounterRow, but the counter
-/// UPDATE and the INSERT travel in ONE command rather than two round trips.</item>
-/// </list>
-/// <para>
-/// The third arm is the one worth acting on. If most of the counter's cost is a round trip rather than
-/// lock contention, batching recovers it without weakening the guarantee at all -- and it is AOT-safe,
-/// being SQL text rather than reflection or dynamic dispatch.
-/// </para>
-/// <para>
-/// Requires <c>BENCHMARK_SQL_CONNECTIONSTRING</c>. Throws when absent rather than returning quietly: a
-/// benchmark that skips reports a spectacular number for doing nothing, and these figures are meant to
-/// be quoted.
-/// </para>
+/// One benchmark operation is a wave of WriterCount independent appends, including scheduling,
+/// connection acquisition and cleanup. It is not individual append latency or a complete framework
+/// append/subscriber protocol. These SQL shapes omit production payloads, outbox and watermark costs;
+/// their differences cannot isolate the price of ordering or predict another provider's performance.
+/// Full JSON retains BenchmarkDotNet iteration metadata. The separate wave CSV includes warmup and
+/// measurement invocations without stage classification; it cannot establish steady-state percentiles.
+/// Requires a disposable SQL Server database via BENCHMARK_SQL_CONNECTIONSTRING. Setup resets its
+/// benchmark tables. Never run against a database containing valuable benchmark-table data.
 /// </remarks>
-// BOTH counts are raised, and the split between them is forced rather than chosen. These arms measure
-// SERIALIZED writers queueing on one row, whose per-append time is heavy-tailed: at 16 invocations and
-// 10 iterations the StdDev ran to 53% of the mean -- larger than the effect being measured -- so
-// consecutive runs of the same cell disagreed by 20-70% and no ratio was quotable.
-//
-// Invocations and iterations reduce the error differently. Each invocation averages WriterCount appends
-// WITHIN one measurement, so raising it shrinks the spread itself; iterations resample that spread, so
-// raising them shrinks the standard error of the reported mean as the square root of the count. Both
-// were needed.
-//
-// InvocationCount is capped near 24 by the IN-PROCESS toolchain, which refuses an iteration that takes
-// too long: at 64 the 32-writer cell reached ~25 s per iteration and the run ABORTED mid-matrix with no
-// results at all. In-process is not optional here -- a git worktree under the repository root makes
-// BenchmarkDotNet's project scan ambiguous and the out-of-process toolchains fail before starting.
+// Retain long observations; they can expose contention. Invocation/iteration counts describe this
+// diagnostic configuration, not statistical independence or a universal precision guarantee.
+[Outliers(OutlierMode.DontRemove)]
 [MemoryDiagnoser]
 [InProcess]
+[JsonExporterAttribute.Full]
 [WarmupCount(3)]
 [IterationCount(20)]
 [InvocationCount(24)]
 public class AppendAllocationStrategyBenchmarks
 {
-	private static readonly string? ConnectionString =
+	internal static readonly string? ConnectionString =
 		Environment.GetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING");
 
-	/// <summary>
-	/// Gets or sets how many appends run concurrently in one iteration.
-	/// </summary>
-	[Params(1, 8, 32)]
+	/// <summary>Gets or sets the number of concurrent appends in one measured wave.</summary>
+	[Params(1, 8, 16, 32)]
 	public int WriterCount { get; set; }
 
-	/// <summary>
-	/// Gets or sets how many events each append writes in ONE transaction.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// <b>This is the dimension the published figures were missing.</b> Those numbers were taken at one
-	/// event per append, which is the WORST case for a counter row: the serialized allocation is paid in
-	/// full by a single event. An aggregate operation routinely raises several events and appends them
-	/// together, and the counter allocates ONE block for the whole batch — so the serialization should
-	/// amortize across the batch while the identity column, which never serialized, has nothing to
-	/// amortize.
-	/// </para>
-	/// <para>
-	/// <b>1 is a control, not a data point.</b> It reproduces the shape already published, so a run whose
-	/// single-event ratios have moved is telling you the harness or the machine changed — and its
-	/// multi-event ratios should not be quoted until that is explained.
-	/// </para>
-	/// <para>
-	/// The claim under test is falsifiable: if the counter's cost relative to identity does NOT fall as
-	/// this rises, the amortization asserted in the benchmark documentation is wrong and must be
-	/// withdrawn rather than repeated.
-	/// </para>
-	/// </remarks>
+	/// <summary>Gets or sets the events inserted by each append transaction.</summary>
 	[Params(1, 5)]
 	public int EventsPerAppend { get; set; }
 
+	private readonly List<WaveSample> _samples = [];
+
 	[GlobalSetup]
-	public void GlobalSetup()
+	public async Task GlobalSetup()
 	{
 		if (string.IsNullOrWhiteSpace(ConnectionString))
 		{
@@ -105,32 +56,73 @@ public class AppendAllocationStrategyBenchmarks
 				+ "BENCHMARK_SQL_CONNECTIONSTRING.");
 		}
 
-		EnsureSchemaAsync().GetAwaiter().GetResult();
-		ResetAsync().GetAwaiter().GetResult();
+		await EnsureSchemaAsync().ConfigureAwait(false);
+		await ResetAsync().ConfigureAwait(false);
+		lock (_samples)
+		{
+			_samples.Clear();
+		}
 	}
 
-	[Benchmark(Baseline = true, Description = "IDENTITY (old: gaps possible)")]
-	public Task Identity() => RunAsync(c => AppendIdentityAsync(c, EventsPerAppend));
+	[Benchmark(Baseline = true, Description = "SQL diagnostic: IDENTITY")]
+	public Task Identity() => RunAsync(nameof(Identity), c => AppendIdentityAsync(c, EventsPerAppend));
 
-	[Benchmark(Description = "counter row, 2 round trips (current)")]
-	public Task CounterRow() => RunAsync(c => AppendCounterAsync(c, EventsPerAppend, batched: false));
+	[Benchmark(Description = "SQL diagnostic: separate counter allocation and insert")]
+	public Task CounterRow() => RunAsync(nameof(CounterRow), c => AppendCounterAsync(c, EventsPerAppend, batched: false));
 
-	[Benchmark(Description = "counter row, 1 round trip (candidate)")]
-	public Task CounterRowBatched() => RunAsync(c => AppendCounterAsync(c, EventsPerAppend, batched: true));
+	[Benchmark(Description = "SQL diagnostic: combined counter allocation and insert")]
+	public Task CounterRowBatched() => RunAsync(nameof(CounterRowBatched), c => AppendCounterAsync(c, EventsPerAppend, batched: true));
 
-	/// <summary>
-	/// Empties every table and reseeds the counter, so each arm starts from the same state.
-	/// </summary>
-	/// <remarks>
-	/// <b>This is load-bearing, not hygiene.</b> Without it the tables accumulate across arms and across
-	/// runs, and the accumulation is ASYMMETRIC: two of the three arms write to the counter table and only
-	/// one writes to the identity table, so the counter's table grows at twice the rate. Both carry a
-	/// nonclustered index on a random GUID, so the larger table pays more page splits and a deeper index —
-	/// and the A/B then measures table size as much as it measures allocation strategy, biased against the
-	/// arm under test. Measured before this was added: 55,350 rows against 27,675 for the baseline.
-	/// <see cref="GlobalSetup"/> runs once per arm, so truncating here gives every arm an empty table.
-	/// </remarks>
-	private static async Task ResetAsync()
+	/// <summary>Writes unclassified wave observations, preserving arm, parameters and failures.</summary>
+	[GlobalCleanup]
+	public void WriteSamples()
+	{
+		var csv = CreateSamplesCsv();
+		if (csv is null)
+		{
+			return;
+		}
+
+		var directory = Path.Combine("BenchmarkDotNet.Artifacts", "samples");
+		_ = Directory.CreateDirectory(directory);
+		var path = Path.Combine(directory,
+			$"append-allocation-w{WriterCount}-ev{EventsPerAppend}-{DateTime.UtcNow:yyyyMMdd-HHmmssfff}-{Guid.NewGuid():N}.csv");
+		File.WriteAllText(path, csv);
+	}
+
+	internal string? CreateSamplesCsv()
+	{
+		WaveSample[] snapshot;
+		lock (_samples)
+		{
+			snapshot = [.. _samples];
+		}
+
+		if (snapshot.Length == 0)
+		{
+			return null;
+		}
+
+		var lines = new List<string>(snapshot.Length + 1)
+		{
+			"arm,writers,events_per_append,invocation,stage,outcome,elapsed_ms,observed_failure_type",
+		};
+		for (var i = 0; i < snapshot.Length; i++)
+		{
+			var sample = snapshot[i];
+			var milliseconds = sample.Elapsed * 1000.0 / Stopwatch.Frequency;
+			var outcome = sample.Failure is null ? "completed" : "failed";
+			lines.Add(string.Create(CultureInfo.InvariantCulture,
+				$"{CsvText(sample.Arm)},{sample.Writers},{sample.Events},{i + 1},unclassified,{outcome},{milliseconds:F4},{CsvText(sample.Failure ?? string.Empty)}"));
+		}
+
+		return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+	}
+
+	private static string CsvText(string value) => "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
+	/// <summary>Resets starting table contents; subsequent growth within a case remains part of the workload.</summary>
+	internal static async Task ResetAsync()
 	{
 		await using var connection = new SqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
@@ -145,26 +137,23 @@ public class AppendAllocationStrategyBenchmarks
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
-	private Task RunAsync(Func<SqlConnection, Task> append)
-	{
-		var work = new Task[WriterCount];
-		for (var i = 0; i < WriterCount; i++)
-		{
-			work[i] = Task.Run(async () =>
-			{
-				await using var connection = new SqlConnection(ConnectionString);
-				await connection.OpenAsync().ConfigureAwait(false);
-				await append(connection).ConfigureAwait(false);
-			});
-		}
-
-		return Task.WhenAll(work);
-	}
 
 	// CA2100: the row list is composed from an int loop counter and a computed long. Every VALUE
 	// in the statement is a bound parameter, so no string ever reaches the SQL text.
 #pragma warning disable CA2100
-	private static async Task AppendIdentityAsync(SqlConnection connection, int eventCount)
+	/// <param name="connection">An open connection.</param>
+	/// <param name="eventCount">How many events this append writes in one transaction.</param>
+	/// <param name="holdBeforeCommit">
+	/// How long to hold the transaction open before committing. Record this setting with each run.
+	/// </param>
+	/// <remarks>
+	/// Holding a counter transaction retains its shared allocation-row dependency. Identity avoids
+	/// that specific dependency, but other locks, I/O and resource contention can still affect writers.
+	/// </remarks>
+	internal static async Task AppendIdentityAsync(
+		SqlConnection connection,
+		int eventCount,
+		TimeSpan holdBeforeCommit = default)
 	{
 		await using var tx = (SqlTransaction)await connection.BeginTransactionAsync().ConfigureAwait(false);
 
@@ -172,8 +161,6 @@ public class AppendAllocationStrategyBenchmarks
 		await VersionCheckAsync(connection, tx, "BenchIdentity", aggregateId).ConfigureAwait(false);
 
 		// One multi-row INSERT, matching the counter arms: the database assigns every identity value.
-		// There is nothing here to amortize -- this arm never serialized -- which is exactly why it is
-		// the baseline for the amortization question.
 		var values = new string[eventCount];
 		await using (var insert = new SqlCommand { Connection = connection, Transaction = tx })
 		{
@@ -190,6 +177,11 @@ public class AppendAllocationStrategyBenchmarks
 			_ = await insert.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
+		if (holdBeforeCommit > TimeSpan.Zero)
+		{
+			await Task.Delay(holdBeforeCommit).ConfigureAwait(false);
+		}
+
 		await tx.CommitAsync().ConfigureAwait(false);
 	}
 #pragma warning restore CA2100
@@ -197,17 +189,26 @@ public class AppendAllocationStrategyBenchmarks
 	// CA2100: the row list is composed from an int loop counter and a computed long. Every VALUE
 	// in the statement is a bound parameter, so no string ever reaches the SQL text.
 #pragma warning disable CA2100
-	private static async Task AppendCounterAsync(SqlConnection connection, int eventCount, bool batched)
+	/// <param name="connection">An open connection.</param>
+	/// <param name="eventCount">How many events this append writes in one transaction.</param>
+	/// <param name="batched">Whether the allocation and the first insert travel in one command.</param>
+	/// <param name="holdBeforeCommit">
+	/// How long to hold the transaction open before committing. The hold blocks other appenders requiring
+	/// this counter row; identity writers do not require it.
+	/// </param>
+	internal static async Task AppendCounterAsync(
+		SqlConnection connection,
+		int eventCount,
+		bool batched,
+		TimeSpan holdBeforeCommit = default)
 	{
 		await using var tx = (SqlTransaction)await connection.BeginTransactionAsync().ConfigureAwait(false);
 
 		var aggregateId = Guid.NewGuid().ToString("N");
 		await VersionCheckAsync(connection, tx, "BenchCounter", aggregateId).ConfigureAwait(false);
 
-		// ONE allocation for the whole batch, which is what the shipped store does: it advances the
-		// counter by the event count and stamps positions from the block. The serialized section is
-		// therefore the same width whether the append carries one event or many -- that is the
-		// amortization this arm exists to measure rather than assert.
+		// Allocate one block for this append. More events change insert work and may change lock-hold
+		// duration; any amortization must be measured rather than inferred from the allocation count.
 		if (batched)
 		{
 			await using var combined = new SqlCommand { Connection = connection, Transaction = tx };
@@ -222,11 +223,6 @@ public class AppendAllocationStrategyBenchmarks
 			_ = combined.Parameters.AddWithValue("@n", eventCount);
 			combined.CommandText =
 				"""
-				-- SET XACT_ABORT ON mirrors the SHIPPED statement. Without it this arm measures a
-				-- batch the store does not issue: a run-time error here would abort only the failing
-				-- statement and leave the counter advanced, which is the defect the shipped form
-				-- exists to prevent. A benchmark that drifts from the code it prices is not evidence
-				-- about that code.
 				SET XACT_ABORT ON;
 
 				DECLARE @pos BIGINT;
@@ -276,22 +272,16 @@ public class AppendAllocationStrategyBenchmarks
 			_ = await insert.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}
 
+		if (holdBeforeCommit > TimeSpan.Zero)
+		{
+			await Task.Delay(holdBeforeCommit).ConfigureAwait(false);
+		}
+
 		await tx.CommitAsync().ConfigureAwait(false);
 	}
 #pragma warning restore CA2100
 
-	/// <summary>The optimistic-concurrency pre-check both shapes perform, so it cancels out.</summary>
-	private static async Task VersionCheckAsync(SqlConnection connection, SqlTransaction tx, string table, string aggregateId)
-	{
-#pragma warning disable CA2100 // table is one of two compile-time constants supplied by this class
-		await using var check = new SqlCommand(
-			$"SELECT ISNULL(MAX(Version), -1) FROM dbo.{table} WHERE AggregateId = @a;", connection, tx);
-#pragma warning restore CA2100
-		_ = check.Parameters.AddWithValue("@a", aggregateId);
-		_ = await check.ExecuteScalarAsync().ConfigureAwait(false);
-	}
-
-	private static async Task EnsureSchemaAsync()
+	internal static async Task EnsureSchemaAsync()
 	{
 		await using var connection = new SqlConnection(ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
@@ -328,5 +318,61 @@ public class AppendAllocationStrategyBenchmarks
 
 		await using var command = new SqlCommand(Sql, connection);
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+	}
+
+	private Task RunAsync(string arm, Func<SqlConnection, Task> append) => MeasureWaveAsync(arm, async () =>
+	{
+		var work = new Task[WriterCount];
+		for (var i = 0; i < WriterCount; i++)
+		{
+			work[i] = Task.Run(async () =>
+			{
+				await using var connection = new SqlConnection(ConnectionString);
+				await connection.OpenAsync().ConfigureAwait(false);
+				await append(connection).ConfigureAwait(false);
+			});
+		}
+
+		// Await the entire wave, including disposal and failure drain, before recording its outcome.
+		await Task.WhenAll(work).ConfigureAwait(false);
+	});
+
+	internal async Task MeasureWaveAsync(string arm, Func<Task> operation, Func<long>? timestamp = null)
+	{
+		timestamp ??= Stopwatch.GetTimestamp;
+		var writers = WriterCount;
+		var events = EventsPerAppend;
+		var started = timestamp();
+		string? failure = null;
+		try
+		{
+			await operation().ConfigureAwait(false);
+		}
+		catch (Exception exception)
+		{
+			failure = exception.GetType().FullName;
+			throw;
+		}
+		finally
+		{
+			var elapsed = timestamp() - started;
+			lock (_samples)
+			{
+				_samples.Add(new WaveSample(arm, writers, events, elapsed, failure));
+			}
+		}
+	}
+
+	private readonly record struct WaveSample(string Arm, int Writers, int Events, long Elapsed, string? Failure);
+
+	/// <summary>The version query performed by each synthetic arm; its cost may interact with table growth.</summary>
+	private static async Task VersionCheckAsync(SqlConnection connection, SqlTransaction tx, string table, string aggregateId)
+	{
+#pragma warning disable CA2100 // table is one of two compile-time constants supplied by this class
+		await using var check = new SqlCommand(
+			$"SELECT ISNULL(MAX(Version), -1) FROM dbo.{table} WHERE AggregateId = @a;", connection, tx);
+#pragma warning restore CA2100
+		_ = check.Parameters.AddWithValue("@a", aggregateId);
+		_ = await check.ExecuteScalarAsync().ConfigureAwait(false);
 	}
 }

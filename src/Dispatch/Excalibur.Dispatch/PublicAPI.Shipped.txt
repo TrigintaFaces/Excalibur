@@ -303,6 +303,7 @@ Excalibur.Dispatch.Configuration.PipelineBuilder.UseProfile(Excalibur.Dispatch.I
 Excalibur.Dispatch.Configuration.PipelineBuilder.UseProfile(string! profileName) -> Excalibur.Dispatch.IPipelineBuilder!
 Excalibur.Dispatch.Configuration.PipelineBuilder.UseWhen<TMiddleware>(System.Func<System.IServiceProvider!, bool>! condition) -> Excalibur.Dispatch.IPipelineBuilder!
 Excalibur.Dispatch.Configuration.PipelineBuilderDefaultsExtensions
+Excalibur.Dispatch.Configuration.PipelineBuilderDeferredExtensions
 Excalibur.Dispatch.Configuration.PipelineComplexity
 Excalibur.Dispatch.Configuration.PipelineComplexity.Direct = 3 -> Excalibur.Dispatch.Configuration.PipelineComplexity
 Excalibur.Dispatch.Configuration.PipelineComplexity.Minimal = 2 -> Excalibur.Dispatch.Configuration.PipelineComplexity
@@ -4168,6 +4169,7 @@ static Excalibur.Dispatch.Configuration.DefaultPipelineProfiles.CreateInternalEv
 static Excalibur.Dispatch.Configuration.DefaultPipelineProfiles.CreateStrictProfile() -> Excalibur.Dispatch.IPipelineProfile!
 static Excalibur.Dispatch.Configuration.DefaultPipelineProfiles.RegisterDefaultProfiles(Excalibur.Dispatch.IPipelineProfileRegistry! registry) -> void
 static Excalibur.Dispatch.Configuration.PipelineBuilderDefaultsExtensions.UseDefaults(this Excalibur.Dispatch.IPipelineBuilder! builder) -> Excalibur.Dispatch.IPipelineBuilder!
+static Excalibur.Dispatch.Configuration.PipelineBuilderDeferredExtensions.UseDeferred<TMiddleware>(this Excalibur.Dispatch.IPipelineBuilder! builder, System.Func<System.IServiceProvider!, TMiddleware!>! middlewareFactory, Excalibur.Dispatch.DispatchMiddlewareStage? stage, Excalibur.Dispatch.MessageKinds messageKinds) -> Excalibur.Dispatch.IPipelineBuilder!
 static Excalibur.Dispatch.Delivery.BatchProcessing.Batching.ProcessBatchAsync<T>(System.Collections.Generic.IEnumerable<T>! items, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! processor, int parallelDegree, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(System.Collections.Generic.List<T>! Successful, System.Collections.Generic.List<(T Item, System.Exception! Exception)>! Failed)>!
 static Excalibur.Dispatch.Delivery.BatchProcessing.Batching.ProcessInBatchesAsync<T>(System.Collections.Generic.IEnumerable<T>! items, int batchSize, System.Func<System.Collections.Generic.List<T>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! batchProcessor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 static Excalibur.Dispatch.Delivery.CronExpressionExtensions.GetDescription(this Excalibur.Dispatch.Delivery.ICronExpression! cron) -> string!

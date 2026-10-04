@@ -291,8 +291,17 @@ BEGIN
         CreatedAt       DATETIMEOFFSET   NOT NULL CONSTRAINT DF_IdentityMap_CreatedAt DEFAULT SYSUTCDATETIME(),
         UpdatedAt       DATETIMEOFFSET   NOT NULL CONSTRAINT DF_IdentityMap_UpdatedAt DEFAULT SYSUTCDATETIME(),
 
-        CONSTRAINT PK_IdentityMap PRIMARY KEY CLUSTERED (ExternalSystem, ExternalId, AggregateType)
+        -- NONCLUSTERED is required, not a preference: this triple is 1280 bytes, past SQL
+        -- Server's 900-byte CLUSTERED key cap and inside the 1700-byte NONCLUSTERED one.
+        -- Declared CLUSTERED, the table is created with only a warning and then rejects any
+        -- row whose key exceeds 900 bytes, so a long external id fails on first write.
+        CONSTRAINT PK_IdentityMap PRIMARY KEY NONCLUSTERED (ExternalSystem, ExternalId, AggregateType)
     );
+
+    -- The table still needs a clustered key and the primary key cannot be it. This prefix is
+    -- 768 bytes and is also the resolver's lookup order.
+    CREATE CLUSTERED INDEX CIX_IdentityMap_External
+        ON [dbo].[IdentityMap] (ExternalSystem, ExternalId);
 
     CREATE NONCLUSTERED INDEX IX_IdentityMap_AggregateId
         ON [dbo].[IdentityMap] (AggregateType, AggregateId);

@@ -5,6 +5,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Threading;
+using Excalibur.Dispatch.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -145,33 +147,60 @@ public sealed partial class BackgroundExecutionMiddleware : IDispatchMiddleware
 			return new ValueTask<IMessageResult>(MessageResult.Cancelled());
 		}
 
-		// Accepted: from here the work follows the drain's shutdown token, NOT the caller's.
-		BackgroundTaskRunner.RunDetachedUntilShutdown(
-			async shutdownToken =>
-			{
-				try
+		var snapshot = BackgroundContextSnapshot.Capture(message, context);
+		var scopeFactory = context.RequestServices?.GetService<IServiceScopeFactory>();
+		var tenantId = TenantContextHolder.Current;
+		// Suppress only enqueue-time capture; never keep AsyncFlowControl across an await.
+		var flow = ExecutionContext.IsFlowSuppressed() ? default : ExecutionContext.SuppressFlow();
+		try
+		{
+			BackgroundTaskRunner.RunDetachedUntilShutdown(
+				async shutdownToken =>
 				{
-					_ = await nextDelegate(message, context, shutdownToken).ConfigureAwait(false);
-				}
-				catch (OperationCanceledException) when (shutdownToken.IsCancellationRequested)
-				{
-					// The host's shutdown budget elapsed with this work still running. That is the drain's report to
-					// make, not a handler failure, so it neither counts as one nor triggers the failure policy.
-					LogBackgroundExecutionCancelledAtShutdown(_logger, message.GetType().Name);
-				}
-				catch (Exception ex)
-				{
-					LogBackgroundExecutionFailed(_logger, ex, message.GetType().Name);
-
-					if (_exceptionBehavior == BackgroundExecutionExceptionBehavior.StopHost)
+					var previousContext = MessageContextHolder.Current;
+					MessageContextHolder.Current = snapshot;
+					try
 					{
-						LogStoppingHost(_logger, ex, message.GetType().Name);
-						_hostApplicationLifetime!.StopApplication();
+						await using var ownedScope = scopeFactory?.CreateAsyncScope();
+						if (ownedScope.HasValue)
+						{
+							snapshot.RequestServices = ownedScope.Value.ServiceProvider;
+						}
+						using var tenantScope = TenantContextHolder.BeginScope(tenantId);
+						var result = await nextDelegate(message, snapshot, shutdownToken).ConfigureAwait(false);
+						if (!result.Succeeded)
+						{
+							throw new InvalidOperationException(result.ErrorMessage ?? "Background pipeline returned a failed result.");
+						}
 					}
-				}
-			},
-			onError: null,
-			_logger);
+					catch (OperationCanceledException) when (shutdownToken.IsCancellationRequested)
+					{
+						// The host's shutdown budget elapsed with this work still running. That is the drain's report to
+						// make, not a handler failure, so it neither counts as one nor triggers the failure policy.
+						LogBackgroundExecutionCancelledAtShutdown(_logger, message.GetType().Name);
+					}
+					catch (Exception ex)
+					{
+						LogBackgroundExecutionFailed(_logger, ex, message.GetType().Name);
+
+						if (_exceptionBehavior == BackgroundExecutionExceptionBehavior.StopHost)
+						{
+							LogStoppingHost(_logger, ex, message.GetType().Name);
+							_hostApplicationLifetime!.StopApplication();
+						}
+					}
+					finally
+					{
+						MessageContextHolder.Current = previousContext;
+					}
+				},
+				onError: null,
+				_logger);
+		}
+		finally
+		{
+			flow.Dispose();
+		}
 
 		// The caller is told the work is PENDING through the disposition, not through problem details.
 		// A 202-shaped MessageProblemDetails was built here and discarded; carrying it instead would put

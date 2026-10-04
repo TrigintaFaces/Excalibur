@@ -26,10 +26,42 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// round trip from inside the lock.
 /// </para>
 /// <para>
-/// Measured by <c>AppendAllocationStrategyBenchmarks</c> against a real SQL Server, comparing the same
-/// append issued as two commands versus one: <b>5.24x → 3.94x</b> slower than an identity column at 8
-/// concurrent writers, and <b>6.75x → 4.90x</b> at 32. The guarantee is unchanged; only the time the lock
-/// is held is.
+/// <b>What this path costs, stated as the SHAPE rather than as numbers.</b> Throughput here is bounded by
+/// the rate at which one transaction after another can flush the log, because the allocation is serialised
+/// to COMMIT:
+/// </para>
+/// <code>
+/// this design:        throughput  ~=  1 / commit_latency    -- FLAT in writer count
+/// identity column:    throughput  ~=  N / commit_latency    -- N writers share one flush
+/// </code>
+/// <para>
+/// An identity column keeps climbing under load because the server group-commits concurrent flushes and a
+/// globally serialised writer cannot join that. The only remedy that reaches the difference is batching the
+/// appends themselves — never tuning this statement.
+/// </para>
+/// <para>
+/// <b>No appends/sec figure and no ratio is quoted here, and that is a correction rather than a style
+/// choice.</b> This block previously carried a per-append cost, a "practical ceiling", per-writer-count
+/// throughputs for both strategies, and a ratio derived from them, all presented as properties of the
+/// design. They are properties of a MACHINE. Re-measuring both strategies on a different SQL Server
+/// instance moved every one of those numbers by factors between three and fourteen, and moved the derived
+/// ratio by about four — while the scaling shape above reproduced exactly, identity climbing with writer
+/// count and this path staying flat. The shape is the stable part, so the shape is what is written down.
+/// </para>
+/// <para>
+/// <b>For a current figure, run the instrument; do not read one from here.</b> The fixed-window harness in
+/// the benchmarks project interleaves every compared dimension, gates the confidence interval of what it
+/// publishes, and REFUSES rather than reporting when the machine stalls mid-measurement. A number cached in
+/// a source comment cannot do any of that and has no half-life — which is how the superseded figures above
+/// outlived the conditions that produced them.
+/// </para>
+/// <para>
+/// <b>Do not quote <c>AppendAllocationStrategyBenchmarks</c> for any of this.</b> It constructs and opens a
+/// connection inside its measured region, once per append, so at 32 writers each measurement pays 32
+/// connection opens and the churn — not this statement — is what degrades. It reports ~21 ms for a single
+/// append against a true cost of ~2.36 ms, with a standard deviation near 40% of the mean, and it reports
+/// throughput falling under concurrency when it rises. Repairing it is tracked; until then the figures
+/// above are the ones to use, and they are a floor from one machine rather than a specification.
 /// </para>
 /// <para>
 /// <b>The ordering guarantee this carries.</b> Positions are allocated here, inside the appending

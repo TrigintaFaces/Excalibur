@@ -91,6 +91,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
     <!-- Extracted concern.provider packages -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.CosmosDb\Excalibur.Cdc.CosmosDb.csproj" />

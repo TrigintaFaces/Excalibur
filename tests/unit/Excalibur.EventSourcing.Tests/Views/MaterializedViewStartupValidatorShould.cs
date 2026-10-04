@@ -205,7 +205,9 @@ public sealed class MaterializedViewStartupValidatorShould
 
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken ct) => new((long?)null);
 
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken ct) => default;
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken ct) => default;
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken ct) => default;
 
 		public ValueTask SaveViewAndPositionAsync<TView>(
 			string viewName, string viewId, TView view, long position, CancellationToken ct)
@@ -230,7 +232,9 @@ public sealed class MaterializedViewStartupValidatorShould
 
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken ct) => new((long?)null);
 
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken ct) => default;
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken ct) => default;
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken ct) => default;
 
 		public ValueTask SaveViewAndPositionAsync<TView>(
 			string viewName, string viewId, TView view, long position, CancellationToken ct)
@@ -253,7 +257,9 @@ public sealed class MaterializedViewStartupValidatorShould
 
 		public ValueTask<long?> GetPositionAsync(string viewName, CancellationToken ct) => new((long?)null);
 
-		public ValueTask SavePositionAsync(string viewName, long position, CancellationToken ct) => default;
+		public ValueTask<ViewPositionSaveOutcome> SavePositionAsync(string viewName, long position, CancellationToken ct) => default;
+
+		public ValueTask ResetPositionAsync(string viewName, CancellationToken ct) => default;
 	}
 
 	/// <summary>A consumer-supplied processor. Persists views however it likes; needs no framework store.</summary>

@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 
-using Excalibur.Dispatch;
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
+using System.Text;
+using System.Text.Json;
 
+using BenchmarkDotNet.Attributes;
+
+using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.SqlServer;
@@ -13,302 +15,315 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Benchmarks.EventSourcing;
 
-/// <summary>
-/// Benchmarks for SqlServerEventStore operations.
-/// </summary>
+/// <summary>Measures real SQL event-store operations with verified inputs and results.</summary>
 /// <remarks>
-/// Requires a SQL Server instance. Set the BENCHMARK_SQL_CONNECTIONSTRING environment variable
-/// to enable these benchmarks. When not set, all benchmarks return immediately.
+/// Requires BENCHMARK_SQL_CONNECTIONSTRING and permission to create an isolated schema.
+/// Uses the shipped event/snapshot DDL, with only the schema name changed. One invocation runs per
+/// iteration; persistence verification happens outside timing but affects cache state and spacing.
+/// Retain a fresh baseline, candidate revision and environment when publishing comparisons.
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.HostProcess)]
+[InProcess]
+[InvocationCount(1, unrollFactor: 1)]
 public class SqlServerEventStoreBenchmarks
 {
-	private static readonly string? ConnectionString =
-		Environment.GetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING");
+    private const string AggregateType = "BenchmarkAggregate";
+    private readonly string? _connectionString = Environment.GetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING");
+    private readonly Dictionary<string, TestDomainEvent[]> _seeds = new(StringComparer.Ordinal);
+    private SqlServerEventStore _eventStore = null!;
+    private SqlServerSnapshotStore _snapshotStore = null!;
+    private string _aggregateWith5Events = null!;
+    private string _aggregateWith50Events = null!;
+    private string _aggregateWith500Events = null!;
+    private string _iterationAggregateId = null!;
+    private BenchmarkSnapshot _seedSnapshot = null!;
+    private bool _ownsSchema;
+    private string? _operation;
+    private TestDomainEvent[]? _expectedEvents;
+    private AppendResult? _appendResult;
+    private IReadOnlyList<StoredEvent>? _loadedEvents;
+    private ISnapshot? _loadedSnapshot;
+    private BenchmarkSnapshot? _savedSnapshot;
 
-	private SqlServerEventStore? _eventStore;
-	private SqlServerSnapshotStore? _snapshotStore;
-	private string _aggregateWith5Events = null!;
-	private string _aggregateWith50Events = null!;
-	private string _aggregateWith500Events = null!;
-	private string _iterationAggregateId = null!;
+    internal string SchemaName { get; } = $"Benchmark_{Guid.NewGuid():N}";
 
-	private static bool IsAvailable => ConnectionString is not null;
+    [GlobalSetup]
+    public async Task GlobalSetup()
+    {
+        if (string.IsNullOrWhiteSpace(_connectionString))
+        {
+            throw new InvalidOperationException("SQL event-store benchmarks require BENCHMARK_SQL_CONNECTIONSTRING; no measurement can run without SQL Server.");
+        }
 
-	[GlobalSetup]
-	public void GlobalSetup()
-	{
-		if (!IsAvailable)
-		{
-			return;
-		}
+        _eventStore = new SqlServerEventStore(() => new SqlConnection(_connectionString),
+            NullLogger<SqlServerEventStore>.Instance, tenantContext: BenchmarkTenantContext.SingleTenant, schema: SchemaName);
+        _snapshotStore = new SqlServerSnapshotStore(() => new SqlConnection(_connectionString),
+            NullLogger<SqlServerSnapshotStore>.Instance, BenchmarkTenantContext.SingleTenant, schema: SchemaName);
+        await EnsureSchemaAsync().ConfigureAwait(false);
+        try
+        {
+            _aggregateWith5Events = await CreateAggregateWithEventsAsync(5).ConfigureAwait(false);
+            _aggregateWith50Events = await CreateAggregateWithEventsAsync(50).ConfigureAwait(false);
+            _aggregateWith500Events = await CreateAggregateWithEventsAsync(500).ConfigureAwait(false);
+            _seedSnapshot = CreateSnapshot(_aggregateWith5Events, 4);
+            await _snapshotStore.SaveSnapshotAsync(_seedSnapshot, CancellationToken.None).ConfigureAwait(false);
+            ValidateSnapshot(await _snapshotStore.GetLatestSnapshotAsync(_aggregateWith5Events, AggregateType, CancellationToken.None)
+                .ConfigureAwait(false), _seedSnapshot);
+        }
+        catch (Exception setupFailure)
+        {
+            // BDN may never construct its engine after a failed GlobalSetup, so it cannot own cleanup.
+            try
+            {
+                await GlobalCleanup().ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                setupFailure.Data["BenchmarkCleanupFailure"] = cleanupFailure;
+            }
 
-		_eventStore = new SqlServerEventStore(
-			ConnectionString!,
-			NullLogger<SqlServerEventStore>.Instance,
-			BenchmarkTenantContext.SingleTenant);
+            throw;
+        }
+    }
 
-		_snapshotStore = new SqlServerSnapshotStore(
-			ConnectionString!,
-			NullLogger<SqlServerSnapshotStore>.Instance,
-			BenchmarkTenantContext.SingleTenant);
+    [IterationSetup]
+    public void IterationSetup()
+    {
+        _iterationAggregateId = Guid.NewGuid().ToString("N");
+        _operation = null;
+        _expectedEvents = null;
+        _appendResult = null;
+        _loadedEvents = null;
+        _loadedSnapshot = null;
+        _savedSnapshot = null;
+    }
 
-		// Ensure schema exists
-		EnsureSchemaAsync().GetAwaiter().GetResult();
+    [Benchmark(Baseline = true)]
+    public Task<AppendResult> AppendSingleEvent() => AppendAsync(1);
 
-		// Pre-populate aggregates
-		_aggregateWith5Events = CreateAggregateWithEvents(5);
-		_aggregateWith50Events = CreateAggregateWithEvents(50);
-		_aggregateWith500Events = CreateAggregateWithEvents(500);
-	}
+    [Benchmark]
+    public Task<AppendResult> AppendBatchEvents() => AppendAsync(10);
 
-	[IterationSetup]
-	public void IterationSetup()
-	{
-		_iterationAggregateId = Guid.NewGuid().ToString();
-	}
+    [Benchmark]
+    public Task<IReadOnlyList<StoredEvent>> LoadSmallAggregate() => LoadAsync(_aggregateWith5Events);
 
-	#region Append Benchmarks
+    [Benchmark]
+    public Task<IReadOnlyList<StoredEvent>> LoadMediumAggregate() => LoadAsync(_aggregateWith50Events);
 
-	/// <summary>
-	/// Benchmark: Append single event to a new aggregate.
-	/// </summary>
-	[Benchmark(Baseline = true)]
-	public async Task<AppendResult?> AppendSingleEvent()
-	{
-		if (!IsAvailable)
-		{
-			return null;
-		}
+    [Benchmark]
+    public Task<IReadOnlyList<StoredEvent>> LoadLargeAggregate() => LoadAsync(_aggregateWith500Events);
 
-		var events = CreateEvents(_iterationAggregateId, 1);
-		return await _eventStore!.AppendAsync(
-			_iterationAggregateId, "BenchmarkAggregate", events, -1, CancellationToken.None);
-	}
+    [Benchmark]
+    public async Task SaveSnapshot()
+    {
+        BeginOperation(nameof(SaveSnapshot));
+        _savedSnapshot = CreateSnapshot(_iterationAggregateId, 0);
+        await _snapshotStore.SaveSnapshotAsync(_savedSnapshot, CancellationToken.None).ConfigureAwait(false);
+    }
 
-	/// <summary>
-	/// Benchmark: Append batch of 10 events to a new aggregate.
-	/// </summary>
-	[Benchmark]
-	public async Task<AppendResult?> AppendBatchEvents()
-	{
-		if (!IsAvailable)
-		{
-			return null;
-		}
+    [Benchmark]
+    public async Task<ISnapshot?> LoadSnapshot()
+    {
+        BeginOperation(nameof(LoadSnapshot));
+        _loadedSnapshot = await _snapshotStore.GetLatestSnapshotAsync(_aggregateWith5Events, AggregateType, CancellationToken.None)
+            .ConfigureAwait(false);
+        return _loadedSnapshot;
+    }
 
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = CreateEvents(aggregateId, 10);
-		return await _eventStore!.AppendAsync(
-			aggregateId, "BenchmarkAggregate", events, -1, CancellationToken.None);
-	}
+    [IterationCleanup]
+    public async Task IterationCleanup()
+    {
+        switch (_operation)
+        {
+            case "append":
+                RequireCommitted(_appendResult);
+                ValidateEvents(await _eventStore.LoadAsync(_iterationAggregateId, AggregateType, CancellationToken.None)
+                    .ConfigureAwait(false), _expectedEvents!);
+                break;
+            case "load":
+                ValidateEvents(_loadedEvents, _expectedEvents!);
+                break;
+            case nameof(SaveSnapshot):
+                ValidateSnapshot(await _snapshotStore.GetLatestSnapshotAsync(_iterationAggregateId, AggregateType, CancellationToken.None)
+                    .ConfigureAwait(false), _savedSnapshot!);
+                break;
+            case nameof(LoadSnapshot):
+                ValidateSnapshot(_loadedSnapshot, _seedSnapshot);
+                break;
+            default:
+                throw new InvalidOperationException("Invalid SQL measurement: no operation completed.");
+        }
+    }
 
-	#endregion
+    [GlobalCleanup]
+    public async Task GlobalCleanup()
+    {
+        if (!_ownsSchema)
+        {
+            return;
+        }
 
-	#region Load Benchmarks
+        // Only this instance's freshly created GUID schema is owned; never drop caller tables.
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+#pragma warning disable CA2100 // SchemaName is generated here from a GUID, never external input.
+        await using var command = new SqlCommand($"""
+            DROP TABLE IF EXISTS [{SchemaName}].[EventStoreSnapshots];
+            DROP TABLE IF EXISTS [{SchemaName}].[EventStoreEvents];
+            DROP TABLE IF EXISTS [{SchemaName}].[EventStoreEventsPosition];
+            IF SCHEMA_ID(N'{SchemaName}') IS NOT NULL EXEC(N'DROP SCHEMA [{SchemaName}]');
+            """, connection);
+#pragma warning restore CA2100
+        _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        _ownsSchema = false;
+    }
 
-	/// <summary>
-	/// Benchmark: Load aggregate with 5 events (small).
-	/// </summary>
-	[Benchmark]
-	public async Task<IReadOnlyList<StoredEvent>?> LoadSmallAggregate()
-	{
-		if (!IsAvailable)
-		{
-			return null;
-		}
+    private void BeginOperation(string operation)
+    {
+        if (_operation is not null)
+        {
+            throw new InvalidOperationException("Expected one benchmark invocation per iteration.");
+        }
 
-		return await _eventStore!.LoadAsync(
-			_aggregateWith5Events, "BenchmarkAggregate", CancellationToken.None);
-	}
+        _operation = operation;
+    }
 
-	/// <summary>
-	/// Benchmark: Load aggregate with 50 events (medium).
-	/// </summary>
-	[Benchmark]
-	public async Task<IReadOnlyList<StoredEvent>?> LoadMediumAggregate()
-	{
-		if (!IsAvailable)
-		{
-			return null;
-		}
+    private async Task<AppendResult> AppendAsync(int count)
+    {
+        BeginOperation("append");
+        _expectedEvents = CreateEvents(_iterationAggregateId, count);
+        _appendResult = await _eventStore.AppendAsync(_iterationAggregateId, AggregateType, _expectedEvents, -1, CancellationToken.None)
+            .ConfigureAwait(false);
+        return _appendResult;
+    }
 
-		return await _eventStore!.LoadAsync(
-			_aggregateWith50Events, "BenchmarkAggregate", CancellationToken.None);
-	}
+    private async Task<IReadOnlyList<StoredEvent>> LoadAsync(string aggregateId)
+    {
+        BeginOperation("load");
+        _expectedEvents = _seeds[aggregateId];
+        _loadedEvents = await _eventStore.LoadAsync(aggregateId, AggregateType, CancellationToken.None).ConfigureAwait(false);
+        return _loadedEvents;
+    }
 
-	/// <summary>
-	/// Benchmark: Load aggregate with 500 events (large).
-	/// </summary>
-	[Benchmark]
-	public async Task<IReadOnlyList<StoredEvent>?> LoadLargeAggregate()
-	{
-		if (!IsAvailable)
-		{
-			return null;
-		}
+    private static TestDomainEvent[] CreateEvents(string aggregateId, int count) => Enumerable.Range(0, count)
+        .Select(version => new TestDomainEvent
+        {
+            EventId = Guid.NewGuid().ToString("N"), AggregateId = aggregateId, Version = version,
+            OccurredAt = DateTimeOffset.UtcNow, EventType = nameof(TestDomainEvent),
+            Metadata = new Dictionary<string, object> { ["UserId"] = "benchmark-user" },
+            Data = $"Benchmark event data for version {version}",
+        }).ToArray();
 
-		return await _eventStore!.LoadAsync(
-			_aggregateWith500Events, "BenchmarkAggregate", CancellationToken.None);
-	}
+    private static BenchmarkSnapshot CreateSnapshot(string aggregateId, long version) => new()
+    {
+        SnapshotId = Guid.NewGuid().ToString("N"), AggregateId = aggregateId, AggregateType = AggregateType,
+        TenantId = TenantDefaults.DefaultTenantId, Version = version, CreatedAt = DateTimeOffset.UtcNow,
+        Data = Enumerable.Range(0, 512).Select(index => (byte)((index % 251) + 1)).ToArray(),
+    };
 
-	#endregion
+    private static void RequireCommitted(AppendResult? result)
+    {
+        if (result?.Outcome != AppendOutcome.Committed)
+        {
+            throw new InvalidOperationException($"Invalid SQL measurement: expected a new Committed append, received {result?.Outcome}.");
+        }
+    }
 
-	#region Snapshot Benchmarks
+    private static void ValidateEvents(IReadOnlyList<StoredEvent>? actual, TestDomainEvent[] expected)
+    {
+        if (actual is null || actual.Count != expected.Length)
+        {
+            throw new InvalidOperationException("Invalid SQL measurement: incorrect event count.");
+        }
 
-	/// <summary>
-	/// Benchmark: Save a snapshot for an aggregate.
-	/// </summary>
-	[Benchmark]
-	public async Task SaveSnapshot()
-	{
-		if (!IsAvailable)
-		{
-			return;
-		}
+        for (var index = 0; index < expected.Length; index++)
+        {
+            var stored = actual[index];
+            var submitted = expected[index];
+            var payload = stored.EventData is null ? null : JsonSerializer.Deserialize<TestDomainEvent>(stored.EventData, JsonSerializerOptions.Web);
+            if (stored.EventId != submitted.EventId || stored.AggregateId != submitted.AggregateId ||
+                stored.AggregateType != AggregateType || stored.Version != index || stored.GlobalPosition <= 0 ||
+                payload?.Data != submitted.Data || payload.EventId != submitted.EventId ||
+                payload.AggregateId != submitted.AggregateId || payload.Version != index)
+            {
+                throw new InvalidOperationException("Invalid SQL measurement: event identity, version or payload differs from submitted data.");
+            }
+        }
+    }
 
-		var snapshot = new BenchmarkSnapshot
-		{
-			SnapshotId = Guid.NewGuid().ToString(),
-			AggregateId = _iterationAggregateId,
-			AggregateType = "BenchmarkAggregate",
-			Version = 1,
-			CreatedAt = DateTimeOffset.UtcNow,
-			Data = new byte[512],
-			Metadata = null
-		};
+    private static void ValidateSnapshot(ISnapshot? actual, BenchmarkSnapshot expected)
+    {
+        if (actual is null || actual.SnapshotId != expected.SnapshotId || actual.AggregateId != expected.AggregateId ||
+            actual.AggregateType != expected.AggregateType || actual.TenantId != expected.TenantId ||
+            actual.Version != expected.Version || !actual.Data.Span.SequenceEqual(expected.Data.Span))
+        {
+            throw new InvalidOperationException("Invalid SQL measurement: missing or incorrect snapshot.");
+        }
+    }
 
-		await _snapshotStore!.SaveSnapshotAsync(snapshot, CancellationToken.None);
-	}
+    private async Task<string> CreateAggregateWithEventsAsync(int count)
+    {
+        var aggregateId = Guid.NewGuid().ToString("N");
+        var events = CreateEvents(aggregateId, count);
+        RequireCommitted(await _eventStore.AppendAsync(aggregateId, AggregateType, events, -1, CancellationToken.None).ConfigureAwait(false));
+        ValidateEvents(await _eventStore.LoadAsync(aggregateId, AggregateType, CancellationToken.None).ConfigureAwait(false), events);
+        _seeds.Add(aggregateId, events);
+        return aggregateId;
+    }
 
-	/// <summary>
-	/// Benchmark: Load the latest snapshot for an aggregate.
-	/// </summary>
-	[Benchmark]
-	public async Task<ISnapshot?> LoadSnapshot()
-	{
-		if (!IsAvailable)
-		{
-			return null;
-		}
+    private async Task EnsureSchemaAsync()
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        using var transaction = connection.BeginTransaction();
+#pragma warning disable CA2100 // Generated GUID schema and embedded shipped SQL, no user-controlled SQL.
+        await using var createSchema = new SqlCommand($"CREATE SCHEMA [{SchemaName}];", connection, transaction);
+        _ = await createSchema.ExecuteNonQueryAsync().ConfigureAwait(false);
+        foreach (var name in new[] { "001_CreateEventStoreSchema.sql", "002_CreateSnapshotSchema.sql" })
+        {
+            await using var stream = typeof(SqlServerEventStoreBenchmarks).Assembly.GetManifestResourceStream($"BenchmarkSchema.{name}")
+                ?? throw new InvalidOperationException($"Missing shipped benchmark schema resource: {name}");
+            using var reader = new StreamReader(stream);
+            var batch = new StringBuilder();
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+            {
+                if (string.Equals(line.Trim(), "GO", StringComparison.OrdinalIgnoreCase))
+                {
+                    await ExecuteBatchAsync(batch.ToString()).ConfigureAwait(false);
+                    batch.Clear();
+                }
+                else
+                {
+                    batch.AppendLine(line);
+                }
+            }
 
-		// Use the pre-populated aggregate which may have snapshots
-		return await _snapshotStore!.GetLatestSnapshotAsync(
-			_aggregateWith5Events, "BenchmarkAggregate", CancellationToken.None);
-	}
+            if (batch.Length > 0)
+            {
+                await ExecuteBatchAsync(batch.ToString()).ConfigureAwait(false);
+            }
+        }
 
-	#endregion
+        await transaction.CommitAsync().ConfigureAwait(false);
+        _ownsSchema = true;
 
-	#region Helpers
-
-	private static TestDomainEvent[] CreateEvents(string aggregateId, int count)
-	{
-		var events = new TestDomainEvent[count];
-		for (int i = 0; i < count; i++)
-		{
-			events[i] = new TestDomainEvent
-			{
-				EventId = Guid.NewGuid().ToString(),
-				AggregateId = aggregateId,
-				Version = i + 1,
-				OccurredAt = DateTimeOffset.UtcNow,
-				EventType = "TestDomainEvent",
-				Metadata = new Dictionary<string, object>
-				{
-					["UserId"] = "benchmark-user",
-				},
-				Data = $"Benchmark event data for version {i + 1}",
-			};
-		}
-
-		return events;
-	}
-
-	private string CreateAggregateWithEvents(int eventCount)
-	{
-		var aggregateId = Guid.NewGuid().ToString();
-		var events = CreateEvents(aggregateId, eventCount);
-		_ = _eventStore!.AppendAsync(
-			aggregateId, "BenchmarkAggregate", events, -1, CancellationToken.None)
-			.GetAwaiter().GetResult();
-		return aggregateId;
-	}
-
-	private async Task EnsureSchemaAsync()
-	{
-		await using var connection = new SqlConnection(ConnectionString);
-		await connection.OpenAsync().ConfigureAwait(false);
-
-		// Create events table if not exists
-		await using var command = new SqlCommand("""
-			IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'dispatch')
-				EXEC('CREATE SCHEMA dispatch');
-
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Events' AND schema_id = SCHEMA_ID('dispatch'))
-			CREATE TABLE [dispatch].[Events] (
-				[Position] BIGINT NOT NULL PRIMARY KEY,
-				[EventId] NVARCHAR(200) NOT NULL,
-				[AggregateId] NVARCHAR(200) NOT NULL,
-				[AggregateType] NVARCHAR(500) NOT NULL,
-				[EventType] NVARCHAR(500) NOT NULL,
-				[EventData] VARBINARY(MAX) NOT NULL,
-				[Metadata] NVARCHAR(MAX) NULL,
-				[Version] BIGINT NOT NULL,
-				[OccurredAt] DATETIMEOFFSET NOT NULL,
-				[IsDispatched] BIT NOT NULL DEFAULT 0,
-				[DispatchedAt] DATETIMEOFFSET NULL,
-				CONSTRAINT [UQ_Events_AggregateId_Version] UNIQUE ([AggregateId], [Version])
-			);
-
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Snapshots' AND schema_id = SCHEMA_ID('dispatch'))
-			CREATE TABLE [dispatch].[Snapshots] (
-				[Id] BIGINT IDENTITY(1,1) PRIMARY KEY,
-				[SnapshotId] NVARCHAR(200) NOT NULL,
-				[AggregateId] NVARCHAR(200) NOT NULL,
-				[AggregateType] NVARCHAR(500) NOT NULL,
-				[Version] BIGINT NOT NULL,
-				[Data] VARBINARY(MAX) NOT NULL,
-				[Metadata] NVARCHAR(MAX) NULL,
-				[CreatedAt] DATETIMEOFFSET NOT NULL,
-				-- Empty string in a single-tenant host. The store's save path references this
-				-- column, so the benchmark schema must define it or the run fails at the INSERT.
-				[TenantId] NVARCHAR(256) NOT NULL CONSTRAINT [DF_Bench_Snapshots_TenantId] DEFAULT ('')
-			);
-
-			-- The store allocates Position from this counter row inside the appending transaction
-			-- rather than from an IDENTITY, so an aborted append burns no position and the committed
-			-- stream stays contiguous. An IDENTITY column here rejects the store's explicit insert.
-			IF OBJECT_ID(N'[dispatch].[EventsPosition]', 'U') IS NULL
-			CREATE TABLE [dispatch].[EventsPosition] (
-			    Id TINYINT NOT NULL PRIMARY KEY CHECK (Id = 1),
-			    Value BIGINT NOT NULL
-			);
-			IF NOT EXISTS (SELECT 1 FROM [dispatch].[EventsPosition] WHERE Id = 1)
-			INSERT INTO [dispatch].[EventsPosition] (Id, Value)
-			SELECT 1, ISNULL((SELECT MAX(Position) FROM [dispatch].[Events]), 0);
-			""", connection);
-
-		await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-	}
-
-	#endregion
+        async Task ExecuteBatchAsync(string sql)
+        {
+            await using var command = new SqlCommand(sql.Replace("[dbo]", $"[{SchemaName}]", StringComparison.Ordinal), connection, transaction);
+            _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+#pragma warning restore CA2100
+    }
 }
 
-/// <summary>
-/// Simple ISnapshot implementation for benchmark scenarios.
-/// </summary>
 internal sealed class BenchmarkSnapshot : ISnapshot
 {
-	// Single-tenant fixture. Declared explicitly rather than inherited, so a reader can see
-	// that this double is unscoped instead of assuming it.
-	public string? TenantId { get; init; }
-
-	public required string SnapshotId { get; init; }
-	public required string AggregateId { get; init; }
-	public required string AggregateType { get; init; }
-	public required long Version { get; init; }
-	public required DateTimeOffset CreatedAt { get; init; }
-	public required ReadOnlyMemory<byte> Data { get; init; }
-	public IDictionary<string, object>? Metadata { get; init; }
+    public string? TenantId { get; init; }
+    public required string SnapshotId { get; init; }
+    public required string AggregateId { get; init; }
+    public required string AggregateType { get; init; }
+    public required long Version { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
+    public required ReadOnlyMemory<byte> Data { get; init; }
+    public IDictionary<string, object>? Metadata { get; init; }
 }

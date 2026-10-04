@@ -128,159 +128,111 @@ Source: `PipelineWarmPathComparisonBenchmarks-report-github.md`
 | 3 middleware / behaviors | 71.68 ns / 240 B | 124.87 ns / 680 B | 236.34 ns / 680 B | 2,128.02 ns / 4,568 B |
 | 10 concurrent + 3 behaviors | 888.19 ns / 2,112 B | 1,314.09 ns / 7,168 B | 2,432.01 ns / 7,008 B | 21,023.12 ns / 45,888 B |
 
-## Event Sourcing: the measured cost of gapless global ordering
+## Event sourcing: evidence status and benchmark scope
 
-Source: `AppendAllocationStrategyBenchmarks` and `SqlServerConcurrentAppendBenchmarks`.
+The event-store ratios, capacity numbers, and optimization percentages formerly published in this
+section are withdrawn. They combined changing harness configurations, unequal trimming, table-growth
+and connection-lifecycle differences, and uncontrolled workstation conditions. Repeating a subset of
+those measurements does not resolve these confounders. Do not use them for capacity planning,
+competitor comparisons, or a decision to replace the gapless store. Historical text remains in version
+history; no replacement performance result is asserted here.
 
-The event store allocates each event's global position from a counter row updated **inside the appending
-transaction**, rather than from an IDENTITY column. That is what makes the committed position sequence a
-contiguous prefix with no holes, and it is not free. These benchmarks exist to say how much it costs,
-because a whole-store benchmark cannot: it measures the transaction, the version pre-check, the insert
-and the network together, so any delta is unattributable.
+The active investigation is [the watermark spike](../management/specs/arb-2026-10-02-watermark-spike.md),
+tracked by `Excalibur_Dispatch-257j9n.10.18`. The production gapless default is unchanged.
 
-`AppendAllocationStrategyBenchmarks` issues the same statements against tables differing ONLY in how the
-position is produced, so the difference between the rows is the price of the guarantee. Every arm
-truncates its tables in `GlobalSetup`, which is load-bearing — see the correction at the end of this
-section.
+### What the existing instruments measure
 
-> **THESE ROWS REPLACE THE FIGURES THIS SECTION CARRIED UNTIL 2026-09-26.** The superseded values —
-> 5.24x and 3.94x at 8 writers, 6.75x and 4.90x at 32 — **do not reproduce**, and the evidence is that
-> three independent runs agree with each other and none agrees with them:
->
-> ```
-> W=8  counter, 2 cmds :  7.48  8.49  8.65      superseded value 5.24
-> W=8  counter, 1 cmd  :  5.40  3.74  4.96      superseded value 3.94
-> W=32 counter, 2 cmds : 15.16 11.63 15.25      superseded value 6.75
-> W=32 counter, 1 cmd  : 11.47  8.98 10.52      superseded value 4.90
-> ```
->
-> The IDENTITY baseline reproduces to within ~5% every time (8.91-9.64 ms at 8 writers against a
-> superseded 9.4 ms), so the harness is measuring the same thing it always did. **The superseded ratios
-> are the outlier, not the new ones**, and they understated the cost roughly twofold at 32 writers.
+| Instrument | Scope and limitations |
+|---|---|
+| `AppendAllocationStrategyBenchmarks` | Direct SQL allocation/insert arms using IDENTITY or a transactional counter. Each timed wave includes all concurrent writers; its duration is not individual append latency. This compares those statements, not equivalent event-store guarantees or complete subscriber protocols. |
+| `AppendThroughputHarness` | Calls the same direct SQL arms in fixed-duration slices and includes the drain of in-flight work in elapsed time. It is not an actual framework append/subscriber benchmark. Rotates combination order and reports descriptive results without statistical acceptance gates. Successful-operation timing includes cleanup; slice timing includes failed-operation drain. Completion does not qualify comparative evidence. |
+| `SqlServerConcurrentAppendBenchmarks` | Actual `SqlServerEventStore.AppendAsync` waves against independent fresh streams. Includes scheduling, connection acquisition, serialization, network and transaction work. One event per writer has a null application payload. Persistence checks run outside timing. Wave throughput is not sustained production capacity or isolated counter cost. |
+| `OutboxStagingWindowBenchmarks` | Diagnostic comparison of staging placement. It does not establish a published percentage improvement for the complete application path. |
 
-Measured at **24 invocations x 20 iterations** — raised from 16 x 10 because at the old counts the
-StdDev reached 53% of the mean, which is larger than the effect. Each row gives the mean, and the ratio
-to IDENTITY at the same writer count and batch size.
+The allocation and actual-store wave benchmarks retain a single-writer control. A single-writer measurement is
+necessary to assess the spike's approved regression threshold, even when the main question is contention.
+Record effective transaction durability, including database-level overrides, rather than assuming a
+commit acknowledgement implies a durable flush. Preserve the exact benchmark revision, configuration,
+database settings, environment and raw samples
+with every run. Results from different invocation configurations are not interchangeable.
 
-| Writers | Events/append | IDENTITY | Counter, 2 commands | Counter, 1 command (shipped) |
-|---:|---:|---:|---:|---:|
-| 8 | 1 | 8.91 ms (±0.28) | 76.98 ms — **8.65x** (±22.98) | 44.16 ms — **4.96x** (±9.97) |
-| 8 | 5 | 10.97 ms (±0.51) | 69.52 ms — **6.35x** (±16.10) | 48.59 ms — **4.44x** (±8.18) |
-| 32 | 1 | 26.74 ms (±1.67) | 406.31 ms — **15.25x** (±40.80) | 280.28 ms — **10.52x** (±39.61) |
-| 32 | 5 | 43.91 ms (±19.57) | 413.48 ms — **10.64x** (±63.70) | 236.20 ms — **6.08x** (±50.58) |
+The allocation diagnostic includes writer counts 1, 8, 16 and 32. Its wave CSV identifies the arm,
+writer count, events per append, invocation number, elapsed time and outcome. The literal
+`stage=unclassified` means warmup and measurement invocations are mixed; these samples cannot
+establish steady-state percentiles. A failed wave is retained after all its tasks drain and its error
+is rethrown. Some appends in that wave may have committed; the recorded exception type is one observed
+failure, not a complete failure inventory or proof of rollback. Retain failed-run logs as evidence.
 
-**The cost RISES with concurrency**, which is the shape a serialization bottleneck has. The counter row's
-lock is held to COMMIT, so appends proceed one commit at a time, while an IDENTITY column lets the
-database group-commit concurrent transactions. That is the whole mechanism: an IDENTITY column only
-appears to avoid the cost because it does not, in fact, produce a total order.
+Full BenchmarkDotNet JSON retains iteration metadata and measurements. Those measurements aggregate
+invocations and cannot reconstruct individual wave tails or classify each wave CSV row retrospectively.
+Neither wave duration nor iteration percentiles are individual append or subscriber-visible latency.
+The fixed-window throughput harness is a separate per-append instrument with its own raw observations.
+See the [BenchmarkDotNet exporter documentation](https://benchmarkdotnet.org/articles/configs/exporters.html)
+for the full JSON format; compatibility is checked against the repository's pinned package when building.
 
-**Batching events DOES amortize the counter — the question the old caveat asserted and never measured.**
-Going from one event per append to five, the ratio falls in **all four** cells above, and in **11 of 12**
-comparisons across the three runs. Per event the counter's cost falls faster than the baseline's, because
-one serialized allocation now covers the whole batch:
+### Ordering and measurement interpretation
 
-| Writers | per-event, 1 event | per-event, 5 events |
-|---:|---:|---:|
-| 8 | identity 8.91 ms · merged 44.16 ms | identity 2.19 ms · merged 9.72 ms |
-| 32 | identity 26.74 ms · merged 280.28 ms | identity 8.78 ms · merged 47.24 ms |
+The shipped counter protocol creates a shared write dependency between appending transactions.
+Its critical-section work and transaction completion behavior are relevant to contention. This is not
+a proof that density intrinsically requires one physical log flush per logical append. For example,
+a coordinator could assign a contiguous block and commit multiple logical appends atomically; its
+acknowledgement, conflicts, retries and failure coupling would then require a separate contract and
+measurement. That alternative has not been qualified here.
 
-**The gap narrows; it does not close.** That is what one expects when the dominant cost is a lock held to
-COMMIT — commit time does not shrink by putting more events in one transaction.
+SQL Server sequence allocation occurs outside the transaction and can leave gaps. A numeric position
+orders values, but does not by itself establish commit order or causal application order. For example,
+writer A allocates 1 and pauses; writer B allocates 2 and commits; A then commits. Consuming through 2
+before resolving 1 can silently skip A. A sparse feed therefore needs the complete visibility,
+watermark, recovery and consumer protocol described in the spike. See Microsoft's
+[sequence documentation](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-sequence-transact-sql).
 
-**Read the error bars before quoting any single ratio.** The counter arms are intrinsically noisy: their
-StdDev runs 10-30% of the mean even at these counts, because serialized writers queueing on one row
-produce a heavy-tailed distribution. The IDENTITY arm, by contrast, holds StdDev under 2% at 8 and 32
-writers. **Quote these as shape, not precision** — the one figure stable enough to act on is the
-merged-allocation saving below.
+Neither a universal flat-throughput formula for the counter nor linear scaling for IDENTITY follows
+from these instruments. Storage, transaction batching, workload, connection management and competing
+bottlenecks must be measured. A transaction containing many operations also cannot isolate allocation
+cost merely by dividing its total time by the operation count.
 
-**The single-writer rows are excluded from the table.** They are dominated by per-append latency rather
-than contention, and their relative StdDev exceeds 0.5 in every arm.
+Finite observed samples have a mean and standard deviation even when multimodal. Those summaries can
+hide important modes and tails; retain distributions and percentiles as well. Do not discard large
+latencies simply because they are inconvenient. Interleaving mitigates time drift but does not eliminate
+it, even with rotated arm order. Resetting tables equalizes their initial contents, but faster arms can grow larger tables within a slice.
+Correlated appends are not independent experimental repetitions.
+The former throughput harness's high-writer latency control was not implied by Little's law, and its
+maximum-to-p99 heuristic could not identify a stall's cause. Those gates and the selective publication
+intervals have been removed. Run-level min/median/max are descriptive observations, not uncertainty
+bounds or evidence of statistical significance.
 
-### The lever is the width of the lock window, not the counter
+### Qualification boundary
 
-Both shipped optimisations are the same idea: the counter's lock is held from the allocating `UPDATE`
-until `COMMIT`, so anything issued in between is paid by *every* blocked appender, not just the one
-holding it. Removing work from that window pays back multiplied by the number of waiting writers.
+The approved screening criteria are at least 30% higher sustained throughput at 8 and 16 writers,
+no more than 10% single-writer throughput regression, no more than 10% p99 subscriber-visible latency
+regression at matched load, and zero correctness failures. They are investigation screens, not a
+release gate or Microsoft-prescribed thresholds.
 
-**One command instead of two** (`AllocateAndInsertEventsRequest`) — the allocation travels with the first
-insert. **This is the largest and most reproducible effect in the section**, and it is the one figure
-here worth acting on:
+A replacement decision requires like-for-like complete protocols with equivalent durability,
+representative workload and storage, repeated runs, untrimmed evidence, explicit absolute service
+objectives, and fault/recovery validation. Measure acknowledgement latency separately from subscriber
+visibility, projection lag and recovery. Include CPU, memory, I/O, lock waits and log flush observations.
+All required correctness and regression tests must pass; missing or failed runs are not passes.
 
-| Writers | Events/append | 2 commands | 1 command | saved |
-|---:|---:|---:|---:|---:|
-| 8 | 1 | 8.65x | 4.96x | **43%** |
-| 8 | 5 | 6.35x | 4.44x | **30%** |
-| 32 | 1 | 15.25x | 10.52x | **31%** |
-| 32 | 5 | 10.64x | 6.08x | **43%** |
+No complete-protocol comparative result is published here. The engine experiments establish specific
+ordering/recovery behaviors, not throughput superiority. See the spike for their evidence and remaining
+proof obligations.
 
-**30-43% of the counter's cost removed, in every cell, with no semantic change whatsoever.** (The
-superseded text claimed 5.24x → 3.94x and 6.75x → 4.90x; those inputs do not reproduce, but the
-*direction and rough magnitude* of the saving survived re-measurement, which is why the optimisation
-stands.)
+### Synthetic throughput diagnostic output
 
-**Staging outside the window** (`OutboxStagingWindowBenchmarks`) — outbox staging is one round trip per
-integration event, and it used to run *after* the allocation. Moving it before:
+The `throughput` entry point produces a uniquely named successful-operation sample CSV and an adjacent
+`.slices.csv` containing each slice's run/cell identity, warmup-or-measured flag, elapsed time, success
+and failure counts, and reset/operation stage. Warmup failures invalidate execution even though warmup
+latencies are excluded from measured summaries. An operation exception, including cancellation or
+cleanup failure, does not establish whether its transaction committed.
 
-| Concurrent writers | Integration events | Stage inside lock | Stage outside lock | Ratio |
-|---|---|---:|---:|---:|
-| 8 | 1 | 61.9 ms | 48.9 ms | **0.82x** (±0.17) |
-| 8 | 3 | 84.6 ms | 43.1 ms | **0.51x** (±0.06) |
-| 32 | 1 | 238.4 ms | 184.6 ms | **0.78x** (±0.06) |
-| 32 | 3 | 369.0 ms | 178.7 ms | **0.49x** (±0.05) |
-
-The gain scales with the number of integration events, because each one is a round trip removed from the
-window. At three, the append is twice as fast under concurrency.
-
-**Absolute throughput is deliberately not quoted.** These came from a containerized SQL Server on a
-developer workstation where even the IDENTITY baseline took ~9 ms for a single append — that describes
-the storage, not the design. Re-run on representative hardware before planning capacity.
-
-### Correction — the figures this section used to carry were wrong, and so was a conclusion drawn from them
-
-This section previously published **1.14x / 7.56x / 4.74x** at 1 / 8 / 32 writers, and stated that the
-one-command optimisation *"does not help under contention (8.07x at 8 writers — the cost there is lock
-wait, not round trips)"* and was therefore not taken.
-
-Both are retracted.
-
-- **The measurements were uncontrolled.** The benchmark did not truncate between arms, so the tables
-  accumulated across arms and across runs — and asymmetrically, because two arms wrote to the counter
-  table and only one to the IDENTITY table. Measured before the fix: 55,350 rows against 27,675, both
-  carrying a nonclustered index on a random GUID. The benchmark was partly measuring table size, biased
-  against the arm under test. The tell was visible in the old table and went unread: the cost **fell**
-  from 8 to 32 writers, which is backwards for a serialization bottleneck.
-- **The conclusion was wrong for an additional reason.** "The cost is lock wait, not round trips" treats
-  those as alternatives. The round trip happens *inside* the lock window, so it is precisely what the
-  waiting writers are waiting for. Controlled measurement shows the one-command form helps at every
-  concurrency level, and it is now what ships.
-
-### Reproducing these rows
-
-The matrix runner's class lists (`$comparativeClasses`, `$diagnosticClasses`, `$ciSmokeClasses` in
-`eng/run-benchmark-matrix.ps1`) are Dispatch-side only and contain no event-sourcing classes, so these do
-not run by default. Invoke them explicitly:
-
-```
-docker run -d --name bench-sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=<pw> -e MSSQL_PID=Developer   -p 14433:1433 mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04
-
-$env:BENCHMARK_SQL_CONNECTIONSTRING =
-  "Server=localhost,14433;Database=BenchDb;User Id=sa;Password=<pw>;TrustServerCertificate=True;Encrypt=False;Max Pool Size=200"
-
-dotnet run -c Release --project benchmarks/Excalibur.Benchmarks -- `
-  --filter "*AppendAllocationStrategyBenchmarks*" --inProcess --exporters github
-```
-
-Both classes throw when `BENCHMARK_SQL_CONNECTIONSTRING` is absent rather than returning quietly. A
-benchmark that skips reports a spectacular number for having done nothing, and a throughput figure is
-exactly the kind of result someone later quotes without re-checking how it was produced.
-
-### Caveats on these rows
-
-- Run with `--inProcess`. A git worktree under the repository root makes BenchmarkDotNet's project scan
-  ambiguous (`Found more than one matching project file`), which fails every CsProj-toolchain benchmark
-  before it starts. In-process is also defensible here: every operation is a database round trip.
-- Single-event appends, which is the worst case for the counter. Batches amortize it.
-- Variance at 8+ writers is high (StdDev 31–60 ms); treat the ratios as shape, not precision.
+Exit `0` means the requested diagnostic matrix completed without recorded failures or empty/nonfinite
+measured cells. Exit `2` denotes invalid configuration or incomplete execution, including caught setup and output
+failures. Process termination or failure of the error-output channel can still end unsuccessfully
+without a normalized exit code. Neither exit code
+certifies correctness, reproducibility, an improvement threshold, or production capacity. Preserve both
+CSV files and the console log, including failed runs. Zero warmup means no warmup slices. Default writer
+counts include 1, 8, 16 and 32; this alone does not implement the spike's sustained workload protocol.
 
 ## Under Investigation
 
@@ -292,28 +244,6 @@ exactly the kind of result someone later quotes without re-checking how it was p
 - **MediatR's own query row** moved about 21% between epochs, consistently across all three runs of
   this one. Nothing in this framework touches it. Until it is explained, the query **comparison**
   is not published in either direction.
-- **RESOLVED 2026-09-26: the multi-event arm exists, the amortization question is answered, and the
-  figures that could not be reproduced were the OLD ones.** An `EventsPerAppend` dimension was added so
-  the claim that batches amortize the counter is measured rather than asserted, with `EventsPerAppend=1`
-  as a control that had to reproduce the published single-event ratios. It did not — and after three
-  runs the conclusion is that the *published* values were wrong, not the new ones: the three runs
-  cluster tightly with each other while the published figures sit outside that cluster, and the IDENTITY
-  baseline reproduces to within ~5% throughout, so the harness is measuring what it always did. The
-  section above now carries the measured values and quotes the superseded ones beside them.
-
-  Two real defects were found and fixed on the way, both mine: the multi-event rewrite had interpolated
-  the position into the INSERT text instead of binding it, so every statement compiled a fresh plan — a
-  cost only the counter arms pay, because the identity arm embeds no position; and the first attempt to
-  raise precision to 64 invocations **aborted the whole matrix**, because the in-process toolchain
-  refuses an iteration that long and in-process is mandatory here (a worktree under the repository root
-  makes BenchmarkDotNet's project scan ambiguous). The counts that work are **24 invocations x 20
-  iterations** — invocations shrink the spread itself and are capped by that toolchain limit, iterations
-  shrink the standard error of the mean as the square root of the count.
-
-  **What remains true and is now stated in the section rather than here:** the counter arms are
-  intrinsically heavy-tailed, so their StdDev is 10-30% of the mean even at these counts. Quote them as
-  shape. The merged-allocation saving (30-43%, every cell) is the one figure stable enough to act on.
-
 ## Methodology + runbook
 
 - **Regression thresholds + run procedure:** see `benchmarks/RUNBOOK.md`

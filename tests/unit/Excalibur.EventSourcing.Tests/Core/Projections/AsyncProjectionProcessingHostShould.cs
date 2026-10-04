@@ -381,6 +381,193 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			"events must arrive in global stream order, each carrying the aggregate it came from.");
 	}
 
+	[Theory]
+	[InlineData(0L)]
+	[InlineData(2L)]
+	[InlineData(4L)]
+	[Trait("Pattern", "Regression")]
+	public async Task ClassifyEachEventAgainstTheCommittedHeadAtSubscriptionStart(long headAtStart)
+	{
+		var query = A.Fake<IGlobalStreamQuery>();
+		A.CallTo(() => query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(headAtStart);
+		var stored = Enumerable.Range(1, 4).Select(i => new StoredEvent(
+			$"e{i}", $"order-{i % 2}", "Order", "OrderCreated", [], null, i, DateTimeOffset.UtcNow)
+			{ GlobalPosition = i }).ToArray();
+		A.CallTo(() => query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily((GlobalStreamPosition position, int _, CancellationToken _) =>
+				new ValueTask<IReadOnlyList<StoredEvent>>(stored.Where(e => e.GlobalPosition > position.Position).ToArray()));
+		var serializer = A.Fake<IEventSerializer>();
+		A.CallTo(() => serializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
+		A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(new TestOrderPlaced());
+		var observed = new List<(long? Position, bool Replay)>();
+		var runHeads = new List<long?>();
+		var applied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		_registry.Register(new ProjectionRegistration(typeof(OrderSummary), ProjectionMode.Async,
+			new MultiStreamProjection<OrderSummary>(), inlineApply: (events, context, _, _) =>
+			{
+				observed.AddRange(events.Select(e => (e.GlobalPosition, context.IsReplay)));
+				runHeads.Add(context.GlobalPosition);
+				if (observed.Count >= stored.Length)
+				{
+					applied.TrySetResult();
+				}
+				return Task.CompletedTask;
+			}));
+		_services.AddSingleton(query);
+		using var provider = _services.BuildServiceProvider();
+		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions
+		{
+			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
+			CheckpointInterval = 1,
+		});
+		await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await applied.Task.WaitAsync(TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+		}
+		finally
+		{
+			await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+		observed.ShouldBe(stored.Select(e => ((long?)e.GlobalPosition, e.GlobalPosition <= headAtStart)).ToList());
+		runHeads.ShouldBe(headAtStart == 2 ? new long?[] { 2, 4 } : new long?[] { 4 });
+		var checkpoint = await _checkpointStore.GetCheckpointAsync("AsyncProjectionProcessingHost", CancellationToken.None)
+			.ConfigureAwait(false);
+		checkpoint.ShouldBe(4L);
+	}
+
+	[Theory]
+	[InlineData(true, false)]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[Trait("Pattern", "Regression")]
+	public async Task RetryWithoutSkippingWhenEitherReplayRunOrLiveRunFails(bool failReplay, bool recover)
+	{
+		var query = A.Fake<IGlobalStreamQuery>();
+		A.CallTo(() => query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(1L);
+		var stored = Enumerable.Range(1, 2).Select(i => new StoredEvent(
+			$"e{i}", "order-1", "Order", "OrderCreated", [], null, i, DateTimeOffset.UtcNow)
+			{ GlobalPosition = i }).ToArray();
+		var advanced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily((GlobalStreamPosition position, int _, CancellationToken _) =>
+			{
+				if (position.Position == 2)
+				{
+					advanced.TrySetResult();
+				}
+				return new ValueTask<IReadOnlyList<StoredEvent>>(stored.Where(e => e.GlobalPosition > position.Position).ToArray());
+			});
+		var serializer = A.Fake<IEventSerializer>();
+		A.CallTo(() => serializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
+		A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(new TestOrderPlaced());
+		var observed = new List<(long? Position, bool Replay)>();
+		var failures = 0;
+		var retried = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		_registry.Register(new ProjectionRegistration(typeof(OrderSummary), ProjectionMode.Async,
+			new MultiStreamProjection<OrderSummary>(), inlineApply: (events, context, _, _) =>
+			{
+				observed.AddRange(events.Select(e => (e.GlobalPosition, context.IsReplay)));
+				if (context.IsReplay == failReplay)
+				{
+					failures++;
+					if (recover && failures > 1)
+					{
+						return Task.CompletedTask;
+					}
+					if (failures >= 2)
+					{
+						retried.TrySetResult();
+					}
+					throw new InvalidOperationException("Injected apply failure");
+				}
+				return Task.CompletedTask;
+			}));
+		_services.AddSingleton(query);
+		using var provider = _services.BuildServiceProvider();
+		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions
+		{
+			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
+			CheckpointInterval = 1,
+		});
+		await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await (recover ? advanced.Task : retried.Task)
+				.WaitAsync(TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+		}
+		finally
+		{
+			await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+		var checkpoints = await _checkpointStore.EnumerateCheckpointsAsync(CancellationToken.None).ConfigureAwait(false);
+		if (recover)
+		{
+			checkpoints.ShouldHaveSingleItem().Position.ShouldBe(2L);
+		}
+		else
+		{
+			checkpoints.ShouldBeEmpty();
+		}
+		observed.ShouldAllBe(e => e.Replay == (e.Position <= 1));
+		if (failReplay)
+		{
+			observed.ShouldAllBe(e => e.Position == 1);
+		}
+		else
+		{
+			observed.Take(4).Select(e => e.Position).ShouldBe(new long?[] { 1, 2, 1, 2 });
+		}
+	}
+
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public async Task NotDispatchLiveRunOrSavePartialPageWhenStoppedAfterReplayRun()
+	{
+		var query = A.Fake<IGlobalStreamQuery>();
+		A.CallTo(() => query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(1L);
+		var stored = Enumerable.Range(1, 2).Select(i => new StoredEvent(
+			$"e{i}", "order-1", "Order", "OrderCreated", [], null, i, DateTimeOffset.UtcNow)
+			{ GlobalPosition = i }).ToArray();
+		A.CallTo(() => query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(stored));
+		var serializer = A.Fake<IEventSerializer>();
+		A.CallTo(() => serializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
+		A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(new TestOrderPlaced());
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var observed = new List<long?>();
+		_registry.Register(new ProjectionRegistration(typeof(OrderSummary), ProjectionMode.Async,
+			new MultiStreamProjection<OrderSummary>(), inlineApply: async (events, _, _, token) =>
+			{
+				observed.AddRange(events.Select(e => e.GlobalPosition));
+				entered.TrySetResult();
+				// Hold the replay run until StopAsync cancels it; then finish normally. The next
+				// run must still observe cancellation before dispatch, and shutdown must not save it.
+				try
+				{
+					await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException) when (token.IsCancellationRequested)
+				{
+				}
+			}));
+		_services.AddSingleton(query);
+		using var provider = _services.BuildServiceProvider();
+		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions { CheckpointInterval = 1 });
+		await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await entered.Task.WaitAsync(TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+		}
+		finally
+		{
+			await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
+		observed.ShouldBe(new long?[] { 1 });
+		var checkpoints = await _checkpointStore.EnumerateCheckpointsAsync(CancellationToken.None).ConfigureAwait(false);
+		checkpoints.ShouldBeEmpty();
+	}
+
 	[Fact]
 	public async Task RestoreCheckpoint_OnStartup()
 	{

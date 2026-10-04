@@ -226,7 +226,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 					// Without this, a rebuild of any projection whose stream contains an erased subject's
 					// aggregate halts permanently at the tombstone -- erasure would make that projection
 					// unrebuildable rather than merely omit the subject.
-					if (ErasedEventMarker.IsErased(storedEvent.EventType) || storedEvent.EventData is null)
+					if (ErasedEventMarker.IsErased(storedEvent.EventType))
 					{
 						totalProcessed++;
 						continue;
@@ -235,7 +235,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 					try
 					{
 						var eventType = _eventSerializer.ResolveType(storedEvent.EventType);
-						var domainEvent = _eventSerializer.DeserializeEvent(storedEvent.EventData, eventType)
+						var domainEvent = _eventSerializer.DeserializeEvent(StoredEventPayload.Require(storedEvent), eventType)
 							?? throw new InvalidOperationException(
 								$"Event '{storedEvent.EventId}' (type '{storedEvent.EventType}') deserialized to null " +
 								$"during rebuild of '{projectionName}'; refusing to skip it.");

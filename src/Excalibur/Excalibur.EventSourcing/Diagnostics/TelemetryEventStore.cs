@@ -143,7 +143,19 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		try
 		{
 			var result = await base.AppendAsync(aggregateId, aggregateType, events, expectedVersion, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("append", guardedType, sw);
+			var outcome = result.Outcome switch
+			{
+				AppendOutcome.Committed or AppendOutcome.AlreadyCommitted => EventSourcingTagValues.Success,
+				AppendOutcome.ConcurrencyConflict => EventSourcingTagValues.ConcurrencyConflict,
+				AppendOutcome.Unknown => "unknown",
+				_ => EventSourcingTagValues.Failure,
+			};
+			RecordResult("append", guardedType, sw, outcome);
+			activity?.SetTag(EventSourcingTags.OperationResult, outcome);
+			if (!result.Success)
+			{
+				activity?.SetStatus(ActivityStatusCode.Error);
+			}
 			return result;
 		}
 		catch (Exception ex)
@@ -153,13 +165,16 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		}
 	}
 
-	private void RecordSuccess(string operation, string? aggregateType, ValueStopwatch sw)
+	private void RecordSuccess(string operation, string? aggregateType, ValueStopwatch sw) =>
+		RecordResult(operation, aggregateType, sw, EventSourcingTagValues.Success);
+
+	private void RecordResult(string operation, string? aggregateType, ValueStopwatch sw, string outcome)
 	{
 		var tags = new TagList
 		{
 			{ EventSourcingTags.Operation, operation },
 			{ EventSourcingTags.Provider, _providerName },
-			{ EventSourcingTags.OperationResult, EventSourcingTagValues.Success },
+			{ EventSourcingTags.OperationResult, outcome },
 		};
 
 		if (aggregateType is not null)

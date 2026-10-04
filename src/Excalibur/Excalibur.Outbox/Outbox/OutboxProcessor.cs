@@ -54,7 +54,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		CompositeFormat.Parse(ErrorConstants.AttemptedToRunWithoutCallingInit);
 
 	private readonly OutboxDeliveryOptions _options;
-	private readonly Channel<IOutboxMessage> _outboxMessages;
+	private Channel<IOutboxMessage> _outboxMessages;
 	private readonly int _queueCapacity;
 
 	// Orchestration layer IOutboxStore for integration event outbox (restored from git history)
@@ -184,9 +184,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 	private int _disposedFlag;
 
-	private Task? _producerTask;
-
-	private Task<int>? _consumerTask;
+	private readonly Lock _lifecycleLock = new();
+	private readonly CancellationTokenSource _lifetimeCancellation = new();
+	private TaskCompletionSource? _activeRun;
+	private TaskCompletionSource? _disposal;
 
 	private volatile bool _producerStopped;
 
@@ -329,9 +330,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	}
 
 	/// <summary>
-	/// Initializes the outbox processor with a unique dispatcher identifier and starts background processing tasks. This method sets up the
-	/// producer-consumer pipeline, message queuing, and begins continuous outbox processing with proper error handling and graceful
-	/// shutdown support.
+	/// Sets the processor identity. Repeating the same identity is allowed; replacing an established identity is rejected.
+	/// Processing starts when DispatchPendingMessagesAsync is called. Sequential drains are supported; overlapping drains are rejected.
 	/// </summary>
 	/// <param name="dispatcherId"> Unique identifier for this dispatcher instance, used for message ownership and coordination. </param>
 	/// <exception cref="ArgumentException"> Thrown when dispatcherId is null, empty, or whitespace. </exception>
@@ -342,7 +342,15 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
 
-		_dispatcherId = dispatcherId;
+		lock (_lifecycleLock)
+		{
+			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
+			if (_dispatcherId is not null && !string.Equals(_dispatcherId, dispatcherId, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException("A processor's dispatcher identity cannot change after initialization.");
+			}
+			_dispatcherId = dispatcherId;
+		}
 	}
 
 	/// <summary>
@@ -359,54 +367,120 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<int> DispatchPendingMessagesAsync(CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
-
-		if (string.IsNullOrWhiteSpace(_dispatcherId))
+		TaskCompletionSource completion;
+		CancellationTokenSource runCancellation;
+		var budget = _options.PerRunTotal;
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(budget);
+		lock (_lifecycleLock)
 		{
-			throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, AttemptedToRunWithoutCallingInitFormat,
-				nameof(DispatchPendingMessagesAsync), nameof(Init)));
+			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
+			if (string.IsNullOrWhiteSpace(_dispatcherId))
+			{
+				throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, AttemptedToRunWithoutCallingInitFormat,
+					nameof(DispatchPendingMessagesAsync), nameof(Init)));
+			}
+			if (_activeRun is not null)
+			{
+				throw new InvalidOperationException("An outbox drain is already running on this processor.");
+			}
+			runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetimeCancellation.Token);
+			_outboxMessages = Channel.CreateBounded<IOutboxMessage>(new BoundedChannelOptions(_queueCapacity)
+			{
+				FullMode = BoundedChannelFullMode.Wait,
+				SingleWriter = true,
+				SingleReader = true,
+				AllowSynchronousContinuations = false,
+			});
+			_producerStopped = false;
+			completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			_activeRun = completion;
 		}
 
-		_producerTask = Task.Factory
-			.StartNew(
-				() => ProducerLoopAsync(cancellationToken),
-				cancellationToken,
-				TaskCreationOptions.LongRunning,
-				TaskScheduler.Default)
-			.Unwrap();
-		_consumerTask = Task.Factory
-			.StartNew(
-				() => ConsumerLoopAsync(cancellationToken),
-				cancellationToken,
-				TaskCreationOptions.LongRunning,
-				TaskScheduler.Default)
-			.Unwrap();
+		try
+		{
+			// Neither worker may outlive the run, even when its sibling faults under backpressure.
+			var producer = SuperviseAsync(() => ProducerLoopAsync(budget, runCancellation.Token), runCancellation);
+			var consumerResult = 0;
+			var consumer = SuperviseAsync(async () =>
+			{
+				consumerResult = await ConsumerLoopAsync(runCancellation.Token).ConfigureAwait(false);
+			}, runCancellation);
+			await Task.WhenAll(producer, consumer).ConfigureAwait(false);
+			runCancellation.Token.ThrowIfCancellationRequested();
+			return consumerResult;
+		}
+		finally
+		{
+			runCancellation.Dispose();
+			lock (_lifecycleLock)
+			{
+				_activeRun = null;
+				completion.SetResult();
+			}
+		}
+	}
 
-		await _producerTask.ConfigureAwait(false);
-		var consumerResult = await _consumerTask.ConfigureAwait(false);
-
-		return consumerResult;
+	private static async Task SuperviseAsync(Func<Task> worker, CancellationTokenSource cancellation)
+	{
+		await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+		try
+		{
+			await worker().ConfigureAwait(false);
+		}
+		catch (Exception failure)
+		{
+			try
+			{
+				await cancellation.CancelAsync().ConfigureAwait(false);
+			}
+			catch (Exception cancellationFailure)
+			{
+				throw new AggregateException(failure, cancellationFailure);
+			}
+			throw;
+		}
 	}
 
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeCoreAsync().ConfigureAwait(false);
+		TaskCompletionSource completion;
+		Task? active;
+		bool ownsDisposal;
+		lock (_lifecycleLock)
+		{
+			ownsDisposal = _disposal is null;
+			_disposal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			completion = _disposal;
+			_disposedFlag = 1;
+			active = _activeRun?.Task;
+		}
+		if (ownsDisposal)
+		{
+			try
+			{
+				try
+				{
+					await _lifetimeCancellation.CancelAsync().ConfigureAwait(false);
+				}
+				finally
+				{
+					if (active is not null)
+					{
+						await active.ConfigureAwait(false);
+					}
+					_batchMetrics.Dispose();
+					_lifetimeCancellation.Dispose();
+				}
+				completion.SetResult();
+			}
+			catch (Exception failure)
+			{
+				completion.SetException(failure);
+			}
+		}
+		await completion.Task.ConfigureAwait(false);
 		GC.SuppressFinalize(this);
-	}
-
-	private static async ValueTask SafeDisposeAsync(object resource)
-	{
-		if (resource is IAsyncDisposable resourceAsyncDisposable)
-		{
-			await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-			return;
-		}
-
-		if (resource is IDisposable disposable)
-		{
-			disposable.Dispose();
-		}
 	}
 
 	/// <summary>
@@ -496,57 +570,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		return _envelopeDeserializer?.DeserializeOutboxEnvelope(data);
 	}
 
-	/// <summary>
-	/// Disposes of resources used by the <see cref="OutboxProcessor" />.
-	/// </summary>
-	private async ValueTask DisposeCoreAsync()
-	{
-		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
-		{
-			return;
-		}
-
-		LogDisposingResources();
-
-		try
-		{
-			if (_consumerTask is { IsCompleted: false })
-			{
-				LogConsumerNotCompleted();
-
-				try
-				{
-					_ = await _consumerTask.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None).ConfigureAwait(false);
-				}
-				catch (TimeoutException ex)
-				{
-					LogConsumerTimeoutDuringDisposal(ex);
-				}
-			}
-
-			if (_producerTask is not null)
-			{
-				await SafeDisposeAsync(_producerTask).ConfigureAwait(false);
-			}
-
-			if (_consumerTask is not null)
-			{
-				await SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
-			}
-
-			_ = _outboxMessages.Writer.TryComplete();
-
-			_batchMetrics?.Dispose();
-		}
-		catch (Exception ex)
-		{
-			LogErrorDisposingAsyncResources(ex);
-		}
-	}
-
 	[RequiresUnreferencedCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private async Task ProducerLoopAsync(CancellationToken cancellationToken)
+	private async Task ProducerLoopAsync(int budget, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -561,10 +587,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			while (!cancellationToken.IsCancellationRequested && !reachedLimit)
 			{
 				var availableSlots = Math.Max(0, _queueCapacity - _outboxMessages.Reader.Count);
-				var remainingMessages = _options.PerRunTotal > 0 ? _options.PerRunTotal - totalQueued : _options.ProducerBatchSize;
-				var batchSize = Math.Min(_options.ProducerBatchSize, remainingMessages);
+				var remainingMessages = budget - totalQueued;
+				var batchSize = Math.Min(availableSlots, Math.Min(_options.ProducerBatchSize, remainingMessages));
 
-				if (availableSlots < batchSize)
+				if (availableSlots == 0)
 				{
 					// Event-driven wait: block until channel has capacity instead of polling
 					if (!await _outboxMessages.Writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false))
@@ -587,21 +613,23 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				LogEnqueuingBatchRecords(batch.Count);
 
+				var newMessages = 0;
 				foreach (var outboxRecord in batch)
 				{
 					if (queuedThisRun.Add(outboxRecord.MessageId))
 					{
 						await _outboxMessages.Writer.WriteAsync(outboxRecord, cancellationToken).ConfigureAwait(false);
-						totalQueued++;
+						newMessages++;
 					}
 				}
 
-				reachedLimit = _options.PerRunTotal > 0 && totalQueued >= _options.PerRunTotal;
+				totalQueued += batch.Count;
+				reachedLimit = newMessages == 0 || totalQueued >= budget;
 
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Pending, batch.Count);
 			}
 		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			LogOutboxProducerCanceled();
 		}
@@ -628,13 +656,6 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				if (_disposedFlag == 1)
-				{
-					LogDisposalRequestedExitingData();
-
-					break;
-				}
-
 				if (_producerStopped && _outboxMessages.Reader.Count == 0)
 				{
 					LogConsumerExiting();
@@ -681,7 +702,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, totalProcessedCount);
 			}
 		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
 			LogConsumerCanceled();
 		}
@@ -1654,7 +1675,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 						await MarkFailedForClaimAsync(id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 					}
 				}
-				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
 					throw;
 				}
@@ -1748,7 +1769,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 							await MarkFailedForClaimAsync(id, claimIdentity, ErrorConstants.RetryAttempt, attemptCount, applyBackoff: false, cancellationToken).ConfigureAwait(false);
 						}
 					}
-					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 					{
 						throw;
 					}
@@ -1780,7 +1801,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 							enqueuedEntryId: null,
 							cancellationToken).ConfigureAwait(false);
 					}
-					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 					{
 						throw;
 					}

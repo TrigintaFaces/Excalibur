@@ -684,6 +684,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
 		}
 
+		if (result.Outcome == CloudAppendOutcome.Unknown)
+		{
+			return AppendResult.CreateUnknown(result.ErrorMessage ?? "Append outcome could not be established.");
+		}
+
 		return AppendResult.CreateFailure(result.ErrorMessage ?? "Unknown error");
 	}
 

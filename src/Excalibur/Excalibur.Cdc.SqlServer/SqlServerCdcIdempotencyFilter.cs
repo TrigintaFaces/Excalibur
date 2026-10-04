@@ -19,10 +19,15 @@ namespace Excalibur.Cdc.SqlServer;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Suitable for multi-instance deployments where multiple CDC consumers may process the
-/// same events on crash/restart. The filter uses the CDC-native <c>(tableName, LSN, seqVal)</c>
-/// composite key, stored in a SQL Server table with a clustered primary key for optimal
-/// point-lookup performance.
+/// Suitable for multi-instance deployments where multiple CDC consumers may process the same events on
+/// crash or restart. The key is <c>(TableName, Lsn, SeqVal, ConsumerId)</c>, stored with a clustered
+/// primary key for point-lookup performance.
+/// </para>
+/// <para>
+/// <b><c>ConsumerId</c> is part of the key, not decoration</b>, and this sentence previously omitted it.
+/// Without it the dedupe namespace is table-plus-position, so the first consumer to process a change marks
+/// it done for every other consumer of that table and the others skip a change they never saw. A duplicate
+/// merely reprocesses, which an idempotent handler absorbs; a suppression is silent and unrecoverable.
 /// </para>
 /// <para>
 /// Old records are cleaned up periodically via <see cref="CleanupAsync"/> based on the
@@ -31,26 +36,43 @@ namespace Excalibur.Cdc.SqlServer;
 /// </remarks>
 internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFilter
 {
-	private readonly IDbConnection _connection;
+	private readonly Func<IDbConnection> _connectionFactory;
 	private readonly SqlServerCdcIdempotencyFilterOptions _options;
 	private readonly ILogger<SqlServerCdcIdempotencyFilter> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqlServerCdcIdempotencyFilter"/> class.
 	/// </summary>
-	/// <param name="connection">The database connection (shared with CDC state store).</param>
+	/// <param name="connectionFactory">
+	/// Creates a connection per operation. The filter owns and disposes each one.
+	/// </param>
 	/// <param name="options">The idempotency filter options.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <remarks>
+	/// <para>
+	/// <b>A FACTORY rather than a connection, and the previous shape could not work.</b> This type is
+	/// registered as a singleton, so taking an <see cref="IDbConnection"/> meant one connection held for
+	/// the process lifetime and shared across every call. <see cref="IDbConnection"/> is not thread-safe,
+	/// CDC processes changes concurrently, and the three statements below would have interleaved on it.
+	/// A process-lifetime connection also defeats pooling and cannot recover from a transient fault.
+	/// </para>
+	/// <para>
+	/// It was additionally unconstructable: nothing in this framework registers an
+	/// <see cref="IDbConnection"/>, so resolving the filter threw before any of that could matter. Every
+	/// sibling in this package takes a factory — the CDC connection builder's own shape is
+	/// <c>Func&lt;IServiceProvider, Func&lt;SqlConnection&gt;&gt;</c> — and this now matches it.
+	/// </para>
+	/// </remarks>
 	public SqlServerCdcIdempotencyFilter(
-		IDbConnection connection,
+		Func<IDbConnection> connectionFactory,
 		IOptions<SqlServerCdcIdempotencyFilterOptions> options,
 		ILogger<SqlServerCdcIdempotencyFilter> logger)
 	{
-		ArgumentNullException.ThrowIfNull(connection);
+		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(options);
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		_connection = connection;
+		_connectionFactory = connectionFactory;
 		_options = options.Value;
 		_options.Validate();
 	}
@@ -60,29 +82,40 @@ internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFil
 		string tableName,
 		byte[] lsn,
 		byte[] seqVal,
-		string consumerId,
+		CdcConsumerIdentity consumer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
-		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumer.ConnectionIdentifier);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumer.DatabaseName);
 
-		// ConsumerId is part of the predicate, not decoration. Without it the dedupe namespace is table plus
-		// position, so the FIRST consumer to process a change marks it done for every other consumer of that
-		// table and the others skip a change they never saw -- silent, unrecoverable, and invisible to any
-		// alert. A duplicate merely reprocesses, which an idempotent handler absorbs; a suppression does not.
+		// The predicate carries EVERY axis the checkpoint matches on -- connection identifier, database
+		// name, table -- plus the position. A key missing any of them is coarser than the position it
+		// guards, and a coarser dedupe namespace suppresses: the first consumer to reach a position marks
+		// it done for everyone sharing the coarser key. The database name was the axis that was missing.
 		var sql = $"""
 			SELECT CASE WHEN EXISTS (
 				SELECT 1 FROM {_options.QualifiedTableName}
-				WHERE TableName = @tableName AND Lsn = @lsn AND SeqVal = @seqVal AND ConsumerId = @consumerId
+				WHERE TableName = @tableName AND Lsn = @lsn AND SeqVal = @seqVal
+				  AND ConsumerId = @consumerId AND DatabaseName = @databaseName
 			) THEN 1 ELSE 0 END
 			""";
 
-		var result = await _connection.Ready().QuerySingleAsync<int>(
+		using var connection = _connectionFactory();
+
+		var result = await connection.Ready().QuerySingleAsync<int>(
 			new CommandDefinition(
 				sql,
-				new { tableName, lsn, seqVal, consumerId },
+				new
+				{
+					tableName,
+					lsn,
+					seqVal,
+					consumerId = consumer.ConnectionIdentifier,
+					databaseName = consumer.DatabaseName,
+				},
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 
@@ -99,25 +132,36 @@ internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFil
 		string tableName,
 		byte[] lsn,
 		byte[] seqVal,
-		string consumerId,
+		CdcConsumerIdentity consumer,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(tableName);
 		ArgumentNullException.ThrowIfNull(lsn);
 		ArgumentNullException.ThrowIfNull(seqVal);
-		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumer.ConnectionIdentifier);
+		ArgumentException.ThrowIfNullOrWhiteSpace(consumer.DatabaseName);
 
 		var sql = $"""
-			INSERT INTO {_options.QualifiedTableName} (TableName, Lsn, SeqVal, ConsumerId, ProcessedAt)
-			VALUES (@tableName, @lsn, @seqVal, @consumerId, SYSUTCDATETIME())
+			INSERT INTO {_options.QualifiedTableName}
+				(TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt)
+			VALUES (@tableName, @lsn, @seqVal, @consumerId, @databaseName, SYSUTCDATETIME())
 			""";
 
 		try
 		{
-			await _connection.Ready().ExecuteAsync(
+			using var connection = _connectionFactory();
+
+			await connection.Ready().ExecuteAsync(
 				new CommandDefinition(
 					sql,
-					new { tableName, lsn, seqVal, consumerId },
+					new
+					{
+						tableName,
+						lsn,
+						seqVal,
+						consumerId = consumer.ConnectionIdentifier,
+						databaseName = consumer.DatabaseName,
+					},
 					commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 		}
@@ -141,7 +185,9 @@ internal sealed partial class SqlServerCdcIdempotencyFilter : ICdcIdempotencyFil
 			WHERE ProcessedAt < @cutoff
 			""";
 
-		var deleted = await _connection.Ready().ExecuteAsync(
+		using var connection = _connectionFactory();
+
+		var deleted = await connection.Ready().ExecuteAsync(
 			new CommandDefinition(
 				sql,
 				new

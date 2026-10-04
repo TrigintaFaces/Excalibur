@@ -140,7 +140,7 @@ Emits typed invokers so a dispatched message reaches its handler without a refle
 
 ### 4. StaticPipelineGenerator
 
-Compiles middleware pipelines at build time, avoiding runtime pipeline construction:
+For supported call sites, forwards to the selected dispatcher overload while preserving its task, exceptions and cancellation. Middleware composition and execution remain runtime responsibilities:
 
 **Generated output:** `obj/GeneratedFiles/.../StaticPipelines.g.cs`
 
@@ -204,22 +204,21 @@ Excalibur.Dispatch.Aot.Sample/
 
 ## Verification
 
-After `dotnet publish -c Release`, verify:
+Publish for the deployment RID (for example `dotnet publish -c Release -r linux-x64`), then execute
+the resulting native binary. Do not substitute `dotnet run` for Native AOT execution.
 
-1. **Publish succeeds**: The publish should complete without errors (warnings are expected -- see below)
-2. **Native executable exists**: Check `bin/Release/net10.0/<rid>/publish/`
-3. **Runs correctly**: Execute the native binary and verify all 6 demos produce expected output
-4. **File size**: The native executable is typically 15-30 MB (varies by platform and framework version)
+`PipelineVerification.cs` asserts that two contracts on one explicitly implemented handler dispatch
+correctly, that configured middleware actually executes, that the exact AOT invoker pairs are registered,
+and that deferred middleware factories use distinct asynchronously disposed dispatch scopes. It also
+checks background acceptance, owned-scope disposal, and refusal of typed background responses in the
+native executable. A failed assertion
+terminates execution. The native run must print `Pipeline verification PASS; dynamic code supported: False`.
 
-### About AOT Warnings
-
-You will see IL2xxx (trim) and IL3xxx (AOT) warnings during publish. As of , the baseline is **~126 warnings** from the Dispatch framework itself. These originate from:
-
-- Reflection-based fallback paths in the core dispatcher (used only when source generators aren't available)
-- `Type.GetType()` calls in event serialization (not yet fully source-generated)
-- `JsonStringEnumConverter` without generic type parameter (not yet fully source-generated)
-
-These warnings do **not** prevent successful AOT compilation or runtime execution. The sample uses source-generator paths that bypass all reflection-based code.
+The remaining demos illustrate serialization, transport, event sourcing and compliance scenarios;
+printed output alone is not a correctness assertion for every demonstrated capability. Review publish
+warnings individually with the exercised path and exact artifact in mind. This sample does not suppress
+trim analysis warnings or enable reflection-based JSON to hide missing generated metadata. There is no
+blanket exemption for IL2xxx or IL3xxx warnings.
 
 ## Common Issues
 
@@ -299,3 +298,24 @@ pwsh eng/ci/Invoke-AotBuildAnalysis.ps1
 - [Source Generators Guide](../../../docs-site/docs/source-generators/index.md)
 - [Viewing Generated Code](../../../docs-site/docs/advanced/viewing-generated-code.md)
 - [Microsoft AOT Documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
+
+## DataProcessing acceptance
+
+The executable also runs `DataProcessingSmoke`. It exercises the explicit configuration and fluent builder
+registration paths, asserts all seven immutable option values, traverses an empty nonterminal page, and
+checks handler execution, checkpoints, and async scope disposal. A mismatch throws and fails the executable;
+a successful publish without running the binary is insufficient to validate this path. No SQL Server is
+required for this in-memory source test. SQL restore recovery is covered separately by the integration suite.
+
+## SQL-backed Quartz Native AOT smoke
+
+Publish this sample as Native AOT and run the executable with `--quartz-sql-smoke`.
+Set `PROCESSING_SQL` to a disposable SQL Server database. The smoke creates
+`dbo.NativeTasks` and fresh Quartz tables, then executes the real `DataProcessingJob`
+and both Excalibur job adapters. The context job uses source-generated JSON metadata;
+SQL Server uses an explicit `SqlClientFactory.Instance`. No production database should
+be used: this is a provisioning and execution example, not a schema-upgrade utility.
+
+A successful run reports `NATIVE QUARTZ SQL` only after the jobs complete. This path
+exercises SQL authentication; it does not establish support for every authentication
+provider or all CDC/outbox serialization paths.

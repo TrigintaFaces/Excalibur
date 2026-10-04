@@ -7,6 +7,19 @@ namespace Excalibur.EventSourcing.AzureBlob;
 
 internal sealed class EventSourcingAzureBlobBuilder : IEventSourcingAzureBlobBuilder
 {
+	internal ColdArchiveLayout? LayoutValue { get; private set; }
+
+	public IEventSourcingAzureBlobBuilder Layout(ColdArchiveLayout layout)
+	{
+		if (!Enum.IsDefined(layout))
+		{
+			throw new ArgumentOutOfRangeException(nameof(layout));
+		}
+
+		LayoutValue = layout;
+		return this;
+	}
+
 	internal string? ConnectionStringValue { get; private set; }
 	internal string? ContainerNameValue { get; private set; }
 	internal bool? CreateContainerIfNotExistsValue { get; private set; }

@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Compliance</PackageId>
     <Description>Compliance implementations for the Excalibur framework. Provides AES-256-GCM encryption, key management, key rotation, and FIPS 140-2 validation for SOC2/GDPR requirements. SOC 2 reports export to JSON, CSV, XML, Excel and text; PDF export is opt-in via the separate Excalibur.Compliance.Pdf package.</Description>
@@ -58,7 +59,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" Condition="'$(UsePackageReferences)' != 'true'" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
@@ -79,5 +80,8 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Excalibur.Compliance.Tests</_Parameter1>
     </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

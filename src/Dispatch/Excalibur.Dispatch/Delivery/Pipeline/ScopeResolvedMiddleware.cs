@@ -57,6 +57,7 @@ internal sealed class ScopeResolvedMiddleware : IDispatchMiddleware, IMiddleware
 	private readonly Func<IServiceProvider, IDispatchMiddleware?> _factory;
 	private readonly HandlerScopeResolver _scopeResolver;
 	private readonly IServiceProvider _root;
+	private readonly MiddlewareCriticality _criticality;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ScopeResolvedMiddleware"/> class.
@@ -67,13 +68,17 @@ internal sealed class ScopeResolvedMiddleware : IDispatchMiddleware, IMiddleware
 	/// <param name="applicableMessageKinds"> The applicable kinds read from the build-time probe. </param>
 	/// <param name="scopeResolver"> Supplies the scope each dispatch resolves in. </param>
 	/// <param name="root"> The root provider, used only to recognise a context whose request services are the root. </param>
+	/// <param name="criticality"> Whether resolution failure must reject dispatch. </param>
+	/// <param name="hasKnownType"> Whether the registration guarantees its middleware type. </param>
 	public ScopeResolvedMiddleware(
 		Type middlewareType,
 		Func<IServiceProvider, IDispatchMiddleware?> factory,
 		DispatchMiddlewareStage? stage,
 		MessageKinds applicableMessageKinds,
 		HandlerScopeResolver scopeResolver,
-		IServiceProvider root)
+		IServiceProvider root,
+		MiddlewareCriticality criticality = MiddlewareCriticality.Required,
+		bool hasKnownType = true)
 	{
 		ArgumentNullException.ThrowIfNull(middlewareType);
 		ArgumentNullException.ThrowIfNull(factory);
@@ -86,7 +91,11 @@ internal sealed class ScopeResolvedMiddleware : IDispatchMiddleware, IMiddleware
 		ApplicableMessageKinds = applicableMessageKinds;
 		_scopeResolver = scopeResolver;
 		_root = root;
+		_criticality = criticality;
+		HasKnownType = hasKnownType;
 	}
+
+	internal bool HasKnownType { get; }
 
 	/// <inheritdoc />
 	public Type MiddlewareType { get; }
@@ -127,6 +136,11 @@ internal sealed class ScopeResolvedMiddleware : IDispatchMiddleware, IMiddleware
 					var middleware = state.Owner._factory(scopedProvider);
 					if (middleware is null)
 					{
+						if (state.Owner._criticality == MiddlewareCriticality.Required)
+						{
+							throw new InvalidOperationException(
+								$"Required middleware '{state.Owner.MiddlewareType.FullName}' could not be resolved for this dispatch.");
+						}
 						// The same fail-open the pipeline build applies to an Optional entry it cannot
 						// materialize: the stage does not run, and the dispatch continues.
 						return await state.NextDelegate(state.Message, state.Context, state.CancellationToken)

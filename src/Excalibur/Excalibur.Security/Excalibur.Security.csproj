@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Security</RootNamespace>
     <AssemblyName>Excalibur.Security</AssemblyName>
@@ -31,8 +32,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Security.Abstractions\Excalibur.Security.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" Condition="'$(UsePackageReferences)' != 'true'" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" Condition="'$(UsePackageReferences)' != 'true'" />
     <ProjectReference Include="..\Excalibur.Compliance.Abstractions\Excalibur.Compliance.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -62,5 +63,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

@@ -178,4 +178,36 @@ public sealed class CdcInvocationJoinsBothHalvesShould
 
 		faultSource.IsCancellationRequested.ShouldBeFalse();
 	}
+    [Fact]
+    public async Task JoinTheConsumerEvenWhenItsCancellationCallbackThrows()
+    {
+        using var faultSource = new CancellationTokenSource();
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = faultSource.Token.Register(() =>
+        {
+            callbackEntered.SetResult();
+            throw new InvalidOperationException("broken cancellation callback");
+        });
+        var consumer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cause = new InvalidOperationException("source history changed");
+        var join = InvokeJoinAsync(Task.FromException(cause), consumer.Task, faultSource);
+        await callbackEntered.Task.WaitAsync(JoinDeadline);
+        join.IsCompleted.ShouldBeFalse("recovery cannot start while the old handler is still active");
+        consumer.SetResult();
+        var error = await Should.ThrowAsync<InvalidOperationException>(() => join.WaitAsync(JoinDeadline));
+        error.ShouldBeSameAs(cause);
+    }
+
+    [Fact]
+    public async Task PreserveIndependentFailuresFromBothWorkers()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var producer = new InvalidOperationException("source changed");
+        var consumer = new InvalidOperationException("handler failed independently");
+        var error = await Should.ThrowAsync<AggregateException>(() =>
+            InvokeJoinAsync(Task.FromException(producer), Task.FromException(consumer), cancellation));
+        error.InnerExceptions.ShouldContain(producer);
+        error.InnerExceptions.ShouldContain(consumer);
+    }
+
 }

@@ -175,7 +175,7 @@ public sealed class TieredEventStoreDiResolutionShould : IAsyncLifetime
 
 		var coldStore = provider.GetRequiredService<IColdEventStore>();
 		var tenant = KeyedTenantPartition.FromContext(provider.GetRequiredService<ITenantContext>());
-		_ = await coldStore.WriteAsync(tenant, AggregateId, hotEvents, CancellationToken.None).ConfigureAwait(false);
+		_ = await coldStore.WriteAsync(tenant, AggregateId, AggregateType, hotEvents, CancellationToken.None).ConfigureAwait(false);
 
 		// 3. Tombstone the hot tier - mirrors what EventArchiveService does after a durable cold write.
 		// Archival moves the PAYLOAD and leaves the ROW, so the global stream keeps no holes; a DELETE

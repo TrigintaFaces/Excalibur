@@ -37,7 +37,7 @@ Apply the scripts to the target database **before starting the processor**:
 | Script | Creates | When it is required |
 |---|---|---|
 | `001_CreateCdcStateSchema.sql` | `[Cdc].[CdcProcessingState]` | Always |
-| `002_CreateCdcIdempotencySchema.sql` | `[Cdc].[CdcProcessedEvents]` | Only with [`UseSqlServerIdempotencyFilter()`](#idempotency-filtering) |
+| `002_CreateCdcIdempotencySchema.sql` | `[Cdc].[CdcProcessedEvents]` | Only with the SQL Server idempotency filter — see [Idempotency Filtering](#idempotency-filtering) |
 
 Both ship under `scripts/` in the NuGet package, so after a restore they are on disk at:
 
@@ -870,9 +870,10 @@ Use `BindConfiguration` on the provider builder to bind CDC source options from 
 ```csharp
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(sourceConnectionString, sql =>
+    cdc.UseSqlServer(sql =>
     {
-        sql.BindConfiguration("Cdc:SqlServer");
+        sql.ConnectionString(sourceConnectionString)
+           .BindConfiguration("Cdc:SqlServer");
     })
     .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
     .EnableBackgroundProcessing();
@@ -1288,12 +1289,35 @@ services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
-       .UseSqlServerIdempotencyFilter()
+       .UseSqlServerIdempotencyFilter(stateConnectionString)
        .EnableBackgroundProcessing();
 });
 ```
 
-The SQL Server filter persists processed event records in a `[Cdc].[CdcProcessedEvents]` table with a clustered composite primary key on `(TableName, Lsn, SeqVal, ConsumerId)`. Duplicate inserts are handled gracefully via primary key violation detection — concurrent instances processing the same event will not error.
+The SQL Server filter persists processed event records in a `[Cdc].[CdcProcessedEvents]` table with a clustered composite primary key on `(TableName, Lsn, SeqVal, ConsumerId, DatabaseName)`. Duplicate inserts are handled gracefully via primary key violation detection — concurrent instances processing the same event will not error.
+
+The connection is a required argument, and it names the database that holds the dedupe table — which is
+*our* bookkeeping, so it normally belongs beside the CDC state store rather than inside the database being
+captured. Pass a connection string, or a `Func<IServiceProvider, Func<IDbConnection>>` when a connection
+needs per-call construction a string cannot express, such as acquiring a managed-identity token.
+
+#### Configuring CDC through the job path
+
+If you configure CDC with `AddSqlServerCdcJob(configuration)` and a `Jobs:CdcJob:DatabaseConfigs` section
+rather than the fluent builder, register the filter directly on the service collection — there is no
+`ICdcBuilder` to hang it from:
+
+```csharp
+services.AddSqlServerCdcJob(builder.Configuration);
+services.AddSqlServerCdcIdempotencyFilter(stateConnectionString);
+```
+
+Both registrations reach the same filter; the builder extension delegates to this one. **Without either
+call, CDC runs with no deduplication and nothing reports it** — the processor resolves the filter
+optionally, so its absence is silent. Use `AddInMemoryCdcIdempotencyFilter()` for a single-instance or
+development host, which needs no table but deduplicates only within one process lifetime.
+
+The key carries **every axis the CDC checkpoint carries**, and that correspondence is the invariant. The checkpoint is matched on `(DatabaseConnectionIdentifier, DatabaseName, TableName)`, so a dedupe key missing any of those axes is *coarser* than the position it guards — and a coarser dedupe namespace **suppresses** rather than duplicates: the first consumer to reach a position marks it done for everyone sharing the coarser key. `DatabaseName` was the axis that was missing, which mattered because SQL Server log sequence numbers are per-database, so an identical position in a different database is a different change.
 
 `ConsumerId` is part of the key, not decoration. It scopes the dedupe namespace to a single consumer: without it, the first consumer to process a change would mark it done for every other consumer of that table, and the others would skip a change they never saw. A duplicate merely reprocesses, which an idempotent handler absorbs; a suppression is silent and unrecoverable. If you create this table by hand, do not omit the column or drop it from the key.
 
@@ -1304,7 +1328,7 @@ services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))
        .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
-       .UseSqlServerIdempotencyFilter(opts =>
+       .UseSqlServerIdempotencyFilter(stateConnectionString, opts =>
        {
            opts.SchemaName = "MySchema";             // Default: "Cdc"
            opts.TableName = "MyProcessedEvents";     // Default: "CdcProcessedEvents"
@@ -1377,7 +1401,7 @@ Old records are cleaned up periodically based on the configured `RetentionPeriod
 
 :::tip TryAdd Semantics
 
-`UseInMemoryIdempotencyFilter()` uses `TryAddSingleton` — if a filter is already registered, the call is a no-op. `UseSqlServerIdempotencyFilter()` uses `AddSingleton` and replaces any previously registered filter. This means you can safely call both, and the last one wins.
+`UseInMemoryIdempotencyFilter()` uses `TryAddSingleton` — if a filter is already registered, the call is a no-op. The SQL Server filter uses `AddSingleton` and replaces any previously registered filter. So the ordering is deliberately asymmetric: a durable choice wins over a process-local default however the two are sequenced, which is the behaviour you want when a shared bootstrap registers the in-memory filter and an environment-specific one adds the durable filter afterwards.
 :::
 
 ## Resilience
@@ -1452,8 +1476,8 @@ resilience policy above.
 The CDC processor is designed to handle database unavailability during restores and data replacement from backup:
 
 - **Checkpoint ordering** — Checkpoints advance only after successful event processing. If the database becomes unavailable mid-batch, the checkpoint stays at the last successfully processed position
-- **Stale position recovery** — When a restored database has different CDC LSN ranges, the configurable recovery strategy (see [Stale Position Recovery](#stale-position-recovery)) handles the mismatch automatically
-- **Guarded operations** — Checkpoint updates and state store writes are wrapped in try-catch with logging, preventing the processing loop from crashing during transient DB unavailability
+- **Stale position recovery** — When a restored database has different CDC LSN ranges, the configurable recovery strategy (see [Stale Position Recovery](#stale-position-recovery)) handles detectable out-of-range checkpoints according to the configured policy; overlapping LSN ranges still require restore-time reconciliation
+- **Failure reporting** - Retry policies can retry transient database faults. Exhausted SQL Server batch failures propagate; checkpoint failures never authorize advancing past an unprocessed event.
 
 ## Monitoring
 
@@ -1900,7 +1924,7 @@ CDC processors, outbox processors, and inbox stores are all registered as single
 | Checkpointing | Configure state store schema via `UseSqlServer(sql => sql.SchemaName(...))` |
 | Anti-corruption | Transform database columns to domain events using mapping functions |
 | Recovery | Configure `WithRecovery()` with `FallbackToEarliest` for idempotent handlers |
-| Idempotency | Use `UseInMemoryIdempotencyFilter()` for single-instance, `UseSqlServerIdempotencyFilter()` for multi-instance. **Not applicable to the PostgreSQL provider** — see [Idempotency Filtering](#idempotency-filtering) for what to do there instead |
+| Idempotency | Use `UseInMemoryIdempotencyFilter()` for single-instance, `UseSqlServerIdempotencyFilter(connectionString)` for multi-instance; on the job path call `AddSqlServerCdcIdempotencyFilter(connectionString)` on the service collection. **Not applicable to the PostgreSQL provider** — see [Idempotency Filtering](#idempotency-filtering) for what to do there instead |
 | Hosting | Use `EnableBackgroundProcessing()` for most cases, Quartz job for cron schedules |
 
 ## Providers
@@ -2100,6 +2124,17 @@ DynamoDB Streams captures item-level changes. The processor reads from the strea
 
 Uses Firestore real-time listeners for change detection.
 
+:::warning Batch polling is not a durable replay log
+The current batch implementation queries a bounded prefix ordered by document ID,
+then filters using an update-timestamp checkpoint. Changes outside that prefix can
+be missed or indefinitely delayed. Reading current documents also cannot reconstruct
+deleted documents or intermediate versions. Do not use this path when complete
+recovery of every change is required. Such a guarantee needs a durable change journal
+with deletion records, written atomically with the business changes, plus explicit
+checkpoint, retention, and replay semantics. That consumer-contract migration is
+separate from the SQL Server CDC recovery implementation.
+:::
+
 ```bash
 dotnet add package Excalibur.Cdc.Firestore
 ```
@@ -2207,3 +2242,22 @@ Cloud-native providers (MongoDB, Cosmos DB, DynamoDB, Firestore) use their own c
 - [SQL Server Data Provider](../data-providers/sqlserver.md) -- SQL Server connection and configuration for CDC state stores
 - [CDC Troubleshooting](../operations/cdc-troubleshooting.md) -- Diagnose and resolve common CDC processing issues
 
+
+## SQL Server restore recovery boundaries
+
+SQL Server checkpoints are checked against each capture instance's minimum and the database maximum.
+Recovery changes only invalid tables; valid table positions and sequence values are preserved. A reset
+notification precedes the in-memory change, and delivery establishes the durable checkpoint. Callbacks
+receive copies of position bytes; changing those arrays does not choose a different recovery position.
+
+A bounds change during fetching aborts that attempt. Both workers are joined before a bounded retry reloads
+state. An unavailable capture range never installs a zero checkpoint. Returning from a successful batch
+counts completed consumer batches across recovery attempts; replayed deliveries can be counted again.
+
+Auto-mapped changes are acknowledged only after synchronous Dispatch processing succeeds. Failed results,
+background acceptance, and mappings that do not produce an `IDispatchMessage` fail the CDC handler.
+Scoped mapper dependencies remain alive through awaited dispatch and are disposed afterward.
+
+Use the [SQL Server restore procedure](../operations/cdc-troubleshooting.md#restoring-a-sql-server-source-database)
+when loading backups. Recovery replays available changes; it cannot reconstruct missing history or reconcile
+restored projections and deduplication state automatically.

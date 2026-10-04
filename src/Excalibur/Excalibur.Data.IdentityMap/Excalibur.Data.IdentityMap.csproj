@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Data.IdentityMap</PackageId>
     <Description>Aggregate identity map abstractions for Excalibur, providing external-to-internal ID resolution for CDC ingestion and anti-corruption layers.</Description>
@@ -34,7 +35,10 @@
   <ItemGroup>
     <!-- keyed-safe ServiceDescriptorExtensions accessor lives in Dispatch.Abstractions.
          Excalibur -> Dispatch.Abstractions is the sanctioned dependency direction (dispatch-vs-excalibur). -->
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" Condition="'$(UsePackageReferences)' != 'true'" />
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

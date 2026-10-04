@@ -4,9 +4,8 @@
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery.BatchProcessing;
 
 /// <summary>
-///     Tests for event-driven wait patterns using SemaphoreSlim as used in
-///     MessageOutbox and OutboxProcessor for efficient signaling between
-///     producers and consumers without polling.
+///     Tests for event-driven wait patterns using SemaphoreSlim to signal
+///     between producers and consumers without polling.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Dispatch.Core")]
@@ -46,7 +45,7 @@ public sealed class EventDrivenWaitPatternShould
 			consumerReady.Task,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
-		// Signal (as MessageOutbox.SignalNewMessage does)
+		// Wake the waiting consumer by releasing a permit.
 		_ = semaphore.Release();
 
 		await consumerTask.ConfigureAwait(false);

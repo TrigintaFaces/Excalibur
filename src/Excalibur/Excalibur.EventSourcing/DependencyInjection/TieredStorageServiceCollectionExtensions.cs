@@ -66,10 +66,15 @@ public static class TieredStorageServiceCollectionExtensions
 	// hot tier only — they bind the RAW hot ("tiered-hot"), never the decorated "default" (which would read
 	// through cold during trim). The default IEventStoreArchive is the raw hot store itself (SQL Server /
 	// Postgres implement IEventStoreArchive); we never fabricate one — fail-fast if the hot store can't
-	// archive. A consumer may override by registering their own IEventStoreArchive before UseTieredStorage
-	// (TryAdd yields to it).
+	// archive. Existing independent registrations remain resolvable, but startup rejects a replacement
+	// that does not match the capability captured from this hot store.
 	private static void WireTieredStorageRuntime(IServiceCollection services)
 	{
+		if (services.Any(sd => sd.ServiceType == typeof(TieredStorageCompositionReceipt)))
+		{
+			throw new InvalidOperationException("UseTieredStorage can only be registered once per service collection.");
+		}
+
 		// Capture the registered keyed "default" hot store and move it to the private "tiered-hot" key so
 		// the decorator can wrap it without re-resolving "default" (which would resolve the decorator
 		// itself — infinite recursion).
@@ -82,6 +87,8 @@ public static class TieredStorageServiceCollectionExtensions
 				+ "provider (e.g. UseSqlServer(...)) before UseTieredStorage(...).");
 
 		_ = services.Remove(hotDescriptor);
+		var receipt = new TieredStorageCompositionReceipt();
+		services.AddSingleton(receipt);
 
 		// Raw hot store under the private "tiered-hot" key (captured from the original descriptor — no key
 		// re-resolution, so no self-referential recursion). Preserves the original lifetime/instance.
@@ -91,6 +98,12 @@ public static class TieredStorageServiceCollectionExtensions
 			(sp, _) => ResolveOriginalEventStore(hotDescriptor, sp),
 			hotDescriptor.Lifetime));
 
+		// Capture actual instances once so stateful factories cannot split hydration from archival.
+		services.AddSingleton(sp => new TieredStorageRuntime(
+			sp.GetRequiredKeyedService<IEventStore>(EventArchiveService.RawHotEventStoreKey),
+			sp.GetRequiredService<IColdEventStore>(),
+			provider => ValidateComposition(services, provider, receipt)));
+
 		// Re-bind keyed "default" -> the read-through decorator wrapping the raw hot. Single choke point:
 		// every reader that resolves keyed "default" (and the non-keyed delegator that forwards to it) now
 		// transparently reads through to cold storage on a hot-tier miss.
@@ -98,34 +111,99 @@ public static class TieredStorageServiceCollectionExtensions
 		_ = services.AddKeyedSingleton<IEventStore>(
 			"default",
 			(sp, _) => new TieredEventStoreDecorator(
-				sp.GetRequiredKeyedService<IEventStore>(EventArchiveService.RawHotEventStoreKey),
-				sp.GetRequiredService<IColdEventStore>(),
+				sp.GetRequiredService<TieredStorageRuntime>().HotStore,
+				sp.GetRequiredService<TieredStorageRuntime>().ColdStore,
 				sp.GetRequiredService<Logging.ILogger<TieredEventStoreDecorator>>(),
-				sp.GetRequiredService<ITenantContext>()));
+				sp.GetRequiredService<ITenantContext>(), receipt));
 
-		// Default IEventStoreArchive = the RAW hot store ("tiered-hot"), never the decorated "default".
-		// Fail-fast if the hot store can't archive — never a silent no-op archive.
+		// Resolve the archive capability through the captured hot chain, preserving mediation/denial.
+		// Never probe the tiered consumer path or unwrap telemetry/routing decorators.
 		services.TryAddSingleton<IEventStoreArchive>(sp =>
-		{
-			var rawHot = sp.GetRequiredKeyedService<IEventStore>(EventArchiveService.RawHotEventStoreKey);
-			return rawHot as IEventStoreArchive
-				?? throw new InvalidOperationException(
-					$"Tiered storage is enabled but the registered hot event store "
-					+ $"'{rawHot.GetType().Name}' does not implement IEventStoreArchive (archive-candidate "
-					+ "enumeration + delete-up-to-version). Use a hot store that supports archiving (SQL Server "
-					+ "or Postgres), or register your own IEventStoreArchive before UseTieredStorage. Tiered "
-					+ "storage never fabricates a default archive.");
-		});
+			sp.GetRequiredService<TieredStorageRuntime>().ArchiveSource);
+		services.TryAddSingleton<IEventStoreArchiveReader>(sp =>
+			sp.GetRequiredService<TieredStorageRuntime>().ArchiveReader);
+		services.TryAddSingleton<IEventStoreArchiveScanner>(sp =>
+			sp.GetRequiredService<TieredStorageRuntime>().ArchiveScanner);
 
 		// Run the archive background service (copies aged hot events to cold then trims the hot tier). Its
-		// hotStore is bound to the RAW hot via [FromKeyedServices(RawHotEventStoreKey)] so trim enumerates
-		// only the hot tier, never reads through cold.
-		services.AddHostedService<EventArchiveService>();
+		// archive reader is captured from the RAW hot so it never reads through cold.
+		services.AddHostedService(sp =>
+		{
+			var runtime = sp.GetRequiredService<TieredStorageRuntime>();
+			runtime.ValidateComposition(sp);
+			if (!ReferenceEquals(sp.GetRequiredService<IEventStoreArchive>(), runtime.ArchiveSource)
+				|| !ReferenceEquals(sp.GetRequiredService<IEventStoreArchiveReader>(), runtime.ArchiveReader)
+				|| !ReferenceEquals(sp.GetRequiredService<IEventStoreArchiveScanner>(), runtime.ArchiveScanner))
+			{
+				throw new InvalidOperationException("Archive discovery, payload reads and tombstoning must be capabilities of the same captured hot store. Separate archive registrations cannot replace that binding.");
+			}
+
+			return new EventArchiveService(
+				runtime.ArchiveSource,
+				runtime.ArchiveReader,
+				runtime.ArchiveScanner,
+				runtime.ColdStore,
+				sp.GetRequiredService<IOptionsMonitor<ArchivePolicy>>(),
+				sp.GetRequiredService<IOptionsMonitor<EventArchiveServiceOptions>>(),
+				sp.GetRequiredService<Logging.ILogger<EventArchiveService>>());
+		});
 	}
 
-	// Resolves the original hot IEventStore from its (removed) keyed descriptor without re-resolving the
-	// key — mirrors the keyed-safe capture used by DecorateEventStore. Handles instance-, factory-, and
-	// type-registered hot stores.
+	/// <summary>Obtains the configured cold tier only after verifying the global query's source alignment.</summary>
+	internal static IColdEventStore? ResolveGlobalColdStore(IServiceProvider provider, EventStoreSourceIdentity sourceIdentity)
+	{
+		var runtime = provider.GetService<TieredStorageRuntime>();
+		if (runtime is null)
+		{
+			return null;
+		}
+
+		runtime.ValidateComposition(provider);
+		if (!ReferenceEquals(runtime.HotStore.GetService(typeof(EventStoreSourceIdentity)), sourceIdentity))
+		{
+			throw new InvalidOperationException("The global query and tiered hot store must use the same provider binding. A replacement hot store cannot inherit an earlier global query registration.");
+		}
+		return runtime.ColdStore;
+	}
+
+	private static void ValidateComposition(IServiceCollection services, IServiceProvider provider,
+		TieredStorageCompositionReceipt receipt)
+	{
+		// Registrations are frozen after building the provider. Forwarding decorators are trusted
+		// to preserve reads; this receipt does not certify arbitrary overridden routing.
+		var finalDescriptor = services.Last(sd => sd.ServiceType == typeof(IEventStore)
+			&& sd.IsKeyedService && Equals(sd.ServiceKey, "default"));
+		if (finalDescriptor.Lifetime != ServiceLifetime.Singleton
+			|| !ReferenceEquals(provider.GetRequiredKeyedService<IEventStore>("default")
+				.GetService(typeof(TieredStorageCompositionReceipt)), receipt))
+		{
+			throw new InvalidOperationException("Tiered archival requires the final default event store to preserve this tiered singleton read composition.");
+		}
+	}
+
+	private sealed class TieredStorageRuntime(IEventStore hotStore, IColdEventStore coldStore,
+		Action<IServiceProvider> validateComposition)
+	{
+		private readonly Lazy<IEventStoreArchive> _archive = new(() =>
+			hotStore.GetService(typeof(IEventStoreArchive)) as IEventStoreArchive
+			?? throw new InvalidOperationException("The captured hot store does not expose IEventStoreArchive through its decorators."));
+		private readonly Lazy<IEventStoreArchiveReader> _reader = new(() =>
+			hotStore.GetService(typeof(IEventStoreArchiveReader)) as IEventStoreArchiveReader
+			?? throw new InvalidOperationException("The captured hot store must expose IEventStoreArchiveReader through its decorators. Tiered archival requires explicit tenant-qualified payload access."));
+
+		private readonly Lazy<IEventStoreArchiveScanner> _scanner = new(() =>
+			hotStore.GetService(typeof(IEventStoreArchiveScanner)) as IEventStoreArchiveScanner
+			?? throw new InvalidOperationException("The captured hot store must expose IEventStoreArchiveScanner through its decorators. Hosted archival requires bounded resumable discovery."));
+
+		internal IEventStore HotStore { get; } = hotStore;
+		internal IColdEventStore ColdStore { get; } = coldStore;
+		internal Action<IServiceProvider> ValidateComposition { get; } = validateComposition;
+		internal IEventStoreArchive ArchiveSource => _archive.Value;
+		internal IEventStoreArchiveReader ArchiveReader => _reader.Value;
+		internal IEventStoreArchiveScanner ArchiveScanner => _scanner.Value;
+	}
+
+	// Resolve the captured keyed descriptor without re-resolving its original key.
 	private static IEventStore ResolveOriginalEventStore(ServiceDescriptor descriptor, IServiceProvider sp)
 	{
 		if (descriptor.GetImplementationInstance() is IEventStore instance)

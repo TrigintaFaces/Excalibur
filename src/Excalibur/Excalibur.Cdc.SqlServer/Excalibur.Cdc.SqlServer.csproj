@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Cdc.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />

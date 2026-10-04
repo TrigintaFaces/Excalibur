@@ -107,7 +107,7 @@ jobs:
             base="${{ github.event.pull_request.base.sha }}"
             head="${{ github.event.pull_request.head.sha }}"
           else
-            base="$(git rev-parse HEAD^ 2>/dev/null || echo '')"
+            base="$(git rev-parse HEAD^1 2>/dev/null || echo '')"
             head="$(git rev-parse HEAD)"
           fi
 
@@ -115,39 +115,33 @@ jobs:
           # everything. An unknowable classification must never be the permissive one by accident.
           if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
-            echo "no usable base commit; classifying as code (full pipeline)"
             exit 0
           fi
 
-          changed="$(git diff --name-only "$base" "$head")"
-          if [ -z "$changed" ]; then
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-            echo "no changed files detected; classifying as code (full pipeline)"
-            exit 0
-          fi
+          # Share the release gate's conservative input policy. Consumer docs and
+          # package READMEs feed tests/artifacts and therefore require full CI.
+          docs_only="$(python3 eng/ci/release-test-verdict-gate.py --classify-base "$base" --sha "$head")"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
 
-          echo "changed files:"
-          echo "$changed" | sed 's/^/  /'
-
-          # Whitelist. Any path that is NOT documentation flips this to code.
-          #
-          # The issue-tracker directory is deliberately NOT listed. It is a private directory that
-          # does not exist in the repository this file is published to, so an entry for it could
-          # never match anything here -- and a workflow that ships publicly must not name a private
-          # path at all. A regression lock enforces that, and it caught this line.
-          #
-          # Omitting it is also the safe direction: an unrecognised path classifies as code and runs
-          # the full pipeline. The failure mode of this whitelist is skipping a build that was
-          # needed, so every entry has to earn its place; nothing is added for tidiness.
-          non_docs="$(echo "$changed" | grep -vE '^(docs/|docs-site/|management/)|(^|/)[^/]*\.md$' || true)"
-          if [ -z "$non_docs" ]; then
-            echo "docs_only=true" >> "$GITHUB_OUTPUT"
-            echo "classification: DOCS-ONLY -- the .NET build and test matrix will be skipped"
-          else
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-            echo "classification: code -- these paths are not documentation:"
-            echo "$non_docs" | sed 's/^/  /'
-          fi
+  preflight:
+    name: PR Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Validate preflight structure and policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 eng/ci/shard-coverage-gate.py --self-test
+          python3 eng/ci/policy-consistency-gate.py --self-test
+          python3 eng/ci/shard-coverage-gate.py
+          python3 eng/ci/policy-consistency-gate.py
 
   package:
     # Gated at the ROOT. Every .NET job descends from this one or from the other root, so
@@ -157,14 +151,23 @@ jobs:
     if: needs.changes.outputs.docs_only != 'true'
     name: Package (Ubuntu)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
-      - name: Checkout code
+      - name: Checkout first build root
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 1
+          path: repro-a
+
+      - name: Checkout second build root
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+          fetch-depth: 1
+          path: repro-b
 
       - name: Free disk space
         shell: bash
@@ -179,7 +182,6 @@ jobs:
           sudo rm -rf /home/linuxbrew &
           sudo rm -rf /usr/local/.ghcup &
           sudo rm -rf /usr/local/share/boost &
-          sudo rm -rf /usr/local/share/powershell &
           wait
           sudo apt-get clean || true
           docker system prune -af 2>/dev/null || true
@@ -189,61 +191,31 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          global-json-file: global.json
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+          global-json-file: repro-a/global.json
+      # Each checkout starts without outputs and uses its own NuGet/HTTP/scratch caches.
+      # This includes locked restore, core-first compilation, shipping builds, and template packing.
+      - name: Verify independent build outputs
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 repro-a/eng/ci/verify-reproducible-build.py \
+            --first "$GITHUB_WORKSPACE/repro-a" \
+            --second "$GITHUB_WORKSPACE/repro-b" \
+            --evidence "$RUNNER_TEMP/reproducibility-evidence" \
+            --version 0.0.0-ci.reproducibility \
+            --sha "$CANDIDATE_SHA"
+
+      # Upload diagnostics and hashes only. These PR packages are never promotion artifacts.
+      - name: Retain reproducibility evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          path: .nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore shipping projects
-        # --locked-mode: fail the build if any packages.lock.json disagrees with the project's
-        # package references, instead of silently rewriting the lock file. Without it the 251
-        # committed lock files are documentation: a drifted (or downgraded) dependency restores
-        # green and the pinned version is overwritten in place. NU1004 names the package and both
-        # versions. Samples carry no lock files, so this flag is deliberately NOT applied there.
-        run: bash ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
-
-      # Build the Dispatch core FIRST (clean, --no-incremental) before the transitive store
-      # projects. A core public-API lag (RS0016/RS0017 -- a public symbol missing its PublicAPI.*.txt
-      # entry) then fails fast HERE with a clear "core public API" error, instead of surfacing late and
-      # confusingly as a downstream store-project build failure (a recurring core-public-API-lag pattern).
-      - name: Build core first (fail fast on core public-API lag)
-        run: bash ./build.sh --build --no-restore --no-incremental --project src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj --verbosity quiet
-
-      - name: Build shipping projects
-        run: bash ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --verbosity quiet
-
-      - name: Deterministic build validation
-        run: |
-          echo "Validating deterministic builds with CI flag..."
-          bash ./build.sh --build --no-restore --project eng/ci/shards/ShippingOnly.slnf --properties CI=true --verbosity quiet
-          echo "Deterministic build validation successful"
-
-      - name: Package validation
-        run: |
-          echo "Validating packageable projects..."
-          dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./packages
-          # Packed separately because templates/ is isolated from the root build policy and is not a
-          # solution member, so no solution filter can reach it. Validated here so a template package
-          # that cannot pack fails on the pull request rather than at the release boundary.
-          dotnet pack templates/Excalibur.Dispatch.Templates.csproj --configuration Release --verbosity minimal --output ./packages
-          echo "Package creation successful"
-
-      # No artifact upload here, deliberately.
-      #
-      # The pack step above is VALIDATION -- it proves the shipping projects can be packed, and its
-      # value is entirely in whether it exits 0. The packages it produces are not shippable: this
-      # workflow runs on pull requests, so its output is built from untrusted code, carries no
-      # provenance attestation, and has no version anyone asked for.
-      #
-      # They were uploaded anyway, under a name nothing downloaded, for a day. That is a second
-      # nameable package set in the repository whose only distinguishing property is that no
-      # convention says not to use it -- exactly the ambiguity the single canonical `packages`
-      # artifact exists to remove. The canonical set comes from the official build and only from
-      # there.
+          name: reproducibility-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reproducibility-evidence
+          if-no-files-found: error
+          retention-days: 14
 
   # Security scanning (reusable workflow)
   call-security:
@@ -333,9 +305,17 @@ jobs:
       # Pre-existing phantoms in untouched docs are tolerated (cleaned up separately);
       # intentional placeholders opt out with a ```csharp ignore fence. CI, not pre-commit.
       - name: Docs C# snippet phantom gate (diff-scoped)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          git fetch --no-tags origin "${{ github.base_ref || 'main' }}" || true
-          export DOCS_GATE_BASE_REF="origin/${{ github.base_ref || 'main' }}"
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            export DOCS_GATE_BASE_REF="$PR_BASE_SHA"
+          else
+            export DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
+          fi
+          git cat-file -e "${DOCS_GATE_BASE_REF}^{commit}"
           bash eng/ci/docs-csharp-phantom-gate.sh
 
       # The gate is only evidence if it can fail: safety (a new phantom -> RED), liveness
@@ -431,6 +411,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
           test-filter: "Priority=0"
           results-prefix: smoke-tests
@@ -443,7 +424,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-smoke
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 14
 
   # ── Unit shard coverage audit ──
@@ -522,6 +505,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: ${{ toJSON(matrix) }}
           solution-filter: ${{ matrix.shard.filter }}
           collect-coverage: 'true'
           results-prefix: unit-tests-${{ matrix.shard.name }}
@@ -533,7 +517,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-${{ matrix.shard.name }}
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
       - name: Upload code coverage
@@ -580,6 +566,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: ${{ toJSON(matrix) }}
           solution-filter: ${{ matrix.shard.filter }}
           collect-coverage: 'true'
           results-prefix: unit-tests-async-risk-${{ matrix.shard.name }}
@@ -589,7 +576,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-async-risk-${{ matrix.shard.name }}
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
       - name: Upload code coverage
@@ -615,7 +604,7 @@ jobs:
   unit-shard-aggregation:
     name: Unit Shard Aggregation (honest set + compile + de-dup)
     runs-on: ubuntu-latest
-    needs: [unit-tests, unit-tests-async-risk, changes]
+    needs: [unit-tests, unit-tests-async-risk, unit-tests-windows, unit-tests-windows-async-risk, unit-tests-macos, unit-tests-macos-async-risk, changes]
     # always() alone would run this with skipped dependencies and no results to aggregate.
     if: always() && needs.changes.outputs.docs_only != 'true'
     timeout-minutes: 10
@@ -630,10 +619,16 @@ jobs:
         with:
           pattern: test-results-unit-*
           path: AggregatedTrx
-          merge-multiple: true
+          merge-multiple: false
       - name: Verify honest aggregation (expected set compiled + ran, de-duped)
         shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
+          $filter = ./eng/ci/get-test-filter.ps1 -Mode Exclude -BaseFilter '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          python eng/ci/required-test-evidence.py --unit-artifacts AggregatedTrx `
+            --candidate $env:EXPECTED_SHA --run-id $env:GITHUB_RUN_ID --attempt $env:GITHUB_RUN_ATTEMPT --filter $filter
+          if ($LASTEXITCODE -ne 0) { throw 'Independent per-context test evidence failed.' }
           # Expected assemblies = the BLOCKING (deterministic) tier projects. Every one MUST have produced
           # results; the advisory async-risk tier is reported but not enforced here (it stays advisory on
           # PRs per the shard policy). Assembly name = <ProjectFileBaseName>.dll.
@@ -680,6 +675,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-Deterministic.slnf
           collect-coverage: 'false'
           results-prefix: unit-tests-windows-deterministic
@@ -727,7 +723,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-windows-deterministic
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
   # ── Cross-platform: Windows async-risk ──
@@ -748,6 +746,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-AsyncRisk.slnf
           collect-coverage: 'false'
           results-prefix: unit-tests-windows-async-risk
@@ -759,7 +758,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-windows-async-risk
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
   # ── Cross-platform: macOS deterministic ──
@@ -782,6 +783,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-Deterministic.slnf
           collect-coverage: 'false'
           results-prefix: unit-tests-macos-deterministic
@@ -792,7 +794,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-macos-deterministic
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
   # ── Cross-platform: macOS async-risk (sequenced after deterministic to limit 10x billing) ──
@@ -811,6 +815,7 @@ jobs:
       - name: Build and test
         uses: ./.github/actions/build-and-test
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/UnitTests-AsyncRisk.slnf
           collect-coverage: 'false'
           results-prefix: unit-tests-macos-async-risk
@@ -822,7 +827,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-unit-macos-async-risk
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
   # ── Integration tests -- self-contained build, Docker pre-flight, -m:1 ──
@@ -908,6 +915,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
+          telemetry-matrix: ${{ toJSON(matrix) }}
           solution-filter: ${{ matrix.shard.filter }}
 
       - name: Integration preflight diagnostics
@@ -1347,7 +1355,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-integration-${{ matrix.shard.name }}
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
       - name: Upload code coverage
@@ -1379,6 +1389,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
 
       - name: Compose functional test filter
@@ -1407,7 +1418,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-functional
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
       - name: Upload code coverage
@@ -1436,6 +1449,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
 
       - name: Run contract tests
@@ -1455,7 +1469,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-contract
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
       - name: Upload code coverage
@@ -1484,6 +1500,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
 
       - name: Run architecture test projects
@@ -1503,7 +1520,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-architecture
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           retention-days: 30
 
       - name: Upload code coverage
@@ -1612,7 +1631,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-flaky-quarantine
-          path: TestResults/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/*.required/**
           if-no-files-found: warn
           retention-days: 30
 
@@ -1746,6 +1767,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/ShippingOnly.slnf
 
       # NuGetAudit runs inside restore and checks direct + transitive packages against the GitHub
@@ -1797,6 +1819,7 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-dotnet-build
         with:
+          telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
 
       # IBM MQ is the only image this suite pulls from a registry other than Docker Hub, and its
@@ -2390,7 +2413,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [changes, package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
+    needs: [changes, preflight, package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
     if: always()
     steps:
       - name: Generate CI summary
@@ -2398,7 +2421,7 @@ jobs:
           echo "# Continuous Integration Summary" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
           echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${GITHUB_REF_NAME}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -2456,7 +2479,7 @@ jobs:
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           # These run regardless of classification. On a docs-only change they are the entire gate,
           # so if they are missing or skipped the run proved nothing and must not pass.
-          ALWAYS_REQUIRED: "changes documentation-validation"
+          ALWAYS_REQUIRED: "changes preflight documentation-validation"
           # Jobs that are allowed to SKIP on a pull request, and only there.
           #
           # The performance gates are wired to run on push and not on pull requests

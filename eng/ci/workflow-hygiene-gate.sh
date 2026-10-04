@@ -75,6 +75,10 @@ def scan(files):
             r = str(s.get("run") or "")
             if not r:
                 continue
+            # Event/ref/dispatch values are data. Quoting an expression in the generated script
+            # does not prevent quote breakout or command substitution before validation runs.
+            if re.search(r"\$\{\{[^}]*\b(?:github\.event\.inputs\b|inputs\b|github\.(?:ref|ref_name|head_ref)\b)[^}]*\}\}", r):
+                out.append((f, "input-in-script", f"{jn}: pass dispatch/ref input through env or structured arguments"))
             m = re.search(r"TestSessionTimeout=(\d+)", r)
             if m and wall:
                 if int(m.group(1)) / 60000.0 >= wall:
@@ -100,13 +104,14 @@ if self_test:
         "    steps:\n      - uses: actions/checkout@v7\n      - run: |\n"
         "          cmd " + BS + "\n          # swallowed\n          --flag\n"
         "      - run: dotnet test -- RunConfiguration.TestSessionTimeout=600000\n"
+        "      - run: echo '${{ inputs.version }}'\n"
         "      - uses: actions/upload-artifact@" + "0"*40 + "\n        with:\n"
         "          name: packages-ubuntu-latest\n")
     found = {k for _, k, _ in scan([bad])}
     need = {"no-permissions", "unpinned-action", "comment-in-continuation", "session-ge-wall",
-            "split-shipping-artifact"}
+            "split-shipping-artifact", "input-in-script"}
     missing = need - found
-    print("SELF-TEST: planted 5 defect classes, detected", sorted(found))
+    print("SELF-TEST: planted 6 defect classes, detected", sorted(found))
     if missing:
         print("SELF-TEST FAIL -- undetected:", sorted(missing), file=sys.stderr); sys.exit(1)
     clean = os.path.join(d, "workflows", "ok.yml")

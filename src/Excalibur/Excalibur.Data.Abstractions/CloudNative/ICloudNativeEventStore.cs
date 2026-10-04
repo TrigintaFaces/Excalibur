@@ -325,8 +325,9 @@ public sealed class CloudAppendResult
 	/// Gets what the append actually did.
 	/// </summary>
 	/// <remarks>
-	/// <see cref="Success"/> and <see cref="IsConcurrencyConflict"/> are derived from this, so a caller
-	/// that only asks "did it work" needs no change. Read this when the difference between an append
+	/// <see cref="Success"/> and <see cref="IsConcurrencyConflict"/> are derived from this. Existing
+	/// success handling remains compatible, but false does not prove rejection: callers must handle
+	/// <see cref="CloudAppendOutcome.Unknown"/> before retrying. Read this when the difference between an append
 	/// written by <em>this</em> call and one recognised as already durable matters — see
 	/// <see cref="CloudAppendOutcome.AlreadyCommitted"/>.
 	/// </remarks>
@@ -339,7 +340,7 @@ public sealed class CloudAppendResult
 	/// <remarks>
 	/// True for <see cref="CloudAppendOutcome.Committed"/> and for
 	/// <see cref="CloudAppendOutcome.AlreadyCommitted"/> alike: in both the events the caller asked to
-	/// append are durable, which is what this property has always meant.
+	/// append are durable. False does not prove rollback: Unknown may represent a committed append.
 	/// </remarks>
 	public bool Success => Outcome is CloudAppendOutcome.Committed or CloudAppendOutcome.AlreadyCommitted;
 
@@ -367,8 +368,9 @@ public sealed class CloudAppendResult
 	/// expected version echoed back, never a bound, and never derived from anything but a read. That is
 	/// what makes the two meanings of <c>-1</c> separable: a <c>-1</c> here is always "the stream
 	/// measurably does not exist", and "not measured" is <see langword="null"/> instead. A caller may pass
-	/// any non-null value straight back as the next expected version; on <see langword="null"/> it must
-	/// reload.
+	/// a measured version into a subsequent operation after applying its concurrency policy. For
+	/// <see cref="CloudAppendOutcome.Unknown"/>, reconcile the original operation before rebasing or
+	/// regenerating events; a null version is not permission to retry as a new operation.
 	/// </para>
 	/// </remarks>
 	/// <value>The stream's current version after the append, or <see langword="null"/> when unavailable.</value>
@@ -396,13 +398,14 @@ public sealed class CloudAppendResult
 
 	/// <summary>
 	/// Gets the failure's classification (transient vs. permanent vs. poison), or <see langword="null"/>
-	/// when this result is not a <see cref="CreateFailure"/> outcome (success, or a concurrency conflict,
-	/// which is classified by <see cref="IsConcurrencyConflict"/> instead).
+	/// for success or concurrency conflict. Both <see cref="CreateFailure"/> and
+	/// <see cref="CreateUnknown"/> supply this operational classification.
 	/// </summary>
 	/// <remarks>
-	/// Required on every <see cref="CreateFailure"/> call so an unclassified failure is a compile error,
+	/// Required on every failed or unknown result so an unclassified failure is a compile error,
 	/// not a silently-defaulted retry-forever or a silently-discarded piece of recoverable work — the
-	/// resilience pipeline consuming this result needs to know which one it is looking at.
+	/// resilience pipeline consuming this result needs to know which one it is looking at. This does
+	/// not establish commit certainty: an Unknown result requires reconciliation even when transient.
 	/// </remarks>
 	public MessageFailureKind? FailureKind { get; }
 
@@ -482,6 +485,15 @@ public sealed class CloudAppendResult
 				: $"Concurrency conflict: expected version {expectedVersion}; the store could not determine "
 					+ "the stream's current version");
 
+	/// <summary>Reports an atomic append whose commit outcome could not be established.</summary>
+	/// <param name="errorMessage">The diagnostic reason.</param>
+	/// <param name="requestCharge">The observed request charge.</param>
+	/// <param name="failureKind">Operational classification; it does not establish commit certainty.</param>
+	/// <returns>An unknown outcome without an asserted stream version.</returns>
+	/// <remarks>Preserve original identities and payloads for reconciliation; absence alone does not prove rollback.</remarks>
+	public static CloudAppendResult CreateUnknown(string errorMessage, double requestCharge, MessageFailureKind failureKind) =>
+		new(CloudAppendOutcome.Unknown, nextExpectedVersion: null, requestCharge, errorMessage: errorMessage, failureKind: failureKind);
+
 	/// <summary>
 	/// Creates a failed append result with custom error.
 	/// </summary>
@@ -512,7 +524,7 @@ public sealed class CloudAppendResult
 /// <remarks>
 /// The provider-neutral twin of this enumeration lives beside the event-sourcing append result. It is
 /// restated here rather than shared because the dependency runs the other way — the event-sourcing
-/// abstractions reference this assembly, not the reverse — and a four-member value type is cheaper to
+/// abstractions reference this assembly, not the reverse — and this small value type is cheaper to
 /// restate than a namespace every consumer of the core append result would have to import.
 /// </remarks>
 public enum CloudAppendOutcome
@@ -542,5 +554,9 @@ public enum CloudAppendOutcome
 	/// <summary>
 	/// The append failed for its own reasons. Nothing was written.
 	/// </summary>
-	Failed = 3
+	Failed = 3,
+
+	/// <summary>The provider cannot determine whether the complete atomic append committed.</summary>
+	/// <remarks>This is neither success nor proof of rollback. Reconcile using the original operation identity.</remarks>
+	Unknown = 4
 }

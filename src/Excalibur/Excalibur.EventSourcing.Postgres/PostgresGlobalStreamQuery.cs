@@ -47,7 +47,7 @@ internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
 		"position AS Position, event_id AS EventId, aggregate_id AS AggregateId, " +
 		"aggregate_type AS AggregateType, event_type AS EventType, event_data AS EventData, " +
 		"metadata AS Metadata, version AS Version, timestamp AS \"Timestamp\", " +
-		"archived_at AS ArchivedAt";
+		"archived_at AS ArchivedAt, COALESCE(tenant_id, '__untenanted__') AS TenantId";
 
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly string _qualifiedTable;
@@ -161,6 +161,7 @@ internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
 			{
 				GlobalPosition = row.Position,
 				ArchivedAt = row.ArchivedAt,
+				TenantId = row.TenantId,
 			});
 		}
 
@@ -180,5 +181,6 @@ internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
 		byte[]? Metadata,
 		long Version,
 		DateTimeOffset Timestamp,
-		DateTimeOffset? ArchivedAt);
+		DateTimeOffset? ArchivedAt,
+		string TenantId);
 }

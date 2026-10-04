@@ -52,7 +52,7 @@ public sealed class OpenSearchContainerFixture : IAsyncLifetime
 	/// Gets the base address of the running container.
 	/// </summary>
 	public Uri Endpoint => _container is not null
-		? new Uri($"http://localhost:{_container.GetMappedPublicPort(9200)}")
+		? new Uri($"http://{_container.Hostname}:{_container.GetMappedPublicPort(9200)}")
 		: throw new InvalidOperationException("OpenSearch container is not available.");
 
 	/// <summary>

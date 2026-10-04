@@ -17,17 +17,8 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	private volatile string? _defaultProfileName;
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
 
-	/// <summary>
-	/// Per-message-type profile selection cache. Avoids re-iterating all profiles on every dispatch.
-	/// </summary>
-	/// <remarks>
-	/// Deliberately never frozen. A prior freeze-to-<see cref="System.Collections.Frozen.FrozenDictionary{TKey,TValue}"/>
-	/// design measured slower than this plain dictionary at every message-type count tested,
-	/// and it disabled the fall-through for a message type first seen after the freeze, forcing that type to
-	/// re-run the full profile scan on every subsequent dispatch forever. <see cref="ConcurrentDictionary{TKey,TValue}"/>
-	/// gives O(1) lookups on the fast path with no such cliff.
-	/// </remarks>
-	private readonly ConcurrentDictionary<Type, IPipelineProfile?> _profileSelectionCache = new();
+	private readonly Lock _mutationLock = new();
+	private IPipelineProfile[] _profileSnapshot = [];
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineProfileRegistry"/> class.
@@ -46,10 +37,13 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	{
 		ArgumentNullException.ThrowIfNull(profile);
 
-		if (!_profiles.TryAdd(profile.Name, profile))
+		lock (_mutationLock)
 		{
-			throw new InvalidOperationException(
-				$"A profile with name '{profile.Name}' is already registered");
+			if (!_profiles.TryAdd(profile.Name, profile))
+			{
+				throw new InvalidOperationException($"A profile with name '{profile.Name}' is already registered");
+			}
+			Volatile.Write(ref _profileSnapshot, [.. _profileSnapshot, profile]);
 		}
 	}
 
@@ -71,7 +65,20 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	public bool RemoveProfile(string profileName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
-		return _profiles.TryRemove(profileName, out _);
+		lock (_mutationLock)
+		{
+			if (!_profiles.TryRemove(profileName, out _))
+			{
+				return false;
+			}
+			Volatile.Write(ref _profileSnapshot, _profileSnapshot.Where(profile =>
+				!StringComparer.Ordinal.Equals(profile.Name, profileName)).ToArray());
+			if (StringComparer.Ordinal.Equals(_defaultProfileName, profileName))
+			{
+				_defaultProfileName = null;
+			}
+			return true;
+		}
 	}
 
 	/// <inheritdoc />
@@ -79,27 +86,9 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var messageType = message.GetType();
+		// Matchers may depend on message instance values. Only membership is snapshotted.
+		var profileValues = Volatile.Read(ref _profileSnapshot);
 
-		if (_profileSelectionCache.TryGetValue(messageType, out var cachedProfile))
-		{
-			return cachedProfile;
-		}
-
-		// Cold path: compute profile selection and cache result
-		var selected = SelectProfileCore(message);
-
-		// Cache the result (including null for message types with no matching profile)
-		_ = _profileSelectionCache.TryAdd(messageType, selected);
-
-		return selected;
-	}
-
-	/// <summary>
-	/// Core profile selection logic. Called once per message type, then cached.
-	/// </summary>
-	private IPipelineProfile? SelectProfileCore(IDispatchMessage message)
-	{
 		// Determine message kinds
 		// One classifier answers this question. Without a configured strategy the default one is used
 		// directly rather than assuming a kind, so profile selection cannot disagree with middleware
@@ -107,8 +96,6 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		var messageKinds = _applicabilityStrategy?.DetermineMessageKinds(message)
 			?? Delivery.DefaultMiddlewareApplicabilityStrategy.DetermineMessageKinds(message.GetType());
 
-		// Snapshot values to avoid repeated dictionary enumeration
-		var profileValues = _profiles.Values;
 
 		// Find the most specific compatible profile. Prioritize strict profiles for Actions, lightweight for Events.
 		if ((messageKinds & MessageKinds.Action) != MessageKinds.None)
@@ -162,12 +149,14 @@ internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
 
-		if (!_profiles.ContainsKey(profileName))
+		lock (_mutationLock)
 		{
-			throw new InvalidOperationException($"Profile '{profileName}' is not registered");
+			if (!_profiles.ContainsKey(profileName))
+			{
+				throw new InvalidOperationException($"Profile '{profileName}' is not registered");
+			}
+			_defaultProfileName = profileName;
 		}
-
-		_defaultProfileName = profileName;
 	}
 
 	/// <inheritdoc />

@@ -10,6 +10,9 @@ using Google;
 using Google.Cloud.Storage.V1;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Excalibur.EventSourcing.Gcs.DependencyInjection;
 
 using Shouldly;
 
@@ -47,10 +50,160 @@ namespace Excalibur.EventSourcing.Tests.TieredStorage;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
+[Trait("Pattern", "EventSourcing")]
 public sealed class GcsColdEventStoreShould
 {
 	private static readonly KeyedTenantPartition Tenant = KeyedTenantPartition.FromStoredValue("tenant-a");
 	private const string AggregateId = "aggregate-1";
+
+	[Fact]
+	public async Task MigrateTypedHistoryAndRefuseMissingBaselineOnEveryReadPath()
+	{
+		var legacy = NewStore(out var client);
+		using (client)
+		{
+			await legacy.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0), Event(2)], CancellationToken.None);
+			var services = new ServiceCollection();
+			services.AddLogging();
+			services.AddExcaliburEventSourcing(es => es.UseGcsColdEventStore(gcs =>
+				gcs.Client(client).BucketName("bucket").ObjectPrefix("prefix").Layout(ColdArchiveLayout.TypedV2)));
+			await using var provider = services.BuildServiceProvider();
+			var typed = provider.GetRequiredService<IColdEventStore>();
+			provider.GetRequiredService<IOptions<GcsColdEventStoreOptions>>().Value.Layout = ColdArchiveLayout.Legacy;
+			var migration = (IColdEventStoreMigration)typed;
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None));
+			await migration.ActivateTypedLayoutAsync(CancellationToken.None);
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.HasArchivedEventsAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None));
+			await migration.MigrateAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None);
+			(await typed.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(1)], CancellationToken.None)).ShouldBe(2);
+			(await typed.WriteAsync(Tenant, AggregateId, "Aggregate", [], CancellationToken.None)).ShouldBe(-1);
+			(await typed.ReadAsync(Tenant, AggregateId, "Aggregate", 0, CancellationToken.None)).Select(e => e.Version).ShouldBe([1L, 2L]);
+			var adapter = new GcsColdArchiveMigrationStorage(client, "bucket", "prefix");
+			var fresh = Event(0) with { AggregateId = "fresh", EventId = "fresh-event" };
+			(await typed.WriteAsync(Tenant, "fresh", "Aggregate", [fresh], CancellationToken.None)).ShouldBe(0);
+			(await adapter.ReadAsync(adapter.GetLegacyKey(Tenant, "fresh"), CancellationToken.None)).ShouldBeNull();
+			(await adapter.ReadAsync(adapter.GetReceiptKey(Tenant, "fresh"), CancellationToken.None)).ShouldBeNull();
+			using var restarted = new GcsColdEventStore(client, "bucket", "prefix", NullLogger<GcsColdEventStore>.Instance);
+			await Should.ThrowAsync<InvalidOperationException>(() => restarted.ReadAsync(Tenant, "fresh", "Aggregate", CancellationToken.None));
+			var other = Event(0) with { AggregateType = "Other", EventId = "other-event" };
+			(await typed.WriteAsync(Tenant, AggregateId, "Other", [other], CancellationToken.None)).ShouldBe(0);
+			(await typed.ReadAsync(Tenant, AggregateId, "Other", CancellationToken.None)).Single().EventId.ShouldBe("other-event");
+			client.Remove(adapter.GetLegacyKey(Tenant, AggregateId));
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(1)], CancellationToken.None));
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.WriteAsync(Tenant, AggregateId, "Aggregate", [], CancellationToken.None));
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.ReadAsync(Tenant, AggregateId, "Aggregate", 100, CancellationToken.None));
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.HasArchivedEventsAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None));
+			await Should.ThrowAsync<InvalidOperationException>(() => legacy.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None));
+		}
+	}
+
+	[Fact]
+	public async Task RevalidateTypedHistoryAfterLosingAGenerationRace()
+	{
+		var legacy = NewStore(out var client);
+		using (client)
+		{
+			await legacy.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0)], CancellationToken.None);
+			var typed = new GcsColdEventStore(client, "bucket", "prefix", NullLogger<GcsColdEventStore>.Instance, ColdArchiveLayout.TypedV2);
+			await typed.ActivateTypedLayoutAsync(CancellationToken.None);
+			await typed.MigrateAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None);
+			var adapter = new GcsColdArchiveMigrationStorage(client, "bucket", "prefix");
+			var beforeUploads = client.UploadCount;
+			client.CommitConcurrentlyBeforeNextUpload(async () =>
+			{
+				var result = await typed.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(2)], CancellationToken.None);
+				client.Remove(adapter.GetLegacyKey(Tenant, AggregateId));
+				return result;
+			});
+			await Should.ThrowAsync<InvalidOperationException>(() => typed.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(1)], CancellationToken.None));
+			client.ConditionalConflicts.ShouldBe(1);
+			client.UploadCount.ShouldBe(beforeUploads + 1);
+			var raw = (await adapter.ReadAsync(adapter.GetTypedKey(Tenant, AggregateId, "Aggregate"), CancellationToken.None)).ShouldNotBeNull();
+			(await adapter.DecodeAsync(raw, CancellationToken.None)).Select(e => e.Version).ShouldBe([0L, 2L]);
+		}
+	}
+
+	[Fact]
+	public async Task ReturnUnsortedLegacyEventsInVersionOrder()
+	{
+		var store = NewStore(out var client);
+		await SeedArchiveAsync(client, System.Text.Json.JsonSerializer.Serialize(
+			new List<StoredEvent> { Event(2), Event(0), Event(1) }, GcsColdEventStore.ArchiveTypeInfo));
+		(await store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None))
+			.Select(e => e.Version).ShouldBe([0L, 1L, 2L]);
+		(await store.ReadAsync(Tenant, AggregateId, "Aggregate", 0, CancellationToken.None))
+			.Select(e => e.Version).ShouldBe([1L, 2L]);
+	}
+
+	[Fact]
+	public async Task RejectPresentNullArchiveWithoutOverwritingIt()
+	{
+		var store = NewStore(out var client);
+		await SeedArchiveAsync(client, "null");
+		var uploads = client.UploadCount;
+		await Should.ThrowAsync<System.Text.Json.JsonException>(() =>
+			store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None));
+		await Should.ThrowAsync<System.Text.Json.JsonException>(() =>
+			store.HasArchivedEventsAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None));
+		await Should.ThrowAsync<System.Text.Json.JsonException>(() =>
+			store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0)], CancellationToken.None));
+		client.UploadCount.ShouldBe(uploads);
+	}
+
+	private static async Task SeedArchiveAsync(FakeStorageClient client, string json)
+	{
+		using var buffer = new MemoryStream();
+		await using (var gzip = new System.IO.Compression.GZipStream(buffer,
+			System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+		{
+			await gzip.WriteAsync(System.Text.Encoding.UTF8.GetBytes(json));
+		}
+		buffer.Position = 0;
+		_ = await client.UploadObjectAsync("bucket",
+			$"prefix/{ColdStorageKey.TenantSegment(Tenant)}/{ColdStorageKey.AggregateSegment(AggregateId)}/events.json.gz",
+			"application/gzip", buffer);
+	}
+
+	[Fact]
+	public async Task RejectWrongAggregateTypeAcrossEveryArchiveOperation()
+	{
+		var store = NewStore(out var client);
+		_ = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0)], CancellationToken.None);
+		var uploads = client.UploadCount;
+
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			store.ReadAsync(Tenant, AggregateId, "DifferentType", CancellationToken.None));
+		// Filtering must not hide an identity mismatch in the stored prefix.
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			store.ReadAsync(Tenant, AggregateId, "DifferentType", 100, CancellationToken.None));
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			store.HasArchivedEventsAsync(Tenant, AggregateId, "DifferentType", CancellationToken.None));
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			store.WriteAsync(Tenant, AggregateId, "DifferentType", [Event(0)], CancellationToken.None));
+
+		client.UploadCount.ShouldBe(uploads);
+		(await store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None)).Count.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task RefuseToAcknowledgeASuffixAsACompletePrefix()
+	{
+		var store = NewStore(out _);
+		(await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(5), Event(6)], CancellationToken.None)).ShouldBe(-1);
+		(await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0), Event(1), Event(2), Event(3), Event(4)], CancellationToken.None)).ShouldBe(6);
+	}
+
+	[Fact]
+	public async Task RejectAConflictingRetryWithoutOverwritingColdData()
+	{
+		var store = NewStore(out var client);
+		_ = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0)], CancellationToken.None);
+		var uploads = client.UploadCount;
+		await Should.ThrowAsync<InvalidOperationException>(() => store.WriteAsync(
+			Tenant, AggregateId, "Aggregate", [Event(0) with { EventData = [99] }], CancellationToken.None));
+		client.UploadCount.ShouldBe(uploads);
+		(await store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None))[0].EventData.ShouldBe(Event(0).EventData);
+	}
 
 	[Fact]
 	public async Task ReturnMinusOneForAnEmptyBatch()
@@ -59,16 +212,11 @@ public sealed class GcsColdEventStoreShould
 		// anything else here would authorize a deletion this call did not earn.
 		var store = NewStore(out var client);
 
-		var watermark = await store.WriteAsync(Tenant, AggregateId, [], CancellationToken.None);
+		var watermark = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [], CancellationToken.None);
 
 		watermark.ShouldBe(-1);
 		client.UploadCount.ShouldBe(0, "an empty batch must not write");
-		client.ReadCount.ShouldBe(
-			0,
-			"an empty batch must not touch storage AT ALL. Asserting only that nothing was WRITTEN is "
-			+ "vacuous: with no events the merge produces nothing and the method returns before the "
-			+ "upload regardless, so that assertion holds with the early return deleted. The "
-			+ "round-trip this guard exists to skip is the READ.");
+		client.ReadCount.ShouldBe(1, "an empty write must validate current archive state before acknowledging it");
 	}
 
 	[Fact]
@@ -79,15 +227,15 @@ public sealed class GcsColdEventStoreShould
 		// the only other copy of 2, 3 and 4, would delete across the gap. The contract says contiguous
 		// prefix, so the honest answer is 1.
 		var store = NewStore(out _);
-		_ = await store.WriteAsync(Tenant, AggregateId, [Event(0), Event(1)], CancellationToken.None);
+		_ = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0), Event(1)], CancellationToken.None);
 
-		var watermark = await store.WriteAsync(Tenant, AggregateId, [Event(5), Event(6)], CancellationToken.None);
+		var watermark = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(5), Event(6)], CancellationToken.None);
 
 		watermark.ShouldBe(1);
 
 		// ...and the gap events really are stored; the low watermark is a statement about contiguity,
 		// not a claim that the write was dropped.
-		var stored = await store.ReadAsync(Tenant, AggregateId, CancellationToken.None);
+		var stored = await store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None);
 		stored.Select(e => e.Version).ShouldBe([0L, 1L, 5L, 6L]);
 	}
 
@@ -98,12 +246,12 @@ public sealed class GcsColdEventStoreShould
 		// {2,3,4} as already-present against a cold set of {0,1,5} whose max is 5, silently dropping
 		// three events the caller was told were archived. Filling the gap must also heal the watermark.
 		var store = NewStore(out _);
-		_ = await store.WriteAsync(Tenant, AggregateId, [Event(0), Event(1), Event(5)], CancellationToken.None);
+		_ = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0), Event(1), Event(5)], CancellationToken.None);
 
-		var watermark = await store.WriteAsync(Tenant, AggregateId, [Event(2), Event(3), Event(4)], CancellationToken.None);
+		var watermark = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(2), Event(3), Event(4)], CancellationToken.None);
 
 		watermark.ShouldBe(5);
-		var stored = await store.ReadAsync(Tenant, AggregateId, CancellationToken.None);
+		var stored = await store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None);
 		stored.Select(e => e.Version).ShouldBe([0L, 1L, 2L, 3L, 4L, 5L], "a gap-filling batch must be sorted into place");
 	}
 
@@ -122,7 +270,7 @@ public sealed class GcsColdEventStoreShould
 		var releaseUpload = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		client.GateUpload(uploadReached, releaseUpload.Task);
 
-		var write = store.WriteAsync(Tenant, AggregateId, [Event(0)], CancellationToken.None);
+		var write = store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(0)], CancellationToken.None);
 
 		// Wait for the store to actually reach the upload, so the assertion below cannot pass merely
 		// because the write had not started yet -- that would be a green over an experiment never run.
@@ -150,15 +298,15 @@ public sealed class GcsColdEventStoreShould
 		// store over the same storage commits version 9 through the ordinary write path. The first
 		// store then loses its condition, must re-read, and must merge onto what it now finds.
 		var store = NewStore(out var client);
-		_ = await store.WriteAsync(Tenant, AggregateId, [Event(5)], CancellationToken.None);
+		_ = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(5)], CancellationToken.None);
 
 		var racingStore = new GcsColdEventStore(client, "bucket", "prefix", NullLogger<GcsColdEventStore>.Instance);
 		client.CommitConcurrentlyBeforeNextUpload(() =>
-			racingStore.WriteAsync(Tenant, AggregateId, [Event(9)], CancellationToken.None));
+			racingStore.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(9)], CancellationToken.None));
 
-		var watermark = await store.WriteAsync(Tenant, AggregateId, [Event(6)], CancellationToken.None);
+		var watermark = await store.WriteAsync(Tenant, AggregateId, "Aggregate", [Event(6)], CancellationToken.None);
 
-		var stored = await store.ReadAsync(Tenant, AggregateId, CancellationToken.None);
+		var stored = await store.ReadAsync(Tenant, AggregateId, "Aggregate", CancellationToken.None);
 		stored.Select(e => e.Version).ShouldBe([
 			5L,
 			6L,
@@ -168,8 +316,10 @@ public sealed class GcsColdEventStoreShould
 			+ "stale merge over the winner instead of re-reading -- a lost update, and the exact failure "
 			+ "the conditional write is there to prevent.");
 
-		// 5 and 6 are contiguous; 9 is not, so the durable prefix is 6.
-		watermark.ShouldBe(6);
+		// The winning writes survive, but versions 0..4 are still unproven.
+		watermark.ShouldBe(-1);
+		(await store.WriteAsync(Tenant, AggregateId, "Aggregate",
+			[Event(0), Event(1), Event(2), Event(3), Event(4)], CancellationToken.None)).ShouldBe(6);
 	}
 
 	private static GcsColdEventStore NewStore(out FakeStorageClient client)
@@ -199,6 +349,47 @@ public sealed class GcsColdEventStoreShould
 	/// </remarks>
 	private sealed class FakeStorageClient : StorageClient
 	{
+		private readonly Lazy<StorageClient> _raw = new(() => new GcsRawStorageClientBuilder { ApiKey = "unit-test" }.Build());
+		public override Google.Apis.Storage.v1.StorageService Service => _raw.Value.Service;
+		public override void Dispose()
+		{
+			try
+			{
+				if (_raw.IsValueCreated)
+				{
+					_raw.Value.Dispose();
+				}
+			}
+			finally
+			{
+				base.Dispose();
+			}
+		}
+
+		public int ConditionalConflicts { get; private set; }
+		public void Remove(string key) => _objects.Remove(key).ShouldBeTrue();
+
+		private static GcsObject Metadata(string bucket, string name, (byte[] Bytes, long Generation) entry)
+		{
+			// Independent bit-at-a-time Castagnoli checksum for the fake service's stored bytes.
+			var crc = uint.MaxValue;
+			foreach (var value in entry.Bytes)
+			{
+				crc ^= value;
+				for (var bit = 0; bit < 8; bit++)
+				{
+					crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0 : 0x82f63b78u);
+				}
+			}
+
+			var checksum = new byte[4];
+			System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(checksum, ~crc);
+			return new GcsObject { Bucket = bucket, Name = name, Generation = entry.Generation,
+				Size = (ulong)entry.Bytes.Length, Crc32c = Convert.ToBase64String(checksum) };
+		}
+		public override Task<Google.Apis.Storage.v1.Data.Bucket> GetBucketAsync(string bucket,
+			GetBucketOptions? options = null, CancellationToken cancellationToken = default) =>
+			Task.FromResult(new Google.Apis.Storage.v1.Data.Bucket { Name = bucket });
 		private readonly Dictionary<string, (byte[] Bytes, long Generation)> _objects = new(StringComparer.Ordinal);
 		private long _nextGeneration = 1;
 		private SemaphoreSlim? _uploadReached;
@@ -232,7 +423,7 @@ public sealed class GcsColdEventStoreShould
 			GetObjectOptions? options = null,
 			CancellationToken cancellationToken = default) =>
 			_objects.TryGetValue(objectName, out var entry)
-				? Task.FromResult(new GcsObject { Name = objectName, Generation = entry.Generation })
+				? Task.FromResult(Metadata(bucket, objectName, entry))
 				: Task.FromException<GcsObject>(NotFound(objectName));
 
 		public override async Task<GcsObject> DownloadObjectAsync(
@@ -248,9 +439,14 @@ public sealed class GcsColdEventStoreShould
 			{
 				throw NotFound(objectName);
 			}
+			if ((options?.Generation is { } requested && requested != entry.Generation)
+				|| (options?.IfGenerationMatch is { } condition && condition != entry.Generation))
+			{
+				throw new GoogleApiException("storage", "generation mismatch") { HttpStatusCode = HttpStatusCode.PreconditionFailed };
+			}
 
 			await destination.WriteAsync(entry.Bytes, cancellationToken).ConfigureAwait(false);
-			return new GcsObject { Name = objectName, Generation = entry.Generation };
+			return Metadata(bucket, objectName, entry);
 		}
 
 		public override async Task<GcsObject> UploadObjectAsync(
@@ -281,6 +477,7 @@ public sealed class GcsColdEventStoreShould
 			var current = _objects.TryGetValue(objectName, out var existing) ? existing.Generation : 0L;
 			if (expected is not null && expected != current)
 			{
+				ConditionalConflicts++;
 				throw new GoogleApiException("storage", $"generation mismatch for '{objectName}'")
 				{
 					HttpStatusCode = HttpStatusCode.PreconditionFailed,
@@ -291,7 +488,7 @@ public sealed class GcsColdEventStoreShould
 			await source.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
 			_objects[objectName] = (buffer.ToArray(), _nextGeneration++);
 			UploadCount++;
-			return new GcsObject { Name = objectName, Generation = _objects[objectName].Generation };
+			return Metadata(bucket, objectName, _objects[objectName]);
 		}
 
 		private static GoogleApiException NotFound(string objectName) =>

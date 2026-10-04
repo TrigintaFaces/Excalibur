@@ -59,22 +59,22 @@ public sealed class PositionedProjectionProperties
 		for (var caseIndex = 0; caseIndex < Cases; caseIndex++)
 		{
 			var seed = RootSeed + caseIndex;
-			var schedule = GenerateSchedule(seed);
+			var generated = GenerateCase(seed);
 
-			var failure = await RunAsync(schedule).ConfigureAwait(false);
+			var failure = await RunAsync(generated).ConfigureAwait(false);
 
 			if (failure is null)
 			{
 				continue;
 			}
 
-			var shortest = await ShrinkAsync(schedule).ConfigureAwait(false);
+			var shortest = await ShrinkAsync(generated).ConfigureAwait(false);
 
 			Assert.Fail(
 				$"The fold invariant broke on generated case seed {seed.ToString(CultureInfo.InvariantCulture)}."
 				+ Environment.NewLine + failure
 				+ Environment.NewLine + Environment.NewLine
-				+ "Shortest schedule that still breaks it:" + Environment.NewLine
+				+ "Shortest case that still breaks it:" + Environment.NewLine
 				+ Describe(shortest));
 		}
 	}
@@ -94,19 +94,42 @@ public sealed class PositionedProjectionProperties
 		for (var caseIndex = 0; caseIndex < Cases; caseIndex++)
 		{
 			var seed = RootSeed + 100_000 + caseIndex;
-			var schedule = GenerateSchedule(seed);
+			var generated = GenerateCase(seed);
 
 			var store = new CountingStore();
 			var apply = BuildApply();
 			var provider = Provider(store);
 
-			foreach (var batch in schedule)
+			Seed(store, generated);
+
+			var refused = false;
+
+			for (var batchIndex = 0; batchIndex < generated.Schedule.Count && !refused; batchIndex++)
 			{
-				await apply(ToEvents(batch), Context(), provider, CancellationToken.None)
-					.ConfigureAwait(false);
+				try
+				{
+					await apply(
+							ToEvents(generated.Schedule[batchIndex]),
+							Context(),
+							provider,
+							CancellationToken.None)
+						.ConfigureAwait(false);
+				}
+				catch (InvalidOperationException) when (generated.Pre == PreState.PresentUnnumbered)
+				{
+					// The terminal refusal of an unplaceable row. The sibling arm asserts that it wrote
+					// nothing; here it simply ends the schedule, because no further delivery can be folded
+					// into a row the contract has refused.
+					refused = true;
+				}
+
+				if (generated.DeleteAfter.Contains(batchIndex))
+				{
+					store.Remove(ProjectionId);
+				}
 			}
 
-			var delivered = schedule.SelectMany(static b => b).Distinct().Count();
+			var delivered = generated.Schedule.SelectMany(static b => b).Distinct().Count();
 			var stored = store.Get(ProjectionId)?.Total ?? 0;
 
 			Assert.True(
@@ -114,32 +137,90 @@ public sealed class PositionedProjectionProperties
 				$"seed {seed.ToString(CultureInfo.InvariantCulture)}: the projection folded "
 				+ $"{stored.ToString(CultureInfo.InvariantCulture)} events from a history containing only "
 				+ $"{delivered.ToString(CultureInfo.InvariantCulture)} distinct ones, so at least one was "
-				+ "applied more than once." + Environment.NewLine + Describe(schedule));
+				+ "applied more than once." + Environment.NewLine + Describe(generated));
 		}
 	}
 
 	/// <summary>
 	/// Runs a schedule and returns a description of the broken invariant, or null when it held.
 	/// </summary>
-	private static async Task<string?> RunAsync(IReadOnlyList<long[]> schedule)
+	private static async Task<string?> RunAsync(GeneratedCase generated)
 	{
 		var store = new CountingStore();
 		var apply = BuildApply();
 		var provider = Provider(store);
 
-		foreach (var batch in schedule)
+		Seed(store, generated);
+
+		// The delivered set is CLEARED at each deletion, and that is the oracle's correctness rather than
+		// bookkeeping: once the row is gone, the events folded into it are gone too, so counting them
+		// against the surviving total would manufacture a failure the implementation never caused. An
+		// earlier version of this oracle summed the whole schedule, which is sound only while nothing
+		// deletes -- the condition the generator used to guarantee by never generating a deletion.
+		var delivered = new HashSet<long>();
+
+		for (var batchIndex = 0; batchIndex < generated.Schedule.Count; batchIndex++)
 		{
-			await apply(ToEvents(batch), Context(), provider, CancellationToken.None).ConfigureAwait(false);
+			var batch = generated.Schedule[batchIndex];
+
+			try
+			{
+				await apply(ToEvents(batch), Context(), provider, CancellationToken.None).ConfigureAwait(false);
+			}
+			catch (InvalidOperationException) when (generated.Pre == PreState.PresentUnnumbered)
+			{
+				// EXPECTED, and asserting it is the point of generating this pre-state. A row that exists
+				// carrying no position cannot be advanced: the position names which prefix of the stream is
+				// folded into the stored state, and no caller can establish that for a state somebody else
+				// wrote without one. The contract refuses TERMINALLY rather than returning a retryable
+				// outcome, because re-reading yields the same row and the same refusal.
+				//
+				// What must hold is that the refusal wrote NOTHING. A refusal that half-applied would leave
+				// the row asserting a prefix it does not hold, which is the data-loss shape this whole
+				// contract exists to prevent.
+				var refusedPosition = store.PositionOf(ProjectionId);
+				var refusedTotal = store.Get(ProjectionId)?.Total ?? 0;
+
+				if (refusedPosition is not null || refusedTotal != 0)
+				{
+					return "a positioned write onto a row carrying NO position was refused, which is correct, "
+						+ "but it did not leave the row untouched: position is now "
+						+ $"{Format(refusedPosition)} and the folded total is "
+						+ $"{refusedTotal.ToString(CultureInfo.InvariantCulture)}. A terminal refusal must "
+						+ "write nothing.";
+				}
+
+				return null;
+			}
+
+			foreach (var position in batch)
+			{
+				_ = delivered.Add(position);
+			}
+
+			if (generated.DeleteAfter.Contains(batchIndex))
+			{
+				store.Remove(ProjectionId);
+				delivered.Clear();
+			}
+		}
+
+		// An unnumbered pre-state that was never refused is itself a failure: the batches all carry
+		// positions, so a positioned write was attempted against a row with no position to advance from,
+		// and silently accepting that is the defect.
+		if (generated.Pre == PreState.PresentUnnumbered && generated.Schedule.Count > 0)
+		{
+			return "a row carrying NO position accepted a positioned write instead of refusing it. The "
+				+ "stored position would then assert a prefix nobody established, and every event below "
+				+ "it would be missing from the read model while the position claimed otherwise.";
 		}
 
 		var storedPosition = store.PositionOf(ProjectionId);
 		var storedTotal = store.Get(ProjectionId)?.Total ?? 0;
 
-		// The oracle: everything delivered at or below the stored position, counted once each.
-		var expected = schedule
-			.SelectMany(static b => b)
-			.Distinct()
-			.Count(position => storedPosition is { } at && position <= at);
+		// The oracle: everything delivered since the last deletion, at or below the stored position,
+		// counted once each.
+		var expected = delivered.Count(position => storedPosition is { } at && position <= at);
 
 		if (storedTotal == expected)
 		{
@@ -160,19 +241,26 @@ public sealed class PositionedProjectionProperties
 	/// middle produces a history the generator could not have produced, so a "counterexample" found that
 	/// way might not correspond to anything reachable.
 	/// </remarks>
-	private static async Task<IReadOnlyList<long[]>> ShrinkAsync(IReadOnlyList<long[]> schedule)
+	private static async Task<GeneratedCase> ShrinkAsync(GeneratedCase generated)
 	{
-		for (var length = 1; length < schedule.Count; length++)
+		// The PRE-STATE and the deletion points are preserved, not shrunk. Both are part of what makes a
+		// case reachable: dropping the pre-state would produce a history the generator could not have
+		// produced, which is the same reason only prefixes of the schedule are tried.
+		for (var length = 1; length < generated.Schedule.Count; length++)
 		{
-			var prefix = schedule.Take(length).ToArray();
-
-			if (await RunAsync(prefix).ConfigureAwait(false) is not null)
+			var candidate = generated with
 			{
-				return prefix;
+				Schedule = generated.Schedule.Take(length).ToArray(),
+				DeleteAfter = generated.DeleteAfter.Where(i => i < length).ToHashSet(),
+			};
+
+			if (await RunAsync(candidate).ConfigureAwait(false) is not null)
+			{
+				return candidate;
 			}
 		}
 
-		return schedule;
+		return generated;
 	}
 
 	/// <summary>
@@ -186,6 +274,84 @@ public sealed class PositionedProjectionProperties
 	/// projection never sees, which is legitimate because a projection observes a subsequence of the
 	/// global stream.
 	/// </remarks>
+	/// <summary>
+	/// The store state a generated case starts from.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b><see cref="PresentUnnumbered"/> is the precondition the generator could not previously
+	/// produce, and it is the one the positioned-projection defect needs.</b> Every case started from an
+	/// EMPTY store, so a row that EXISTS while carrying NO position was unreachable — and that row is the
+	/// whole defect. The arm asserting no double fold was alive, correctly written, and blind to it.
+	/// </para>
+	/// <para>
+	/// <b>There is deliberately no numbered pre-state, and the reason is the oracle rather than
+	/// laziness.</b> Seeding a row at position N would have the store refuse every delivered position at
+	/// or below N as superseded, while the oracle counts those positions as events that ought to be
+	/// folded in — so the property would report failures the implementation never caused. Adding that
+	/// shape requires teaching the oracle which refusals were legitimate, which is a separate change.
+	/// </para>
+	/// </remarks>
+	private enum PreState
+	{
+		/// <summary>No row exists. The only state the generator used to produce.</summary>
+		Absent,
+
+		/// <summary>A row exists carrying no position number.</summary>
+		PresentUnnumbered,
+	}
+
+	/// <summary>One generated case: where the store starts, what arrives, and when the row is deleted.</summary>
+	/// <param name="Pre">The store state the case starts from.</param>
+	/// <param name="Schedule">The delivery batches, in order.</param>
+	/// <param name="DeleteAfter">Batch indices after which the row is deleted beneath the projection.</param>
+	private sealed record GeneratedCase(
+		PreState Pre,
+		IReadOnlyList<long[]> Schedule,
+		IReadOnlySet<int> DeleteAfter);
+
+	/// <summary>
+	/// Builds one generated case: a pre-state, a delivery schedule, and the points at which the row is
+	/// deleted beneath the projection.
+	/// </summary>
+	/// <remarks>
+	/// A DELETION mid-schedule is the deleted-then-recreated shape. It drives the refold path's
+	/// <c>Vanished</c> outcome, and the following batch then has to re-create the row from nothing — a
+	/// transition the generator could not previously reach because nothing ever removed a row.
+	/// </remarks>
+	private static GeneratedCase GenerateCase(int seed)
+	{
+		var schedule = GenerateSchedule(seed);
+
+		// A separate stream from the schedule's, so adding these dimensions does not shift the schedules
+		// the previous generator produced: every case it used to cover is still covered.
+		var random = new Random(unchecked(seed * 31) + 7);
+
+		var pre = random.Next(0, 3) == 0 ? PreState.PresentUnnumbered : PreState.Absent;
+
+		var deleteAfter = new HashSet<int>();
+		if (schedule.Count > 1 && random.Next(0, 3) == 0)
+		{
+			_ = deleteAfter.Add(random.Next(0, schedule.Count - 1));
+		}
+
+		return new GeneratedCase(pre, schedule, deleteAfter);
+	}
+
+	/// <summary>Puts the store into the generated pre-state.</summary>
+	/// <remarks>
+	/// The seeded row folds ZERO events, deliberately: the row's existence is the precondition under
+	/// test, and seeding a non-zero total would make the no-double-fold arithmetic unsound without
+	/// testing anything further.
+	/// </remarks>
+	private static void Seed(CountingStore store, GeneratedCase generated)
+	{
+		if (generated.Pre == PreState.PresentUnnumbered)
+		{
+			store.SeedRow(ProjectionId, new Counter { Total = 0 }, position: null);
+		}
+	}
+
 	private static IReadOnlyList<long[]> GenerateSchedule(int seed)
 	{
 		var random = new Random(seed);
@@ -246,19 +412,44 @@ public sealed class PositionedProjectionProperties
 		return batches;
 	}
 
-	private static string Describe(IReadOnlyList<long[]> schedule)
+	/// <summary>
+	/// Renders a generated case so a failure can be reproduced by reading it.
+	/// </summary>
+	/// <remarks>
+	/// The pre-state and the deletion points are printed as well as the batches. A failure message that
+	/// showed only the schedule would be unreproducible for exactly the cases this generator was extended
+	/// to reach, which is the worst place to lose reproducibility.
+	/// </remarks>
+	private static string Describe(GeneratedCase generated)
 	{
-		var text = new StringBuilder();
-		for (var i = 0; i < schedule.Count; i++)
+		var builder = new StringBuilder();
+
+		_ = builder.Append("pre-state: ").AppendLine(generated.Pre switch
 		{
-			_ = text.Append("  batch ")
+			PreState.PresentUnnumbered =>
+				"a row EXISTS carrying NO position (a complete fold over an unknown prefix)",
+			_ => "no row",
+		});
+
+		for (var i = 0; i < generated.Schedule.Count; i++)
+		{
+			_ = builder
+				.Append("  batch ")
 				.Append(i.ToString(CultureInfo.InvariantCulture))
 				.Append(": [")
-				.Append(string.Join(", ", schedule[i].Select(static p => p.ToString(CultureInfo.InvariantCulture))))
-				.AppendLine("]");
+				.Append(string.Join(", ", generated.Schedule[i].Select(
+					static v => v.ToString(CultureInfo.InvariantCulture))))
+				.Append(']');
+
+			if (generated.DeleteAfter.Contains(i))
+			{
+				_ = builder.Append("   <- row DELETED after this batch");
+			}
+
+			_ = builder.AppendLine();
 		}
 
-		return text.ToString();
+		return builder.ToString();
 	}
 
 	private static string Format(long? value) =>
@@ -320,6 +511,12 @@ public sealed class PositionedProjectionProperties
 			new(StringComparer.Ordinal);
 
 		internal Counter? Get(string id) => _rows.TryGetValue(id, out var r) ? r.State : null;
+
+		/// <summary>Places a row directly, bypassing the contract, to establish a generated pre-state.</summary>
+		internal void SeedRow(string id, Counter state, long? position) => _rows[id] = (state, position);
+
+		/// <summary>Removes the row, modelling a delete beneath a running projection.</summary>
+		internal bool Remove(string id) => _rows.Remove(id);
 
 		internal long? PositionOf(string id) => _rows.TryGetValue(id, out var r) ? r.Position : null;
 

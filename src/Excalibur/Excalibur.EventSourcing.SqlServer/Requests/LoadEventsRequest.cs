@@ -39,7 +39,16 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
+		: this(aggregateId, aggregateType, fromVersion, KeyedTenantPartition.FromScope(scope), long.MaxValue, schema, table, cancellationToken)
 	{
+	}
+
+	internal LoadEventsRequest(
+		string aggregateId, string aggregateType, long fromVersion, KeyedTenantPartition partition,
+		long upToVersion, string schema, string table, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(partition);
+		ArgumentOutOfRangeException.ThrowIfNegative(upToVersion);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
@@ -50,14 +59,14 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		// (no empty predicate can be emitted). COALESCE folds a legacy NULL tenant (a pre-migration
 		// untenanted row not yet backfilled) to the sentinel, matching the erase/IsErased siblings; a bare
 		// `= @TenantId` would miss those rows during the migration window.
-		var partition = KeyedTenantPartition.FromScope(scope);
 		const string tenantPredicate = " AND COALESCE(TenantId, @UntenantedSentinel) = @TenantId";
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in SqlTableName.Format
 		var sql = $"""
-			SELECT EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, ArchivedAt
+			SELECT EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, ArchivedAt,
+			       Position AS GlobalPosition, COALESCE(TenantId, @UntenantedSentinel) AS TenantId
 			FROM {qualifiedTable}
-			WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType AND Version > @FromVersion{tenantPredicate}
+			WHERE AggregateId = @AggregateId AND AggregateType = @AggregateType AND Version > @FromVersion AND Version <= @UpToVersion{tenantPredicate}
 			ORDER BY Version ASC
 			""";
 #pragma warning restore CA2100
@@ -66,6 +75,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@FromVersion", fromVersion);
+		parameters.Add("@UpToVersion", upToVersion);
 		parameters.Add("@TenantId", partition.TenantId);
 		parameters.Add("@UntenantedSentinel", KeyedTenantPartition.Untenanted.TenantId);
 
@@ -89,6 +99,8 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 					row.Timestamp)
 				{
 					ArchivedAt = row.ArchivedAt,
+					GlobalPosition = row.GlobalPosition,
+					TenantId = row.TenantId,
 				});
 			}
 
@@ -116,4 +128,6 @@ internal sealed record LoadedEventRow(
 	byte[]? Metadata,
 	long Version,
 	DateTimeOffset Timestamp,
-	DateTimeOffset? ArchivedAt);
+	DateTimeOffset? ArchivedAt,
+	long GlobalPosition,
+	string TenantId);

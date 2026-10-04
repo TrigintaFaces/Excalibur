@@ -44,6 +44,12 @@ public interface IGlobalStreamQuery
 	/// <param name="maxCount">The maximum number of events to return.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The events of the specified type in global order.</returns>
+	/// <remarks>
+	/// Selection is made when the underlying page is read. If archive hydration subsequently observes
+	/// that a selected event was erased, that row may be returned as a normalized erasure marker with
+	/// no payload or metadata, retaining its identity and position. Consumers must handle such markers
+	/// even when requesting a different event type. A page is not an atomic snapshot across hydration.
+	/// </remarks>
 	ValueTask<IReadOnlyList<StoredEvent>> ReadByEventTypeAsync(
 		string eventType,
 		GlobalStreamPosition position,

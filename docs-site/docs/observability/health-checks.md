@@ -449,10 +449,22 @@ builder.Services.AddHealthChecks()
 | Method | Default name | Monitors |
 |--------|--------------|----------|
 | `AddEventSourcingHealthChecks()` | — | Aggregate: registers the four checks below |
-| `AddEventStoreHealthCheck()` | `event-store` | Event store connectivity |
-| `AddSnapshotStoreHealthCheck()` | `snapshot-store` | Snapshot store connectivity |
-| `AddTenantShardHealthCheck()` | `tenant-shard` | Tenant shard routing health |
+| `AddEventStoreHealthCheck()` | `event-store` | Reads the event table. Detects a table that is absent, or present but missing a column the read statement binds — including on an empty database, because the select list is validated when the statement is parsed. Does **not** cover the append path, the snapshot table, or the projection tables. |
+| `AddSnapshotStoreHealthCheck()` | `snapshot-store` | Reads the snapshot table, with the same scope and the same limits. |
+| `AddTenantShardHealthCheck()` | `tenant-shard` | Enumerates registered shards. **See the caution below before relying on it.** |
 | `AddProjectionsHealthCheck()` | `projections` | Projection processing health |
+
+:::caution `AddTenantShardHealthCheck()` does not verify shard connectivity
+
+Despite its name, this check does not open a connection to any shard — it resolves each shard id through 
+a cached resolver, so after the first probe it is a dictionary lookup. It also looks shard ids up in a map 
+keyed by tenant, so on a deployment with no default shard configured it reports every shard unreachable 
+and returns Unhealthy for a perfectly healthy cluster, while on a deployment that does configure a default 
+shard it reports all shards healthy having examined one. Do not map it to a readiness probe. The aggregate 
+`AddEventSourcingHealthChecks()` registers it, so prefer the individual registrations until this is 
+corrected.
+
+:::
 
 ### Compliance, Audit & Security
 

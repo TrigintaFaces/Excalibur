@@ -19,30 +19,44 @@ internal sealed class CompatNotificationBridge<TNotification> : ICompatNotificat
     where TNotification : notnull, INotification
 {
     /// <inheritdoc/>
-    public Task PublishAsync(object notification, IServiceProvider provider, CancellationToken cancellationToken)
+    public async Task PublishAsync(object notification, IServiceProvider provider, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(notification);
         ArgumentNullException.ThrowIfNull(provider);
 
         var typed = (TNotification)notification;
         var invoker = provider.GetService<IDispatchMiddlewareInvoker>();
-        var context = provider.GetService<IMessageContextFactory>()?.CreateContext();
+        var factory = provider.GetService<IMessageContextFactory>();
 
-        if (invoker is null || context is null)
+        if (invoker is null || factory is null)
         {
-            return FanOutAsync(provider, typed, cancellationToken);
+            await FanOutAsync(provider, typed, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
-        var wrapper = new CompatNotificationWrapper<TNotification>(typed);
-        return invoker.InvokeAsync<IMessageResult>(
-            wrapper,
-            context,
-            async (_, _, ct) =>
+        var context = factory.CreateContext();
+        try
+        {
+            context.RequestServices = provider;
+            var wrapper = new CompatNotificationWrapper<TNotification>(typed);
+            var result = await invoker.InvokeAsync<IMessageResult>(
+                wrapper,
+                context,
+                async (_, _, ct) =>
+                {
+                    await FanOutAsync(provider, typed, ct).ConfigureAwait(false);
+                    return MessageResult.Success();
+                },
+                cancellationToken).ConfigureAwait(false);
+            if (!result.Succeeded)
             {
-                await FanOutAsync(provider, typed, ct).ConfigureAwait(false);
-                return MessageResult.Success();
-            },
-            cancellationToken).AsTask();
+                throw new InvalidOperationException(result.ErrorMessage ?? result.ProblemDetails?.Detail ?? "The Dispatch pipeline rejected the notification.");
+            }
+        }
+        finally
+        {
+            factory.Return(context);
+        }
     }
 
     private static async Task FanOutAsync(IServiceProvider provider, TNotification notification, CancellationToken cancellationToken)

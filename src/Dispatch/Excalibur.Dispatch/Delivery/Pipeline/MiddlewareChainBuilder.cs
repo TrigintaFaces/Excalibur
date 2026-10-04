@@ -7,9 +7,6 @@ using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Routing;
-
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
 /// <summary>
@@ -18,9 +15,8 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <remarks>
 /// <para>
 /// This class implements the chain-of-responsibility pattern using pre-compiled delegate chains.
-/// The middleware chain is built once when first accessed (or at freeze time) and reused for all
-/// subsequent dispatches. This approach eliminates 200-300 bytes of allocations per dispatch that
-/// would otherwise occur from creating new closures on each invocation.
+/// Middleware selection is cached per message type. Each executor lazily binds its first terminal
+/// delegate and reuses that chain on subsequent dispatches with the same terminal identity.
 /// </para>
 /// <para>
 /// <strong>How it works:</strong>
@@ -31,18 +27,17 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// middleware for a message type.
 /// </item>
 /// <item>
-/// At dispatch time, the executor is invoked with the final handler. The executor iterates through
-/// middleware without creating closures - middleware receive a delegate that calls back into the
-/// executor's static method with explicit state passing.
+/// Middleware receives an immutable continuation that forwards the supplied message, context and
+/// cancellation token. No invocation state is written onto the message context.
 /// </item>
 /// <item>
-/// The final handler (which varies per dispatch) is stored in the message context during
-/// execution to avoid passing it through closures.
+/// Each executor binds its terminal delegate into an immutable chain, caching the first terminal
+/// identity and using an uncached chain for other identities.
 /// </item>
 /// </list>
 /// <para>
-/// <strong>Trade-off:</strong> Handler state is written to context per invocation, which keeps
-/// dispatch allocation-stable without per-dispatch closure creation.
+/// <strong>Trade-off:</strong> Each executor weakly caches its first terminal identity. Stable
+/// terminal delegates reuse the chain; changing terminal delegates allocate a new chain.
 /// </para>
 /// </remarks>
 internal sealed class MiddlewareChainBuilder
@@ -50,7 +45,8 @@ internal sealed class MiddlewareChainBuilder
 	private readonly record struct ChainCacheKey(Type MessageType, int PipelineSignature);
 
 	private readonly IDispatchMiddleware[] _middlewares;
-	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
+	private readonly IMiddlewareApplicabilityStrategy _applicabilityStrategy;
+	private readonly ConcurrentDictionary<MessageKinds, ChainExecutor> _customChains = new();
 	private readonly int _pipelineSignature;
 
 	/// <summary>
@@ -89,7 +85,7 @@ internal sealed class MiddlewareChainBuilder
 		// Sort middleware by Stage to ensure correct pipeline ordering regardless of DI registration order.
 		// Middleware with null Stage defaults to End (1000) to run last.
 		_middlewares = SortMiddlewaresByStage(middlewares);
-		_applicabilityStrategy = applicabilityStrategy;
+		_applicabilityStrategy = applicabilityStrategy ?? new DefaultMiddlewareApplicabilityStrategy();
 		_pipelineSignature = ComputePipelineSignature(_middlewares, _applicabilityStrategy);
 	}
 
@@ -168,6 +164,14 @@ internal sealed class MiddlewareChainBuilder
 	/// Gets the middleware pipeline signature used for chain-cache partitioning.
 	/// </summary>
 	internal int PipelineSignature => _pipelineSignature;
+
+	internal bool HasCustomApplicability => _applicabilityStrategy is not DefaultMiddlewareApplicabilityStrategy;
+
+	internal ChainExecutor GetChain(IDispatchMessage message, int pipelineSignature) =>
+		HasCustomApplicability
+			? _customChains.GetOrAdd(_applicabilityStrategy.DetermineMessageKinds(message),
+				static (kinds, self) => new ChainExecutor(self.FilterMiddleware(kinds)), this)
+			: GetChain(message.GetType(), pipelineSignature);
 
 	/// <summary>
 	/// Gets the pre-compiled chain executor for a specific message type.
@@ -297,12 +301,17 @@ internal sealed class MiddlewareChainBuilder
 		Justification = "Message type is used only for determining message kinds, not for dynamic member access or reflection.")]
 	private IDispatchMiddleware[] GetApplicableMiddleware(Type messageType)
 	{
-		if (_applicabilityStrategy is null)
+		if (_middlewares.All(static middleware => middleware.ApplicableMessageKinds == MessageKinds.All))
 		{
 			return _middlewares;
 		}
 
 		var messageKinds = DefaultMiddlewareApplicabilityStrategy.DetermineMessageKinds(messageType);
+		return FilterMiddleware(messageKinds);
+	}
+
+	private IDispatchMiddleware[] FilterMiddleware(MessageKinds messageKinds)
+	{
 		var result = new List<IDispatchMiddleware>(_middlewares.Length);
 
 		foreach (var middleware in _middlewares)
@@ -318,218 +327,80 @@ internal sealed class MiddlewareChainBuilder
 }
 
 /// <summary>
-/// Executes a pre-compiled middleware chain without per-dispatch closure allocations.
+/// Executes immutable middleware chains bound to their terminal delegates.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This executor is created once per message type and reused for all dispatches.
-/// It pre-builds an array of <see cref="DispatchRequestDelegate"/> instances at construction time,
-/// where each delegate is a static method that captures only its index and the middleware array.
+/// It snapshots the middleware at construction and caches the first terminal-bound chain for each
+/// overload family. Reusing that delegate identity avoids per-dispatch closure allocations.
 /// </para>
 /// <para>
-/// The final handler (which varies per dispatch) is stored in <see cref="IMessageContext"/>
-/// during execution. This allows the pre-built delegates to access it without closure allocation.
+/// Terminal delegates are bound into immutable chains. Continuations remain valid when middleware
+/// replaces a context or continues after returning; execution state is not stored on the context.
 /// </para>
 /// </remarks>
 public sealed class ChainExecutor
 {
-	/// <summary>
-	/// Empty executor for fast path when no middleware is applicable.
-	/// </summary>
+	/// <summary>Empty executor for the direct-handler path.</summary>
 	public static readonly ChainExecutor Empty = new([]);
 
-	/// <summary>
-	/// The middleware in execution order.
-	/// </summary>
 	private readonly IDispatchMiddleware[] _middlewares;
+	private ConditionalWeakTable<Delegate, BoundChain>? _boundChain;
+	private ConditionalWeakTable<Delegate, BoundChain>? _typedBoundChain;
 
-	/// <summary>
-	/// Pre-built delegates for each middleware position in the chain.
-	/// _chainDelegates[i] invokes middleware[i] and passes _chainDelegates[i+1] as "next".
-	/// _chainDelegates[_middlewares.Length] invokes the final handler from context state.
-	/// </summary>
-	private readonly DispatchRequestDelegate[] _chainDelegates;
+	/// <summary>Initializes an immutable middleware snapshot.</summary>
+	internal ChainExecutor(IDispatchMiddleware[] middlewares) => _middlewares = [.. middlewares];
 
-	/// <summary>
-	/// Context item key used to store the final handler when <see cref="IMessageContext"/>
-	/// is not the framework <see cref="MessageContext"/>.
-	/// </summary>
-	private const string FinalHandlerContextKey = "Dispatch:Pipeline:FinalHandler";
-
-	/// <summary>
-	/// Context item key used to store typed final handlers when <see cref="IMessageContext"/>
-	/// is not the framework <see cref="MessageContext"/>.
-	/// </summary>
-	private const string TypedFinalHandlerContextKey = "Dispatch:Pipeline:TypedFinalHandler";
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="ChainExecutor"/> class.
-	/// </summary>
-	/// <param name="middlewares">The middleware in execution order.</param>
-	internal ChainExecutor(IDispatchMiddleware[] middlewares)
-	{
-		_middlewares = middlewares;
-
-		// Build chain delegates: one for each middleware + one for the final handler
-		_chainDelegates = new DispatchRequestDelegate[middlewares.Length + 1];
-
-		// Terminal delegate: invokes the final handler from context state
-		_chainDelegates[middlewares.Length] = InvokeFinalHandler;
-
-		// Build backwards: each delegate invokes its middleware with the next delegate
-		for (var i = middlewares.Length - 1; i >= 0; i--)
-		{
-			var middleware = middlewares[i];
-			var nextDelegate = _chainDelegates[i + 1];
-
-			// Capture only the middleware and nextDelegate - no per-dispatch state
-			_chainDelegates[i] = (msg, ctx, ct) =>
-				middleware.InvokeAsync(msg, ctx, nextDelegate, ct);
-		}
-	}
-
-	/// <summary>
-	/// Gets whether this chain has any middleware.
-	/// </summary>
+	/// <summary>Gets whether any middleware applies.</summary>
 	public bool HasMiddleware => _middlewares.Length > 0;
 
-	/// <summary>
-	/// Gets whether this chain contains only routing middleware.
-	/// </summary>
-	/// <remarks>
-	/// Dispatcher can pre-route local actions before middleware execution, so a routing-only chain
-	/// can be bypassed for the direct-local fast path.
-	/// </remarks>
+	/// <summary>Gets whether only routing middleware applies.</summary>
 	public bool HasOnlyRoutingMiddleware =>
-		_middlewares.Length == 1 &&
-		MiddlewareIdentity.IsRouting(_middlewares[0]);
+		_middlewares.Length == 1 && MiddlewareIdentity.IsRouting(_middlewares[0]);
 
-	/// <summary>
-	/// Gets the number of middleware in this chain.
-	/// </summary>
+	/// <summary>Gets the number of middleware components.</summary>
 	public int Count => _middlewares.Length;
 
-	/// <summary>
-	/// Executes the middleware chain with the specified final handler.
-	/// </summary>
-	/// <param name="message">The message being dispatched.</param>
-	/// <param name="context">The message context.</param>
-	/// <param name="finalHandler">The final handler to invoke after all middleware.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The result of the dispatch operation.</returns>
+	/// <summary>Executes the chain with the supplied terminal delegate.</summary>
 	/// <remarks>
-	/// Returns <see cref="ValueTask{T}"/> to enable zero-allocation dispatch on synchronous completion paths.
-	/// When no middleware applies, the final handler is invoked directly.
+	/// The first terminal is weakly keyed so captured request objects are not retained by this executor.
+	/// Repeated calls with that delegate reuse an immutable chain without per-dispatch closures.
+	/// Different terminals build independent uncached chains; the cache never adds a second identity.
 	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	public ValueTask<IMessageResult> InvokeAsync(
 		IDispatchMessage message,
 		IMessageContext context,
 		DispatchRequestDelegate finalHandler,
 		CancellationToken cancellationToken)
 	{
-		// Fast path: no middleware - return directly without allocation
 		if (_middlewares.Length == 0)
 		{
 			return finalHandler(message, context, cancellationToken);
 		}
 
-		// Slow path: execute middleware chain
-		return InvokeChainAsync(message, context, finalHandler, cancellationToken);
-	}
-
-	/// <summary>
-	/// Executes the middleware chain.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
-	private ValueTask<IMessageResult> InvokeChainAsync(
-		IDispatchMessage message,
-		IMessageContext context,
-		DispatchRequestDelegate finalHandler,
-		CancellationToken cancellationToken)
-	{
-		object? previousHandler;
-		bool hadPreviousHandler;
-
-		if (context is MessageContext concreteContext)
+		var cache = Volatile.Read(ref _boundChain);
+		if (cache is null || !cache.TryGetValue(finalHandler, out var chain))
 		{
-			hadPreviousHandler = concreteContext.TryGetPipelineFinalHandler(out previousHandler);
-			concreteContext.SetPipelineFinalHandler(finalHandler);
-		}
-		else
-		{
-			hadPreviousHandler = context.Items.TryGetValue(FinalHandlerContextKey, out previousHandler);
-			context.Items[FinalHandlerContextKey] = finalHandler;
-		}
-
-		try
-		{
-			var invocation = _chainDelegates[0](message, context, cancellationToken);
-			if (invocation.IsCompletedSuccessfully)
+			var created = new BoundChain(Bind(finalHandler));
+			if (cache is null)
 			{
-				try
-				{
-					return new ValueTask<IMessageResult>(invocation.Result);
-				}
-				finally
-				{
-					RestoreFinalHandler(context, previousHandler, hadPreviousHandler);
-				}
+				var candidate = new ConditionalWeakTable<Delegate, BoundChain>();
+				candidate.Add(finalHandler, created);
+				_ = Interlocked.CompareExchange(ref _boundChain, candidate, null);
 			}
+			// A concurrent caller may have cached a DIFFERENT terminal. Always execute ours.
+			return created.Entry(message, context, cancellationToken);
+		}
 
-			return AwaitChainInvocation(invocation, context, previousHandler, hadPreviousHandler);
-		}
-		catch
-		{
-			RestoreFinalHandler(context, previousHandler, hadPreviousHandler);
-			throw;
-		}
+		return chain.Entry(message, context, cancellationToken);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void RestoreFinalHandler(IMessageContext context, object? previousHandler, bool hadPreviousHandler)
-	{
-		if (context is MessageContext clearContext)
-		{
-			clearContext.SetPipelineFinalHandler(hadPreviousHandler ? previousHandler : null);
-		}
-		else
-		{
-			if (hadPreviousHandler)
-			{
-				context.Items[FinalHandlerContextKey] = previousHandler!;
-			}
-			else
-			{
-				context.Items.Remove(FinalHandlerContextKey);
-			}
-		}
-	}
-
-	private static async ValueTask<IMessageResult> AwaitChainInvocation(
-		ValueTask<IMessageResult> invocation,
-		IMessageContext context,
-		object? previousHandler,
-		bool hadPreviousHandler)
-	{
-		try
-		{
-			return await invocation.ConfigureAwait(false);
-		}
-		finally
-		{
-			RestoreFinalHandler(context, previousHandler, hadPreviousHandler);
-		}
-	}
-
-	/// <summary>
-	/// Executes the middleware chain with typed response.
-	/// </summary>
+	/// <summary>Executes the chain with a typed terminal delegate.</summary>
 	/// <remarks>
-	/// Returns <see cref="ValueTask{T}"/> to enable zero-allocation dispatch on synchronous completion paths.
-	/// When no middleware applies, the final handler is invoked directly.
+	/// One typed terminal is cached independently of the untyped terminal. Middleware results must
+	/// satisfy <typeparamref name="T"/>; callers requiring adaptation should invoke with IMessageResult.
 	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
 	public ValueTask<T> InvokeAsync<T>(
 		IDispatchMessage message,
 		IMessageContext context,
@@ -537,159 +408,60 @@ public sealed class ChainExecutor
 		CancellationToken cancellationToken)
 		where T : IMessageResult
 	{
-		// Fast path: no middleware - return directly without allocation
 		if (_middlewares.Length == 0)
 		{
 			return finalHandler(message, context, cancellationToken);
 		}
 
-		// Slow path: execute middleware chain
-		return InvokeTypedChainAsync(message, context, finalHandler, cancellationToken);
-	}
-
-	/// <summary>
-	/// Executes the typed middleware chain.
-	/// </summary>
-	[MethodImpl(MethodImplOptions.AggressiveOptimization)]
-	private ValueTask<T> InvokeTypedChainAsync<T>(
-		IDispatchMessage message,
-		IMessageContext context,
-		Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<T>> finalHandler,
-		CancellationToken cancellationToken)
-		where T : IMessageResult
-	{
-		object? previousTypedHandler;
-		bool hadPreviousTypedHandler;
-
-		if (context is MessageContext concreteContext)
+		var cache = Volatile.Read(ref _typedBoundChain);
+		BoundChain? chain = null;
+		if (cache is null || !cache.TryGetValue(finalHandler, out chain))
 		{
-			hadPreviousTypedHandler = concreteContext.TryGetPipelineTypedFinalHandler(out previousTypedHandler);
-			concreteContext.SetPipelineTypedFinalHandler(finalHandler);
-		}
-		else
-		{
-			hadPreviousTypedHandler = context.Items.TryGetValue(TypedFinalHandlerContextKey, out previousTypedHandler);
-			context.Items[TypedFinalHandlerContextKey] = finalHandler;
-		}
-
-		try
-		{
-			var invocation = InvokeAsync(message, context, TypedFinalHandlerInvoker<T>.Delegate, cancellationToken);
-			if (invocation.IsCompletedSuccessfully)
+			var created = BindTyped(finalHandler);
+			if (cache is null)
 			{
-				try
-				{
-					return new ValueTask<T>((T)invocation.Result);
-				}
-				finally
-				{
-					RestoreTypedFinalHandler(context, previousTypedHandler, hadPreviousTypedHandler);
-				}
+				var candidate = new ConditionalWeakTable<Delegate, BoundChain>();
+				candidate.Add(finalHandler, created);
+				_ = Interlocked.CompareExchange(ref _typedBoundChain, candidate, null);
 			}
+			chain = created;
+		}
 
-			return AwaitTypedInvocation<T>(invocation, context, previousTypedHandler, hadPreviousTypedHandler);
-		}
-		catch
-		{
-			RestoreTypedFinalHandler(context, previousTypedHandler, hadPreviousTypedHandler);
-			throw;
-		}
+		var invocation = chain.Entry(message, context, cancellationToken);
+		return invocation.IsCompletedSuccessfully
+			? new ValueTask<T>((T)invocation.Result)
+			: AwaitInvocation<T>(invocation);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void RestoreTypedFinalHandler(
-		IMessageContext context,
-		object? previousTypedHandler,
-		bool hadPreviousTypedHandler)
+	private BoundChain BindTyped<T>(Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<T>> terminal)
+		where T : IMessageResult =>
+		new(Bind((message, context, token) => AdaptTypedResult(terminal(message, context, token))));
+
+	private DispatchRequestDelegate Bind(DispatchRequestDelegate terminal)
 	{
-		if (context is MessageContext clearContext)
+		var next = terminal;
+		for (var index = _middlewares.Length - 1; index >= 0; index--)
 		{
-			clearContext.SetPipelineTypedFinalHandler(hadPreviousTypedHandler ? previousTypedHandler : null);
+			var middleware = _middlewares[index];
+			var continuation = next;
+			next = (message, context, token) => middleware.InvokeAsync(message, context, continuation, token);
 		}
-		else
-		{
-			if (hadPreviousTypedHandler)
-			{
-				context.Items[TypedFinalHandlerContextKey] = previousTypedHandler!;
-			}
-			else
-			{
-				context.Items.Remove(TypedFinalHandlerContextKey);
-			}
-		}
+		return next;
 	}
 
-	private static async ValueTask<T> AwaitTypedInvocation<T>(
-		ValueTask<IMessageResult> invocation,
-		IMessageContext context,
-		object? previousTypedHandler,
-		bool hadPreviousTypedHandler)
-		where T : IMessageResult
+	private static async ValueTask<T> AwaitInvocation<T>(ValueTask<IMessageResult> invocation)
+		where T : IMessageResult => (T)await invocation.ConfigureAwait(false);
+
+	private static ValueTask<IMessageResult> AdaptTypedResult<T>(ValueTask<T> result)
+		where T : IMessageResult => result.IsCompletedSuccessfully
+			? new ValueTask<IMessageResult>(result.Result)
+			: AwaitTypedResult(result);
+
+	private static async ValueTask<IMessageResult> AwaitTypedResult<T>(ValueTask<T> result)
+		where T : IMessageResult => await result.ConfigureAwait(false);
+
+	private sealed class BoundChain(DispatchRequestDelegate entry)
 	{
-		try
-		{
-			var result = await invocation.ConfigureAwait(false);
-			return (T)result;
-		}
-		finally
-		{
-			RestoreTypedFinalHandler(context, previousTypedHandler, hadPreviousTypedHandler);
-		}
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static ValueTask<IMessageResult> AdaptTypedFinalHandlerResult<T>(ValueTask<T> typedResult)
-		where T : IMessageResult
-	{
-		if (typedResult.IsCompletedSuccessfully)
-		{
-			return new ValueTask<IMessageResult>(typedResult.Result);
-		}
-
-		return AwaitTypedResult(typedResult);
-
-		static async ValueTask<IMessageResult> AwaitTypedResult(ValueTask<T> pendingResult)
-		{
-			return await pendingResult.ConfigureAwait(false);
-		}
-	}
-
-	private static class TypedFinalHandlerInvoker<T>
-		where T : IMessageResult
-	{
-		public static readonly DispatchRequestDelegate Delegate = Invoke;
-
-		private static ValueTask<IMessageResult> Invoke(
-			IDispatchMessage message,
-			IMessageContext context,
-			CancellationToken cancellationToken)
-		{
-			var typedHandlerObject = (context is MessageContext concreteContext
-				? (concreteContext.TryGetPipelineTypedFinalHandler(out var concreteHandler) ? concreteHandler : null)
-				: (context.Items.TryGetValue(TypedFinalHandlerContextKey, out var ctxHandler) ? ctxHandler : null))
-				?? throw new InvalidOperationException("Typed final handler not set in message context.");
-
-			var typedHandler = (Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<T>>)typedHandlerObject;
-			return AdaptTypedFinalHandlerResult(typedHandler(message, context, cancellationToken));
-		}
-	}
-
-	/// <summary>
-	/// Terminal delegate that invokes the final handler from context state.
-	/// </summary>
-	private static ValueTask<IMessageResult> InvokeFinalHandler(
-		IDispatchMessage message,
-		IMessageContext context,
-		CancellationToken cancellationToken)
-	{
-		var handler = (context is MessageContext concreteContext &&
-					  concreteContext.TryGetPipelineFinalHandler(out var concreteHandler)
-					  ? (DispatchRequestDelegate)concreteHandler!
-					  : (context.Items.TryGetValue(FinalHandlerContextKey, out var ctxHandler)
-						  ? (DispatchRequestDelegate)ctxHandler!
-						  : null))
-					  ?? throw new InvalidOperationException("Final handler not set in message context.");
-
-		return handler(message, context, cancellationToken);
+		public DispatchRequestDelegate Entry { get; } = entry;
 	}
 }

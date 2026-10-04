@@ -201,13 +201,31 @@ public sealed class IMaterializedViewStoreShould
 	}
 
 	[Fact]
-	public void SavePositionAsync_ReturnValueTask()
+	public void SavePositionAsync_ReportsItsOutcomeRatherThanReturningVoid()
 	{
-		// Arrange
+		// This test previously asserted ReturnType == typeof(ValueTask), which PINNED the defect: a
+		// monotonic advance can refuse, and a bare ValueTask cannot say so. The refusal was therefore
+		// invisible to every caller, and a rebuild that needed the position to go backwards was silently
+		// declined on all five providers while reporting completion.
 		var method = typeof(IMaterializedViewStore).GetMethod("SavePositionAsync");
 
-		// Assert
-		method.ReturnType.ShouldBe(typeof(ValueTask));
+		method.ShouldNotBeNull();
+		method!.ReturnType.ShouldBe(
+			typeof(ValueTask<ViewPositionSaveOutcome>),
+			"an operation that can decline to act must report the refusal in its signature");
+	}
+
+	[Fact]
+	public void ResetPositionAsync_IsASeparateMemberBecauseLoweringIsNotAdvancing()
+	{
+		// Lowering a checkpoint cannot be expressed as SavePositionAsync with a smaller value -- the
+		// monotonic guard exists precisely to refuse that -- so it is a distinct member. It returns a bare
+		// ValueTask legitimately: clearing an already-absent checkpoint is success, so it cannot refuse.
+		var method = typeof(IMaterializedViewStore).GetMethod("ResetPositionAsync");
+
+		method.ShouldNotBeNull();
+		method!.ReturnType.ShouldBe(typeof(ValueTask));
+		method.GetParameters().Length.ShouldBe(2, "view name and cancellation token, with no position");
 	}
 
 	#endregion

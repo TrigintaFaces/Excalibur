@@ -145,16 +145,14 @@ public sealed class PostgresEventStoreBehaviorShould : UnitTestBase
 	[Fact]
 	public void GetFullExceptionMessage_FlattenInnerExceptionChain()
 	{
-		var method = typeof(PostgresEventStore).GetMethod("GetFullExceptionMessage", BindingFlags.Static | BindingFlags.NonPublic);
-		method.ShouldNotBeNull();
-
 		var ex = new InvalidOperationException("outer", new Exception("middle", new Exception("inner")));
-		var message = (string)method!.Invoke(null, [ex])!;
+		var message = AppendCommitBoundary.DescribeFailure(ex);
 
 		message.ShouldContain("outer");
 		message.ShouldContain("middle");
 		message.ShouldContain("inner");
 		message.ShouldContain(" -> ");
+		message.ShouldBe("outer -> middle -> inner");
 	}
 
 	[MessageName("Test.Es.PostgresTestDomainEvent")]
