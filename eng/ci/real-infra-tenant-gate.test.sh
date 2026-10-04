@@ -15,6 +15,14 @@ GATE="$here/real-infra-tenant-gate.sh"
 pass=0; fail=0
 
 # run_arm <name> <expected_exit> ; env for the gate is set by the caller
+# THE STUB SUMMARIES CARRY A DURATION, and that is load-bearing rather than cosmetic.
+# assert-tests-executed.sh matches a VSTest summary row up to and including the comma AFTER
+# `Total: <n>,` -- real `dotnet test` always prints `, Duration: ...` there. A fixture that stops
+# at `Total: 3` is a shape dotnet never emits, so the helper correctly calls it MALFORMED and
+# REFUSEs. Measured: `Total: 3` -> helper exit 3, `Total: 3, Duration: 1 s` -> helper exit 0.
+# Two PASS arms fed the duration-less shape and could therefore never go green, and the
+# `Total:0` REFUSE arm was passing for the WRONG REASON -- refused as malformed rather than as
+# zero-executed, which is the property it exists to prove.
 run_arm() {
     local name="$1" expected="$2"
     bash "$GATE" >/dev/null 2>&1
@@ -43,12 +51,12 @@ RITG_TEST_CMD='echo "No test matches the given testcase filter \`Category=Integr
 
 # ── SAFETY 3: a summary reporting Total: 0 ⇒ REFUSE (defensive, distinct emission shape). ──
 RITG_DOCKER_PROBE="true" \
-RITG_TEST_CMD='echo "Passed!  - Failed: 0, Passed: 0, Skipped: 0, Total: 0"; exit 0' \
+RITG_TEST_CMD='echo "Passed!  - Failed: 0, Passed: 0, Skipped: 0, Total: 0, Duration: 1 ms"; exit 0' \
     run_arm "REFUSE on Total:0 executed" 2
 
 # ── SAFETY 4: a real test failed ⇒ FAIL (1), distinct from REFUSE. ──
 RITG_DOCKER_PROBE="true" \
-RITG_TEST_CMD='echo "Failed!  - Failed: 1, Passed: 2, Skipped: 0, Total: 3"; exit 1' \
+RITG_TEST_CMD='echo "Failed!  - Failed: 1, Passed: 2, Skipped: 0, Total: 3, Duration: 1 ms"; exit 1' \
     run_arm "FAIL on a real tenant-isolation RED" 1
 
 # ── SAFETY 5 (regression — real-path bug the stub-only proof missed): a MULTI-PROJECT slnf prints
@@ -56,7 +64,7 @@ RITG_TEST_CMD='echo "Failed!  - Failed: 1, Passed: 2, Skipped: 0, Total: 3"; exi
 #    matched. The gate must read the AGGREGATE (a project ran) and NOT REFUSE on the per-project
 #    "No test matches" phrase. Caught by the real dotnet --self-test; locked here so it can't regress. ──
 RITG_DOCKER_PROBE="true" \
-RITG_TEST_CMD='printf "No test matches the given testcase filter in Excalibur.Inbox.Oracle.Tests.dll\nNo test matches the given testcase filter in Excalibur.Dispatch.Integration.Tests.dll\nPassed!  - Failed: 0, Passed: 2, Skipped: 0, Total: 2 - Excalibur.Integration.Tests.dll\n"; exit 0' \
+RITG_TEST_CMD='printf "No test matches the given testcase filter in Excalibur.Inbox.Oracle.Tests.dll\nNo test matches the given testcase filter in Excalibur.Dispatch.Integration.Tests.dll\nPassed!  - Failed: 0, Passed: 2, Skipped: 0, Total: 2, Duration: 1 ms - Excalibur.Integration.Tests.dll\n"; exit 0' \
     run_arm "PASS on multi-project partial no-match (NOT REFUSE)" 0
 
 # ── SAFETY (SIZE): the missing-assembly phrase on LINE 1 of a MULTI-MEGABYTE capture must still
@@ -75,7 +83,7 @@ RITG_DOCKER_PROBE="true" RITG_TEST_CMD='printf "Testhost process exited: test so
 
 # ── LIVENESS: >=1 test ran and all passed ⇒ PASS (0). Proves the gate is not always-red. ──
 RITG_DOCKER_PROBE="true" \
-RITG_TEST_CMD='echo "Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3"; exit 0' \
+RITG_TEST_CMD='echo "Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3, Duration: 1 ms"; exit 0' \
     run_arm "PASS when the curated set runs green (liveness)" 0
 
 echo "  ── $pass passed, $fail failed ──"

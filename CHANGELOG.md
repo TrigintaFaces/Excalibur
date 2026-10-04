@@ -140,6 +140,7 @@ an instance out of rotation depends on your configured refresh cadence — a cro
 high staleness normal — so the framework does not guess it. Monitor the published staleness metric and
 set your own alerting until a configurable escalation threshold ships.
 
+## [10.0.0-alpha.14] - 2026-10-02
 
 ### Removed from the public API (breaking)
 
@@ -3250,7 +3251,8 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.13...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.14...HEAD
+[10.0.0-alpha.14]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.13...v10.0.0-alpha.14
 [10.0.0-alpha.13]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.12...v10.0.0-alpha.13
 [10.0.0-alpha.12]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.11...v10.0.0-alpha.12
 [10.0.0-alpha.11]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.10...v10.0.0-alpha.11
