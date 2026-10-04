@@ -1359,23 +1359,38 @@ IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Cdc')
 
 -- Create processed events table
 CREATE TABLE [Cdc].[CdcProcessedEvents] (
-    TableName   NVARCHAR(256)   NOT NULL,
-    Lsn         VARBINARY(10)   NOT NULL,
-    SeqVal      VARBINARY(10)   NOT NULL,
-    ConsumerId  NVARCHAR(128)   NOT NULL,
-    ProcessedAt DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    TableName    NVARCHAR(128)   NOT NULL,
+    Lsn          BINARY(10)      NOT NULL,
+    SeqVal       BINARY(10)      NOT NULL,
+    ConsumerId   NVARCHAR(128)   NOT NULL,
+    DatabaseName NVARCHAR(128)   NOT NULL,
+    ProcessedAt  DATETIME2(7)    NOT NULL,
     CONSTRAINT PK_CdcProcessedEvents
-        PRIMARY KEY CLUSTERED (TableName, Lsn, SeqVal, ConsumerId)
+        PRIMARY KEY CLUSTERED (TableName, Lsn, SeqVal, ConsumerId, DatabaseName)
 );
+
+-- The retention sweep is `DELETE TOP (@batchSize) ... WHERE ProcessedAt < @cutoff`. ProcessedAt is
+-- the last column of no other index, so without this the sweep scans the whole table on every pass.
+CREATE NONCLUSTERED INDEX [IX_CdcProcessedEvents_ProcessedAt]
+    ON [Cdc].[CdcProcessedEvents] ([ProcessedAt] ASC);
 ```
+
+This is the same shape as `002_CreateCdcIdempotencySchema.sql`, which ships inside the
+`Excalibur.Cdc.SqlServer` package under `scripts/` and is guarded so it is safe to re-run. Prefer the
+packaged script; the block above is the same schema for reading.
 
 :::warning Column widths are load-bearing — do not widen them
 
-SQL Server caps a **clustered** index key at 900 bytes, and every column above is part of the key. The
-widths shown total 788 bytes (`256×2 + 10 + 10 + 128×2`), which leaves headroom while still allowing a
-fully-qualified `schema.table` capture name.
+SQL Server caps a **clustered** index key at 900 bytes, and every column above except `ProcessedAt` is
+part of the key. The widths shown total 788 bytes of the 900 (`128×2 + 10 + 10 + 128×2 + 128×2`), leaving
+112 bytes. `NVARCHAR(128)` is not an arbitrary cap on `TableName`: a SQL Server identifier is at most 128
+characters, so the column cannot usefully be wider.
 
-Widening either string column pushes the key past the cap. SQL Server does **not** reject the
+A **sixth** identifier column does not fit — 128 more characters would be 1044 bytes. If one is ever
+needed, the natural key moves to a `UNIQUE` constraint over a surrogate clustered key, which is the shape
+`001_CreateCdcStateSchema.sql` already uses for the state store, and for this reason.
+
+Widening any of the three string columns pushes the key past the cap. SQL Server does **not** reject the
 `CREATE TABLE` when that happens — it issues a warning and then fails individual inserts at runtime with
 `Msg 1946, index entry of length N bytes … exceeds the maximum length of 900 bytes`. That error is not a
 duplicate-key violation, so the filter does not absorb it: the change is processed but never recorded as

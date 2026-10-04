@@ -27,9 +27,15 @@ internal static class QuartzSqlSmoke
 			await using var command = sql.CreateCommand();
 			command.CommandText = """
 				IF OBJECT_ID('dbo.NativeTasks') IS NULL
-				CREATE TABLE dbo.NativeTasks(DataTaskId uniqueidentifier PRIMARY KEY, CreatedAt datetimeoffset NOT NULL,
-				RecordType nvarchar(256) NOT NULL, Attempts int NOT NULL DEFAULT 0, MaxAttempts int NOT NULL,
-				CompletedCount bigint NOT NULL DEFAULT 0, FetchCursor nvarchar(512) NULL, ProcessedCursor nvarchar(512) NULL);
+				CREATE TABLE dbo.NativeTasks(
+					DataTaskId uniqueidentifier PRIMARY KEY,
+					CreatedAt datetimeoffset NOT NULL,
+					RecordType nvarchar(256) NOT NULL,
+					Attempts int NOT NULL DEFAULT 0,
+					MaxAttempts int NOT NULL,
+					CompletedCount bigint NOT NULL DEFAULT 0,
+					FetchCursor nvarchar(512) NULL,
+					ProcessedCursor nvarchar(512) NULL);
 				""";
 			_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		}

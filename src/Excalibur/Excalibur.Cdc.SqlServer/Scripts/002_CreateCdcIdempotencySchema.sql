@@ -28,7 +28,7 @@
 --
 -- WHAT THE CONSTRAINT GUARANTEES, AND WHAT IT DOES NOT.
 --
--- It guarantees AT MOST ONE ROW per (TableName, Lsn, SeqVal, ConsumerId). It does NOT guarantee at
+-- It guarantees AT MOST ONE ROW per (TableName, Lsn, SeqVal, ConsumerId, DatabaseName). It does NOT guarantee at
 -- most one EXECUTION, and an earlier version of this comment claimed it did -- that it "makes the
 -- filter correct when two instances process the same change concurrently." That was wrong, and it
 -- was wrong in the direction that makes a consumer under-engineer their handler.

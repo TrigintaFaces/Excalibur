@@ -28,9 +28,12 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.Providers.SqlServer;
 /// build executes it, so without this lock a defect in it surfaces first on their machine.
 /// </para>
 /// <para>
-/// The dedupe key carries a consumer discriminator so two consumers of one source table keep separate
-/// already-processed sets. Adding that column also pushed the clustered key from 532 to 1044 bytes, past
-/// SQL Server's 900-byte cap. SQL Server accepts such a <c>CREATE TABLE</c> with only a warning and then
+/// The dedupe key carries a consumer discriminator and a source-database discriminator, so two consumers
+/// of one source table - and two source databases under one connection identifier - each keep separate
+/// already-processed sets. Those two columns are what bound the widths: five key columns at
+/// 256 + 10 + 10 + 256 + 256 bytes is 788 of SQL Server's 900-byte clustered-key cap, leaving 112 bytes.
+/// Widening any string column past <c>NVARCHAR(128)</c> pushes the key over the cap, and SQL Server
+/// accepts such a <c>CREATE TABLE</c> with only a warning and then
 /// fails individual inserts with <c>Msg 1946</c> once a long value appears - and 1946 is not a duplicate
 /// key violation, so the filter does not absorb it. The change would be processed and never recorded as
 /// processed, then redelivered on every pass. Both arms below are therefore load-bearing, and neither is
@@ -73,11 +76,12 @@ public sealed class SqlServerCdcProcessedEventsSchemaShould
 		var ddl = ReadPublishedDdl();
 		var maxTableName = new string('t', DeclaredWidth(ddl, "TableName"));
 		var maxConsumerId = new string('c', DeclaredWidth(ddl, "ConsumerId"));
+		var maxDatabaseName = new string('d', DeclaredWidth(ddl, "DatabaseName"));
 
 		await Should.NotThrowAsync(
 			() => connection.ExecuteAsync(
-				$"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId) VALUES (@t, @l, @s, @c)",
-				new { t = maxTableName, l = new byte[] { 1 }, s = new byte[] { 1 }, c = maxConsumerId }),
+				$"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt) VALUES (@t, @l, @s, @c, @d, SYSUTCDATETIME())",
+				new { t = maxTableName, l = new byte[] { 1 }, s = new byte[] { 1 }, c = maxConsumerId, d = maxDatabaseName }),
 			"the published schema must accept an entry at the widest value its own column widths allow. " +
 			"SQL Server caps a clustered index key at 900 bytes and only warns at CREATE TABLE, so an " +
 			"oversized key is not detectable until an insert fails with Msg 1946 at runtime. That error " +
@@ -102,16 +106,16 @@ public sealed class SqlServerCdcProcessedEventsSchemaShould
 		var seqVal = new byte[] { 0, 0, 0, 1 };
 
 		await connection.ExecuteAsync(
-			$"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId) VALUES (@t, @l, @s, @c)",
-			new { t = "dbo.Orders", l = lsn, s = seqVal, c = "orders-projector" });
+			$"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt) VALUES (@t, @l, @s, @c, @d, SYSUTCDATETIME())",
+			new { t = "dbo.Orders", l = lsn, s = seqVal, c = "orders-projector", d = "Legacy" });
 
 		// The second consumer records the SAME change. If the key omitted ConsumerId this is a primary key
 		// violation, which the filter swallows as "already processed" -- so the second consumer would skip
 		// a change it never saw, with no error anywhere.
 		await Should.NotThrowAsync(
 			() => connection.ExecuteAsync(
-				$"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId) VALUES (@t, @l, @s, @c)",
-				new { t = "dbo.Orders", l = lsn, s = seqVal, c = "audit-forwarder" }),
+				$"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt) VALUES (@t, @l, @s, @c, @d, SYSUTCDATETIME())",
+				new { t = "dbo.Orders", l = lsn, s = seqVal, c = "audit-forwarder", d = "Legacy" }),
 			"a second consumer of the same table must be able to mark the same change processed. " +
 			"Sharing one set means whichever consumer marks first silently suppresses delivery for every " +
 			"other, and a suppression loses the change permanently while a duplicate only reprocesses it.");
@@ -119,6 +123,44 @@ public sealed class SqlServerCdcProcessedEventsSchemaShould
 		var consumers = (await connection.QueryAsync<string>(
 			$"SELECT ConsumerId FROM {table} WHERE TableName = 'dbo.Orders'")).ToList();
 		consumers.Count.ShouldBe(2, "both consumers' marks must coexist as distinct rows.");
+	}
+
+	/// <summary>
+	/// SAFETY: two configured source databases sharing a connection identifier must not share one
+	/// already-processed set.
+	/// </summary>
+	/// <remarks>
+	/// The axis the published key was MISSING, and the reason this file changed. The checkpoint store
+	/// matches on <c>(DatabaseConnectionIdentifier, DatabaseName, TableName)</c>; a dedupe key without
+	/// <c>DatabaseName</c> is therefore COARSER than the position it guards, and a coarser dedupe
+	/// namespace suppresses rather than duplicates. SQL Server log sequence numbers are per-database, so
+	/// an identical position in a different database is a DIFFERENT change. Drop the column from the
+	/// published key and this arm fails with a primary-key violation, which the filter swallows as
+	/// "already processed" - the second source skips a change it never saw, and nothing reports an error.
+	/// </remarks>
+	[Fact]
+	public async Task KeepASeparateProcessedSetPerSourceDatabaseForTheSameChange()
+	{
+		var table = await CreatePublishedTableAsync();
+		await using var connection = OpenConnection();
+
+		var lsn = new byte[] { 0, 0, 0, 3 };
+		var seqVal = new byte[] { 0, 0, 0, 3 };
+		var insert = $"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt) VALUES (@t, @l, @s, @c, @d, SYSUTCDATETIME())";
+
+		// One connection identifier, two source databases - a shape the job configuration permits and
+		// nothing rejects: the options validator checks only that the collection is non-empty.
+		await connection.ExecuteAsync(insert, new { t = "dbo.Orders", l = lsn, s = seqVal, c = "shared-identifier", d = "Legacy" });
+
+		await Should.NotThrowAsync(
+			() => connection.ExecuteAsync(insert, new { t = "dbo.Orders", l = lsn, s = seqVal, c = "shared-identifier", d = "Billing" }),
+			"the Billing source has never processed this change. An identical log sequence number in a " +
+			"different database is a different change, so treating it as processed skips it permanently " +
+			"and reports nothing - and a suppression is unrecoverable while a duplicate only reprocesses.");
+
+		var databases = (await connection.QueryAsync<string>(
+			$"SELECT DatabaseName FROM {table} WHERE Lsn = @l", new { l = lsn })).ToList();
+		databases.Count.ShouldBe(2, "both sources' marks must coexist as distinct rows.");
 	}
 
 	/// <summary>
@@ -130,8 +172,8 @@ public sealed class SqlServerCdcProcessedEventsSchemaShould
 		var table = await CreatePublishedTableAsync();
 		await using var connection = OpenConnection();
 
-		var row = new { t = "dbo.Orders", l = new byte[] { 0, 0, 0, 2 }, s = new byte[] { 0, 0, 0, 2 }, c = "orders-projector" };
-		var insert = $"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId) VALUES (@t, @l, @s, @c)";
+		var row = new { t = "dbo.Orders", l = new byte[] { 0, 0, 0, 2 }, s = new byte[] { 0, 0, 0, 2 }, c = "orders-projector", d = "Legacy" };
+		var insert = $"INSERT INTO {table} (TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt) VALUES (@t, @l, @s, @c, @d, SYSUTCDATETIME())";
 
 		await connection.ExecuteAsync(insert, row);
 

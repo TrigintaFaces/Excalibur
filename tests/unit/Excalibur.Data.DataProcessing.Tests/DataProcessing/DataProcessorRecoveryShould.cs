@@ -81,7 +81,12 @@ public sealed class DataProcessorRecoveryShould
     [Fact]
     public async Task JoinConcurrentDisposalAndDisposeEveryOwnedRecordExactlyOnce()
     {
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Publishes the handler's own token so the test can order the release AFTER cancellation is
+        // observable on it. Without that ordering the handler resumes before disposal has requested
+        // cancellation, returns normally, and the consumer dispatches a SECOND record -- which re-enters
+        // this singleton handler and fails with InvalidOperationException instead of the cancellation the
+        // arm is about. That race is machine-dependent: it passed 5/5 on Windows and failed on Linux CI.
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var records = Enumerable.Range(0, 20).Select(_ => new OwnedRecord()).ToArray();
         var services = new ServiceCollection();
@@ -89,7 +94,9 @@ public sealed class DataProcessorRecoveryShould
         {
             // A broken callback must not bypass joining this still-active handler.
             using var callback = token.Register(() => throw new InvalidOperationException("callback failure"));
-            entered.SetResult();
+            // Deliberately SetResult, not TrySetResult: a second entry means a record was dispatched after
+            // cancellation was already observed, which is the defect this arm exists to catch.
+            entered.SetResult(token);
             await release.Task;
             token.ThrowIfCancellationRequested();
         }));
@@ -97,11 +104,17 @@ public sealed class DataProcessorRecoveryShould
         var processor = new OwnedProcessor(provider, records);
         var checkpoints = 0;
         var run = processor.RunAsync(0, null, (_, _, _) => { checkpoints++; return Task.CompletedTask; }, CancellationToken.None);
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var handlerToken = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var firstDispose = processor.DisposeAsync().AsTask();
         var secondDispose = processor.DisposeAsync().AsTask();
         firstDispose.IsCompleted.ShouldBeFalse();
         secondDispose.IsCompleted.ShouldBeFalse();
+        (await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => handlerToken.IsCancellationRequested,
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMilliseconds(5))).ShouldBeTrue(
+            "disposal must request cancellation on the running handler's token before the handler resumes; "
+            + "otherwise this arm measures a handler that was never cancelled");
         release.SetResult();
         await Task.WhenAll(firstDispose, secondDispose).WaitAsync(TimeSpan.FromSeconds(10));
         await Should.ThrowAsync<OperationCanceledException>(() => run);

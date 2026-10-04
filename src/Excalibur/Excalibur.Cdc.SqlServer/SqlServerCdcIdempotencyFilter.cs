@@ -20,7 +20,7 @@ namespace Excalibur.Cdc.SqlServer;
 /// <remarks>
 /// <para>
 /// Suitable for multi-instance deployments where multiple CDC consumers may process the same events on
-/// crash or restart. The key is <c>(TableName, Lsn, SeqVal, ConsumerId)</c>, stored with a clustered
+/// crash or restart. The key is <c>(TableName, Lsn, SeqVal, ConsumerId, DatabaseName)</c>, stored with a clustered
 /// primary key for point-lookup performance.
 /// </para>
 /// <para>

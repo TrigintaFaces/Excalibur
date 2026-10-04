@@ -166,6 +166,11 @@ MAP_ROWS=(
     'Cdc[.]CdcProcessedEvents|src/Excalibur/Excalibur.Cdc.SqlServer/SqlServerCdcIdempotencyFilter.cs|_options[.]QualifiedTableName|sqlserver cdc idempotency'
     'Cdc[.]CdcProcessingState|src/Excalibur/Excalibur.Cdc.SqlServer/CdcStateStore.cs|_options[.]QualifiedTableName|sqlserver cdc state store'
     'DataProcessor[.]DataTaskRequests|src/Excalibur/Excalibur.Data.DataProcessing/Requests/*.cs|configuration[.]QualifiedTableName|data-processing task requests'
+    # The SAME table under a configured name: the AOT sample sets DataProcessingOptions.TableName to
+    # "NativeTasks", so the data-processing write path above is what writes it. Mapped rather than
+    # baselined, because there IS a write path to diff against and a renamed table is exactly the case
+    # a name-keyed map misses by default.
+    'dbo[.]NativeTasks|src/Excalibur/Excalibur.Data.DataProcessing/Requests/*.cs|configuration[.]QualifiedTableName|data-processing task requests (AOT sample, renamed table)'
 
     # ── DECLARED not-framework-owned (see NOT_APPLICABLE above) ───────────────────────────
     # A CDC sample's legacy SOURCE database: the tables the demo reads FROM to show change
