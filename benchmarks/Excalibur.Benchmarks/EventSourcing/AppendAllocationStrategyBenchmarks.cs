@@ -119,8 +119,6 @@ public class AppendAllocationStrategyBenchmarks
 		return string.Join(Environment.NewLine, lines) + Environment.NewLine;
 	}
 
-	private static string CsvText(string value) => "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-
 	/// <summary>Resets starting table contents; subsequent growth within a case remains part of the workload.</summary>
 	internal static async Task ResetAsync()
 	{
@@ -137,10 +135,13 @@ public class AppendAllocationStrategyBenchmarks
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
-
 	// CA2100: the row list is composed from an int loop counter and a computed long. Every VALUE
 	// in the statement is a bound parameter, so no string ever reaches the SQL text.
 #pragma warning disable CA2100
+	/// <summary>
+	/// Appends using the identity strategy: the position comes from the table identity, so no writer
+	/// waits on a shared allocation row.
+	/// </summary>
 	/// <param name="connection">An open connection.</param>
 	/// <param name="eventCount">How many events this append writes in one transaction.</param>
 	/// <param name="holdBeforeCommit">
@@ -189,6 +190,10 @@ public class AppendAllocationStrategyBenchmarks
 	// CA2100: the row list is composed from an int loop counter and a computed long. Every VALUE
 	// in the statement is a bound parameter, so no string ever reaches the SQL text.
 #pragma warning disable CA2100
+	/// <summary>
+	/// Appends using the counter-row strategy: the position comes from a singleton counter row taken
+	/// inside the appending transaction, which is what serializes concurrent writers.
+	/// </summary>
 	/// <param name="connection">An open connection.</param>
 	/// <param name="eventCount">How many events this append writes in one transaction.</param>
 	/// <param name="batched">Whether the allocation and the first insert travel in one command.</param>
@@ -320,23 +325,6 @@ public class AppendAllocationStrategyBenchmarks
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 
-	private Task RunAsync(string arm, Func<SqlConnection, Task> append) => MeasureWaveAsync(arm, async () =>
-	{
-		var work = new Task[WriterCount];
-		for (var i = 0; i < WriterCount; i++)
-		{
-			work[i] = Task.Run(async () =>
-			{
-				await using var connection = new SqlConnection(ConnectionString);
-				await connection.OpenAsync().ConfigureAwait(false);
-				await append(connection).ConfigureAwait(false);
-			});
-		}
-
-		// Await the entire wave, including disposal and failure drain, before recording its outcome.
-		await Task.WhenAll(work).ConfigureAwait(false);
-	});
-
 	internal async Task MeasureWaveAsync(string arm, Func<Task> operation, Func<long>? timestamp = null)
 	{
 		timestamp ??= Stopwatch.GetTimestamp;
@@ -362,6 +350,25 @@ public class AppendAllocationStrategyBenchmarks
 			}
 		}
 	}
+
+	private static string CsvText(string value) => "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
+	private Task RunAsync(string arm, Func<SqlConnection, Task> append) => MeasureWaveAsync(arm, async () =>
+	{
+		var work = new Task[WriterCount];
+		for (var i = 0; i < WriterCount; i++)
+		{
+			work[i] = Task.Run(async () =>
+			{
+				await using var connection = new SqlConnection(ConnectionString);
+				await connection.OpenAsync().ConfigureAwait(false);
+				await append(connection).ConfigureAwait(false);
+			});
+		}
+
+		// Await the entire wave, including disposal and failure drain, before recording its outcome.
+		await Task.WhenAll(work).ConfigureAwait(false);
+	});
 
 	private readonly record struct WaveSample(string Arm, int Writers, int Events, long Elapsed, string? Failure);
 

@@ -24,7 +24,16 @@ $ErrorActionPreference = 'Stop'
 if ($SkipSample) { throw 'The DispatchOnly scenario is required; -SkipSample cannot certify composition.' }
 if ($SkipBuild) { Write-Warning '-SkipBuild is retained for compatibility, but the candidate is rebuilt before certification.' }
 $repo = Split-Path -Parent $PSScriptRoot
-$run = Join-Path $repo ('artifacts/package-composition/' + [guid]::NewGuid().ToString('N'))
+$runId = [guid]::NewGuid().ToString('N')
+$run = Join-Path $repo ('artifacts/package-composition/' + $runId)
+# NuGet's HTTP cache goes OUTSIDE the evidence tree. It is transport state, not evidence -- nothing
+# reads it back -- and NuGet names its entries after the feed URL, which puts a COLON in the
+# directory name. The nightly evidence upload globs artifacts/package-composition/**/*.json, which
+# matches that colon-named DIRECTORY (it ends in .json), recurses into it, and GitHub then refuses
+# the whole artifact because an artifact path may not contain a colon. Measured: the composition
+# verdict itself PASSED -- 56 controls, production and scenario green -- and only the upload failed,
+# discarding an hour of evidence at the last step.
+$transport = Join-Path $repo ('artifacts/package-composition-transport/' + $runId)
 $feed = Join-Path $run 'feed'
 $cache = Join-Path $run 'consumer-cache'
 New-Item -ItemType Directory -Path $run,$cache -Force | Out-Null
@@ -34,7 +43,7 @@ foreach ($name in @('NUGET_PACKAGES','NUGET_HTTP_CACHE_PATH','NUGET_SCRATCH')) {
 $verdict = [ordered]@{ status='incomplete'; candidateSha=''; version=$Version; production='incomplete'; packageBuilds=@(); scenario='incomplete'; evidenceDirectory=$run }
 try {
     $env:NUGET_PACKAGES = Join-Path $run 'producer-cache'
-    $env:NUGET_HTTP_CACHE_PATH = Join-Path $run 'http-cache'
+    $env:NUGET_HTTP_CACHE_PATH = Join-Path $transport 'http-cache'
     $env:NUGET_SCRATCH = Join-Path $run 'scratch'
     & "$PSScriptRoot/pack-local.ps1" -Version $Version -OutputDirectory $feed -EvidenceDirectory (Join-Path $run 'production')
     $manifest = Get-Content (Join-Path $run 'production/candidate-packages.json') -Raw | ConvertFrom-Json -AsHashtable

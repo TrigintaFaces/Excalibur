@@ -16,5 +16,18 @@
     "",
     "Adding an entry is a security decision. Justify reachability from evidence, not from intuition."
   ],
-  "exceptions": []
+  "exceptions": [
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "directory": "docs-site",
+      "expires": "2027-01-02",
+      "absent_globs": [
+        "docs-site/Dockerfile",
+        "docs-site/docker-compose.yml",
+        "docs-site/docker-compose.yaml"
+      ],
+      "reason": "No patched version exists: the advisory is against braces at ANY version, and npm's only offer is `audit fix --force` installing a DIFFERENT package (@easyops-cn/docusaurus-search-local 0.26.1), a breaking change that does not even remove the affected chain. braces reaches this directory solely through @docusaurus/core 3.10.2, by two build-time paths measured with `npm ls braces`: @docusaurus/utils -> micromatch 4.0.8 -> braces 3.0.3, and chokidar 3.6.0 -> braces 3.0.3. The defect is stack exhaustion from a deeply NESTED BRACE PATTERN, so exploiting it requires control of the pattern. Both consumers are fed our own repository globs and Docusaurus's internal ones at build time; neither accepts a pattern from any external party. docs-site builds a STATIC site and ships in no NuGet package, so nothing here reaches a consumer of this framework, and chokidar's watch path exists only under the local dev server. The 31 high findings this covers are all this one advisory, deduplicated across the Docusaurus tree. The other two advisories in this directory were FIXED rather than excepted (http-cache-semantics 4.2.0->4.3.0, dompurify 3.4.14->3.4.16, both patch-level), so this entry is what is left after taking every available fix. The absent_globs encode the load-bearing half of the premise: a Dockerfile or compose file here would mean docs-site is being SERVED rather than statically built, which puts the dev server and its watcher somewhere an outside party can reach, and the reachability argument above stops holding."
+    }
+  ]
 }

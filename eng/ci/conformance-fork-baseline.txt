@@ -70,3 +70,22 @@ TransportHealthCheckerConformanceTests
 # Entered deliberately rather than assumed, per this file's own rule. Tracked.
 GrantQueryStoreConformanceTestBase
 
+# Category B, and the blocker is a DEPENDENCY one, found by attempting the mechanical move first.
+# Two providers derive this base -- Elasticsearch and OpenSearch -- and it binds the view-position
+# checkpoint contract: SavePositionAsync reporting an outcome, and ResetPositionAsync. A consumer
+# writing a third IMaterializedViewStore has no suite to derive while ours are held to these arms.
+#
+# What blocks publishing it: the shipped conformance package deliberately carries NO test-framework
+# dependency. Verified rather than assumed -- the only [Fact] anywhere in the published kits sits
+# inside a doc comment showing a consumer how to wire an arm, every real arm is a plain
+# `public virtual async Task`, and assertions throw TestFixtureAssertionException rather than using
+# Shouldly or an xunit Assert. This base uses [Fact], TestContext.Current (xunit v3) and Shouldly,
+# so moving it as-is forces xunit v3 AND Shouldly onto every consumer deriving ANY kit. The move was
+# tried and reverted on that evidence: it does not compile in the shipped package, which is the
+# package telling the truth about its own dependencies.
+#
+# Converting it is the right end state and is not a file move: the arms lose [Fact], take explicit
+# cancellation tokens, adopt the arm-ledger protocol the base class enforces through
+# ConformanceSuite_ShouldWireEveryArm, and swap Shouldly for TestFixtureAssertionException -- which
+# adds shipped public API and so is a product decision. Tracked.
+ViewPositionCheckpointConformance

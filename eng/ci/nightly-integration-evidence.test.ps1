@@ -14,6 +14,24 @@ $root = Join-Path $repo ('artifacts/tools/nightly-evidence-control-' + [guid]::N
 $dotnet = (Resolve-Path -LiteralPath $DotnetPath).Path
 $shell = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
 if (-not $PackageCache) { $PackageCache = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.nuget/packages' }
+# The fixture restores OFFLINE from the package cache, and it needs its own NuGet config to do it.
+# The repository config enables PackageSourceMapping, and when that is on NuGet silently DISCARDS any
+# source that no mapping covers -- so passing the cache with --source while also passing the repo
+# --configfile resolved nothing and the restore failed NU1100 on all three fixture packages, with the
+# cache named in the message as 'not considered'. Writing a throwaway config here, with <clear /> and
+# a single unmapped source, is the same isolation this script already applies to Directory.Build.props
+# and Directory.Build.targets. Central package management still resolves versions from the repository's
+# Directory.Packages.props, which the NU1100 text confirms was already working.
+$fixtureNuGetConfig = Join-Path $root 'NuGet.Config'
+@"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="fixture-cache" value="$PackageCache" />
+  </packageSources>
+</configuration>
+"@ | Set-Content -LiteralPath $fixtureNuGetConfig
 '<Project><PropertyGroup><RunSettingsFilePath>$(MSBuildThisFileDirectory)fixture.runsettings</RunSettingsFilePath></PropertyGroup></Project>' | Set-Content (Join-Path $root 'Directory.Build.props')
 '<RunSettings><xUnit><PreEnumerateTheories>true</PreEnumerateTheories></xUnit></RunSettings>' | Set-Content (Join-Path $root 'fixture.runsettings')
 '<Project><PropertyGroup><IsTestingPlatformApplication>false</IsTestingPlatformApplication></PropertyGroup></Project>' | Set-Content (Join-Path $root 'Directory.Build.targets')
@@ -67,7 +85,7 @@ public sealed class Cases : IClassFixture<Cleanup>
     }
 }
 '@ | Set-Content (Join-Path $directory 'Cases.cs')
-    & $dotnet restore $project --configfile (Join-Path $repo 'NuGet.Config') --packages $PackageCache --source $PackageCache -p:NuGetAudit=false *> (Join-Path $directory 'restore.log')
+    & $dotnet restore $project --configfile $fixtureNuGetConfig --packages $PackageCache -p:NuGetAudit=false *> (Join-Path $directory 'restore.log')
     if ($LASTEXITCODE -ne 0) { throw "Fixture restore failed: $directory" }
     & $dotnet build $project -c Release --no-restore -warnaserror *> (Join-Path $directory 'build.log')
     if ($LASTEXITCODE -ne 0) { throw "Fixture build failed: $directory" }

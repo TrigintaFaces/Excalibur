@@ -1,5 +1,566 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "AOT warning baseline for Excalibur.Dispatch. Only warnings with documented justification may be added. PRs adding entries require explicit justification.",
-  "warnings": []
+  "policy": "EVERY entry below is third-party. None is ours. The population was taken from the mirror's own AOT Publish Validation report -- 208 warnings, 0 errors, publish SUCCEEDED -- and parsed with the same attribution the validator uses: 0 of 208 were attributed to an Excalibur assembly. The bar on OUR code is therefore unchanged and still zero. An entry matches on code AND package AND a substring naming the specific member whose reflection could not be proven safe, so a warning from our code, or a DIFFERENT warning from the same dependency, cannot match one of these and will still fail the gate. Do NOT add a wildcard or a package-wide entry: that would delete the only property that makes this file safe to keep. Proven before landing by re-applying the validator's own predicate to the real report: 208 of 208 absorbed, while a synthetic Excalibur-owned warning and a synthetic same-package-different-member warning both stayed unmatched, and no entry carries a substring short enough to act as a wildcard.",
+  "reviewed": "2026-10-04",
+  "warnings": [
+    {
+      "code": "IL2070",
+      "package": "Dapper.CommandDefinition (third-party)",
+      "message_substring": "Dapper.CommandDefinition.GetBasicPropertySetter(Type,String,Type)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL3050",
+      "package": "Dapper.CommandDefinition (third-party)",
+      "message_substring": "Dapper.CommandDefinition.GetInit(Type)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2093",
+      "package": "Dapper.DbWrappedReader (third-party)",
+      "message_substring": "Dapper.DbWrappedReader.GetFieldType(Int32)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2093",
+      "package": "Dapper.DbWrappedReader (third-party)",
+      "message_substring": "Dapper.DbWrappedReader.GetProviderSpecificFieldType(Int32)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2070",
+      "package": "Dapper.DefaultTypeMap (third-party)",
+      "message_substring": "Dapper.DefaultTypeMap.GetSettableFields(Type)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2070",
+      "package": "Dapper.DefaultTypeMap (third-party)",
+      "message_substring": "Dapper.DefaultTypeMap.GetSettableProps(Type)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2075",
+      "package": "Dapper.DefaultTypeMap (third-party)",
+      "message_substring": "Dapper.DefaultTypeMap.GetPropertySetter(PropertyInfo,Type)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2093",
+      "package": "Dapper.DisposedReader (third-party)",
+      "message_substring": "Dapper.DisposedReader.GetFieldType(Int32)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2093",
+      "package": "Dapper.DisposedReader (third-party)",
+      "message_substring": "Dapper.DisposedReader.GetProviderSpecificFieldType(Int32)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2075",
+      "package": "Dapper.SqlMapper (third-party)",
+      "message_substring": "Dapper.SqlMapper.CreateParamInfoGenerator(SqlMapper.Identity,Boolean,Boolean,IList`1<SqlMapper.LiteralToken>)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL3050",
+      "package": "Dapper.SqlMapper (third-party)",
+      "message_substring": "Dapper.SqlMapper.AddTypeHandlerCore(Type,SqlMapper.ITypeHandler,Boolean)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL3050",
+      "package": "Dapper.SqlMapper (third-party)",
+      "message_substring": "Dapper.SqlMapper.CreateParamInfoGenerator(SqlMapper.Identity,Boolean,Boolean,IList`1<SqlMapper.LiteralToken>)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL3050",
+      "package": "Dapper.SqlMapper (third-party)",
+      "message_substring": "Dapper.SqlMapper.LookupDbType(Type,String,Boolean,SqlMapper.ITypeHandler&)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2070",
+      "package": "Dapper.StructuredHelper (third-party)",
+      "message_substring": "Dapper.StructuredHelper.CreateFor(Type,String,Int32)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL3050",
+      "package": "Dapper.StructuredHelper (third-party)",
+      "message_substring": "Dapper.StructuredHelper.CreateFor(Type,String,Int32)",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2070",
+      "package": "Dapper.TypeExtensions (third-party)",
+      "message_substring": "Dapper.TypeExtensions.GetPublicInstanceMethod(Type,String,Type[])",
+      "justification": "Dapper 2.x maps result rows by reflection, which cannot be proven safe by the trimmer. The AOT-safe alternative is the source-generated Dapper.AOT, which is a substrate change against a dependency this project mandates and needs its own ruling before adoption."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteCommandAfter(Guid,SqlCommand,SqlTransaction,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteCommandBefore(SqlCommand,SqlTransaction,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteCommandError(Guid,SqlCommand,SqlTransaction,Exception,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteConnectionCloseAfter(Guid,Guid,SqlConnection,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteConnectionCloseBefore(SqlConnection,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteConnectionCloseError(Guid,Guid,SqlConnection,Exception,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteConnectionOpenAfter(Guid,SqlConnection,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteConnectionOpenBefore(SqlConnection,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteConnectionOpenError(Guid,SqlConnection,Exception,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteTransactionCommitAfter(Guid,IsolationLevel,SqlConnection,SqlInternalTransaction,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteTransactionCommitBefore(IsolationLevel,SqlConnection,SqlInternalTransaction,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteTransactionCommitError(Guid,IsolationLevel,SqlConnection,SqlInternalTransaction,Exception,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteTransactionRollbackAfter(Guid,IsolationLevel,SqlConnection,SqlInternalTransaction,String,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteTransactionRollbackBefore(IsolationLevel,SqlConnection,SqlInternalTransaction,String,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Diagnostics.SqlDiagnosticListener.WriteTransactionRollbackError(Guid,IsolationLevel,SqlConnection,SqlInternalTransaction,Exception,String,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.HostGuardianServiceEnclaveProvider.MakeRequest(String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Internal.SqlClientEventSource.BeginExecute(Int32,String,String,String,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Internal.SqlClientEventSource.EndExecute(Int32,Int32,Int32,String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlAuthenticationProviderManager..cctor()",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlConfigurableRetryLogicLoader.AssemblyResolver(AssemblyName)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlConfigurableRetryLogicLoader.Default_Resolving(AssemblyLoadContext,AssemblyName)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlConfigurableRetryLogicLoader.TypeResolver(Assembly,String,Boolean)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlParameter.CoerceValue(Object,MetaType,Boolean&,Boolean&,Boolean)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlTypes.SqlVector`1.GetString()",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2057",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.SmiMetaData.Type.get",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2057",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlAuthenticationProviderManager.SqlAuthenticationProviderManager(SqlAuthenticationProviderConfigurationSection)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2057",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlConfigurableRetryLogicLoader.LoadType(String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2057",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlConnection.CheckGetExtendedUDTInfo(SqlMetaDataPriv,Boolean)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.BinaryOrderedUdtNormalizer.BinaryOrderedUdtNormalizer(Type)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.BinaryOrderedUdtNormalizer.DeNormalize(FieldInfo,Object,Stream)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.MetaDataUtilsSmi.SqlMetaDataToSmiExtendedMetaData(SqlMetaData)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.SerializationHelperSql9.Serialize(Stream,Object)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.SerializationHelperSql9.SizeInBytes(Object)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.ValueUtilsSmi.GetUdt_LengthChecked(ITypedGettersV3,Int32,SmiMetaData)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlAuthenticationProviderManager..cctor()",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2072",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlConfigurableRetryLogicLoader.ResolveRetryLogicProvider(String,String,SqlRetryLogicOption)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2075",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.ValueUtilsSmi.GetUdt_LengthChecked(ITypedGettersV3,Int32,SmiMetaData)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2075",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.Server.ValueUtilsSmi.NullUdtInstance(SmiMetaData)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2111",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlDataReader.BuildSchemaTable()",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL3050",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.HostGuardianServiceEnclaveProvider.MakeRequest(String)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL3050",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlParameter.CoerceValue(Object,MetaType,Boolean&,Boolean&,Boolean)",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL3050",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlTypes.SqlVector`1.GetString()",
+      "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2026",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.ApplyStringProperties(Object,IServiceProvider,Object,String,String[])",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2026",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.SchedulerPluginFactory.ApplyProperties(ISchedulerPlugin,Type,String,NameValueCollection)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2067",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.SchedulerPluginFactory.Build(IServiceProvider,Object,Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass11_0.<RegisterSchedulerParts>b__0(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass11_0.<RegisterSchedulerParts>b__1(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass16_0.<RegisterThreadPool>b__0(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass19_0.<RegisterJobStore>b__0(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass19_0.<RegisterJobStore>b__1(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass23_0.<RegisterInitStringTriggerPersistenceDelegates>b__0(IServiceProvider)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass23_0.<RegisterInitStringTriggerPersistenceDelegates>b__1(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.<>c__DisplayClass26_0.<ApplySerializer>b__0(IServiceProvider,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Configuration (third-party)",
+      "message_substring": "Quartz.Configuration.QuartzPropertyBridge.ConfiguredTypeLoader(IServiceCollection,NameValueCollection)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2026",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.Common.ConfigurationBasedDbMetadataFactory.GetDbMetadata(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.Common.BuiltInDbMetadataFactory.LoadType(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.StdAdoDelegate.<>c__DisplayClass109_0.<CreateJobType>b__0(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.SimpleTypeLoader.CanResolve(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.SimpleTypeLoader.LoadDeclaredAlias(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.SimpleTypeLoader.LoadLegacyName(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.SimpleTypeLoader.LoadType(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2070",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.TransientErrorDetector.<>c.<GetSqlState>b__2_0(Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2070",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.TransientErrorDetector.<>c.<IsSqliteBusyOrLocked>b__8_0(Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2070",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.TransientErrorDetector.<>c.<IsSqliteBusyOrLocked>b__8_1(Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2070",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.TransientErrorDetector.<>c.<IsTransientSqlServerError>b__4_0(Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2070",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.TransientErrorDetector.<>c.<IsTransientSqlServerError>b__4_1(Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2072",
+      "package": "Quartz.Impl (third-party)",
+      "message_substring": "Quartz.Impl.AdoJobStore.StdAdoDelegate.<SelectJobForTrigger>d__110.MoveNext()",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2057",
+      "package": "Quartz.JobType (third-party)",
+      "message_substring": "Quartz.JobType.<>c.<.cctor>b__31_0(String)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2026",
+      "package": "Quartz.Util (third-party)",
+      "message_substring": "Quartz.Util.ValueConverter.ConvertValueIfNecessary(Type,Object)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2067",
+      "package": "Quartz.Util (third-party)",
+      "message_substring": "Quartz.Util.ValueConverter.DefaultValue(Type)",
+      "justification": "Quartz 4.x declares IsAotCompatible and exercises trimming and Native AOT in its own CI. It deliberately does not suppress IL2026 inside the shipped library, on the stated grounds that a suppression there would hide the risk from the consuming application. This sample already follows every published Quartz guideline: job types registered as types, a driver factory instead of a connection string, and job-data pre-serialized to strings before it reaches the store. No consumer-side action remains."
+    },
+    {
+      "code": "IL2026",
+      "package": "System.Configuration (third-party)",
+      "message_substring": "System.Configuration.TypeUtil.GetImplicitType(String)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    },
+    {
+      "code": "IL2057",
+      "package": "System.Configuration (third-party)",
+      "message_substring": "System.Configuration.TypeUtil.GetImplicitType(String)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    },
+    {
+      "code": "IL2057",
+      "package": "System.Configuration (third-party)",
+      "message_substring": "System.Configuration.TypeUtil.GetType(String,Boolean)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    },
+    {
+      "code": "IL2067",
+      "package": "System.Configuration (third-party)",
+      "message_substring": "System.Configuration.TypeUtil.CreateInstance(Type)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    },
+    {
+      "code": "IL2070",
+      "package": "System.Configuration (third-party)",
+      "message_substring": "System.Configuration.TypeUtil.GetConstructor(Type,Type,Boolean)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    },
+    {
+      "code": "IL3002",
+      "package": "System.Diagnostics (third-party)",
+      "message_substring": "System.Diagnostics.TypeNameHelper.ProcessGenericType(StringBuilder,Type,Type[],Int32,TypeNameHelper.DisplayNameOptions)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    },
+    {
+      "code": "IL3002",
+      "package": "System.Diagnostics (third-party)",
+      "message_substring": "System.Diagnostics.TypeNameHelper.ProcessType(StringBuilder,Type,TypeNameHelper.DisplayNameOptions)",
+      "justification": "Reached only through Microsoft.Data.SqlClient; covered by the same unreleased upstream fixes as the SqlClient entries above and removable at the same time."
+    }
+  ]
 }

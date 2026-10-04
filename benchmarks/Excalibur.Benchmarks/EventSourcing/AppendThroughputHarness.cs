@@ -50,112 +50,6 @@ internal static class AppendThroughputHarness
 		}
 	}
 
-	private static async Task<int> RunCoreAsync(string[] args, TextWriter errors)
-	{
-		var writers = ParseInts(args, "--writers", DefaultWriters);
-		var events = ParseInts(args, "--events", DefaultEvents);
-		var window = TimeSpan.FromSeconds(ParseDouble(args, "--window", 10));
-		var warmup = TimeSpan.FromSeconds(ParseDouble(args, "--warmup", 2));
-		var slice = TimeSpan.FromSeconds(ParseDouble(args, "--slice", 2));
-		var runs = int.Parse(Value(args, "--runs") ?? "1", CultureInfo.InvariantCulture);
-
-		// The same prefix of writers receives an optional pre-commit delay in every arm.
-		var slowHold = TimeSpan.FromMilliseconds(ParseDouble(args, "--slow-ms", 0));
-		var slowWriters = int.Parse(Value(args, "--slow-writers") ?? "0", CultureInfo.InvariantCulture);
-
-		if (writers.Length == 0 || events.Length == 0 || writers.Any(w => w <= 0 || w > int.MaxValue / 4)
-			|| events.Any(e => e <= 0) || writers.Distinct().Take(writers.Length + 1).Count() != writers.Length
-			|| events.Distinct().Take(events.Length + 1).Count() != events.Length || runs <= 0 || slowWriters < 0
-			|| slice <= TimeSpan.Zero || window < slice || warmup < TimeSpan.Zero || slowHold < TimeSpan.Zero
-			|| warmup / slice + window / slice > int.MaxValue - 1)
-		{
-			await errors.WriteLineAsync("INVALID CONFIGURATION: provide distinct positive writer/event counts, "
-				+ "positive runs and slice, window >= slice, and nonnegative warmup/slow settings.").ConfigureAwait(false);
-			return 2;
-		}
-
-		if (string.IsNullOrWhiteSpace(AppendAllocationStrategyBenchmarks.ConnectionString))
-		{
-			await errors.WriteLineAsync(
-				"REFUSE: BENCHMARK_SQL_CONNECTIONSTRING is not set, so nothing was measured. This harness "
-				+ "needs a real SQL Server for the synthetic allocation/insert operations.").ConfigureAwait(false);
-			return 2;
-		}
-
-		// Record scheduling configuration without claiming interference has been eliminated.
-		var wantedWorkers = Math.Max(writers.Max() * 4, 256);
-		ThreadPool.GetMinThreads(out var hadWorkers, out var hadPorts);
-		var poolRaised = ThreadPool.SetMinThreads(Math.Max(wantedWorkers, hadWorkers), hadPorts);
-
-		var warmupSlices = (int)Math.Ceiling(warmup / slice);
-		var measuredSlices = Math.Max(1, (int)Math.Round(window / slice));
-
-		Console.WriteLine(
-			Inv($"fixed-window append throughput: slice={slice.TotalSeconds:0.#}s ")
-			+ Inv($"measured={measuredSlices} slices/arm warmup={warmupSlices} slices/arm runs={runs} ")
-			+ Inv($"writers=[{string.Join(',', writers)}] events=[{string.Join(',', events)}]")
-			+ Inv($" minworkers={hadWorkers}->{wantedWorkers}{(poolRaised ? string.Empty : " (RAISE FAILED)")}")
-			+ (slowWriters > 0 && slowHold > TimeSpan.Zero
-				? Inv($" slow={slowWriters} writer(s) holding {slowHold.TotalMilliseconds:0}ms before commit")
-				: " slow=none"));
-		Console.WriteLine(
-			"synthetic SQL diagnostics; rotated slice order, empty starting tables, untrimmed successful "
-			+ "samples. Environment effects and within-slice growth remain possible.");
-		Console.WriteLine();
-
-		await AppendAllocationStrategyBenchmarks.EnsureSchemaAsync().ConfigureAwait(false);
-
-		var results = new List<Cell>();
-		var samplePath = Path.Combine(
-			"BenchmarkDotNet.Artifacts",
-			"samples",
-			Inv($"append-throughput-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.csv"));
-		_ = Directory.CreateDirectory(Path.GetDirectoryName(samplePath)!);
-
-		await using (var csv = new StreamWriter(samplePath, append: false))
-		await using (var slices = new StreamWriter(samplePath + ".slices.csv", append: false))
-		{
-			await csv.WriteLineAsync("run,arm,writers,events,slice,counted,latency_ms,offset_s")
-				.ConfigureAwait(false);
-
-			await slices.WriteLineAsync("run,arm,writers,events,slice,counted,elapsed_s,successes,failures,stage").ConfigureAwait(false);
-			for (var run = 1; run <= runs; run++)
-			{
-				var block = await MeasureBlockAsync(
-						run, writers, events, warmupSlices, measuredSlices, slice, slowWriters, slowHold, csv, slices)
-					.ConfigureAwait(false);
-				results.AddRange(block);
-
-				foreach (var cell in block)
-				{
-					Console.WriteLine(
-						Inv($"  run {run} {cell.Arm,-16} W={cell.Writers,-3} ev={cell.Events} ")
-						+ Inv($"{cell.AppendsPerSecond,8:0.0} appends/s  n={cell.Appends,-6} ")
-						+ Inv($"p50={cell.P50Ms,7:0.00}ms p95={cell.P95Ms,8:0.00}ms ")
-						+ Inv($"p99={cell.P99Ms,8:0.00}ms max={cell.MaxMs,8:0.00}ms"));
-				}
-			}
-		}
-
-		Console.WriteLine();
-		Console.WriteLine(Inv($"raw samples: {samplePath}"));
-		Console.WriteLine();
-
-		ReportThroughput(results, writers, events);
-		var failures = results.Sum(r => r.Failures);
-		if (!ExecutionCompleted(results, (long)runs * writers.Length * events.Length * Arms.Length))
-		{
-			Console.WriteLine(Inv($"EXECUTION INCOMPLETE: {failures} failed operations (including warmup/reset). ")
-				+ "Retain these observations, but do not use the run as a successful comparative result. "
-				+ "A failed acknowledgement does not establish rollback.");
-			return 2;
-		}
-
-		Console.WriteLine("DIAGNOSTIC COMPLETED. No performance acceptance decision was made. "
-			+ "Raw observations do not establish production capacity or equivalent feed guarantees.");
-		return 0;
-	}
-
 	internal static bool ExecutionCompleted(List<Cell> results, long expectedCells) =>
 		expectedCells > 0 && results.Count == expectedCells
 		&& results.Select(r => (r.Run, r.Arm, r.Writers, r.Events)).Distinct().Take(results.Count + 1).Count() == results.Count
@@ -281,24 +175,6 @@ internal static class AppendThroughputHarness
 		return cells;
 	}
 
-	/// <summary>Drives one slice, including connection disposal and the complete drain in timing.</summary>
-	private static Task<SliceResult> DriveSliceAsync(
-		string arm,
-		int writerCount,
-		int eventCount,
-		TimeSpan slice,
-		int slowWriters,
-		TimeSpan slowHold)
-	{
-		return DriveOperationsAsync(writerCount, slice, async writer =>
-		{
-			var append = AppendFor(arm, eventCount, writer < slowWriters ? slowHold : TimeSpan.Zero);
-			await using var connection = new SqlConnection(AppendAllocationStrategyBenchmarks.ConnectionString);
-			await connection.OpenAsync().ConfigureAwait(false);
-			await append(connection).ConfigureAwait(false);
-		});
-	}
-
 	/// <summary>Times whole-operation completion, including asynchronous resource cleanup.</summary>
 	internal static async Task<SliceResult> DriveOperationsAsync(
 		int writerCount, TimeSpan slice, Func<int, Task> operation, Func<long>? timestamp = null)
@@ -366,6 +242,130 @@ internal static class AppendThroughputHarness
 		double Seconds,
 		int Failures,
 		string? FirstFailure);
+
+	private static async Task<int> RunCoreAsync(string[] args, TextWriter errors)
+	{
+		var writers = ParseInts(args, "--writers", DefaultWriters);
+		var events = ParseInts(args, "--events", DefaultEvents);
+		var window = TimeSpan.FromSeconds(ParseDouble(args, "--window", 10));
+		var warmup = TimeSpan.FromSeconds(ParseDouble(args, "--warmup", 2));
+		var slice = TimeSpan.FromSeconds(ParseDouble(args, "--slice", 2));
+		var runs = int.Parse(Value(args, "--runs") ?? "1", CultureInfo.InvariantCulture);
+
+		// The same prefix of writers receives an optional pre-commit delay in every arm.
+		var slowHold = TimeSpan.FromMilliseconds(ParseDouble(args, "--slow-ms", 0));
+		var slowWriters = int.Parse(Value(args, "--slow-writers") ?? "0", CultureInfo.InvariantCulture);
+
+		if (writers.Length == 0 || events.Length == 0 || writers.Any(w => w is <= 0 or > (int.MaxValue / 4))
+			|| events.Any(e => e <= 0) || writers.Distinct().Take(writers.Length + 1).Count() != writers.Length
+			|| events.Distinct().Take(events.Length + 1).Count() != events.Length || runs <= 0 || slowWriters < 0
+			|| slice <= TimeSpan.Zero || window < slice || warmup < TimeSpan.Zero || slowHold < TimeSpan.Zero
+			|| warmup / slice + window / slice > int.MaxValue - 1)
+		{
+			await errors.WriteLineAsync("INVALID CONFIGURATION: provide distinct positive writer/event counts, "
+				+ "positive runs and slice, window >= slice, and nonnegative warmup/slow settings.").ConfigureAwait(false);
+			return 2;
+		}
+
+		if (string.IsNullOrWhiteSpace(AppendAllocationStrategyBenchmarks.ConnectionString))
+		{
+			await errors.WriteLineAsync(
+				"REFUSE: BENCHMARK_SQL_CONNECTIONSTRING is not set, so nothing was measured. This harness "
+				+ "needs a real SQL Server for the synthetic allocation/insert operations.").ConfigureAwait(false);
+			return 2;
+		}
+
+		// Record scheduling configuration without claiming interference has been eliminated.
+		var wantedWorkers = Math.Max(writers.Max() * 4, 256);
+		ThreadPool.GetMinThreads(out var hadWorkers, out var hadPorts);
+		var poolRaised = ThreadPool.SetMinThreads(Math.Max(wantedWorkers, hadWorkers), hadPorts);
+
+		var warmupSlices = (int)Math.Ceiling(warmup / slice);
+		var measuredSlices = Math.Max(1, (int)Math.Round(window / slice));
+
+		Console.WriteLine(
+			Inv($"fixed-window append throughput: slice={slice.TotalSeconds:0.#}s ")
+			+ Inv($"measured={measuredSlices} slices/arm warmup={warmupSlices} slices/arm runs={runs} ")
+			+ Inv($"writers=[{string.Join(',', writers)}] events=[{string.Join(',', events)}]")
+			+ Inv($" minworkers={hadWorkers}->{wantedWorkers}{(poolRaised ? string.Empty : " (RAISE FAILED)")}")
+			+ (slowWriters > 0 && slowHold > TimeSpan.Zero
+				? Inv($" slow={slowWriters} writer(s) holding {slowHold.TotalMilliseconds:0}ms before commit")
+				: " slow=none"));
+		Console.WriteLine(
+			"synthetic SQL diagnostics; rotated slice order, empty starting tables, untrimmed successful "
+			+ "samples. Environment effects and within-slice growth remain possible.");
+		Console.WriteLine();
+
+		await AppendAllocationStrategyBenchmarks.EnsureSchemaAsync().ConfigureAwait(false);
+
+		var results = new List<Cell>();
+		var samplePath = Path.Combine(
+			"BenchmarkDotNet.Artifacts",
+			"samples",
+			Inv($"append-throughput-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.csv"));
+		_ = Directory.CreateDirectory(Path.GetDirectoryName(samplePath)!);
+
+		await using (var csv = new StreamWriter(samplePath, append: false))
+		await using (var slices = new StreamWriter(samplePath + ".slices.csv", append: false))
+		{
+			await csv.WriteLineAsync("run,arm,writers,events,slice,counted,latency_ms,offset_s")
+				.ConfigureAwait(false);
+
+			await slices.WriteLineAsync("run,arm,writers,events,slice,counted,elapsed_s,successes,failures,stage").ConfigureAwait(false);
+			for (var run = 1; run <= runs; run++)
+			{
+				var block = await MeasureBlockAsync(
+						run, writers, events, warmupSlices, measuredSlices, slice, slowWriters, slowHold, csv, slices)
+					.ConfigureAwait(false);
+				results.AddRange(block);
+
+				foreach (var cell in block)
+				{
+					Console.WriteLine(
+						Inv($"  run {run} {cell.Arm,-16} W={cell.Writers,-3} ev={cell.Events} ")
+						+ Inv($"{cell.AppendsPerSecond,8:0.0} appends/s  n={cell.Appends,-6} ")
+						+ Inv($"p50={cell.P50Ms,7:0.00}ms p95={cell.P95Ms,8:0.00}ms ")
+						+ Inv($"p99={cell.P99Ms,8:0.00}ms max={cell.MaxMs,8:0.00}ms"));
+				}
+			}
+		}
+
+		Console.WriteLine();
+		Console.WriteLine(Inv($"raw samples: {samplePath}"));
+		Console.WriteLine();
+
+		ReportThroughput(results, writers, events);
+		var failures = results.Sum(r => r.Failures);
+		if (!ExecutionCompleted(results, (long)runs * writers.Length * events.Length * Arms.Length))
+		{
+			Console.WriteLine(Inv($"EXECUTION INCOMPLETE: {failures} failed operations (including warmup/reset). ")
+				+ "Retain these observations, but do not use the run as a successful comparative result. "
+				+ "A failed acknowledgement does not establish rollback.");
+			return 2;
+		}
+
+		Console.WriteLine("DIAGNOSTIC COMPLETED. No performance acceptance decision was made. "
+			+ "Raw observations do not establish production capacity or equivalent feed guarantees.");
+		return 0;
+	}
+
+	/// <summary>Drives one slice, including connection disposal and the complete drain in timing.</summary>
+	private static Task<SliceResult> DriveSliceAsync(
+		string arm,
+		int writerCount,
+		int eventCount,
+		TimeSpan slice,
+		int slowWriters,
+		TimeSpan slowHold)
+	{
+		return DriveOperationsAsync(writerCount, slice, async writer =>
+		{
+			var append = AppendFor(arm, eventCount, writer < slowWriters ? slowHold : TimeSpan.Zero);
+			await using var connection = new SqlConnection(AppendAllocationStrategyBenchmarks.ConnectionString);
+			await connection.OpenAsync().ConfigureAwait(false);
+			await append(connection).ConfigureAwait(false);
+		});
+	}
 
 	/// <summary>Reports descriptive run-level spread without assuming independent append samples.</summary>
 	private static void ReportThroughput(List<Cell> results, int[] writers, int[] events)

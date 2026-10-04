@@ -2996,14 +2996,6 @@
       "line": 307,
       "file": "src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs",
       "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-      "warningId": "IL2026",
-      "verdict": "PROPAGATED",
-      "classifiedBy": "inspection"
-    },
-    {
-      "line": 307,
-      "file": "src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs",
-      "justification": "Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
       "warningId": "IL3050",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
