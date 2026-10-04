@@ -290,6 +290,6 @@
   <ItemGroup>
     <!-- Shipped schema: a consumer cannot obtain this DDL unless it is packed, and the
          framework does not auto-create tables. Glob matches where the .sql actually lives. -->
-    <None Include="ErrorHandling\PoisonMessage\*.sql" Pack="true" PackagePath="scripts\" />
+    <None Include="ErrorHandling\PoisonMessage\*.sql" Pack="true" PackagePath="scripts/" />
   </ItemGroup>
 </Project>

@@ -232,7 +232,7 @@
 	     Declared centrally rather than per-project: any package that grows a Scripts directory is covered
 	     without a second edit, which is the only way this stays true as providers are added. -->
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\Scripts')">
-		<None Include="$(MSBuildProjectDirectory)\Scripts\**\*.sql" Pack="true" PackagePath="scripts\" />
+		<None Include="$(MSBuildProjectDirectory)\Scripts\**\*.sql" Pack="true" PackagePath="scripts/" />
 	</ItemGroup>
 
 	<!-- MinVer: git-tag-driven versioning for shipping packages (Polly pattern).

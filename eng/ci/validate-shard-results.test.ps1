@@ -94,3 +94,12 @@ finally {
         [IO.Path]::GetFileName($resolved) -notlike 'shard-result-gate-*') { throw 'Refusing unsafe fixture cleanup path.' }
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
+
+# EXIT EXPLICITLY, for the same reason as discover-required-tests.test.ps1: the arms above invoke
+# the gate expecting it to REFUSE or FAIL, so the last native exit code on the SUCCESS path is
+# non-zero. Measured on this file: `pwsh -File` returns 0 and hides it, while the
+# `exit $LASTEXITCODE` wrapper GitHub appends to a `shell: pwsh` step returns 2 -- which on this
+# gate family reads as REFUSE. harness-gates-ci.sh invokes this with -File today, so the leak is
+# latent rather than live; wiring it into a workflow step would have made it live, reporting
+# 'PASS: 31 shard-result safety/liveness cases' and failing anyway.
+exit 0

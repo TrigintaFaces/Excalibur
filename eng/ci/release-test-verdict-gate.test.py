@@ -331,8 +331,15 @@ class VerdictTests(unittest.TestCase):
     def test_classifier_and_docs_comparison_use_same_immutable_policy(self):
         GATE.verify_docs_policy(WORKFLOW)
         self.assertNotIn('export DOCS_GATE_BASE_REF="origin/', WORKFLOW)
+        # Each mutant must still EXIST in the workflow, or commenting it out mutates nothing and the
+        # arm passes for free. That is what happened when the step split `export X="$(...)"` into an
+        # assignment plus a separate `export`: the old combined string vanished, .replace() matched
+        # nothing, and this arm reported "Refuse not raised" -- a mutation that no longer mutates.
+        # Both halves of the split are listed so the pin is proven to cover each line, not just one.
         for command in ('docs_only="$(python3 eng/ci/release-test-verdict-gate.py --classify-base "$base" --sha "$head")"',
-                        'export DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"'):
+                        'DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"',
+                        'export DOCS_GATE_BASE_REF'):
+            self.assertIn(command, WORKFLOW, 'mutation target absent: the arm would pass vacuously')
             with self.subTest(command=command), self.assertRaises(GATE.Refuse):
                 GATE.verify_docs_policy(WORKFLOW.replace(command, '# ' + command))
         for altered in (

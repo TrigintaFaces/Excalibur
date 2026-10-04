@@ -35,6 +35,6 @@
          drift from the packed one while reading as deliberate provisioning. The packed script
          under scripts/ is the single obtainable copy. -->
 
-    <None Include="Sql\*.sql" Pack="true" PackagePath="scripts\" />
+    <None Include="Sql\*.sql" Pack="true" PackagePath="scripts/" />
   </ItemGroup>
 </Project>

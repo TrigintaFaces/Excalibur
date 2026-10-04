@@ -20,7 +20,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
     <Content Include="dispatch-api\**\*" Exclude="dispatch-api\**\bin\**;dispatch-api\**\obj\**" />
     <Content Include="dispatch-worker\**\*" Exclude="dispatch-worker\**\bin\**;dispatch-worker\**\obj\**" />
     <Content Include="excalibur-ddd\**\*" Exclude="excalibur-ddd\**\bin\**;excalibur-ddd\**\obj\**" />

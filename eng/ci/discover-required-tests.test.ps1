@@ -126,3 +126,17 @@ try {
     $caseCount++
     Write-Host "PASS: $caseCount real adapter controls. Evidence: $root"
 } finally { $env:CI02_DISCOVERY_FAULT = $oldFault; $env:CI02_MUTATE_FILE = $oldMutation }
+
+# EXIT EXPLICITLY. Every must-fail control above invokes a native command that legitimately exits
+# non-zero, and a PowerShell script inherits the LAST native exit code -- GitHub's pwsh wrapper then
+# ends the step with `exit $LASTEXITCODE`. So this suite printed
+# "PASS: 11 real adapter controls" and failed its step anyway, which took out NINE unit shards
+# across three operating systems on a self-test that had actually passed.
+#
+# The leaked value is not even stable: measured 1 in CI and 2 locally, from whichever control ran
+# last. On this gate family 2 means REFUSE, so the leak could present as a three-state verdict this
+# script never rendered.
+#
+# A real failure still exits non-zero: every control throws, and $ErrorActionPreference='Stop'
+# makes a throw terminate the script before this line is reached.
+exit 0

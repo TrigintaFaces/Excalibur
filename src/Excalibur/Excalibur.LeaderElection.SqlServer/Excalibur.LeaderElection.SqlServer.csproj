@@ -37,7 +37,7 @@
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts/" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />

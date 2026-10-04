@@ -115,12 +115,18 @@ if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
 fi
 docs_only="$(python3 eng/ci/release-test-verdict-gate.py --classify-base "$base" --sha "$head")"
 echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"'''
+# Pinned so the docs-only classifier cannot drift from the workflow step that actually runs. The
+# assignment and the export are SEPARATE here because they are separate in the workflow: the
+# combined `export X="$(...)"` takes its exit status from `export`, so under `set -e` a failing
+# `git rev-parse` was swallowed and the phantom gate ran against an empty base ref. Changing the
+# step without changing this pin is caught -- that is what this pin is for, and it caught it.
 DOC_SCRIPT = '''set -euo pipefail
 if [ "$EVENT_NAME" = "pull_request" ]; then
-  export DOCS_GATE_BASE_REF="$PR_BASE_SHA"
+  DOCS_GATE_BASE_REF="$PR_BASE_SHA"
 else
-  export DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
+  DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
 fi
+export DOCS_GATE_BASE_REF
 git cat-file -e "${DOCS_GATE_BASE_REF}^{commit}"
 bash eng/ci/docs-csharp-phantom-gate.sh'''
 

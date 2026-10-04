@@ -767,3 +767,67 @@ gates:
     published: true
     has_test: false
     has_lock: false
+  - path: "eng/ci/cache-restore-report.py"
+    kind: reporter
+    kind_proxy: reporter
+    kind_evidence: "read: returns 0 or 2 only, 2 being REFUSE when evidence cannot be reconciled; no finding/FAIL exit, so it renders no verdict over the tree"
+    runs_in: nowhere
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/collect-cache-evidence.py"
+    kind: reporter
+    kind_proxy: reporter
+    kind_evidence: "read: its own header says exit 2 means no measurement certified; returns 0 or 2 with no finding exit"
+    runs_in: nowhere
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/install-gitleaks.py"
+    kind: reporter
+    kind_proxy: reporter
+    kind_evidence: "read: installs scanner bytes. Its only non-zero exit is an install failure, NOT a finding about the tree -- the exit-1 proxy would call this a gate and be wrong, which is why kind is reviewed by hand"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/record-cache-observation.py"
+    kind: reporter
+    kind_proxy: reporter
+    kind_evidence: "read: records one observation and returns 0 or 2, printing 'cache observation unavailable' on 2; an unavailability notice, not a verdict"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/release-test-verdict-gate.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "read at its return sites: main() returns 0 GREEN, 1 RED, 2 REFUSE over a candidate SHA's CI evidence"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/required-test-evidence.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "read: require() rejects inconsistent evidence and main() exits 2 with 'REFUSE:'; it renders a verdict over an invocation plan"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/resolve-release-version.sh"
+    kind: reporter
+    kind_proxy: reporter
+    kind_evidence: "read and run: resolves a version string, and its only non-zero exit is refuse() on a bad mode -- a usage validation, not a verdict over the tree"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/verify-reproducible-build.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "read: main() prints 'PASS:' or 'FAIL:' and returns 0 or 1 over two independent build roots"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false

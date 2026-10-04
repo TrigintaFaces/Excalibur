@@ -158,3 +158,32 @@ committed-sha-build-gate.sh
 # instruction forbids. It is a manual pre-copy tool: run it by hand before copying to the mirror,
 # when the cost of catching a gate failure early is a few minutes instead of a round trip.
 pre-mirror-gates.py
+
+# --- the cache-evidence and required-tests machinery ------------------------------------------
+#
+# These four arrived together and gate-wiring is right that nothing in a workflow or hook runs
+# them. Appending them is the explicit admission this file's header asks for, so here is the
+# reason for each rather than four bare lines.
+#
+# Two of them render NO VERDICT at all, so there is no green for an absent caller to forge. They
+# are a report generator and an evidence collector, and they are already classified NOT A GATE in
+# gate-denominator-baseline.txt for exactly that reason. Wiring them would not add protection;
+# it would add a step that prints.
+cache-restore-report.py
+collect-cache-evidence.py
+#
+# The other two DO have a caller -- eng/build.ps1:308 invokes invoke-required-tests.ps1, which in
+# turn invokes discover-required-tests.ps1 -- but eng/build.ps1 is not one of the surfaces
+# gate-wiring counts (workflows, git hooks, harness-gates-ci.sh), and a gate called only by another
+# orphan is still orphaned, which is the right rule. So these are not unprotected enforcement: they
+# are the DRIVER that produces required-test evidence, and the gate that renders the verdict over
+# that evidence -- required-test-evidence.py -- is wired into .github/workflows/ci.yml and is not
+# baselined here. Verified rather than assumed: grep shows ci.yml referencing it directly.
+#
+# Two routes would delete these lines, and the choice is a real one rather than a formality.
+# Either set GW_EXTRA_CALLER_GLOBS to include eng/build.ps1, which makes the developer build path a
+# recognised caller surface for every gate and so changes this meta-gate's definition of wired; or
+# give the required-tests path its own CI job, which is a workflow change with a per-run cost the
+# operator pays. Neither is a file move, so neither is being decided here.
+invoke-required-tests.ps1
+discover-required-tests.ps1

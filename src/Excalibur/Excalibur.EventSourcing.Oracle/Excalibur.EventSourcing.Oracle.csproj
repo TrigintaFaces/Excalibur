@@ -47,6 +47,6 @@
     <PackageReference Include="Excalibur.Dispatch.Serialization.MemoryPack" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts\" />
+    <None Include="Scripts\*.sql" Pack="true" PackagePath="scripts/" />
   </ItemGroup>
 </Project>
