@@ -14,6 +14,7 @@ using Shouldly;
 using Testcontainers.PostgreSql;
 
 using Tests.Shared.Helpers;
+using Tests.Shared.Infrastructure;
 
 using Xunit;
 
@@ -89,10 +90,21 @@ public sealed class PostgresAuthoritativeStandbyShould
 		}
 		await using (var paused = new NpgsqlCommand("SELECT pg_get_wal_replay_pause_state()", standby))
 		{
-			while (!string.Equals((string?)await paused.ExecuteScalarAsync(token).ConfigureAwait(false), "paused", StringComparison.Ordinal))
-			{
-				await Task.Delay(TimeSpan.FromMilliseconds(50), token).ConfigureAwait(false);
-			}
+			// pg_wal_replay_pause() REQUESTS the pause; the state reaches "paused" a moment later, so
+			// this has to poll. It is bounded now: the previous loop had no timeout at all, so a standby
+			// that never paused would hang the shard to its session limit instead of failing here with a
+			// usable message -- worse than the fixed delay the gate flagged it for.
+			var reachedPause = await WaitHelpers.WaitUntilAsync(
+				async () => string.Equals(
+					(string?)await paused.ExecuteScalarAsync(token).ConfigureAwait(false),
+					"paused",
+					StringComparison.Ordinal),
+				TimeSpan.FromSeconds(30),
+				TimeSpan.FromMilliseconds(50),
+				token).ConfigureAwait(false);
+			reachedPause.ShouldBeTrue(
+				"the standby never reported WAL replay as paused, so everything after this would be "
+				+ "measuring a standby that is still replaying");
 		}
 		(await store.EraseEventsAsync(original.AggregateId, "Order", Guid.NewGuid(), token)
 			.ConfigureAwait(false)).ShouldBe(1);

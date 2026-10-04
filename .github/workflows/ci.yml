@@ -310,11 +310,15 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+          # Assign, then export, rather than `export X="$(...)"`. The combined form takes its exit
+          # status from `export`, so under `set -e` a failing `git rev-parse` would be swallowed and
+          # the gate would run against an empty base ref. Separating them makes the failure abort.
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            export DOCS_GATE_BASE_REF="$PR_BASE_SHA"
+            DOCS_GATE_BASE_REF="$PR_BASE_SHA"
           else
-            export DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
+            DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
           fi
+          export DOCS_GATE_BASE_REF
           git cat-file -e "${DOCS_GATE_BASE_REF}^{commit}"
           bash eng/ci/docs-csharp-phantom-gate.sh
 

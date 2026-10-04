@@ -89,6 +89,12 @@ EOF
             { echo 'public class BarShould { public async Task T() {'
               for _ in 1 2 3 4 5 6; do echo '        await Task.Delay(50);'; done
               echo '} }'; } > "$dir/tests/unit/Foo.Tests/BarShould.cs" ;;
+        infinite)
+            # The block-until-cancelled idiom: an infinite delay never elapses, so it cannot be
+            # the wait-N-then-assert shape this gate catches. Must NOT be flagged, and the
+            # mutation arm below proves the carve-out is what makes that true.
+            printf 'public class BlockingFakeShould { public async Task T(CancellationToken token) { await Task.Delay(Timeout.InfiniteTimeSpan, token); } }
+' \n                > "$dir/tests/unit/Foo.Tests/BlockingFakeShould.cs" ;;
         empty)
             rm -rf "$dir/tests"; printf 'root\n' > "$dir/README.md" ;;
     esac
@@ -126,6 +132,16 @@ mutate() {
 
 echo "task-delay-syncwait-gate.sh — harness lock (whole-tree scan vs baseline)"
 echo
+
+# ── SAFETY: an INFINITE delay is NOT a sync-wait and must pass ──────────────────────────────────
+I="$(make_fixture infinite)"; run "$I"
+[ "$RC" -eq 0 ] && ok "safety: await Task.Delay(Timeout.InfiniteTimeSpan, token) is NOT flagged (exit 0)" \n                || bad "safety: an infinite delay never elapses, so it is not a clock dependence" "got exit $RC"$'
+'"$OUT"
+
+# MUTATION PROOF for that arm: remove the infinite carve-out; the same tree must start FAILING.
+M="$(mutate noinfinite 's#^.*Timeout..Infinite.*return 1$#    :#')"
+run "$I" "" "$M"
+[ "$RC" -eq 1 ] && ok "mutation: with the infinite carve-out removed the same tree FAILS → the carve-out is load-bearing" \n                || bad "mutation: removing the infinite carve-out should have flipped the arm to 1" "got exit $RC"
 
 # ── LIVENESS: an unbaselined sync-wait FAILS ────────────────────────────────────────────────────
 V="$(make_fixture violation)"; run "$V"

@@ -92,7 +92,11 @@ public sealed class SqlServerCdcBackupRestoreIntegrationShould(SqlServerCdcConta
             }
             catch (SqlException) when (attempt < 3)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(200), TestCancellationToken);
+                // Backoff between bounded retries of a transient SqlException. The assertion is
+                // after the loop and `attempt < 3` bounds it, so nothing races this delay and a
+                // slow runner cannot change the outcome. The pragma is on the call line itself
+                // because the gate matches it per line, not per block.
+                await Task.Delay(TimeSpan.FromMilliseconds(200), TestCancellationToken); // delay-ok: retry backoff, not a sync-wait
             }
         }
         resets.Count.ShouldBe(1);

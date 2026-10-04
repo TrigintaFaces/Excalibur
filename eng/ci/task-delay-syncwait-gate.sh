@@ -100,6 +100,15 @@ tds_line_is_violation() {
     [[ $line =~ (^|[^A-Za-z0-9_])WhenAny([^A-Za-z0-9_]|$) ]] && return 1
     # Not explicitly justified with the delay-ok pragma.
     [[ $line =~ //[[:space:]]*delay-ok ]] && return 1
+    # Not an INFINITE delay. Task.Delay(Timeout.Infinite) and Task.Delay(Timeout.InfiniteTimeSpan)
+    # never elapse, so they cannot be the "wait N milliseconds, then assert" shape this gate exists
+    # to catch -- there is no duration to be wrong about and no thread-pool starvation to lose a race
+    # to. It is the block-until-cancelled idiom a fake uses to model an operation that does not
+    # return until its token is cancelled, which is the OPPOSITE of a clock dependence. A fixed
+    # duration is still flagged. Scoped to the Delay call's FIRST ARGUMENT, not the whole line: a
+    # line-wide match would also excuse a real fixed-delay sync-wait that merely mentioned
+    # Timeout.Infinite elsewhere on it. Matched as a prefix, so it covers both spellings.
+    [[ $line =~ Task\.Delay[[:space:]]*\([[:space:]]*Timeout\.Infinite ]] && return 1
     return 0
 }
 
