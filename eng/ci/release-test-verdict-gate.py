@@ -369,6 +369,7 @@ def evaluate(sha, api, max_walk):
         raise Refuse("--sha must be an exact commit ID")
     current = sha
     inspected = []
+    jobs_examined = 0
     for _ in range(max_walk):
         workflow = git("show", f"{current}:{WORKFLOW}")
         verify_workflow(workflow)
@@ -376,6 +377,7 @@ def evaluate(sha, api, max_walk):
             verify_reusable(git("show", f"{current}:.github/workflows/{filename}"), names)
         run = api.run(current)
         jobs = api.pages(f"repos/{api.repo}/actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs?per_page=100", "jobs")
+        jobs_examined += len(jobs)
         verdict = jobs_verdict(jobs, run)
         inspected.append(run)
         quarantine = json.loads(git("show", f"{current}:eng/ci/flaky-tests-quarantine.json"))["tests"]
@@ -390,6 +392,12 @@ def evaluate(sha, api, max_walk):
                 fresh = api.run(selected["head_sha"])
                 if (fresh["id"], fresh["run_attempt"]) != (selected["id"], selected["run_attempt"]):
                     raise Refuse("CI run/attempt changed during verification")
+            # The denominator, on the only path that can be forged by an empty population: a GREEN
+            # verdict reached after examining nothing is indistinguishable from a GREEN earned over
+            # a real job set. RED and REFUSE are not forgeable this way -- they are reached by
+            # finding something wrong, not by finding nothing at all.
+            print(f"EXAMINED: {jobs_examined} CI job(s) across {len(inspected)} commit(s)",
+                  file=sys.stderr)
             return current
         verify_docs_policy(workflow)
         parent = git("rev-parse", "--verify", f"{current}^1").strip()

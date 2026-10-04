@@ -478,6 +478,14 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = verify(args.first, args.second, args.evidence, args.version, args.sha, args.allow_dirty_snapshot)
+        # The denominator, taken from counts verify() already records per build. Reproducibility
+        # PASSES by finding no mismatch, so a comparison that walked no outputs at all would print
+        # exactly the same green as one that compared every package. Saying what was compared is
+        # what separates the two.
+        builds = result.get("builds", [])
+        print(f"EXAMINED: {len(builds)} independent build(s), "
+              f"{sum(b['outputs'] for b in builds)} output file(s), "
+              f"{sum(b['packages'] for b in builds)} package(s)")
         print(f"PASS: {result['claim']}; evidence: {args.evidence}")
         return 0
     except (ReproducibilityError, OSError, ValueError, KeyError) as exc:

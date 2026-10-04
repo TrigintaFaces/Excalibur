@@ -44,7 +44,7 @@ BASELINE_NAME="gate-denominator-baseline.txt"
 # gdg_is_gate_script <basename> -> 0 if it is a gate we hold to the contract
 gdg_is_gate_script() {
     case "$1" in
-        *.test.sh|*.harness-lock.sh|*fixture*|gate-denominator.sh) return 1 ;;
+        *.test.sh|*.test.py|*.harness-lock.sh|*fixture*|gate-denominator.sh) return 1 ;;
     esac
     return 0
 }

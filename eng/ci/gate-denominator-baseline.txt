@@ -31,6 +31,14 @@
 # Format: one basename per line. Blank lines and #-comments ignored.
 
 # --- NOT A GATE: helpers, censuses, report generators, manually-run tools ---------------------
+# Report generators and installers that render no pass/fail verdict: a cache-restore report, a
+# cache-evidence collector, a cache observation recorder, a gitleaks installer, and the release
+# version resolver. None of them can print a green that a zero denominator would forge.
+cache-restore-report.py
+collect-cache-evidence.py
+install-gitleaks.py
+record-cache-observation.py
+resolve-release-version.sh
 assert-binary-matches-source.sh
 build-lock.sh
 capture-container-logs.sh

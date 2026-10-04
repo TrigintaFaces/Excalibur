@@ -114,8 +114,22 @@ printf '%s\n' "$output"
 #      Total >= 1?), NOT the per-project phrase. That logic was FIRST written inline here; it now lives
 #      in the shared, self-tested eng/ci/assert-tests-executed.sh so every filtered gate wires the same
 #      protection instead of re-inventing it. This gate is that helper's real production consumer.
+# Count failures HERE, before step 3, because step 3 helper cannot be asked "did anything run?"
+# while it is also answering "did everything pass?". assert-tests-executed.sh REFUSEs on a failed
+# summary BY DESIGN -- it is an executed-AND-PASSED helper and its other callers depend on that --
+# so routing the failure case through it made step 4 FAIL branch UNREACHABLE. This gate could
+# never return 1: a real cross-tenant RED was reported as REFUSE, "could not render a verdict",
+# which sends a reader hunting missing infrastructure instead of a tenant-isolation breach.
+# Neither verdict is green, so nothing ever passed falsely -- but the three-state contract at the
+# top of this file promises 1 for a real failure, and this gate own self-test is what caught it.
+failed_total="$(printf %s "$output" | grep -oE "Failed: +[0-9]+" | awk '{s+=$2} END{print s+0}')"
+
 _GATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if ! printf '%s' "$output" | bash "${_GATE_DIR}/assert-tests-executed.sh" --filter "${FILTER}"; then
+# Reachable only when nothing failed. A reported failure is itself proof that tests executed, so the
+# zero-match question is already answered; asking it through a passing-summaries helper would turn
+# that answer into a REFUSE.
+if [ "${failed_total:-0}" -eq 0 ] &&
+   ! printf '%s' "$output" | bash "${_GATE_DIR}/assert-tests-executed.sh" --filter "${FILTER}"; then
     err "REFUSE: the trait filter '${FILTER}' matched ZERO tests across the whole run (no project reported Total >= 1). The curated set is empty (trait not stamped, or the tests were removed). A gate that matches nothing must NOT pass."
     exit $EXIT_REFUSE
 fi
@@ -143,7 +157,7 @@ if grep -qE 'test source file .* was not found|could not be found\.' <<<"$output
     exit $EXIT_REFUSE
 fi
 
-failed_total="$(printf '%s' "$output" | grep -oE 'Failed: +[0-9]+' | awk '{s+=$2} END{print s+0}')"
+# failed_total was computed above, before step 3, for the reason recorded there.
 if [ "${failed_total:-0}" -gt 0 ]; then
     err "FAIL: ${failed_total} real-infra tenant-isolation test(s) failed — a real cross-tenant RED on committed content."
     exit $EXIT_FAIL

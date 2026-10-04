@@ -12,6 +12,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import sys
 import xml.etree.ElementTree as ET
 
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
@@ -263,6 +264,15 @@ def main():
             expected = read_json(args.expected_context)
             verify_source_roster(read_json(args.plan), expected, args.repo_root)
             report = verify(args.plan, expected)
+        # The denominator was already computed and already guarded (require(total > 0, ...)); it was
+        # simply never labelled. Both branches report the population they walked -- planned
+        # invocations or unit jobs -- plus the tests actually executed within it, so a verdict
+        # reached over an empty roster cannot read like one earned over a real roster.
+        # stderr, because stdout carries the JSON report a caller parses.
+        population = report.get('invocations', report.get('jobs', 0))
+        label = 'planned invocation(s)' if 'invocations' in report else 'unit job(s)'
+        print(f"EXAMINED: {population} {label}, {report['executed']} executed test(s)",
+              file=sys.stderr)
         print(json.dumps(report, sort_keys=True))
     except (ValueError, KeyError, TypeError, OSError, ET.ParseError) as error:
         parser.exit(2, f"REFUSE: {error}\n")
