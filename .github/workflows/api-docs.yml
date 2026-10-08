@@ -34,7 +34,7 @@ jobs:
   generate-api-docs:
     name: Generate API Reference
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:

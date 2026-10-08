@@ -1,3 +1,4 @@
+#requires -Version 7.0
 # Copyright (c) 2026 The Excalibur Project
 #
 # Validates Dispatch/Excalibur serialization policy compliance

@@ -1,3 +1,13 @@
+# TIMEOUT POLICY: every job-level `timeout-minutes` here is 120, deliberately and uniformly.
+# It is a BACKSTOP for a wedged runner, not a budget for the work. Do not re-tighten one to "what
+# this job needs": a tight cap turns slow into failed, and GitHub reports a job timeout as
+# "The operation was canceled", which is byte-identical to a human cancel -- so the symptom names
+# the wrong cause and the real defect is invisible. Measured: this job family went 7m30s, 7m15s,
+# 8m09s, then failed twice at ~10m against a 10-minute cap, and no single run could show that.
+# The informative bounds live IN the run -- RunConfiguration.TestSessionTimeout and
+# --blame-hang-timeout -- which fail with the hung test's name and a dump while artifacts still
+# upload. A job timeout kills the process group and leaves nothing. Step-level timeouts used as
+# retry bounds are a different thing and are not covered by this floor.
 name: Continuous Integration
 
 on:
@@ -89,7 +99,7 @@ jobs:
   changes:
     name: Classify Changes
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 120
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}
     steps:
@@ -126,7 +136,7 @@ jobs:
   preflight:
     name: PR Preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
@@ -151,7 +161,7 @@ jobs:
     if: needs.changes.outputs.docs_only != 'true'
     name: Package (Ubuntu)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout first build root
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -266,7 +276,7 @@ jobs:
   dashboard-spa:
     name: Dashboard SPA (tests, types, asset drift)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -296,7 +306,7 @@ jobs:
   documentation-validation:
     name: Documentation Verification (T5.4)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -430,7 +440,7 @@ jobs:
     if: needs.changes.outputs.docs_only != 'true'
     name: Smoke Tests (Critical Path)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -462,7 +472,7 @@ jobs:
   unit-shard-coverage:
     name: Unit Shard Coverage Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     needs: package
     steps:
       - name: Checkout code
@@ -508,7 +518,7 @@ jobs:
     # The five minutes of headroom are for vstest to flush the TRX and the upload step to run.
     # Keep this STRICTLY GREATER than the session timeout; raising one without the other
     # re-creates the tie.
-    timeout-minutes: 20
+    timeout-minutes: 120
     # TEST_TIMEOUT_MULTIPLIER is inherited from the workflow env, deliberately: this job is not the
     # only one that runs the deterministic shard, and a copy here is what let the others go unscaled.
     strategy:
@@ -579,7 +589,7 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
     # 20 for the same reason as unit-tests above: the 15-minute session timeout must be able to fire
     # before the job wall, or a wedged shard dies without writing a TRX. Keep strictly greater.
-    timeout-minutes: 20
+    timeout-minutes: 120
     strategy:
       matrix:
         shard:
@@ -636,7 +646,7 @@ jobs:
     needs: [unit-tests, unit-tests-async-risk, unit-tests-windows, unit-tests-windows-async-risk, unit-tests-macos, unit-tests-macos-async-risk, changes]
     # always() alone would run this with skipped dependencies and no results to aggregate.
     if: always() && needs.changes.outputs.docs_only != 'true'
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -692,7 +702,7 @@ jobs:
     name: Unit Tests (Windows - Deterministic)
     runs-on: windows-latest
     needs: smoke-tests
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       VSTEST_CONNECTION_TIMEOUT: 600
     steps:
@@ -763,7 +773,7 @@ jobs:
     runs-on: windows-latest
     needs: smoke-tests
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       VSTEST_CONNECTION_TIMEOUT: 600
     steps:
@@ -802,7 +812,7 @@ jobs:
     name: Unit Tests (macOS - Deterministic)
     runs-on: macos-latest
     needs: smoke-tests
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -834,7 +844,7 @@ jobs:
     runs-on: macos-latest
     needs: unit-tests-macos
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -934,7 +944,7 @@ jobs:
     # the scarce resource -- wall clock is. Smoke tests still gate gross breakage at ~7 minutes.
     needs: smoke-tests
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -1242,10 +1252,16 @@ jobs:
                 # renewal" failure that allowlist exists to prevent -- and buries the few real
                 # suppressions among dozens nobody can act on.
                 #
-                # The category is declared AT THE SKIP SITE via CapabilityNotApplicable() in the
-                # conformance base, which emits this marker. It is matched literally, never inferred
-                # from prose: a gate guessing intent from a message silently reclassifies a
-                # suppression the day someone rewords it.
+                # The category is declared AT THE SKIP SITE by calling
+                # ConformanceSkip.CapabilityNotApplicable(reason), which lives in
+                # tests/Shared/Tests.Shared/ConformanceSkip.cs and owns the only definition of this
+                # marker. It is matched literally, never inferred from prose: a gate guessing intent
+                # from a message silently reclassifies a suppression the day someone rewords it.
+                #
+                # That helper is why the literal below can be trusted. The marker used to be
+                # hand-typed at each skip site, so a typo would silently turn a declared exemption
+                # into an undeclared skip, or the reverse, and no gate could have reported it.
+                # CapabilityMarkerIsNotHandTypedShould keeps it that way.
                 $reason = "$($r.Output.ErrorInfo.Message)"
                 if ($reason -like '*[[]capability-not-applicable[]]*') {
                   $capabilitySkips.Add("$($r.testName)  --  $reason")
@@ -1408,7 +1424,7 @@ jobs:
     # at all. Running them alongside each other returns that signal.
     needs: unit-tests
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -1468,7 +1484,7 @@ jobs:
     # Independent of integration-tests: no artifact of theirs is read and no output consumed.
     # Gating on it only delayed this suite and, on a failed integration run, skipped it.
     needs: unit-tests
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -1519,7 +1535,7 @@ jobs:
     # Independent of integration-tests: no artifact of theirs is read and no output consumed.
     # Gating on it only delayed this suite and, on a failed integration run, skipped it.
     needs: unit-tests
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -1567,7 +1583,7 @@ jobs:
   flaky-quarantine-governance:
     name: Flaky Quarantine Governance
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     needs: package
     steps:
       - name: Checkout code
@@ -1596,7 +1612,7 @@ jobs:
     needs: flaky-quarantine-governance
     if: always()
     continue-on-error: true
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -1670,7 +1686,7 @@ jobs:
   serialization-policy:
     name: Serialization Policy Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     needs: package
     steps:
       - name: Checkout code
@@ -1707,7 +1723,7 @@ jobs:
   aot-build-analysis:
     name: AOT Build Analysis (report-only)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     needs: package
     steps:
       - name: Checkout code
@@ -1780,7 +1796,7 @@ jobs:
     # NOTE FOR TRIAGE: a timed-out job reports conclusion "cancelled", identical to a concurrency
     # cancellation. If this job reads "cancelled", check its duration against this cap BEFORE
     # attributing it to concurrency policy -- that defect is fixed, and this one wore its clothes.
-    timeout-minutes: 30
+    timeout-minutes: 120
     needs: package
     # security-events: write was held here for a SARIF upload that no longer exists. A permission
     # outliving the step that needed it is exactly what least-privilege is meant to prevent, and it
@@ -1837,7 +1853,7 @@ jobs:
   transport-conformance:
     name: Transport Conformance
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     needs: package
     steps:
       - name: Checkout code
@@ -1906,7 +1922,7 @@ jobs:
   release-blocking-tests:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     needs: [changes, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos]
     if: always()
     steps:
@@ -1973,7 +1989,7 @@ jobs:
   release-blocking-ci:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     needs: [changes, package, release-blocking-tests, quality, flaky-quarantine-governance, serialization-policy, call-security, call-governance]
     if: always()
     steps:
@@ -2056,7 +2072,7 @@ jobs:
   pack-quality:
     name: Pack Quality Gate (report)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     needs: package
     steps:
       - name: Checkout code
@@ -2083,7 +2099,7 @@ jobs:
     name: Packaging Smoke Tests (T5.2)
     runs-on: ubuntu-latest
     needs: package
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -2147,7 +2163,7 @@ jobs:
   triage-labels:
     name: Apply CI Triage Labels
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     if: github.event_name == 'pull_request'
     needs: [package, unit-tests, integration-tests, call-governance, architecture-tests, serialization-policy, call-security, aot-sample-validation]
     permissions:
@@ -2216,7 +2232,7 @@ jobs:
     name: Sample Certification Validation (T3.4)
     runs-on: ubuntu-latest
     needs: package
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -2268,7 +2284,7 @@ jobs:
     name: AOT Sample Validation
     runs-on: ubuntu-latest
     needs: [package, sample-validation]
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -2441,7 +2457,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     needs: [changes, preflight, package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
     if: always()
     steps:
@@ -2614,7 +2630,7 @@ jobs:
       contents: read
       checks: write
       pull-requests: write
-    timeout-minutes: 5
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

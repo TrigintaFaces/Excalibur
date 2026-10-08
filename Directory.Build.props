@@ -50,6 +50,28 @@
 		     BuildingInsideVisualStudio group above, so lock files were generated only when
 		     someone happened to build in the IDE — 4 of 404 projects had one, and none of
 		     the shipping projects did. -->
+		<!-- COUPLED TO global.json, AND THE COUPLING IS TIGHTER THAN IT LOOKS. Because lock files
+		     are on here, global.json pins the SDK with rollForward "disable". That is Microsoft's
+		     documented guidance for this exact combination — an exact pin keeps the SDK and the
+		     resolved dependency graph in lockstep — not an accident.
+
+		     So when a patch SDK drifts and every dotnet command starts failing with
+		     "A compatible .NET SDK was not found", the fix is to INSTALL THE PINNED SDK. It is
+		     NOT to loosen rollForward, and it is NOT a one-line version bump either: an SDK patch
+		     moves the packages the SDK itself contributes to the graph. Measured 2026-10-08 in a
+		     clean worktree at HEAD — pin 10.0.400 -> 10.0.401 moves Microsoft.NET.ILLink.Tasks
+		     from [10.0.11, ) to [10.0.12, ) and the ShippingOnly locked-mode restore that
+		     official-build.yml runs before signing fails with NU1004 on 192 projects.
+
+		     A bump is therefore a coordinated change: global.json, the one hard-coded pin in
+		     official-build.yml, and ~193 regenerated packages.lock.json files recording a new
+		     graph for every shipping package. That is a release-relevant change, not maintenance.
+
+		     Corollary, learned the same day: do not work around a failing pin by running dotnet
+		     from outside global.json's scope. The resolver then picks whatever SDK is installed and
+		     silently rewrites these lock files to a graph the pin does not permit, which is the
+		     exact divergence "disable" exists to prevent.
+		     See https://learn.microsoft.com/dotnet/core/tools/global-json#rollforward -->
 		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>

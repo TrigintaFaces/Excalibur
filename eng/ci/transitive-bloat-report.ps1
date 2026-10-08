@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+#requires -Version 7.0
 param(
     [string]$SrcDir = "src",
     [string]$PackageMap = "eng/governance/package-map.yaml",

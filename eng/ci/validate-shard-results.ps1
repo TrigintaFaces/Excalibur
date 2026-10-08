@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
   Reject incomplete or non-passing raw test results before distinct reporting.

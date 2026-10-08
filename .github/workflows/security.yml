@@ -31,7 +31,7 @@ jobs:
   security-sast:
     name: Security SAST (PR report-only, push blocking)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     continue-on-error: ${{ inputs.event-name == 'pull_request' }}
     steps:
       - name: Checkout code (needed to resolve local composite action)
@@ -71,7 +71,7 @@ jobs:
   secrets-scan:
     name: Secrets Scan (Gitleaks)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -113,7 +113,7 @@ jobs:
   sbom-generation:
     name: SBOM Generation (CycloneDX)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -179,7 +179,7 @@ jobs:
     name: Dependency Review
     runs-on: ubuntu-latest
     if: ${{ inputs.event-name == 'pull_request' }}
-    timeout-minutes: 10
+    timeout-minutes: 120
     permissions:
       contents: read
       pull-requests: read
@@ -292,7 +292,7 @@ jobs:
   dependency-audit:
     name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -396,7 +396,7 @@ jobs:
   notices-lint:
     name: Notices & License Headers
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -432,7 +432,7 @@ jobs:
   oss-metadata:
     name: OSS Metadata Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

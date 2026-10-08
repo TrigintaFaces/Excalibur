@@ -60,6 +60,7 @@ import argparse
 import hashlib
 import json
 import math
+import random
 import re
 import os
 from pathlib import Path
@@ -77,13 +78,68 @@ MET, MISSED, UNMEASURABLE = "MET", "MISSED", "UNMEASURABLE"
 DEFAULT_OBJECTIVES = os.path.join("eng", "ci", "ci-objectives.json")
 DEFAULT_HISTORY = os.path.join("eng", "ci", "ci-sli-history.jsonl")
 API_DEADLINE = None
+# Below this, a gh call cannot finish, so launching one only mislabels an exhausted budget as a
+# network timeout. Chosen as a floor on plausible call latency, not a tuning knob.
+MIN_CALL_BUDGET_SECONDS = 2.0
 
 
-def api_call(command):
-    remaining = 60 if API_DEADLINE is None else API_DEADLINE - time.monotonic()
-    if remaining <= 0:
-        raise ValueError('collection deadline exhausted; retain partial evidence for diagnosis')
-    return subprocess.run(command, capture_output=True, text=True, timeout=min(60, remaining))
+_RATE_LIMITED = re.compile(r'rate limit|secondary rate|abuse detection', re.I)
+_RETRY_AFTER = re.compile(r'retry[- ]after[^0-9]{0,12}(\d{1,5})', re.I)
+
+
+def _retry_delay(attempt, stderr):
+    """Seconds to wait before the next attempt, taken from what the API actually said.
+
+    A rate limit and a transient gateway error want different waits, and treating them alike is why a
+    blind backoff is not a retry strategy: three attempts a second apart exhaust themselves against a
+    secondary rate limit that wanted a minute, then refuse anyway. The documented order is Retry-After
+    when the response names one, a far longer backoff when it names a rate limit, and a short one
+    otherwise -- with jitter, so several collectors failing at once do not resynchronise on the instant.
+    """
+    stderr = stderr or ''
+    named = _RETRY_AFTER.search(stderr)
+    if named:
+        base = min(int(named.group(1)) + 1, 120)
+    elif _RATE_LIMITED.search(stderr):
+        base = 20 * (1 << attempt)
+    else:
+        base = 1 << attempt
+    return base + random.uniform(0, min(base, 3))
+
+
+def api_call(command, attempts=3):
+    """Retry a non-zero exit before giving up.
+
+    Every caller issues an idempotent GET, so a retry cannot double-apply anything, and one transient
+    failure anywhere in a thirty-run population used to refuse the entire measurement with no way to
+    tell a flaky endpoint from a real inconsistency. A persistently failing call still refuses, and the
+    collection deadline still bounds the total, so nothing here weakens the refusal.
+    """
+    result = None
+    for attempt in range(attempts):
+        remaining = 60 if API_DEADLINE is None else API_DEADLINE - time.monotonic()
+        # A budget too small for any call to complete is an exhausted budget, and it must say so. The
+        # guard used to be `remaining <= 0`, so a few milliseconds left still launched a subprocess that
+        # could only time out, and the refusal then read "timed out after 0.056 seconds" -- which blames
+        # the endpoint for running out of our own clock. Measured while collecting 30 runs per population
+        # against a real repository; the budget, not the API, was what ran out.
+        if remaining < MIN_CALL_BUDGET_SECONDS:
+            raise ValueError(
+                f'collection deadline exhausted ({remaining:.2f}s left, under the {MIN_CALL_BUDGET_SECONDS:g}s '
+                'a call needs); retain partial evidence for diagnosis')
+        result = subprocess.run(command, capture_output=True, text=True, timeout=min(60, remaining))
+        if not result.returncode:
+            return result
+        if attempt + 1 >= attempts:
+            break
+        # A wait we cannot afford is not a retry. Stopping here surfaces the call's own stderr, which
+        # names the rate limit; spending the rest of the budget asleep would refuse with a deadline
+        # message instead and hide the one sentence that explains the refusal.
+        delay = _retry_delay(attempt, result.stderr)
+        if delay > max(remaining - 5, 0):
+            break
+        time.sleep(delay)
+    return result
 
 
 def _iso(s):
@@ -190,7 +246,7 @@ def fetch_attempt_jobs(repo, run):
         try:
             result = api_call(cmd)
             if result.returncode:
-                raise ValueError(f'jobs API exited {result.returncode}')
+                raise ValueError(f'jobs API exited {result.returncode}: {result.stderr.strip()[:120]}')
             batch = json.loads(result.stdout)
             if not isinstance(batch, list):
                 raise ValueError('jobs response is not an array')
@@ -866,6 +922,44 @@ def self_test() -> int:
                   file=sys.stderr)
             return 1
         print(f"SELF-TEST: PASS -- the shipped {DEFAULT_OBJECTIVES} loads")
+
+    # The retry is a branch, so it owes its own arms. A retry that cannot be shown to retry, and a
+    # backoff that cannot be shown to discriminate, are both indistinguishable from having neither.
+    class _Stub:
+        def __init__(self, returncode, stderr=""):
+            self.returncode, self.stdout, self.stderr = returncode, "", stderr
+
+    real_run, real_sleep = subprocess.run, time.sleep
+    calls = []
+    try:
+        time.sleep = lambda seconds: None
+        scripted = [_Stub(1, "HTTP 502 Bad Gateway"), _Stub(0)]
+        subprocess.run = lambda *a, **k: (calls.append(1), scripted[len(calls) - 1])[1]
+        if api_call(["gh", "probe"]).returncode != 0 or len(calls) != 2:
+            print("SELF-TEST FAIL -- a transient failure was not retried", file=sys.stderr)
+            return 1
+        print("SELF-TEST: PASS -- a transient failure is retried, and the retry is what succeeds")
+
+        calls.clear()
+        subprocess.run = lambda *a, **k: (calls.append(1), _Stub(1, "HTTP 502 Bad Gateway"))[1]
+        persistent = api_call(["gh", "probe"])
+        if persistent.returncode == 0 or len(calls) != 3:
+            print("SELF-TEST FAIL -- a persistent failure stopped refusing, or never stopped "
+                  f"retrying ({len(calls)} attempts)", file=sys.stderr)
+            return 1
+        print("SELF-TEST: PASS -- a persistent failure still REFUSES, after bounded attempts")
+    finally:
+        subprocess.run, time.sleep = real_run, real_sleep
+
+    transient = _retry_delay(0, "HTTP 502 Bad Gateway")
+    limited = _retry_delay(0, "HTTP 403: You have exceeded a secondary rate limit")
+    named = _retry_delay(0, "HTTP 403: rate limit exceeded. Please retry after 45 seconds")
+    if not transient < limited < named:
+        print(f"SELF-TEST FAIL -- backoff does not discriminate: transient={transient:.1f} "
+              f"rate-limited={limited:.1f} retry-after={named:.1f}. A single curve for every "
+              "failure class is the defect this branch exists to remove.", file=sys.stderr)
+        return 1
+    print("SELF-TEST: PASS -- backoff separates transient from rate-limited from Retry-After")
 
     print("SELF-TEST: the SLI report is non-vacuous.")
     return 0

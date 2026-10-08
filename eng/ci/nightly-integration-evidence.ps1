@@ -44,9 +44,14 @@ $contextPath = Join-Path $root "$prefix.$($Mode.ToLowerInvariant()).context.json
 ConvertTo-Json -InputObject $context | Set-Content -LiteralPath $contextPath -Encoding utf8NoBOM
 if ($Mode -eq 'Run') {
     if ((Test-Path -LiteralPath $receiptPath) -or (Test-Path -LiteralPath $evidence)) { throw 'Nightly evidence must be fresh.' }
+    # 100 minutes. The session bound must leave a HEALTHY run room to finish, or it converts slow into
+    # aborted and the abort is indistinguishable from a real failure: the excalibur shard reached 3851 of
+    # 3937 identities in 75 minutes under the previous 4500000, so every arm after that point went
+    # unexamined while 0 tests had failed. A genuine hang is still caught by -BlameTimeout, which names the
+    # test; this bound only has to sit under the 120-minute job cap with room for checkout and build.
     $arguments = @('-NoProfile','-File',(Join-Path $repo 'eng/build.ps1'),'-Test','-NoRestore','-NoBuild',
         '-Project',$sourcePath,'-TestFilter',$context.filter,'-ResultsDirectory',$root,'-ResultsPrefix',$prefix,
-        '-MaxCpuCount','1','-BlameTimeout','10m','-TestSessionTimeout','4500000','-RequiredTestContext',$contextPath)
+        '-MaxCpuCount','1','-BlameTimeout','10m','-TestSessionTimeout','6000000','-RequiredTestContext',$contextPath)
     $started = [DateTimeOffset]::UtcNow.ToString('O')
     & $shell @arguments 2>&1 | Tee-Object -FilePath (Join-Path $root "$prefix.runner.log")
     $runnerExit = $LASTEXITCODE

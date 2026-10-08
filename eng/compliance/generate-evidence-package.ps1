@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Generates a compliance evidence package (ZIP archive) from collected evidence.

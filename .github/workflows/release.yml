@@ -50,7 +50,7 @@ jobs:
       contents: read
     name: Pre-Release Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     env:
       VSTEST_CONNECTION_TIMEOUT: 600
     outputs:
@@ -360,7 +360,7 @@ jobs:
     name: Pre-Tag Soak Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
-    timeout-minutes: 45
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -572,7 +572,7 @@ jobs:
     # package set, re-checking every hash, verifying provenance per package, and reading each
     # nuspec. This cap must exceed the wait or the job dies mid-wait and GitHub reports a
     # `cancelled` job -- which reads as a policy decision rather than as a bound expiring.
-    timeout-minutes: 75
+    timeout-minutes: 120
     needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
       - name: Checkout code
@@ -990,7 +990,7 @@ jobs:
       contents: read
     name: Release Quality Gates
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     needs: [pre-release-validation, build-packages]
     steps:
       - name: Checkout code
@@ -1072,7 +1072,7 @@ jobs:
       contents: write
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     needs: [pre-release-validation, build-packages, release-quality-gates]
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -1250,7 +1250,7 @@ jobs:
   staging-validation:
     name: Staged Package Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     needs: [pre-release-validation, build-packages]
     permissions:
       contents: read
@@ -1318,7 +1318,7 @@ jobs:
     # completed under the same version -- the remainder can only ever appear under a new one.
     # An over-long timeout costs a job that hangs and gets noticed; a short one costs a
     # permanently incomplete release.
-    timeout-minutes: 90
+    timeout-minutes: 120
     # publish-nuget cannot begin until the packages have been proven to install from a real
     # remote feed. This is Item 5.3s load-bearing criterion: public publishing is gated on staged
     # validation, not merely preceded by it.
@@ -1710,7 +1710,7 @@ jobs:
       contents: write
     name: Publish the Release (after NuGet)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     needs: [pre-release-validation, create-release, publish-nuget]
     if: needs.publish-nuget.result == 'success'
     steps:
@@ -1757,7 +1757,7 @@ jobs:
       contents: read
     name: Report a Retained Draft
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 120
     needs: [pre-release-validation, create-release, publish-nuget]
     if: always() && needs.create-release.result == 'success' && needs.publish-nuget.result != 'success'
     steps:
@@ -1787,7 +1787,7 @@ jobs:
       id-token: write
     name: Post-Release Tasks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     # release-quality-gates is here because the summary below READS its result. Without it in
     # needs, `needs.release-quality-gates.result` is undefined, the comparison is always false,
     # and the summary printed "Quality Gates | Failed" on every successful release. The release

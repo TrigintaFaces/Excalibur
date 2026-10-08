@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Collects compliance evidence from CI/CD artifacts and system state.

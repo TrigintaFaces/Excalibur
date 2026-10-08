@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Audits shipping projects for the NuGet package metadata a published package is required to carry.

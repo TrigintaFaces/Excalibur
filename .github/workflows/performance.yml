@@ -32,7 +32,7 @@ jobs:
   performance-mediatr-parity:
     name: Performance Gate - MediatR Local Parity
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
@@ -111,7 +111,7 @@ jobs:
   performance-transport-comparison:
     name: Performance Gate - Transport Comparison
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
@@ -181,7 +181,7 @@ jobs:
   performance-dispatch-hotpath:
     name: Performance Gate - Dispatch Hot Path
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
@@ -251,7 +251,7 @@ jobs:
   performance-observability-overhead:
     name: Performance Gate - Observability Overhead
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)
@@ -319,7 +319,7 @@ jobs:
   performance-persistence-background-smoke:
     name: Performance Gate - Persistence/Background Smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     if: inputs.run-performance-tests == 'true'
     steps:
       - name: Checkout code (needed to resolve local composite action)

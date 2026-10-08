@@ -31,7 +31,7 @@ jobs:
   solution-governance:
     name: Solution Governance Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -64,7 +64,7 @@ jobs:
   package-dependency-graph:
     name: Package Dependency Graph Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -95,7 +95,7 @@ jobs:
   package-composition:
     name: Package Composition Validation (T2.4)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -138,7 +138,7 @@ jobs:
   public-api-baselines:
     name: Public API Baseline Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -161,7 +161,7 @@ jobs:
   transitive-bloat:
     name: Transitive Bloat Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -196,7 +196,7 @@ jobs:
   repo-inventory:
     name: Repo Inventory
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -245,7 +245,7 @@ jobs:
   specs-location-lint:
     name: Specs Location Guard
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

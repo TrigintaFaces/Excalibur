@@ -65,7 +65,7 @@ jobs:
     name: Release Rehearsal
     runs-on: ubuntu-latest
     continue-on-error: ${{ github.event_name == 'pull_request' }}
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code

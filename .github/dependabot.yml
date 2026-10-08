@@ -115,3 +115,33 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # .NET SDK updates (global.json). Dependabot's dotnet-sdk ecosystem, not a scheduled workflow:
+  # Actions are deliberately off in this repository as a cost decision, and this adds no runs to that
+  # budget. SDK patches land on patch Tuesday, so weekly is ample.
+  #
+  # ⚠ A PR FROM THIS WILL BE RED, BY CONSTRUCTION, AND THAT IS THE SIGNAL — NOT A BUG TO SILENCE.
+  # Dependabot edits global.json and nothing else. Because global.json pins rollForward "disable" and
+  # this repository restores with lock files, bumping the SDK alone leaves the committed dependency
+  # graph behind and the locked-mode restore in official-build.yml fails with NU1004 (measured
+  # 2026-10-08: 10.0.400 -> 10.0.401 moved Microsoft.NET.ILLink.Tasks and failed on 192 projects).
+  #
+  # Three things must land WITH the version bump, and none of them is automatable here:
+  #   1. the hard-coded pin in .github/workflows/official-build.yml — the only setup-dotnet call site
+  #      that names a version instead of reading global.json
+  #   2. every packages.lock.json, regenerated under the NEW SDK (~193 files)
+  #   3. eng/ci/aot-warning-baseline.json — ILLink rides the SDK unpinned, so a bump moves the
+  #      trimmer; this is the one step that can surface real findings rather than mechanical churn
+  #
+  # Do NOT resolve the red by loosening rollForward. See the comment on
+  # RestorePackagesWithLockFile in Directory.Build.props for why "disable" is correct here.
+  - package-ecosystem: "dotnet-sdk"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "dotnet-sdk"

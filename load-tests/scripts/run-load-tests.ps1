@@ -1,3 +1,4 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Execute load tests for Excalibur

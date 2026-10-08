@@ -57,7 +57,7 @@ jobs:
   coverage-enforce:
     name: Coverage Gate Enforcement
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -209,7 +209,7 @@ jobs:
     name: Coverage Diff On Touched Files
     if: inputs.event-name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout base branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -468,7 +468,7 @@ jobs:
   coverage:
     name: Coverage Analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     if: always()
     steps:
       - name: Checkout code
@@ -581,7 +581,7 @@ jobs:
   coverage-baseline:
     name: Coverage Baseline Artifact
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

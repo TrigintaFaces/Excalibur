@@ -60,7 +60,7 @@ jobs:
   core-perf-change-detection:
     name: Detect Core/Perf Changes
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     outputs:
       core_perf: ${{ steps.filter.outputs.core_perf }}
     steps:
@@ -104,7 +104,7 @@ jobs:
   code-analysis:
     name: Code Analysis (Warning-as-Error Build)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -178,7 +178,7 @@ jobs:
   test-quality:
     name: Test Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -253,7 +253,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: core-perf-change-detection
     if: github.event_name == 'workflow_dispatch' || needs.core-perf-change-detection.outputs.core_perf == 'true'
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -283,11 +283,25 @@ jobs:
       # assert-tests-executed guard REFUSED -- correctly, and invisibly, because this job runs only
       # when core or performance code changes and was skipped on the runs where anyone looked.
       # Type-name matching is what the standalone transport-conformance workflow already uses.
+      # The evidence is read from the TRX, not from the console summary, and that is the whole point
+      # on this suite. run-filtered-tests.sh delegates to assert-tests-executed.sh, which refuses any
+      # skipped > 0 -- correct for a shard where nothing should skip, and wrong here: these tests skip
+      # BY DESIGN when a transport advertises no filtering and no dead-letter manager, because a
+      # transport that structurally cannot filter must not appear to have conformed. 46 passed, 0
+      # failed, 19 skipped was refused as a failure. The console line says "Skipped: 19" and nothing
+      # else, so it cannot tell that from someone silencing a test -- and the TRX records the reason.
+      #
+      # So the skip POLICY is unchanged and is not loosened: an undeclared skip still refuses, and so
+      # does [transport-unavailable], because absent infrastructure is where a green is least earned.
+      # What changes is only which surface the gate reads. eng/ci/unconditional-skip-baseline.txt
+      # already accepts these skip sites, so this aligns the gate with a ruling the repository had
+      # already made.
       - name: Run transport conformance suite
         run: |
-          bash eng/ci/run-filtered-tests.sh \
-            --filter "FullyQualifiedName~TransportConformanceTests" -- \
+          set -uo pipefail
+          dotnet test \
             tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
+            --filter "FullyQualifiedName~TransportConformanceTests" \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 10m \
@@ -295,6 +309,20 @@ jobs:
             --logger "console;verbosity=minimal" \
             --results-directory ./transport-conformance-results \
             -- RunConfiguration.TestSessionTimeout=900000
+          TEST_EXIT=$?
+          pwsh -File eng/ci/assert-declared-skips-only.ps1 -TrxDir ./transport-conformance-results
+          GATE_EXIT=$?
+          # The runner's own exit still wins. A TRX that looks complete cannot see a runner that died
+          # after writing it, and "the evidence passed" must never outrank "the process failed".
+          if [ "$TEST_EXIT" -ne 0 ] && [ "$GATE_EXIT" -eq 0 ]; then
+            echo "::error::The runner exited $TEST_EXIT while the TRX evidence passed every check. Trust the runner: something failed outside the recorded results."
+            exit "$TEST_EXIT"
+          fi
+          exit "$GATE_EXIT"
+
+      - name: assert-declared-skips-only self-test (non-vacuity)
+        if: always()
+        run: pwsh -File eng/ci/assert-declared-skips-only.ps1 -SelfTest
 
       - name: Upload transport conformance results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -308,7 +336,7 @@ jobs:
   governance:
     name: Solution Governance
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -338,7 +366,7 @@ jobs:
   architecture:
     name: Architecture Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -406,7 +434,7 @@ jobs:
   harness-gates:
     name: Harness Gate Battery
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -428,7 +456,7 @@ jobs:
   summary:
     name: Quality Summary
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     needs: [test-quality, transport-conformance, code-analysis, governance, architecture, harness-gates]
     if: always()
     steps:

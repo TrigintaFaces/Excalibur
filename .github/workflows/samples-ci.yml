@@ -51,7 +51,7 @@ jobs:
   enumerate-samples:
     name: Enumerate Samples
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     outputs:
       samples: ${{ steps.list.outputs.samples }}
       sample_count: ${{ steps.list.outputs.sample_count }}
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: enumerate-samples
     if: needs.enumerate-samples.outputs.sample_count != '0'
-    timeout-minutes: 10
+    timeout-minutes: 120
     strategy:
       fail-fast: false  # Continue building other samples even if one fails
       max-parallel: 8   # Limit parallel jobs to avoid resource exhaustion
@@ -152,7 +152,7 @@ jobs:
   summary:
     name: Samples CI Summary
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     needs: [enumerate-samples, build-samples]
     if: always()
     steps:

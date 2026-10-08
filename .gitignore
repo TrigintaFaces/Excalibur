@@ -592,3 +592,8 @@ spec/tla/_Arm_*
 
 # Runtime lock for the local full-CI driver. Holds a live PID; never source.
 .claude/.full-ci-run.lock
+
+# Runtime lock and per-machine agent settings. settings.local.json is one machine's
+# permission allowlist; committing it imposes local config on every clone.
+.beads.gate.lock
+.claude/settings.local.json

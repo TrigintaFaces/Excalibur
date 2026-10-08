@@ -32,7 +32,7 @@ jobs:
   deterministic-unit-tests:
     name: Deterministic Unit Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -130,7 +130,7 @@ jobs:
     # caught when I first set both to 90. The gap is what buys a NAMED timeout error instead of an
     # anonymous cancellation, and the ~15 minutes of it is also the cache-save window that killed the
     # unsplit job.
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -243,7 +243,7 @@ jobs:
   package-composition:
     name: Package Composition
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -289,7 +289,7 @@ jobs:
   dependency-audit:
     name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -324,7 +324,7 @@ jobs:
   npm-audit:
     name: npm Dependency Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -357,7 +357,7 @@ jobs:
   flake-report:
     name: Flake Report (advisory)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     permissions:
       contents: read
       actions: read   # to list recent runs and download their retained test results
@@ -441,7 +441,7 @@ jobs:
   ci-sli-report:
     name: CI Service-Level Indicators (advisory)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     permissions:
       contents: read
       actions: read
@@ -464,9 +464,19 @@ jobs:
           # --history-file appends one dated row per objective to a small committed series, so the
           # trend is readable from one file instead of by downloading and diffing thirty nightly
           # artifacts. --fail-on-missed is deliberately NOT passed: this job reports.
+          # 1800s. The budget has to let a COMPLETE collection finish or it reports a measurement
+          # failure as a measurement, which is the same defect as a job cap too tight for a healthy
+          # run. Measured from this job's own evidence artifact: at 480s it collected 2 of 6
+          # populations - 60 runs in roughly 180s of collection - before stopping, and the four it
+          # had not reached include two more ci.yml scopes, the most job-heavy workflow, so the
+          # remainder costs more per run rather than less. The job cap is 120 minutes, so 1800s is
+          # a quarter of the headroom available and several times the extrapolated need.
+          #
+          # Lowering --limit instead would be the wrong trade: p95 needs at least 20 completed runs
+          # and the report already marks the estimate when it has fewer.
           python3 eng/ci/ci-sli-report.py --repo "${GITHUB_REPOSITORY}" --limit 30 \
             --history-file eng/ci/ci-sli-history.jsonl \
-            --job-details --evidence-file ci-sli-evidence.json --collection-timeout-seconds 480 \
+            --job-details --evidence-file ci-sli-evidence.json --collection-timeout-seconds 1800 \
             --rerun-classifications eng/ci/rerun-classifications.json \
             > ci-sli.md || rc=$?
           cat ci-sli.md >> "$GITHUB_STEP_SUMMARY" || true
@@ -510,7 +520,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deterministic-unit-tests, integration-tests, package-composition, dependency-audit, npm-audit]
     if: always()
-    timeout-minutes: 5
+    timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

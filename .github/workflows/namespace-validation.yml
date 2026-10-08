@@ -42,7 +42,7 @@ jobs:
   namespace-depth-validation:
     name: Validate Namespace Depth
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code

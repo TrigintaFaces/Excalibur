@@ -84,8 +84,8 @@ public sealed class FirestoreInboxStoreConformanceShould : InboxStoreConformance
 	/// </summary>
 	public override Task ThrowNotNoOpOnPersistenceFailure()
 	{
-		Assert.Skip(
-			"[capability-not-applicable] Firestore cannot wire a real durability fault here: the .NET client "
+		ConformanceSkip.CapabilityNotApplicable(
+			"Firestore cannot wire a real durability fault here: the .NET client "
 			+ "authenticates as emulator admin and bypasses security rules, Firestore offers no rename or "
 			+ "permission-revoke primitive, and killing the emulator container did not reliably restore "
 			+ "connectivity within a workable timeout. Reported SKIPPED rather than passed: this provider "

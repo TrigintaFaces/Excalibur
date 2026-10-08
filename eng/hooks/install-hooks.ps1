@@ -1,3 +1,4 @@
+#requires -Version 7.0
 # Git Hooks Installation Script (PowerShell)
 # Installs canonical Git hooks from eng/hooks/ to .git/hooks/
 

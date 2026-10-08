@@ -1,3 +1,4 @@
+#requires -Version 7.0
 # Convert SVG assets to PNG files
 # Requires Inkscape to be installed: https://inkscape.org/
 #

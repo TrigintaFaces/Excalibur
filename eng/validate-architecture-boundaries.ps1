@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Validates architecture boundary compliance across Dispatch and Excalibur projects.

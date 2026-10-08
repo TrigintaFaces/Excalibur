@@ -431,7 +431,8 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 		var capabilities = AdvancedCapabilities;
 		if (capabilities is null || !FiltersServerSide(capabilities.Capabilities))
 		{
-			Assert.Skip("[capability-not-applicable] This transport advertises neither PublishTimeFiltering nor ReceiveTimeFiltering, so the filtering fact does NOT apply to it. Reported skipped rather than passed: a transport that cannot filter must not appear to have conformed.");
+			ConformanceSkip.CapabilityNotApplicable(
+				"This transport advertises neither PublishTimeFiltering nor ReceiveTimeFiltering, so the filtering fact does NOT apply to it. Reported skipped rather than passed: a transport that cannot filter must not appear to have conformed.");
 		}
 
 		// Arrange: a message to drop and a message to keep, tagged with distinct filter attributes. The
@@ -503,7 +504,8 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 		var capabilities = AdvancedCapabilities;
 		if (capabilities is null || !capabilities.Capabilities.HasFlag(TransportCapability.ReceiveTimeFiltering))
 		{
-			Assert.Skip("[capability-not-applicable] This transport does not advertise ReceiveTimeFiltering, so the late-bound filtering fact does NOT apply to it. Reported skipped rather than passed: a publish-time-filtering broker decides a message's fate when it is sent and structurally cannot honour a predicate first supplied on the read — it must not appear to have conformed to a property it cannot hold.");
+			ConformanceSkip.CapabilityNotApplicable(
+				"This transport does not advertise ReceiveTimeFiltering, so the late-bound filtering fact does NOT apply to it. Reported skipped rather than passed: a publish-time-filtering broker decides a message's fate when it is sent and structurally cannot honour a predicate first supplied on the read — it must not appear to have conformed to a property it cannot hold.");
 		}
 
 		var keep = new TestMessage
@@ -566,7 +568,8 @@ public abstract class TransportConformanceTestBase<TSender, TReceiver> : IAsyncL
 
 		if (DlqManager == null)
 		{
-			Assert.Skip("[capability-not-applicable] This transport exposes no dead-letter queue manager, so the poison-message fact does NOT apply to it. Reported skipped rather than passed.");
+			ConformanceSkip.CapabilityNotApplicable(
+				"This transport exposes no dead-letter queue manager, so the poison-message fact does NOT apply to it. Reported skipped rather than passed.");
 		}
 
 		// Arrange

@@ -13,7 +13,26 @@ $root = Join-Path $repo ('artifacts/tools/nightly-evidence-control-' + [guid]::N
 [void][IO.Directory]::CreateDirectory($root)
 $dotnet = (Resolve-Path -LiteralPath $DotnetPath).Path
 $shell = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
-if (-not $PackageCache) { $PackageCache = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.nuget/packages' }
+if (-not $PackageCache) {
+    # The user-profile default is WRONG for this repository: NuGet.config pins globalPackagesFolder to a
+    # repo-relative path, so every package the shard build restored sits under the repo and ~/.nuget/packages
+    # is empty. Assuming the default made the offline fixture restore fail NU1101 on all three packages with
+    # the cache reported as containing none of them. Read the pin instead of guessing; NUGET_PACKAGES, which
+    # outranks the pin in NuGet's own precedence, still wins because it is this parameter's default.
+    $pinned = $null
+    $configPath = Join-Path $repo 'NuGet.config'
+    if (Test-Path -LiteralPath $configPath) {
+        $node = ([xml](Get-Content -LiteralPath $configPath -Raw)).SelectSingleNode(
+            "/configuration/config/add[@key='globalPackagesFolder']")
+        if ($node) { $pinned = $node.GetAttribute('value') }
+    }
+    $PackageCache = if ($pinned) {
+        # The pinned value is authored with a Windows separator, which stays literal on Linux.
+        [IO.Path]::GetFullPath((Join-Path $repo ($pinned -replace '\\', '/')))
+    } else {
+        Join-Path ([Environment]::GetFolderPath('UserProfile')) '.nuget/packages'
+    }
+}
 # The fixture restores OFFLINE from the package cache, and it needs its own NuGet config to do it.
 # The repository config enables PackageSourceMapping, and when that is on NuGet silently DISCARDS any
 # source that no mapping covers -- so passing the cache with --source while also passing the repo

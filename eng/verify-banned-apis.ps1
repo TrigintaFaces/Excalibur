@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Hot-path restriction enforcement script per Article III

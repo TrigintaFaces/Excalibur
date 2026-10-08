@@ -1,4 +1,5 @@
 #!/usr/bin/env pwsh
+#requires -Version 7.0
 <#
 .SYNOPSIS
     Provider isolation validation script per Articles X, XV.4
