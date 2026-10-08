@@ -272,7 +272,17 @@ try {
         if ($TestFilter) { $testArgs += @('--filter', $TestFilter) }
 
         if ($Coverage) {
-            $testArgs += '--collect:XPlat Code Coverage'
+            # TWO elements, not one token. These args go to `dotnet` as an argv array, and the
+            # collector name contains spaces. As a single `--collect:XPlat Code Coverage` element the
+            # behaviour is platform-dependent: on Windows PowerShell re-quotes an argument containing
+            # spaces when invoking a native command, so dotnet receives it intact, but on Linux argv
+            # is passed verbatim and the parser registers a collector whose friendly name is empty.
+            # The run still collects coverage from the real collector, so nothing fails loudly -- it
+            # emits two Warning diagnostics into the TRX ("Unable to find a datacollector with
+            # friendly name ''"), and validate-shard-results.ps1 allowlists exactly one benign
+            # diagnostic, so every Linux unit shard refused its own passing evidence.
+            # The space-separated form is documented and unambiguous in argv on every platform.
+            $testArgs += @('--collect', 'XPlat Code Coverage')
             $runSettings += 'DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
         }
 
