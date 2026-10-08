@@ -95,18 +95,41 @@ jobs:
           # exactly where a test host wedges alive-but-not-working. Without a bound the job
           # burns its whole runner allowance and reports a timeout with no failing test named.
           # ci.yml and release.yml already pass this; this workflow did not.
-          bash eng/ci/run-filtered-tests.sh \
-            --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" -- \
+          # The evidence is read from the TRX, not the console summary. run-filtered-tests.sh
+          # delegates to assert-tests-executed.sh, which refuses any skipped > 0 -- right for a shard
+          # where nothing should skip, and wrong here: these facts skip BY DESIGN when a transport
+          # advertises no filtering and exposes no dead-letter manager, because a transport that
+          # structurally cannot filter must not appear to have conformed. Six transports reported
+          # 0 failed with 1-2 declared skips each and were refused as failures.
+          #
+          # The skip POLICY is unchanged and not loosened: an undeclared skip still refuses, and so
+          # does [transport-unavailable], since absent infrastructure is where a green is least
+          # earned. Only the surface changes -- the console prints a count, the TRX records the
+          # reason. Same assertion quality-gates.yml uses for the same suite.
+          set -uo pipefail
+          dotnet test \
             tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
+            --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" \
             --configuration Release \
             --no-build \
             --no-restore \
             --blame-hang-timeout 10m \
             --verbosity minimal \
+            --results-directory ./conformance-results \
             --logger "trx;LogFileName=${{ matrix.transport }}-conformance-results.trx" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             -- RunConfiguration.TestSessionTimeout=900000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          TEST_EXIT=$?
+          pwsh -File eng/ci/assert-declared-skips-only.ps1 -TrxDir ./conformance-results
+          GATE_EXIT=$?
+          # The runner's own exit still wins. A TRX that looks complete cannot see a runner that died
+          # after writing it, and "the evidence passed" must never outrank "the process failed".
+          if [ "$TEST_EXIT" -ne 0 ] && [ "$GATE_EXIT" -eq 0 ]; then
+            echo "::error::The runner exited $TEST_EXIT while the TRX evidence passed every check. Trust the runner: something failed outside the recorded results."
+            exit "$TEST_EXIT"
+          fi
+          exit "$GATE_EXIT"
 
       - name: Upload test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

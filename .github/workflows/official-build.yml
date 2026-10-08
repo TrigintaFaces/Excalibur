@@ -375,10 +375,19 @@ jobs:
           shutil.copytree(root / 'sbom', 'sbom')
           PY
 
+      # Reads the pin rather than restating it. This was the only setup-dotnet call site of 46 that
+      # named a version, so it was the only one that could silently disagree with global.json — and
+      # it did, which broke every dotnet command in this job once the pin moved, because the pin is
+      # rollForward "disable". Deriving it makes that divergence inexpressible instead of something a
+      # comment has to warn about.
+      #
+      # This step is inside the privileged finalizer job, whose exact shape is digested in
+      # eng/ci/official-finalizer-contract.json. Any change to this job needs that contract updated
+      # under independent review; comments are not part of the digest, the parsed job is.
       - name: Setup the pinned signing SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: '10.0.401'
+          global-json-file: global.json
 
       - name: Decide whether this build must be signed
         id: signing
