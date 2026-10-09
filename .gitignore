@@ -597,3 +597,4 @@ spec/tla/_Arm_*
 # permission allowlist; committing it imposes local config on every clone.
 .beads.gate.lock
 .claude/settings.local.json
+.beads/dolt-server-config.yaml

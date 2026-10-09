@@ -65,6 +65,22 @@ check "ENV: no --filter -> cannot evaluate" 2 $?
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" >/dev/null 2>&1
 check "ENV: no dotnet args -> cannot evaluate" 2 $?
 
+# -- SAFETY: a refusal that is NOT zero-executed must not be relabelled as zero-executed ------------
+# assert-tests-executed.sh returns its single EXIT_REFUSE=3 for eight different findings. A skipped
+# test is one of them, and this wrapper used to print "executed NOTHING" for every one -- so a run
+# that executed 567 tests and skipped one was reported in CI as having executed nothing, hiding the
+# real finding. The exit code is unchanged; the message must not name a finding it cannot know.
+make_stub 0 "Passed!  - Failed: 0, Passed: 566, Skipped: 1, Total: 567, Duration: 10 m"
+skip_err="$(DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Integration" --log "$WORK/g.log"     -- proj.slnf 2>&1 >/dev/null)"
+skip_exit=$?
+check "SAFETY: a skipped test still refuses" 3 "$skip_exit"
+if printf '%s' "$skip_err" | grep -qF 'executed NOTHING'; then
+    note "  FAIL SAFETY: a skip was reported as 'executed NOTHING' -- a finding the wrapper cannot make"
+    fail=$((fail + 1))
+else
+    note "  ok   SAFETY: a skip refusal is not relabelled 'executed NOTHING'"; pass=$((pass + 1))
+fi
+
 # ── LIVENESS: the log is written where the caller asked, so CI can upload it ────────────────────────
 make_stub 0 "Passed!  - Failed: 0, Passed: 9, Skipped: 0, Total: 9, Duration: 1 s"
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" --log "$WORK/f.log" -- proj.slnf >/dev/null 2>&1

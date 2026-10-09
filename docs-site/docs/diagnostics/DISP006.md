@@ -1,3 +1,7 @@
+---
+description: Why a message type used with the dispatcher should implement one of the dispatch marker interfaces.
+---
+
 # DISP006: Message Type Missing Dispatch Interface
 
 | Property | Value |

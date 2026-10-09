@@ -66,7 +66,18 @@ function Invoke-PackageCommand {
         }
         $receipt.exitCode = $process.ExitCode
         if ($receipt.timedOut) { throw "Unexpected timeout after ${TimeoutSeconds}s: $Log" }
-        if ($process.ExitCode -ne 0) { throw "Command failed with exit $($process.ExitCode): $Log" }
+        if ($process.ExitCode -ne 0) {
+            # The log holds the real diagnosis, but nothing uploads it, so a CI failure otherwise
+            # reports only a path on a runner that no longer exists. Close the streams first; the
+            # finally block disposes again, which is a no-op.
+            $output.Dispose()
+            $errorOutput.Dispose()
+            $tail = @(
+                @(Get-Content -LiteralPath "$Log.stderr.log" -Tail 20 -ErrorAction Ignore)
+                @(Get-Content -LiteralPath "$Log.stdout.log" -Tail 40 -ErrorAction Ignore)
+            ) -join [Environment]::NewLine
+            throw "Command failed with exit $($process.ExitCode): $Log`n$tail"
+        }
         $receipt.status = 'passed'
     }
     finally {

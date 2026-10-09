@@ -121,13 +121,20 @@ if [ "$TEST_EXIT" -ne 0 ]; then
     exit "$TEST_EXIT"
 fi
 
-# The assertion has exactly one finding it is entitled to report: E_ZERO_EXECUTED. Any OTHER non-zero
-# means the assertion did not run or malfunctioned -- 126 (found, not executable), 127 (not found), a
-# crash. Those are REFUSALS, and reporting them as "executed NOTHING" states a finding that was never
-# made: the run above may have executed and passed hundreds of tests. A gate that cannot run must say
-# so, never invent a specific result. Both still fail closed; only the diagnosis differs.
+# The assertion refused. DO NOT NAME WHICH FINDING: assert-tests-executed.sh returns its single
+# EXIT_REFUSE=3 for eight distinct findings -- zero matched, a failed/skipped/inconsistent result, an
+# aborted run, a malformed summary, a counter overflow, executed != expected, a bad --expect, an
+# unknown argument. It has already printed the precise one to stderr, directly above this line.
+#
+# This block used to assert "executed NOTHING", which is the exact defect the paragraph below warns
+# about, committed here: a run that executed 567 tests and skipped one was reported as having
+# executed nothing, so the real finding (an undeclared skip) was invisible in the job log.
+#
+# Any OTHER non-zero means the assertion did not run or malfunctioned -- 126 (found, not executable),
+# 127 (not found), a crash. Those are REFUSALS about the gate, not about the run. A gate that cannot
+# run must say so, never invent a specific result. Both still fail closed; only the diagnosis differs.
 if [ "$ASSERT_EXIT" -eq "$E_ZERO_EXECUTED" ]; then
-    echo "[run-filtered-tests] the run reported success having executed NOTHING — treating as a failure, not a pass." >&2
+    echo "[run-filtered-tests] assert-tests-executed REFUSED — its own message above states which"          "finding; the run itself reported exit $TEST_EXIT. Treating as a failure, not a pass." >&2
     exit "$E_ZERO_EXECUTED"
 fi
 

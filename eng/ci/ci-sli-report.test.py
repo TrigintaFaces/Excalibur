@@ -274,7 +274,10 @@ class PopulationControls(unittest.TestCase):
             self.assertEqual(100, len(sli.fetch_runs('owner/repo', 'ci.yml', 150, 'pull_request')))
 
     def test_later_page_failure_cannot_score_partial_window(self):
-        with patch.object(sli.subprocess, 'run', side_effect=[response([run(i) for i in range(100)]), response([], 1)]):
+        # api_call retries a non-zero exit, so the page must stay failed for every attempt; one
+        # failing response would exhaust the mock mid-retry and raise StopIteration, not the refusal.
+        failed = [response([], 1)] * 3
+        with patch.object(sli.time, 'sleep'),              patch.object(sli.subprocess, 'run', side_effect=[response([run(i) for i in range(100)])] + failed):
             with self.assertRaisesRegex(ValueError, 'gh exited'):
                 sli.fetch_runs('owner/repo', 'ci.yml', 150, 'pull_request')
 

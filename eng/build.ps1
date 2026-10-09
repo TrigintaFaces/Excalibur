@@ -272,18 +272,19 @@ try {
         if ($TestFilter) { $testArgs += @('--filter', $TestFilter) }
 
         if ($Coverage) {
-            # TWO elements, not one token. These args go to `dotnet` as an argv array, and the
-            # collector name contains spaces. As a single `--collect:XPlat Code Coverage` element the
-            # behaviour is platform-dependent: on Windows PowerShell re-quotes an argument containing
-            # spaces when invoking a native command, so dotnet receives it intact, but on Linux argv
-            # is passed verbatim and the parser registers a collector whose friendly name is empty.
-            # The run still collects coverage from the real collector, so nothing fails loudly -- it
-            # emits two Warning diagnostics into the TRX ("Unable to find a datacollector with
-            # friendly name ''"), and validate-shard-results.ps1 allowlists exactly one benign
-            # diagnostic, so every Linux unit shard refused its own passing evidence.
-            # The space-separated form is documented and unambiguous in argv on every platform.
+            # Two argv elements rather than one '--collect:XPlat Code Coverage' token, so the
+            # collector name is unambiguous in argv on every platform.
+            #
+            # AND NO FORMAT RunSetting. This branch used to add
+            # 'DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'.
+            # In the required-evidence path, invoke-required-tests.ps1 folds inline settings into a
+            # generated runsettings file by element path, which yields a <DataCollector> element
+            # carrying no friendlyName -- so VSTest writes "Unable to find a datacollector with
+            # friendly name ''" twice into every TRX, validate-shard-results.ps1 allowlists only the
+            # Blame diagnostic, and every coverage-collecting shard refused its own passing evidence.
+            # The setting was inert anyway: cobertura is coverlet.collector's default, and a run with
+            # no format setting at all still writes coverage.cobertura.xml.
             $testArgs += @('--collect', 'XPlat Code Coverage')
-            $runSettings += 'DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
         }
 
         # -m:N is a dotnet-test argument, NOT a RunSetting: after the separator it is parsed as a

@@ -65,6 +65,16 @@ assert_contains() {
     fi
 }
 
+assert_absent() {
+    local label="$1" line="$2" needle="$3"
+    if printf '%s' "$line" | grep -qF -- "$needle"; then
+        printf 'SELF-TEST: FAIL -- %s\n    must not contain: %s\n    got   : %s\n' "$label" "$needle" "$line" >&2
+        FAILED=1
+    else
+        printf 'SELF-TEST: PASS -- %s\n' "$label"
+    fi
+}
+
 assert_separator_count() {
     local label="$1" line="$2" want="$3" n
     # A standalone ' -- ' more than once means an earlier branch emitted its own separator and
@@ -87,7 +97,12 @@ both="$(compose -Coverage -TestSessionTimeout 1500000 \
 
 if probe_ok "$both"; then
     assert_separator_count "coverage + session timeout + extras emit exactly ONE separator" "$both" 1
-    assert_contains "coverage format is a RunSetting" "$both" 'Format=cobertura'
+    assert_contains "the coverage collector is requested as two argv elements" "$both"         '--collect XPlat Code Coverage'
+    # NOT a RunSetting. invoke-required-tests.ps1 folds inline settings into a generated runsettings
+    # file by element path, so a DataCollector path yields a <DataCollector> with no friendlyName and
+    # VSTest reports a collector named '' twice into every TRX -- which validate-shard-results.ps1
+    # refuses. Cobertura is the collector's default, so the setting only ever cost us the refusal.
+    assert_absent "no DataCollector RunSetting is emitted" "$both" 'DataCollectionRunSettings'
     assert_contains "session timeout is a RunSetting" "$both" 'RunConfiguration.TestSessionTimeout=1500000'
     assert_contains "extra run settings are word-split, not one token" "$both" \
         'xUnit.MaxParallelThreads=1 xUnit.ParallelizeTestCollections=false'

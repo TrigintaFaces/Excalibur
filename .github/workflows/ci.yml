@@ -1116,9 +1116,27 @@ jobs:
           COSMOS_EVIDENCE_FILE: ${{ github.workspace }}/TestResults/cosmos-execution-evidence.tsv
         run: |
           mkdir -p ./TestResults
-          bash eng/ci/run-filtered-tests.sh \
-            --filter "${{ env.INTEGRATION_TEST_FILTER }}" -- \
-            ${{ matrix.shard.filter }} \
+          # NOT run-filtered-tests.sh, deliberately. That wrapper delegates to
+          # assert-tests-executed.sh, which refuses any Skipped > 0 read from the CONSOLE
+          # SUMMARY. A summary prints a COUNT and discards every reason, so it cannot tell a
+          # declared capability exemption, or a suppression this repo has already APPROVED in
+          # eng/ci/cosmos-skip-allowlist.json, from a test somebody silenced -- all three
+          # render as the same number. So it failed the job two steps before the "Verify
+          # integration test results" step below, which reads the TRX, sorts skips by their
+          # recorded REASON, enforces the allowlist, and reconciles every test by name against
+          # a DERIVED expected population. That step is the adjudicator; this one just runs.
+          #
+          # The wrapper is not at fault and is NOT changed: refusing on a count is the right
+          # DEFAULT for the ten other call sites, whose TRX nothing adjudicates. Only this
+          # path has a stronger authority downstream, so only this path stops using it. Same
+          # shape, and the same reason, as transport-conformance-tests.yml.
+          #
+          # --filter stays ahead of the runsettings separator. Everything after `--` is a
+          # RunSetting, not a CLI option, so a filter appended there silently stops filtering
+          # and runs the whole shard.
+          set -uo pipefail
+          dotnet test ${{ matrix.shard.filter }} \
+            --filter "${{ env.INTEGRATION_TEST_FILTER }}" \
             -m:1 \
             --configuration Release \
             --no-build \
@@ -1128,6 +1146,12 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+          TEST_EXIT=$?
+          # Exit with the runner's own code, so a real test failure fails this step. The
+          # adjudicator below runs `if: always()` and therefore still reports on the evidence,
+          # which keeps the right tiebreak automatic: a failed process fails the job whatever
+          # the TRX says, and "the evidence passed" can never outrank it.
+          exit "$TEST_EXIT"
 
       # The census already asserts no emulator-starting CLASS is admitted here. This asserts no
       # emulator was actually REACHED, which is a different measurement of the same boundary: the
@@ -1290,7 +1314,12 @@ jobs:
             # carries no internal tracker id: the tracking issue names the entry by its 'id', never the
             # reverse. Internal artifacts may point at public ones; a public file citing an internal work
             # item leaks it and is meaningless to the consumer who reads it.
-            foreach ($f in @('test','id','reason','evidence','owner','expires')) {
+            # 'match' and 'count' were DECLARED by every entry and READ by nothing. So an entry
+            # claiming to approve 15 facts approved any number, and match='class' advertised a
+            # matcher mode that did not exist -- the match below is unconditionally a prefix.
+            # A field the verifier ignores is precision this gate does not have. Both are now
+            # mandatory, and 'count' is enforced after the skips are known.
+            foreach ($f in @('test','id','reason','evidence','owner','expires','match','count')) {
               if ([string]::IsNullOrWhiteSpace($e.$f)) {
                 Write-Error "REFUSE -- allowlist entry '$($e.test)' is missing mandatory field '$f'."
                 exit 3
@@ -1300,6 +1329,14 @@ jobs:
             Write-Host ("  {0}`n    id={1} owner={2} expires={3} ({4} days)" -f $e.test, $e.id, $e.owner, $e.expires, $days)
             if ($days -lt 0) {
               Write-Error "REFUSE -- allowlist entry '$($e.id)' EXPIRED on $($e.expires), owned by $($e.owner). Renew it with a NEW MEASUREMENT recorded in 'evidence', or remove the suppression. A fresh date alone is not a renewal."
+              exit 3
+            }
+            if ($e.match -cne 'class') {
+              Write-Error "REFUSE -- allowlist entry '$($e.id)' declares match='$($e.match)'. The only matcher implemented is 'class', a prefix over the fully-qualified class name. An entry naming a mode that does not exist reads as a narrower rule than the one applied."
+              exit 3
+            }
+            if (($e.count -as [int]) -eq $null -or [int]$e.count -le 0) {
+              Write-Error "REFUSE -- allowlist entry '$($e.id)' declares count='$($e.count)', not a positive integer. An entry that will not say HOW MANY skips it approves cannot be held to a number."
               exit 3
             }
             $allowedClasses += $e.test
@@ -1319,6 +1356,13 @@ jobs:
             Write-Host "Skipped tests, by name (a skip total is a number; a skip list is a claim you can check):"
             $skippedNames | ForEach-Object { Write-Host "  $_" }
             $unapproved = $skippedNames | Where-Object { $n = $_; -not ($allowedClasses | Where-Object { $n -like "$_*" }) }
+            foreach ($e in $allow.entries) {
+              $matched = @($skippedNames | Where-Object { $_ -like "$($e.test)*" }).Count
+              if ($matched -gt [int]$e.count) {
+                Write-Error "REFUSE -- allowlist entry '$($e.id)' approves at most $($e.count) skip(s) but its prefix matched $matched. The match is a PREFIX, so an over-broad 'test' value silently approves every skip beneath it; the declared count is what bounds that. Narrow the entry, or record the larger number with fresh evidence."
+                exit 3
+              }
+            }
             if ($unapproved) {
               Write-Error "REFUSE -- $($unapproved.Count) test(s) skipped without an approved allowlist entry. An unexplained skip is the defect; a named and approved one is a decision.`n$($unapproved -join "`n")"
               exit 3
@@ -1337,6 +1381,16 @@ jobs:
           # A capability skip IS accounted for: it is named, categorised at the skip site, and printed in
           # full above. It is not a test that disappeared. If a third skip category is ever added, it must
           # be added to this sum in the same commit -- that is the whole lesson of this line.
+          # LIVENESS for the identity below, which its own comment assumes and did not have.
+          # The sum is satisfied by 0 executed with everything skipped, and the unapproved-skip
+          # refusal is only its liveness arm while the skips are UNAPPROVED -- an allowlist
+          # entry covering the whole admitted population satisfies both at once. The console
+          # summary gate upstream used to supply `executed > 0`; it no longer runs on this path,
+          # so the property moves here WITH the verdict instead of leaving with the wrapper.
+          if ($totalExecuted -le 0) {
+            Write-Error "REFUSE -- 0 tests executed. A run in which every admitted test was skipped is not a pass, however well each skip is declared or approved. Reducing the denominator to what you expect to skip is what encodes a suppression into the success criterion."
+            exit 3
+          }
           $accounted = $totalExecuted + $skippedNames.Count + $capabilitySkips.Count
           Write-Host "executed=$totalExecuted + skipped=$($skippedNames.Count) + capability=$($capabilitySkips.Count) = $accounted, EXPECTED=$expected"
           if ($accounted -ne $expected) {

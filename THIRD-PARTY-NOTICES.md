@@ -153,11 +153,8 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Oracle.ManagedDataAccess.Core | 23.8.0 | PROPRIETARY - Oracle Free Distribution, Hosting, and Use Terms and Conditions (not an OSI-approved licence) |
 | Polly | 8.6.6 | BSD-3-Clause |
 | Polly.RateLimiting | 8.6.6 | BSD-3-Clause |
-| Quartz | 3.18.0 | Apache-2.0 |
-| Quartz.Extensions.DependencyInjection | 3.18.0 | Apache-2.0 |
-| Quartz.Extensions.Hosting | 3.18.0 | Apache-2.0 |
-| Quartz.Plugins | 3.18.0 | Apache-2.0 |
-| Quartz.Serialization.SystemTextJson | 3.18.0 | Apache-2.0 |
+| Quartz | 4.3.0 | Apache-2.0 |
+| Quartz.Plugins | 4.3.0 | Apache-2.0 |
 | QuestPDF | 2026.7.3 | Source-available dual licence (QuestPDF Community, or paid Professional/Enterprise) — NOT MIT and not OSI-approved: the shipped licence states that the MIT License does not govern use under the Community License. Community eligibility is assessed per organisation across six categories, not revenue alone — public-sector entities, government agencies and publicly traded companies are ineligible regardless of revenue, and the small-business category requires annual gross revenue under USD 1,000,000 measured on a consolidated basis across entities under common control (https://www.questpdf.com/license/). Reached only through the opt-in `Excalibur.Compliance.Pdf` package. Eligibility attaches to the organisation using the software, so each consumer must qualify on its own account; this project cannot and does not qualify on your behalf. |
 | RabbitMQ.Client | 7.2.1 | Apache-2.0 OR MPL-2.0 |
 | SQLitePCLRaw.bundle_e_sqlite3 | 3.0.3 | Apache-2.0 |

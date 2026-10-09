@@ -76,6 +76,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      sdk-version: ${{ steps.sdk.outputs.dotnet-version }}
       handoff-id: ${{ steps.handoff.outputs.artifact-id }}
       handoff-digest: ${{ steps.handoff.outputs.artifact-digest }}
       manifest-sha256: ${{ steps.transfer.outputs.manifest-sha256 }}
@@ -89,6 +90,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
+        id: sdk
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
@@ -387,7 +389,10 @@ jobs:
       - name: Setup the pinned signing SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          global-json-file: global.json
+          # This job deliberately checks out no source, so global.json is not on disk here.
+          # The version is the one the source job installed from global.json, so the pin is
+          # still read from one place.
+          dotnet-version: ${{ needs.build-packages.outputs.sdk-version }}
 
       - name: Decide whether this build must be signed
         id: signing
