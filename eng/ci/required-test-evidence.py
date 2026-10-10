@@ -24,6 +24,35 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def run_attempt(value):
+    require(isinstance(value, str) and re.fullmatch(r"[1-9][0-9]{0,8}", value) is not None, "Invalid run attempt")
+    return int(value)
+
+
+def require_external_context(actual: dict, expected: dict, label: str):
+    """Bind one recorded context to the externally supplied expectation.
+
+    Every field is compared for equality except the run attempt, which is compared as a bound. A
+    partial re-run re-runs only the jobs that failed, so each shard that already passed still carries
+    the attempt it ran in, while this aggregation runs in a later one -- so requiring equality refuses
+    every partial re-run and turns a single lost runner into a permanently red run rather than a
+    retryable one. What this binding needs is that the evidence belongs to THIS commit and THIS run,
+    which candidateSha and runId already establish; an attempt no later than ours additionally rules
+    out evidence from a FUTURE attempt, which could only mean artifact confusion. A shard re-run that
+    failed again is caught by the job-conclusion gate rather than here, and a shard whose artifact is
+    absent entirely is caught by the roster equality check.
+
+    Both externally compared sites -- the invocation plan and each execution census -- go through here
+    so that the attempt cannot be bound at one and left exact at the other.
+    """
+    for key in CONTEXT:
+        require(isinstance(expected.get(key), str) and (expected[key] or key == "filter"), f"Missing external context: {key}")
+        if key == "runAttempt":
+            require(run_attempt(actual.get(key)) <= run_attempt(expected[key]), f"{label}: {key}")
+            continue
+        require(actual.get(key) == expected[key], f"{label}: {key}")
+
+
 def read_json(path):
     def unique_pairs(pairs):
         result = {}
@@ -81,9 +110,7 @@ def verify(plan_path: Path, expected: dict):
     root = plan_path.parent.resolve()
     plan = read_json(plan_path)
     require(plan.get("schemaVersion") == 1, "Unsupported plan schema")
-    for key in CONTEXT:
-        require(isinstance(expected.get(key), str) and (expected[key] or key == "filter"), f"Missing external context: {key}")
-        require(plan["context"].get(key) == expected[key], f"Unexpected invocation context: {key}")
+    require_external_context(plan["context"], expected, "Unexpected invocation context")
     require(re.fullmatch(r"[0-9a-f]{40}", expected["candidateSha"]) is not None, "Invalid candidate SHA")
     invocations = plan["invocations"]
     require(isinstance(invocations, list) and invocations, "Empty planned invocation roster")
@@ -123,8 +150,7 @@ def verify(plan_path: Path, expected: dict):
         require(census.get("purpose") == "execution", "Source-presence census cannot certify executed test identities")
         context = census["context"]
         require(census["filter"] == expected["filter"], "Discovery filter differs from planned execution")
-        for key in CONTEXT:
-            require(context.get(key) == expected[key], f"Census context mismatch: {key}")
+        require_external_context(context, expected, "Census context mismatch")
         for key in ("targetFramework", "targetPlatform"):
             require(isinstance(invocation.get(key), str) and invocation[key], f"Missing planned {key}")
             require(context.get(key) == invocation[key], f"Census {key} mismatch")

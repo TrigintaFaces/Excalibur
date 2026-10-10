@@ -106,6 +106,21 @@ class EvidenceTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 gate.verify(self.root / "plan.json", dict(self.context, **{key: "wrong"}))
 
+    def test_evidence_from_an_earlier_attempt_of_the_same_run_is_accepted(self):
+        # A partial re-run re-runs only the failed jobs, so every shard that already passed still
+        # carries the attempt it ran in. Refusing those refuses every partial re-run, which makes a
+        # single lost runner permanently red rather than retryable. The plan here records attempt 2
+        # and the aggregation is asked for a later one, which is exactly that shape.
+        self.flush()
+        self.assertEqual(gate.verify(self.root / "plan.json", dict(self.context, runAttempt="7"))["executed"], 2)
+
+    def test_evidence_from_a_later_attempt_than_this_aggregation_is_refused(self):
+        # The bound must remain a bound. Evidence from an attempt that has not happened yet could only
+        # mean artifact confusion, so this is what separates the fix from deleting the check.
+        self.flush()
+        with self.assertRaises(ValueError):
+            gate.verify(self.root / "plan.json", dict(self.context, runAttempt="1"))
+
     def test_missing_receipt(self):
         self.flush()
         (self.root / self.plan["invocations"][0]["receipt"]).unlink()
