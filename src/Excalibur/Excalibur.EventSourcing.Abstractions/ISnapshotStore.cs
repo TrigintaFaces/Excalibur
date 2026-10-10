@@ -64,13 +64,19 @@ public interface ISnapshotStore
 	/// illegal.
 	/// </para>
 	/// <para>
-	/// <b>Monotone upsert.</b> After this completes, the version readable for
-	/// <c>(aggregateId, aggregateType)</c> within the ambient tenant is the highest that has ever been
-	/// successfully saved for it. A save carrying a HIGHER version than the stored one replaces it; a
-	/// save carrying a version LOWER THAN OR EQUAL to the stored one is a <b>successful no-op</b> — the
-	/// call returns normally and the stored snapshot is left alone. Losing a race to a concurrent writer
-	/// that stored a newer version is that same successful no-op, not an error: the caller asked for a
-	/// version to be readable, and a newer one already is.
+	/// <b>Monotone upsert, scoped to the interval since the last deletion.</b> After
+	/// <c>SaveSnapshotAsync</c> returns normally, the version readable for
+	/// <c>(aggregateId, aggregateType)</c> within the ambient tenant is at least the version passed. A
+	/// save carrying a version lower than or equal to the stored one is a successful no-op. Monotonicity
+	/// does NOT hold across a deletion: <c>DeleteSnapshotsAsync</c>,
+	/// <c>DeleteSnapshotsOlderThanAsync</c> and provider-level expiry all remove stored versions, after
+	/// which a save may legitimately make a LOWER version readable than was readable before. Saves and
+	/// deletions on the same key are not ordered with respect to one another, so a save superseded by a
+	/// concurrent deletion has not dropped a snapshot. A caller that requires a specific version to be
+	/// readable must re-read it; a normal return does not entitle the caller to infer which version is
+	/// readable now, only that the store established one at least as high at the moment it completed. A
+	/// store that returns normally having neither stored the snapshot nor established that is in
+	/// violation; unresolvable contention is reported as <c>ConcurrencyException</c>, never as success.
 	/// </para>
 	/// <para>
 	/// <b>Modifies only its own key.</b> No other aggregate, aggregate type, or tenant is observably

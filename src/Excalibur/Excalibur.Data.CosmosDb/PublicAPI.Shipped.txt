@@ -236,8 +236,8 @@ Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.PartitionKeyP
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.PartitionKeyPath.set -> void
 Excalibur.Data.CosmosDb.Projections.CosmosDbProjectionStoreOptions.Validate() -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore
-Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.CosmosDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext) -> void
-Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.CosmosDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Azure.Cosmos.CosmosClient! client) -> void
+Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.CosmosDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, System.TimeProvider? timeProvider = null) -> void
+Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.CosmosDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore!>! logger, Excalibur.Dispatch.ITenantContext! tenantContext, Microsoft.Azure.Cosmos.CosmosClient! client, System.TimeProvider? timeProvider = null) -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStore.Dispose() -> void
@@ -257,6 +257,8 @@ Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.CreateContainerIf
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.CreateContainerIfNotExists.set -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.DatabaseName.get -> string!
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.DatabaseName.set -> void
+Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.ContendedWriteBackoffMilliseconds.get -> int
+Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.ContendedWriteBackoffMilliseconds.set -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.DefaultTtlSeconds.get -> int
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.DefaultTtlSeconds.set -> void
 Excalibur.Data.CosmosDb.Snapshots.CosmosDbSnapshotStoreOptions.PartitionKeyPath.get -> string!

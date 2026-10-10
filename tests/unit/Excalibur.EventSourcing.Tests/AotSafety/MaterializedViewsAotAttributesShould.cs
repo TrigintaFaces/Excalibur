@@ -17,52 +17,61 @@ namespace Excalibur.EventSourcing.Tests.AotSafety;
 [Trait("Component", "Core")]
 public sealed class MaterializedViewsAotAttributesShould
 {
-	// Rows carry the declaring type plus the method's metadata token rather than a MethodInfo: a MethodInfo
-	// type argument is not reliably serializable (xUnit1045), which stops the runner enumerating individual
-	// data rows. The token resolves back to exactly the same method — one row per method, as before.
-	public static TheoryData<Type, string, int> ConsumerFacingMethods()
+	private static readonly Type[] RegistrationSurface =
+	[
+		typeof(Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions),
+		// namespace: Microsoft.Extensions.DependencyInjection
+		typeof(MaterializedViewsServiceCollectionExtensions),
+	];
+
+	// One row per declaring type, never per method: a theory argument lands in the test's display name, and
+	// VSTest derives its test ID by hashing that name. Anything compiler-assigned there (a metadata token,
+	// which an earlier revision carried to keep a MethodInfo out of the row) shifts on recompile, so the
+	// test's identity changes between discovery and execution. A Type renders stably, and keying rows by
+	// type also removes the ambiguity between overloads. The methods are enumerated in the body instead.
+	public static TheoryData<Type> ConsumerFacingTypes()
 	{
-		var types = new[]
-		{
-			typeof(Excalibur.EventSourcing.DependencyInjection.MaterializedViewsBuilderExtensions),
-			// namespace: Microsoft.Extensions.DependencyInjection
-			typeof(MaterializedViewsServiceCollectionExtensions),
-		};
+		var data = new TheoryData<Type>();
 
-		var data = new TheoryData<Type, string, int>();
-
-		foreach (var type in types)
+		foreach (var type in RegistrationSurface)
 		{
-			foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
-			{
-				data.Add(type, method.Name, method.MetadataToken);
-			}
+			data.Add(type);
 		}
 
 		return data;
 	}
 
 	[Theory]
-	[MemberData(nameof(ConsumerFacingMethods))]
-	public void NotCarryAotHostileAttributes(Type declaringType, string methodName, int metadataToken)
+	[MemberData(nameof(ConsumerFacingTypes))]
+	public void NotCarryAotHostileAttributes(Type declaringType)
 	{
 		var typeName = declaringType.Name;
-		var method = (MethodInfo)declaringType.Module.ResolveMethod(metadataToken)!;
+		var methods = RegistrationMethods(declaringType);
 
-		method.GetCustomAttribute<RequiresUnreferencedCodeAttribute>().ShouldBeNull(
-			$"{typeName}.{methodName} is consumer-facing and must not carry [RequiresUnreferencedCode]; "
-			+ "remove the reflection requirement rather than suppress or propagate it.");
+		// Liveness: the safety assertions below are vacuous for a type that enumerates no methods, so a
+		// surface that was removed or renamed must redden here rather than pass by examining nothing.
+		methods.ShouldNotBeEmpty($"{typeName} exposes no public static methods — the AOT guard has nothing to check.");
 
-		method.GetCustomAttribute<RequiresDynamicCodeAttribute>().ShouldBeNull(
-			$"{typeName}.{methodName} is consumer-facing and must not carry [RequiresDynamicCode]; "
-			+ "remove the reflection requirement rather than suppress or propagate it.");
+		foreach (var method in methods)
+		{
+			method.GetCustomAttribute<RequiresUnreferencedCodeAttribute>().ShouldBeNull(
+				$"{typeName}.{method.Name} is consumer-facing and must not carry [RequiresUnreferencedCode]; "
+				+ "remove the reflection requirement rather than suppress or propagate it.");
+
+			method.GetCustomAttribute<RequiresDynamicCodeAttribute>().ShouldBeNull(
+				$"{typeName}.{method.Name} is consumer-facing and must not carry [RequiresDynamicCode]; "
+				+ "remove the reflection requirement rather than suppress or propagate it.");
+		}
 	}
 
 	[Fact]
 	public void EnumerateTheRegistrationSurface()
 	{
-		// Liveness: the theory above is only meaningful if it actually enumerates the registration methods.
-		// A change that removed or renamed the surface must not silently reduce this guard to zero cases.
-		ConsumerFacingMethods().ShouldNotBeEmpty();
+		// Liveness: the theory above is only meaningful if the surface it iterates is non-empty. A change
+		// that removed the registration types entirely must not silently reduce this guard to zero cases.
+		RegistrationSurface.SelectMany(RegistrationMethods).ShouldNotBeEmpty();
 	}
+
+	private static MethodInfo[] RegistrationMethods(Type type) =>
+		type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
 }

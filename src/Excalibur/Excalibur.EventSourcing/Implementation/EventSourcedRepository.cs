@@ -244,7 +244,13 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		{
 			var snapshot = await _snapshotManager.GetLatestSnapshotAsync(stringId, cancellationToken)
 				.ConfigureAwait(false);
-			if (snapshot is not null)
+			// A snapshot is discarded when the stream beneath it has been erased. Applying it would make the
+			// load request only events above its own floor, and an erased stream's tombstoned rows all sit
+			// below that floor -- so the erased sentinel would never return and the pre-erasure state would
+			// be handed back as the aggregate.
+			if (snapshot is not null
+				&& !await MustDiscardSnapshotAsErasedAsync(stringId, aggregateType, cancellationToken)
+					.ConfigureAwait(false))
 			{
 				snapshot = TryUpgradeSnapshot(snapshot, aggregateType);
 				aggregate.LoadFromSnapshot(snapshot);
@@ -277,11 +283,24 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// version its own stream never reached.
 		//
 		// OPT-IN, off by default. The empty tail is also the ordinary state of a snapshot that is already
-		// current, so verifying it costs a query on a healthy path -- and this framework never removes
-		// events below a snapshot, so it cannot itself produce the damage. Hosts whose event store is
-		// trimmed by something else opt in. Only a store that can answer cheaply is asked, and only here.
-		// A store that does not provide the capability resolves to null here and behaves exactly as it did
-		// before this probe existed.
+		// current, so verifying it costs a query on a healthy path. Hosts whose event store is trimmed by
+		// something else opt in. Only a store that can answer cheaply is asked, and only here. A store
+		// that does not provide the capability resolves to null here and behaves exactly as it did before
+		// this probe existed.
+		//
+		// CORRECTION. This comment previously justified the default by claiming that "this framework never
+		// removes events below a snapshot, so it cannot itself produce the damage". That is FALSE: erasure
+		// tombstones event rows below a snapshot in place, and for this probe a tombstoned row is
+		// observationally identical to a removed one, so the framework does produce the state through a
+		// path it ships.
+		//
+		// AND THE PROBE BELOW DOES NOT DETECT THAT STATE, ON OR OFF. Its test is a TRUNCATION test --
+		// maxVersion < snapshotVersion - 1 -- and erasure leaves Version untouched, so maxVersion still
+		// reports the real stream maximum and the comparison is false. Enabling this flag therefore does
+		// NOT protect a host against a snapshot that survives an erasure; treating it as though it did
+		// would be a protection nobody has. The defect is this predicate, not the default, and the fix is
+		// to ask whether the events below the snapshot are still READABLE rather than whether they are
+		// still NUMBERED.
 		if (_verifyStreamReachesSnapshot
 			&& storedEvents.Count == 0
 			&& snapshotVersion > 0
@@ -853,6 +872,77 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		ThrowIfAppendFailed(result, aggregate);
 
 		return result;
+	}
+
+	/// <summary>
+	/// Answers whether a snapshot that was loaded must be discarded because the aggregate's event stream
+	/// has been erased.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The shape.</b> A snapshot save already in flight when an erasure runs can land after the erasure
+	/// destroyed the snapshot, creating one again from a pre-erasure payload. Hydration then reads a
+	/// snapshot at count N and requests only events above N-1, while an erased stream's tombstoned rows all
+	/// sit below that floor — so no row loads, the tombstone is never seen, and the subject's full
+	/// pre-erasure state is returned as a legitimate aggregate. The erasure reports success and no probe,
+	/// log or metric records it. Resurrection cannot be made impossible without quiescing writers, so it is
+	/// made harmless here instead: the read path is the one participant that is not racing.
+	/// </para>
+	/// <para>
+	/// <b>A snapshot having been loaded is the whole trigger.</b> This is deliberately not also conditioned
+	/// on the loaded event tail being empty. After a resurrection a caller can load, mutate and append, so
+	/// the tail becomes non-empty and a tail-conditioned check would stop firing — serving pre-erasure state
+	/// with newer events replayed on top of it.
+	/// </para>
+	/// <para>
+	/// <b>A failure to answer discards the snapshot; it does not fail the load.</b> This probe sits on the
+	/// hydration path, so it can throw. The event stream is the record and a full replay is the authority a
+	/// snapshot only optimises over, so discarding costs exactly what hydration costs for an aggregate that
+	/// has no snapshot. It is logged at warning rather than swallowed: "a full replay ran because erasure
+	/// could not be established" is operationally meaningful.
+	/// </para>
+	/// <para>
+	/// <b>An absent capability is a sound negative, not a gap.</b> An erasure can only be performed through
+	/// <see cref="IEventStoreErasure"/> on this same store chain, so a store that does not present the
+	/// capability cannot have been erased through it and pays nothing. A host that has configured erasure
+	/// pays for erasure correctness. The capability is asked of the store rather than inferred from its
+	/// type, because a decorator answers on behalf of the store it wraps while a type test would report the
+	/// decorator.
+	/// </para>
+	/// </remarks>
+	/// <param name="aggregateId"> The aggregate identifier. </param>
+	/// <param name="aggregateType"> The aggregate type name. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
+	/// <returns>
+	/// <see langword="true"/> when the stream is erased, or when erasure could not be established, and the
+	/// snapshot must therefore not be applied; otherwise <see langword="false"/>.
+	/// </returns>
+	private async Task<bool> MustDiscardSnapshotAsErasedAsync(
+		string aggregateId,
+		string aggregateType,
+		CancellationToken cancellationToken)
+	{
+		if (_eventStore.GetService(typeof(IEventStoreErasure)) is not IEventStoreErasure erasure)
+		{
+			return false;
+		}
+
+		try
+		{
+			return await erasure.IsErasedAsync(aggregateId, aggregateType, cancellationToken)
+				.ConfigureAwait(false);
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			_logger?.LogWarning(
+				ex,
+				"Could not establish whether aggregate '{AggregateId}' ({AggregateType}) has been erased. " +
+				"Discarding its snapshot and rehydrating from the full event stream.",
+				aggregateId,
+				aggregateType);
+
+			return true;
+		}
 	}
 
 	/// <summary>

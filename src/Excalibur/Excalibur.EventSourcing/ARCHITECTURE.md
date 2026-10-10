@@ -1836,3 +1836,76 @@ state cannot speak about states it has no path to.
   and recorded against the projection's health on every pass — whereas the alternative is events
   vanishing from a read model with nothing to indicate it.
 
+
+---
+
+# Architecture — Snapshot Save
+
+## Guarantee
+
+Monotone upsert, scoped to the interval since the last deletion. After SaveSnapshotAsync returns normally,
+the version readable for (aggregateId, aggregateType) within the ambient tenant is at least the version
+passed. A save carrying a version lower than or equal to the stored one is a successful no-op. Monotonicity
+does NOT hold across a deletion: DeleteSnapshotsAsync, DeleteSnapshotsOlderThanAsync and provider-level
+expiry all remove stored versions, after which a save may legitimately make a LOWER version readable than
+was readable before. Saves and deletions on the same key are not ordered with respect to one another, so a
+save superseded by a concurrent deletion has not dropped a snapshot. A caller that requires a specific
+version to be readable must re-read it; a normal return does not entitle the caller to infer which version
+is readable now, only that the store established one at least as high at the moment it completed. A store
+that returns normally having neither stored the snapshot nor established that is in violation; unresolvable
+contention is reported as ConcurrencyException, never as success.
+
+**Snapshots are derived state.** A snapshot that is missing or behind costs a slower rehydrate from the
+event stream and nothing else, because hydration replays events after the snapshot version
+(`Implementation/EventSourcedRepository.cs:261`).
+
+**Consumer obligation.** A host that trims its own event store below a snapshot must enable the
+stream-reaches-snapshot probe.
+
+**Erased aggregates are never served from a snapshot.** The snapshot delete and the event tombstone are
+separate, non-transactional operations, so a snapshot save already in flight when an erasure runs can
+create a snapshot from a pre-erasure payload after the delete and before the tombstone. That is not
+prevented — preventing it would require quiescing writers for the duration of an erasure, and nothing
+does. It is instead made harmless on the read path, which is the only participant not racing: whenever
+hydration loads a snapshot it asks the event store whether the aggregate has been erased, and discards the
+snapshot if it has, rebuilding from the stream so the erased sentinel returns.
+
+Three properties of that check are load-bearing. It is conditioned only on a snapshot having been loaded,
+never additionally on the loaded event tail being empty: after a resurrection a caller can load, mutate and
+append, so a tail-conditioned check would stop firing exactly when pre-erasure state has newer events
+replayed on top of it. A failure to answer discards the snapshot rather than failing the load, and logs at
+warning — the stream is the record and a full replay is the authority a snapshot only optimises over, so
+the cost is what hydration already costs for an aggregate with no snapshot. And it is conditioned on the
+store presenting the erasure capability rather than on a configuration flag, so a host that has not
+configured erasure pays nothing while a host that has pays for erasure correctness; a compliance guarantee
+behind an off-by-default toggle would not be one.
+
+Note that the stream-reaches-snapshot probe does **not** detect this state and never could: its test is
+whether the stream's maximum version falls below the snapshot's, and erasure rewrites rows in place without
+touching `Version`, so the comparison is false. Enabling that probe is not a defence against this.
+
+**Known gap — a resurrected snapshot is not removed, only ignored (UNVERIFIED).** The read path refuses to
+serve it, so no caller observes erased state. The row itself survives in the snapshot store carrying the
+pre-erasure payload, and nothing deletes it: a later erasure pass for the same aggregate would, and so
+would the store's own retention or expiry if configured, but neither is guaranteed to run. A host whose
+obligations extend to data at rest rather than only to what is served should treat an erasure as complete
+only once it has confirmed no snapshot remains for the aggregate.
+
+**Evidence.** `Should_Handle_Concurrent_Writes` in `SnapshotConformanceTestBase.cs:706` asserts the
+postcondition after ten concurrent writers. It detects an abandoned write only when the abandoning
+interleaving occurs, so it is a probabilistic detector rather than a deterministic one; the deterministic
+arms live in `CosmosDbSnapshotStoreContendedSaveShould`, which scripts the interleaving instead of racing
+for it. Read that conformance arm's green as evidence that concurrent saves converge, never as evidence
+that abandonment is detected: on a single-node emulator the race resolves before any writer can lose
+twice, so a store that abandons passes it. **Abandonment is RED-detected on Cosmos DB only; on every other
+provider it is UNVERIFIED, because no deterministic arm exists for them.**
+
+`ASnapshotSaveAfterAnErasureShould` RED-detects an erased aggregate being served from a snapshot. It saves
+a pre-erasure snapshot after an erasure has completed, which reaches the same final state as the racing
+interleaving in program order and so needs no concurrency primitive, then asserts the load returns the
+erased sentinel. It runs with the stream-reaches-snapshot probe both off and on, because the probe cannot
+detect this state in either setting. Two of its four arms are controls, and the one that cannot be skipped
+asserts that **without** an erasure the same fixture loads the full pre-erasure state — which can only
+succeed from the snapshot, since the fixture's serializer throws if a single event row is read. Without
+that control the defect arm could pass by never consulting the snapshot at all and read as a refutation.
+R3 UNVERIFIED.

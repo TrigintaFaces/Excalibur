@@ -31,6 +31,12 @@ public sealed class CosmosDbSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			// Pinned by digest, not tag: a tag is mutable, so a later run can silently receive a different
 			// image than the one this suite's evidence was measured on. The digest cannot move.
 			.WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:a8b93e25520e999d867ed3949e7de7f4ff3ddab23ca95fa6f90230de5dd9729b")
+			// One partition instead of the Linux emulator's default 25: 25 is slow and memory-hungry
+			// enough on a hosted runner that the gateway dies mid-handshake, failing every arm at
+			// fixture init. Persistence off avoids disk-backed init on an ephemeral runner. Same form
+			// as CosmosDbEventStoreContainerFixture, which is the only config with a measured green.
+			.WithEnvironment("AZURE_COSMOS_EMULATOR_PARTITION_COUNT", "1")
+			.WithEnvironment("AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE", "false")
 			.WithName($"cosmosdb-saga-test-{Guid.NewGuid():N}")
 			.WithCleanUp(true)
 			.Build();

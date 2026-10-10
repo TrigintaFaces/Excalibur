@@ -252,6 +252,31 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
+
+      # A fresh runner has no user-level NuGet.Config; the first dotnet command creates it. The
+      # composition battery below launches many dotnet restores, so two of them can race to create
+      # that file and a loser observes it zero-length -- which NuGet reports as
+      # "NuGet.Config is not valid XML / Root element is missing" and which fails EVERY project,
+      # because the config chain is loaded before anything else. Writing a valid one up front
+      # removes the race rather than detecting it.
+      #
+      # Pinning the config per-restore does NOT substitute for this. Measured: an empty user-level
+      # config fails a restore identically with and without -p:RestoreConfigFile, because NuGet
+      # still loads the hierarchy; only a valid file at this path avoids it.
+      - name: Ensure a valid user-level NuGet config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cfg="$HOME/.nuget/NuGet/NuGet.Config"
+          mkdir -p "$(dirname "$cfg")"
+          if [ ! -s "$cfg" ] || ! python3 -c "import sys,xml.etree.ElementTree as ET; ET.parse(sys.argv[1])" "$cfg" 2>/dev/null; then
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' '    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />' '  </packageSources>' '</configuration>' > "$cfg"
+            echo "wrote a valid user-level NuGet config at $cfg"
+          else
+            echo "existing user-level NuGet config parses as XML; left untouched"
+          fi
+          python3 -c "import sys,xml.etree.ElementTree as ET; ET.parse(sys.argv[1]); print('verified parseable')" "$cfg"
+
       - name: Cache NuGet packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:

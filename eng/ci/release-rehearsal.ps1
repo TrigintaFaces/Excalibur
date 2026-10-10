@@ -136,8 +136,11 @@ Run-Step 'Pack (local feed)' {
     if (-not (Test-Path $packScript)) {
         throw "pack-local.ps1 not found at: $packScript"
     }
-    $packArgs = @('-Clean')
-    if ($NoBuild) { $packArgs += '-NoBuild' }
+    # Splat a HASHTABLE, never an array: array splatting binds POSITIONALLY, so @('-Clean')
+    # became the value of pack-local's first positional parameter ([string]$Version) and the
+    # Clean switch never applied -- MinVer then rejected the version override '-Clean'.
+    $packArgs = @{ Clean = $true }
+    if ($NoBuild) { $packArgs['NoBuild'] = $true }
     & $packScript @packArgs
     if ($LASTEXITCODE -ne 0) {
         throw "pack-local.ps1 failed (exit code $LASTEXITCODE)"
@@ -317,7 +320,22 @@ Run-Step 'Promotion contract: the release workflow cannot rebuild what it publis
 # collision -- a rehearsal is not a release, and a version being published is not an error here --
 # but it turns a surprise at tag time into a line in a report.
 Run-Step 'Publication state of the version this commit would ship' {
-    $pkgs = Get-ChildItem -Path (Join-Path $RepoRoot 'artifacts') -Filter '*.nupkg' -Recurse -ErrorAction SilentlyContinue |
+    # Scoped to the FEED the pack step writes, never to artifacts/ as a whole. A recursive sweep of
+    # artifacts/ reaches the package-composition and package-archive gates' consumer-cache,
+    # producer-cache and feed directories, which hold every third-party dependency those gates
+    # restored. Measured in this tree: 11571 .nupkg beneath artifacts/, of which 4727 were ours, and
+    # $pkgs[0] resolved to cloudnative.cloudevents.2.8.0 -- so this step reported 2.8.0 as "the
+    # version this commit would ship", then asked nuget.org whether each of 11571 ids existed at
+    # 2.8.0. The verdict was computed over mostly foreign packages at a version nobody asked about,
+    # and a single third-party hit would have printed "releasing this version would be a re-run".
+    # Nothing in the output revealed the substitution, which is why the resolved path is now printed
+    # beside the version rather than left implicit.
+    $feed = Join-Path $RepoRoot 'artifacts/_packages'
+    if (-not (Test-Path -LiteralPath $feed)) {
+        Write-Host "  no pack feed at artifacts/_packages; skipping (pack step is the source of the version)"
+        return
+    }
+    $pkgs = Get-ChildItem -LiteralPath $feed -Filter '*.nupkg' -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notlike '*.symbols.nupkg' }
     if (-not $pkgs) {
         Write-Host "  no packed .nupkg found; skipping (pack step is the source of the version)"
@@ -332,7 +350,14 @@ Run-Step 'Publication state of the version this commit would ship' {
         return
     }
     $version = $Matches['ver']
-    Write-Host "  version this commit would ship: $version"
+    Write-Host "  version this commit would ship: $version (read from $($pkgs[0].Name), $($pkgs.Count) package(s) in the feed)"
+
+    # A placeholder version can only ever 404, so the check would report 'fresh' no matter what the
+    # tree contained. Say that instead of printing a reassurance the run did not earn.
+    if ($version -eq '0.0.0-local') {
+        Write-Host "  publication state: NOT CHECKED -- the feed holds the local placeholder version, which cannot be published, so every query would 404 and 'fresh' would mean nothing. Re-run the pack step with a real -Version to exercise this." -ForegroundColor Yellow
+        return
+    }
 
     $published = 0; $total = 0; $unknown = 0
     foreach ($p in $pkgs) {

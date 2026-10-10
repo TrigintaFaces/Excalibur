@@ -19,6 +19,10 @@ if (-not $PackageCache) {
     # is empty. Assuming the default made the offline fixture restore fail NU1101 on all three packages with
     # the cache reported as containing none of them. Read the pin instead of guessing; NUGET_PACKAGES, which
     # outranks the pin in NuGet's own precedence, still wins because it is this parameter's default.
+    # None of that GUARANTEES the result is the folder the build populated -- on a hosted Linux runner
+    # it was neither the pin nor a populated cache, and the restore failed NU1101 again. See the source
+    # list below for why that is no longer fatal: this block is a fast offline-first guess now, not a
+    # correctness guarantee, so do not read the confident wording above as one.
     $pinned = $null
     $configPath = Join-Path $repo 'NuGet.config'
     if (Test-Path -LiteralPath $configPath) {
@@ -33,14 +37,24 @@ if (-not $PackageCache) {
         Join-Path ([Environment]::GetFolderPath('UserProfile')) '.nuget/packages'
     }
 }
-# The fixture restores OFFLINE from the package cache, and it needs its own NuGet config to do it.
-# The repository config enables PackageSourceMapping, and when that is on NuGet silently DISCARDS any
-# source that no mapping covers -- so passing the cache with --source while also passing the repo
-# --configfile resolved nothing and the restore failed NU1100 on all three fixture packages, with the
-# cache named in the message as 'not considered'. Writing a throwaway config here, with <clear /> and
-# a single unmapped source, is the same isolation this script already applies to Directory.Build.props
-# and Directory.Build.targets. Central package management still resolves versions from the repository's
-# Directory.Packages.props, which the NU1100 text confirms was already working.
+# The fixture needs its own NuGet config. The repository config enables PackageSourceMapping, and when
+# that is on NuGet silently DISCARDS any source no mapping covers -- so passing the cache with --source
+# while also passing the repo --configfile resolved nothing and the restore failed NU1100 on all three
+# fixture packages, with the cache named in the message as 'not considered'. A throwaway config with
+# <clear /> and unmapped sources is the same isolation this script already applies to
+# Directory.Build.props and Directory.Build.targets. Central package management still resolves versions
+# from the repository's Directory.Packages.props.
+#
+# nuget.org is listed BESIDE the cache rather than the cache alone, and that is the load-bearing part:
+# an offline-only restore makes this self-test fail whenever the resolved cache is not the folder the
+# build actually populated, and nothing about that failure resembles the control it is meant to prove.
+# That divergence is reachable three ways -- NUGET_PACKAGES outranks the repository's
+# globalPackagesFolder pin in NuGet's own precedence, the pin is authored with a Windows separator that
+# stays literal on Linux, and a cache key can restore an empty folder -- and it was live on the hosted
+# runner, where this restore failed NU1101 on every package while the shard's own build had restored
+# fine seconds earlier. The cache stays first so a populated one still serves the restore offline;
+# nuget.org makes a wrong or empty cache cost latency instead of a false RED. Every other step in this
+# job already restores from nuget.org, so this adds no dependency the job did not already have.
 $fixtureNuGetConfig = Join-Path $root 'NuGet.Config'
 @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -48,6 +62,7 @@ $fixtureNuGetConfig = Join-Path $root 'NuGet.Config'
   <packageSources>
     <clear />
     <add key="fixture-cache" value="$PackageCache" />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
   </packageSources>
 </configuration>
 "@ | Set-Content -LiteralPath $fixtureNuGetConfig

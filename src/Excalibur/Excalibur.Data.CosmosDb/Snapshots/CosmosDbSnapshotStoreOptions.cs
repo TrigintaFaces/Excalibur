@@ -65,6 +65,21 @@ public sealed class CosmosDbSnapshotStoreOptions
 	public int DefaultTtlSeconds { get; set; } = -1;
 
 	/// <summary>
+	/// Gets or sets the base wait, in milliseconds, before re-attempting a snapshot write that lost a
+	/// conditional write to a concurrent writer.
+	/// </summary>
+	/// <remarks>
+	/// The wait is drawn at random from an interval that grows exponentially from this base and is capped
+	/// well below a second, because a rejected conditional write has not waited on a lock — it was refused
+	/// in one round trip. The randomisation, not the growth, is what lets contention drain: writers
+	/// rejected at the same instant would otherwise compute the same wait and collide again on waking.
+	/// Zero disables the wait, which returns the loop to spending its whole attempt budget inside the
+	/// window in which it is losing.
+	/// </remarks>
+	/// <value>Defaults to 25 milliseconds.</value>
+	public int ContendedWriteBackoffMilliseconds { get; set; } = 25;
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

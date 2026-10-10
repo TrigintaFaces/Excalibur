@@ -244,7 +244,20 @@ jobs:
       # divergence leaves no trace.
       - name: Restore dependencies
         run: |
-          dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
+          # AuditPipeline=true promotes the NuGetAudit codes from warnings to errors for this
+          # restore, which is what makes the vulnerability check BLOCK rather than report. The audit
+          # itself is always on (Directory.Build.props sets NuGetAudit, AuditMode=all, AuditLevel=low);
+          # without this property its findings are warnings and the restore exits 0, so a shipped
+          # package carrying a known high-severity advisory would publish with nothing red. ci.yml
+          # already arms it on this same shard; the release path did not, so the strictest check we
+          # own was absent from the one chain that pushes bytes to nuget.org. Measured both arms on a
+          # planted Newtonsoft.Json 12.0.1: with the property, error NU1903 and exit 1; without it,
+          # warning NU1903 and exit 0.
+          #
+          # Scoped to the shipping graph, matching ci.yml. ReleaseBlocking carries test-only packages
+          # that reach no consumer, and blocking an alpha on a test dependency's advisory would be a
+          # false stop. A finding there is still a warning and still visible.
+          dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet -p:AuditPipeline=true
           dotnet restore eng/ci/shards/ReleaseBlocking.slnf --locked-mode --verbosity quiet
 
       - name: Build release-blocking projects
@@ -985,10 +998,26 @@ jobs:
           retention-days: 90
 
 
+  # ADVISORY. This job REPORTS; it does not enforce, and its position in the graph is the only
+  # reason anyone thought otherwise. Neither step below can exit non-zero on its own findings: the
+  # vulnerable-package step echoes on both branches and appends with a trailing `|| true`, and the
+  # package-analysis step only echoes, with its checks inside an `if`, which suspends `set -e`. It
+  # fails solely if `dotnet list` itself errors under pipefail.
+  #
+  # That is deliberate and it is NOT a gap, because the real enforcement is upstream and stronger:
+  # pre-release-validation restores the shipping graph with -p:AuditPipeline=true, which promotes
+  # the NuGetAudit codes to errors, so a shipping package carrying a known advisory fails the
+  # restore and this chain never reaches here. A blocking grep over `dotnet list` output would be a
+  # second, weaker copy of a check the compiler already performs.
+  #
+  # The job id stays `release-quality-gates` on purpose: create-release and post-release reference
+  # it in `needs`, and post-release reads `needs.release-quality-gates.result`. Renaming the id
+  # would silently make that comparison undefined -- the exact defect actionlint-gate.sh exists to
+  # catch. Only the human-facing name changed.
   release-quality-gates:
     permissions:
       contents: read
-    name: Release Quality Gates
+    name: Release Quality Report (advisory)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: [pre-release-validation, build-packages]
@@ -1009,7 +1038,7 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
-      - name: Security scan — vulnerable packages
+      - name: Security report — vulnerable packages (advisory, does not block)
         run: |
           echo "🔒 Running NuGet vulnerability analysis..."
           dotnet list Excalibur.sln package --vulnerable --include-transitive 2>&1 | tee security-report.txt
@@ -1816,7 +1845,7 @@ jobs:
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Pre-validation | ✅ Success |" >> $GITHUB_STEP_SUMMARY
           echo "| Package Build | ✅ Success |" >> $GITHUB_STEP_SUMMARY
-          echo "| Quality Gates | ${{ needs.release-quality-gates.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Quality Report (advisory) | ${{ needs.release-quality-gates.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| GitHub Release | ✅ Success |" >> $GITHUB_STEP_SUMMARY
           echo "| NuGet Publish | ${{ needs.publish-nuget.result == 'success' && '✅ Success' || needs.publish-nuget.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
