@@ -71,11 +71,13 @@ public sealed class OutboxProcessorShould : UnitTestBase
 	{
 		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		CancellationToken producerToken = default;
 		var store = CapabilityHonouringFakes.OutboxStore(fake => fake.Implements<IDeadLetterableOutboxStore>());
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(call => new ValueTask<IEnumerable<OutboundMessage>>(ReadAsync(call.GetArgument<CancellationToken>(1))));
 		async Task<IEnumerable<OutboundMessage>> ReadAsync(CancellationToken token)
 			{
+				producerToken = token;
 				entered.SetResult();
 				await release.Task;
 				token.ThrowIfCancellationRequested();
@@ -93,6 +95,15 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			var secondDisposal = processor.DisposeAsync().AsTask();
 			firstDisposal.IsCompleted.ShouldBeFalse();
 			secondDisposal.IsCompleted.ShouldBeFalse();
+			// DisposeAsync cancels the lifetime source with CancelAsync, which reaches this run's LINKED
+			// token through a callback the runtime queues on the thread pool -- measured, the child is
+			// still uncancelled 1968 of 2000 times when CancelAsync returns. Releasing the producer before
+			// that lands lets it read an uncancelled token and complete normally, so wait for it.
+			var cancelObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			using (producerToken.Register(cancelObserved.SetResult))
+			{
+				await cancelObserved.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			}
 			release.SetResult();
 			await Should.ThrowAsync<OperationCanceledException>(() => run);
 			await Task.WhenAll(firstDisposal, secondDisposal).WaitAsync(TimeSpan.FromSeconds(10));
