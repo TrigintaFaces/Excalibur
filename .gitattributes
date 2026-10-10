@@ -5,7 +5,15 @@
 *.cs        text diff=csharp
 *.csproj    text
 *.sln       text
-*.slnf      text
+# eol=lf, not merely text. A solution filter's SHA-256 is recorded by each unit shard and
+# re-computed by the Linux aggregation job, which compares the two to prove a shard tested the
+# source the verifier is grading. Under plain `text` the checkout is NATIVE, so a Windows shard
+# hashes CRLF bytes and the Linux verifier hashes LF bytes, and the comparison can never match:
+# measured on a mirror run, the Windows plan recorded 6A9F5299.. while the aggregator computed
+# 74AABD50.. for the same tracked file, and the Linux shards matched exactly. Line endings are
+# not part of a solution filter's identity, so pinning both sides to the same bytes is the fix
+# rather than teaching two hash implementations in two languages to normalise in step.
+*.slnf      text eol=lf
 *.json      text
 *.jsonl     text
 *.xml       text

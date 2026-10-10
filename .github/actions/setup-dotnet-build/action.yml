@@ -64,6 +64,37 @@ runs:
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
       with:
         global-json-file: global.json
+    # A hosted runner can present an EMPTY user-level NuGet.Config. When it does, every dotnet
+    # command in the job dies with "NuGet.Config is not valid XML ... Root element is missing", and
+    # the failure names a file nobody in this repository wrote. Measured on this runner image twice:
+    # it killed the nightly composition battery's self-test, and after that was fixed in nightly.yml
+    # it killed the SAME battery again in governance.yml, because the first fix was applied to one
+    # caller instead of to the setup every caller shares. This is that sweep.
+    #
+    # Idempotent by construction: it rewrites only when the file is absent, empty, or unparseable, so
+    # a runner image that ships a valid config (with credentials or extra sources) is left alone. The
+    # parse assertion afterwards means a silent failure to repair cannot pass for a repair.
+    - name: Ensure a valid user-level NuGet config
+      shell: bash
+      run: |
+        set -euo pipefail
+        cfg="$HOME/.nuget/NuGet/NuGet.Config"
+        mkdir -p "$(dirname "$cfg")"
+        if [ ! -s "$cfg" ] || ! python3 -c "import sys,xml.etree.ElementTree as ET; ET.parse(sys.argv[1])" "$cfg" 2>/dev/null; then
+          {
+            echo '<?xml version="1.0" encoding="utf-8"?>'
+            echo '<configuration>'
+            echo '  <packageSources>'
+            echo '    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />'
+            echo '  </packageSources>'
+            echo '</configuration>'
+          } > "$cfg"
+          echo "wrote a valid user-level NuGet config at $cfg"
+        else
+          echo "existing user-level NuGet config parses as XML; left untouched"
+        fi
+        python3 -c "import sys,xml.etree.ElementTree as ET; ET.parse(sys.argv[1]); print('verified parseable')" "$cfg"
+
     - name: Capture NuGet cache request
       id: cache-request
       shell: bash

@@ -571,8 +571,21 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
-          path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: warn
+          # ** , not * . These two legs run through the required-evidence invocation plan, so a
+          # collector writes to TestResults/<shard>.required/invocation-NNNN/results/<guid>/ -- four
+          # segments deep, where the single-star glob reaches one. It therefore matched nothing, and
+          # because an unmatched glob is only a warning the step reported SUCCESS while uploading no
+          # artifact at all. The coverage gate then refused for want of a coverage root, naming a
+          # directory that was never created, which reads as a coverage problem three jobs away from
+          # the step that actually produced nothing. The integration leg already globs ** against the
+          # same layout and its artifacts exist, which is what identified the depth.
+          #
+          # if-no-files-found is error, not warn, and that is the half that keeps this fixed: a
+          # coverage upload matching nothing is never a legitimate outcome here, so the producing job
+          # must fail loudly rather than leave a downstream gate to report the absence in terms that
+          # point somewhere else.
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   # ── Async-risk unit tests -- advisory on PRs, blocking on push to main ──
@@ -630,8 +643,21 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
-          path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: warn
+          # ** , not * . These two legs run through the required-evidence invocation plan, so a
+          # collector writes to TestResults/<shard>.required/invocation-NNNN/results/<guid>/ -- four
+          # segments deep, where the single-star glob reaches one. It therefore matched nothing, and
+          # because an unmatched glob is only a warning the step reported SUCCESS while uploading no
+          # artifact at all. The coverage gate then refused for want of a coverage root, naming a
+          # directory that was never created, which reads as a coverage problem three jobs away from
+          # the step that actually produced nothing. The integration leg already globs ** against the
+          # same layout and its artifacts exist, which is what identified the depth.
+          #
+          # if-no-files-found is error, not warn, and that is the half that keeps this fixed: a
+          # coverage upload matching nothing is never a legitimate outcome here, so the producing job
+          # must fail loudly rather than leave a downstream gate to report the absence in terms that
+          # point somewhere else.
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   # ── Honest cross-shard aggregation ──
