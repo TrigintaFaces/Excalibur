@@ -34,7 +34,23 @@ $context = @{
     job = $env:GITHUB_JOB; shard = $Shard; os = $env:RUNNER_OS; provider = 'mixed-integration'
     source = [IO.Path]::GetRelativePath($repo,$sourcePath).Replace('\','/')
     sourceSha256 = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
-    filter = 'Category=Integration|Category=EndToEnd'
+    # RequiresCredentials is excluded, and the parentheses are load-bearing: without them the trailing
+    # AND binds only to the EndToEnd term and the Integration tests come through unfiltered.
+    #
+    # Those tests need a real cloud key vault, so on a hosted runner they reach their availability guard
+    # and report NotExecuted. This filter is shared by discovery and by the run -- the same string builds
+    # the required set and invokes it -- so a test that can never execute here was being DISCOVERED AS
+    # REQUIRED and then skipped, and the evidence gate refused the whole lane with "Required test did not
+    # pass" while every test that ran passed. Measured on the dispatch lane: 2018 passed, 11 NotExecuted,
+    # all eleven from the one class, against four tests in that same class that need no credentials and
+    # pass. So the exclusion is per-test rather than per-class -- a class-level trait would have dropped
+    # those four as well.
+    #
+    # The absence is now visible as an excluded category instead of a skip inside a required set, which is
+    # the honest shape: a test that cannot run in an environment is not required to pass there. The
+    # availability guards stay, because they are what lets the same tests run for someone who has
+    # credentials configured.
+    filter = '(Category=Integration|Category=EndToEnd)&Category!=RequiresCredentials'
 }
 $prefix = "nightly-integration-$Shard"
 $evidence = Join-Path $root "$prefix.required"

@@ -183,7 +183,7 @@ public sealed class ShippedSchemaScriptShould
 		// '$(...)' name. These arms are written against a fixture this test writes rather than against a
 		// shipped script, so the shipped corpus is free to carry no sqlcmd syntax at all -- which is what
 		// the directive arms above now require of it.
-		var fixture = WriteSqlCmdFixture(
+		using var fixture = WriteSqlCmdFixture(
 			":setvar Schema \"app\"\n"
 			+ ":setvar Table \"Widgets\"\n"
 			+ "\n"
@@ -192,7 +192,7 @@ public sealed class ShippedSchemaScriptShould
 			+ "\n"
 			+ "CREATE INDEX IX_Widgets ON [$(Schema)].[$(Table)] (Id);\n");
 
-		var batches = ShippedSchemaScript.ReadSqlCmdBatches(fixture);
+		var batches = ShippedSchemaScript.ReadSqlCmdBatches(fixture.Name);
 
 		batches.Count.ShouldBe(2, "GO separates the batches and is never sent to the server itself.");
 		batches.ShouldAllBe(static batch => !batch.Contains("$(", StringComparison.Ordinal));
@@ -205,13 +205,13 @@ public sealed class ShippedSchemaScriptShould
 	{
 		// LIVENESS for the override path: a ReadSqlCmdBatches that ignored `overrides` altogether would
 		// satisfy the arm above, because that one substitutes the declared default either way.
-		var fixture = WriteSqlCmdFixture(
+		using var fixture = WriteSqlCmdFixture(
 			":setvar Schema \"app\"\n"
 			+ "\n"
 			+ "SELECT * FROM [$(Schema)].[Widgets];\n");
 
 		var batches = ShippedSchemaScript.ReadSqlCmdBatches(
-			fixture,
+			fixture.Name,
 			new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Schema"] = "tenant7" });
 
 		batches.ShouldHaveSingleItem().ShouldContain("[tenant7].[Widgets]");
@@ -222,9 +222,9 @@ public sealed class ShippedSchemaScriptShould
 	{
 		// The failure that matters here is the silent one: a token left unresolved creates an object
 		// literally named '$(Schema)'. Refusing loudly is the behaviour, so it gets an arm of its own.
-		var fixture = WriteSqlCmdFixture("SELECT * FROM [$(Undeclared)].[Widgets];\n");
+		using var fixture = WriteSqlCmdFixture("SELECT * FROM [$(Undeclared)].[Widgets];\n");
 
-		_ = Should.Throw<InvalidOperationException>(() => ShippedSchemaScript.ReadSqlCmdBatches(fixture));
+		_ = Should.Throw<InvalidOperationException>(() => ShippedSchemaScript.ReadSqlCmdBatches(fixture.Name));
 	}
 
 	[Fact]
@@ -233,7 +233,7 @@ public sealed class ShippedSchemaScriptShould
 		// The load-bearing property: a DECLARE...END block's own statements AND its END are
 		// semicolon-terminated, so a naive ';' split shreds it into fragments no driver can execute.
 		// The block is delimited by a line holding only '/', which is what SQL*Plus uses.
-		var fixture = WriteOracleFixture(
+		using var fixture = WriteOracleFixture(
 			"""
 			CREATE TABLE Widgets (id NUMBER);
 			DECLARE
@@ -248,7 +248,7 @@ public sealed class ShippedSchemaScriptShould
 			CREATE INDEX IX_Widgets ON Widgets (id);
 			""");
 
-		var units = ShippedSchemaScript.ReadOracleUnits(fixture);
+		var units = ShippedSchemaScript.ReadOracleUnits(fixture.Name);
 
 		units.Count.ShouldBe(3, "the table, the block sent whole, and the index");
 		units[0].ShouldContain("CREATE TABLE Widgets");
@@ -297,27 +297,67 @@ public sealed class ShippedSchemaScriptShould
 			"001 creates the outbox tables, so at least one unit must be a CREATE TABLE");
 	}
 
-	/// <summary>Writes an Oracle-script fixture beside the test binary and returns its name.</summary>
+	/// <summary>Writes an Oracle-script fixture beside the test binary and deletes it on disposal.</summary>
 	/// <param name="sql">The fixture's contents.</param>
-	/// <returns>The name to pass to <see cref="ShippedSchemaScript.ReadOracleUnits"/>.</returns>
-	private static string WriteOracleFixture(string sql)
-	{
-		var name = $"oracle-script-fixture-{Guid.NewGuid():N}.sql";
-		File.WriteAllText(Path.Combine(AppContext.BaseDirectory, name), sql);
-		return name;
-	}
+	/// <returns>A handle whose <see cref="ScriptFixture.Name"/> names the fixture.</returns>
+	private static ScriptFixture WriteOracleFixture(string sql) => new("oracle-script-fixture", sql);
 
 	/// <summary>
-	/// Writes a sqlcmd-template fixture beside the test binary and returns the name
+	/// Writes a sqlcmd-template fixture beside the test binary and deletes it on disposal, under the name
 	/// <see cref="ShippedSchemaScript.Resolve"/> locates it by, since that walks up from this directory.
 	/// </summary>
 	/// <param name="sql">The fixture's contents.</param>
-	/// <returns>The name to pass to <see cref="ShippedSchemaScript.ReadSqlCmdBatches"/>.</returns>
-	private static string WriteSqlCmdFixture(string sql)
+	/// <returns>A handle whose <see cref="ScriptFixture.Name"/> names the fixture.</returns>
+	private static ScriptFixture WriteSqlCmdFixture(string sql) => new("sqlcmd-template-fixture", sql);
+
+	/// <summary>A script fixture written beside the test binary and removed when the test finishes.</summary>
+	/// <remarks>
+	/// <para>
+	/// The file has to live in the binary's own directory: <see cref="ShippedSchemaScript.Resolve"/>
+	/// locates a script by walking UP from <see cref="AppContext.BaseDirectory"/>, so a temporary
+	/// directory elsewhere is unreachable to it. That directory is also the assembly's dependency,
+	/// configuration and data bundle, which the required-evidence gate hashes before and after a run and
+	/// refuses when it changes -- a suite that mutates its own inputs mid-run cannot be shown to have
+	/// executed against the inputs it was graded on. Leaving these files behind therefore failed the run
+	/// with "Execution dependency/configuration/data bundle changed" while every test passed, and the
+	/// per-run names accumulated in the output directory indefinitely besides.
+	/// </para>
+	/// <para>
+	/// Deleting on disposal keeps the bundle identical at the end of the run, which is what the gate
+	/// compares. The cleanup lives in a disposable rather than a finally block at each call site so a new
+	/// arm cannot forget it.
+	/// </para>
+	/// </remarks>
+	private sealed class ScriptFixture : IDisposable
 	{
-		var name = $"sqlcmd-template-fixture-{Guid.NewGuid():N}.sql";
-		File.WriteAllText(Path.Combine(AppContext.BaseDirectory, name), sql);
-		return name;
+		private readonly string _path;
+
+		internal ScriptFixture(string prefix, string sql)
+		{
+			Name = $"{prefix}-{Guid.NewGuid():N}.sql";
+			_path = Path.Combine(AppContext.BaseDirectory, Name);
+			File.WriteAllText(_path, sql);
+		}
+
+		/// <summary>Gets the name to hand <see cref="ShippedSchemaScript"/>.</summary>
+		internal string Name { get; }
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			// A test that already failed must not be masked by a cleanup error, and an absent file is the
+			// outcome this wants anyway.
+			try
+			{
+				File.Delete(_path);
+			}
+			catch (IOException)
+			{
+			}
+			catch (UnauthorizedAccessException)
+			{
+			}
+		}
 	}
 
 	private static string RepositoryRoot()

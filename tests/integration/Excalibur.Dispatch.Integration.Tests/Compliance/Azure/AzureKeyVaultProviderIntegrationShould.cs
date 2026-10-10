@@ -116,6 +116,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task CreateNewKey_WhenKeyDoesNotExist()
 	{
 		SkipIfVaultUnavailable();
@@ -135,6 +136,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task GetKey_AfterCreation()
 	{
 		SkipIfVaultUnavailable();
@@ -155,6 +157,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task ReturnNull_WhenKeyDoesNotExist()
 	{
 		SkipIfVaultUnavailable();
@@ -169,6 +172,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task ListKeys_ReturnsCreatedKeys()
 	{
 		SkipIfVaultUnavailable();
@@ -192,6 +196,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task SuspendKey_DisablesKey()
 	{
 		SkipIfVaultUnavailable();
@@ -214,6 +219,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task DeleteKey_SchedulesDeletion()
 	{
 		SkipIfVaultUnavailable();
@@ -229,6 +235,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task RotateKey_CreatesNewVersion()
 	{
 		SkipIfVaultUnavailable();
@@ -250,6 +257,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task GetActiveKey_ReturnsLatestActiveKey()
 	{
 		SkipIfVaultUnavailable();
@@ -271,6 +279,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task GetCryptographyClient_ReturnsValidClient()
 	{
 		SkipIfVaultUnavailable();
@@ -288,6 +297,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task CacheKeyMetadata_ReducesApiCalls()
 	{
 		SkipIfVaultUnavailable();
@@ -311,6 +321,7 @@ public sealed class AzureKeyVaultProviderIntegrationShould : IAsyncLifetime, IDi
 	}
 
 	[Fact]
+	[Trait("Category", TestCategories.RequiresCredentials)]
 	public async Task CreateKeyWithPurpose()
 	{
 		SkipIfVaultUnavailable();
