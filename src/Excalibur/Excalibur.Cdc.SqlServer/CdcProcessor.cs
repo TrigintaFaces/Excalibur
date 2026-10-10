@@ -227,7 +227,13 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	/// </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
 	/// <returns> The total number of events processed. </returns>
-	/// <exception cref="ObjectDisposedException"> Thrown if the instance is already disposed. </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the instance is already disposed, and also if it is disposed while this invocation is still
+	/// waiting to be admitted behind another one. A waiting invocation reports the disposal rather than a
+	/// cancellation so that the refusal does not depend on scheduling: the instance is gone, so a retry
+	/// cannot succeed. A cancellation requested through <paramref name="cancellationToken" /> still surfaces
+	/// as <see cref="OperationCanceledException" /> even when disposal reaches the invocation as well.
+	/// </exception>
 	/// <remarks>
 	/// If an unhandled exception occurs during ordered event processing, the error is logged at <c> Critical </c> level and passed to the
 	/// fatal error handler delegate, if supplied. If not supplied, the processor will rethrow and stop execution.
@@ -239,12 +245,29 @@ public partial class CdcProcessor : ISqlServerCdcProcessor
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 		using var invocationStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stoppingToken);
+		var callerToken = cancellationToken;
 		cancellationToken = invocationStop.Token;
 
 		using var activity = CdcTelemetryConstants.ActivitySource.StartActivity("cdc.process");
 		activity?.SetTag(CdcTelemetryConstants.TagNames.CaptureInstance, string.Join(",", _dbConfig.CaptureInstances));
 
-		await _executionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			await _executionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (_disposedFlag == 1 && !callerToken.IsCancellationRequested)
+		{
+			// An invocation still queued behind the active one when disposal begins is refused on whichever
+			// path reaches it first: cancelled off this queue by the stopping token, or admitted and rejected
+			// by the disposed check below, which the release in DisposeOwnedResourcesAsync deliberately keeps
+			// the semaphore alive for. Which one wins is thread-pool scheduling, so reporting the cancellation
+			// here would make the refusal's type a race the caller cannot code against. Both paths now report
+			// the disposal, which is also the more actionable answer: the instance is dead, so a retry cannot
+			// succeed, whereas a cancellation the caller never asked for invites one. A cancellation the caller
+			// DID ask for still surfaces as itself, and so does host-stopping without disposal.
+			throw new ObjectDisposedException(GetType().FullName);
+		}
+
 		try
 		{
 			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);

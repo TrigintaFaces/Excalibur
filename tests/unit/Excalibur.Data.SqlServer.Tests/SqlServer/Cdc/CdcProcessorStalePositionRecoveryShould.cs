@@ -153,9 +153,44 @@ public sealed class CdcProcessorStalePositionRecoveryShould
         }
         finally { release.TrySetResult(); }
         await Should.ThrowAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
-        await Should.ThrowAsync<OperationCanceledException>(() => queued.WaitAsync(TimeSpan.FromSeconds(10)));
+        // The active invocation was admitted and then aborted, so it is cancelled. The queued one was
+        // never admitted, so it is refused as disposed -- deterministically, on both of the paths
+        // disposal can reach it by, rather than whichever the thread pool happened to schedule first.
+        await Should.ThrowAsync<ObjectDisposedException>(() => queued.WaitAsync(TimeSpan.FromSeconds(10)));
         await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
         A.CallTo(() => repo.DisposeAsync()).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task ReportTheCallersOwnCancellationRatherThanDisposalWhenBothReachAQueuedInvocation()
+    {
+        var (processor, repo, _) = Create();
+        Set(processor, "_cdcRepository", repo);
+        A.CallTo(() => repo.GetMaxPositionAsync(A<CancellationToken>._)).Returns(new byte[] { 10 });
+        var fetches = 0;
+        A.CallTo(() => repo.FetchChangesAsync(A<string>._, A<int>._, A<byte[]>._, A<byte[]>._, A<byte[]?>._,
+            A<CdcOperationCodes>._, A<CancellationToken>._, A<string?>._)).ReturnsLazily(() =>
+                Interlocked.Increment(ref fetches) == 1
+                    ? new[] { new CdcRow { TableName = "dbo_items", Lsn = [5], SeqVal = [1], OperationCode = CdcOperationCodes.Insert,
+                        Changes = new Dictionary<string, object> { ["Id"] = 1 }, DataTypes = new Dictionary<string, Type> { ["Id"] = typeof(int) } } }
+                    : Array.Empty<CdcRow>());
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var run = processor.ProcessBatchAsync(async (_, _) => { entered.TrySetResult(); await release.Task; }, CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        using var callerStop = new CancellationTokenSource();
+        var queued = processor.ProcessBatchAsync((_, _) => throw new InvalidOperationException("Queued handler must not run"), callerStop.Token);
+        // Both refusal conditions, made true without a race to decide between them: the queued invocation is
+        // already parked on the execution lock, so marking the instance disposed and only then cancelling the
+        // caller's token leaves the refusal filter seeing disposal AND a caller who asked to stop. The
+        // caller's own reason must win -- reporting disposal here would tell a caller who cancelled that
+        // their cancellation never happened.
+        Set(processor, "_disposedFlag", 1);
+        await callerStop.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(() => queued.WaitAsync(TimeSpan.FromSeconds(10)));
+        release.TrySetResult();
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+        await processor.DisposeAsync();
     }
 
     [Fact]
