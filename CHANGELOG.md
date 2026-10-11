@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.0-alpha.15] - 2026-10-10
+
 ### Fixed — a projection rebuild silently failed to reset view positions, on every provider
 
 `MaterializedViewProcessor.RebuildAsync` cleared each view's checkpoint by **advancing** it to zero.
@@ -3251,7 +3253,8 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.14...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.15...HEAD
+[10.0.0-alpha.15]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.14...v10.0.0-alpha.15
 [10.0.0-alpha.14]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.13...v10.0.0-alpha.14
 [10.0.0-alpha.13]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.12...v10.0.0-alpha.13
 [10.0.0-alpha.12]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.11...v10.0.0-alpha.12
