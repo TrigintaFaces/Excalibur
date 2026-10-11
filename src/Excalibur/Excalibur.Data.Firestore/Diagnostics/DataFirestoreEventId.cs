@@ -240,6 +240,9 @@ internal static class DataFirestoreEventId
 	/// <summary>CDC fatal (non-retryable) error — processor stops instead of reconnecting.</summary>
 	public const int CdcFatalError = 105916;
 
+	/// <summary>CDC checkpoint save could not complete because of concurrent activity on the same key.</summary>
+	public const int CdcSavePositionContended = 105917;
+
 	// ========================================
 	// 106000-106099: Snapshot Store
 	// ========================================

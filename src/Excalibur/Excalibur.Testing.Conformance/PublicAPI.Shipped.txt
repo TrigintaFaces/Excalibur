@@ -356,7 +356,6 @@ virtual Excalibur.Testing.Conformance.CacheTagTrackerConformanceTestKit.GetOrCre
 virtual Excalibur.Testing.Conformance.CacheTagTrackerConformanceTestKit.GetOrCreateStampAsync_SameTagNoBump_ShouldReturnSameStamp() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.CacheTagTrackerConformanceTestKit.SupportsCrossInstanceSharing.get -> bool
 virtual Excalibur.Testing.Conformance.CdcProviderConformanceTestKit.CleanupAsync() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.CdcProviderConformanceTestKit.ConcurrentSaveMayRefuseAsStale(System.Exception! exception) -> bool
 virtual Excalibur.Testing.Conformance.CdcProviderConformanceTestKit.ConcurrentSavePosition_AllSucceed() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.CdcProviderConformanceTestKit.ConcurrentSavePosition_SameConsumer_LastWriteWins() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.CdcProviderConformanceTestKit.DeletePosition_DoesNotAffectOtherConsumers() -> System.Threading.Tasks.Task!

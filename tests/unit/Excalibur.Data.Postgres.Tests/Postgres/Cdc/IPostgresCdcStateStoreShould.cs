@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Cdc.Postgres;
+using Excalibur.Dispatch;
 
 namespace Excalibur.Data.Tests.Postgres.Cdc;
 
@@ -76,9 +77,10 @@ public sealed class IPostgresCdcStateStoreShould
 		// Arrange
 		var method = _interfaceType.GetMethod("SavePositionAsync");
 
-		// Assert
+		// Assert -- the save REPORTS what it did. This store's upsert carries a monotonic guard, so it can
+		// decline; a bare Task would make "declined" and "advanced" the same observation for every caller.
 		method.ShouldNotBeNull();
-		method.ReturnType.ShouldBe(typeof(Task));
+		method.ReturnType.ShouldBe(typeof(Task<CdcPositionSaveOutcome>));
 	}
 
 	[Fact]

@@ -67,6 +67,11 @@ Excalibur.Dispatch.CdcConsumerStatus.HeadPosition.get -> Excalibur.Dispatch.Chan
 Excalibur.Dispatch.CdcConsumerStatus.HeadPosition.init -> void
 Excalibur.Dispatch.CdcConsumerStatus.LastCheckpointTime.get -> System.DateTimeOffset?
 Excalibur.Dispatch.CdcConsumerStatus.LastCheckpointTime.init -> void
+Excalibur.Dispatch.CdcPositionSaveOutcome
+Excalibur.Dispatch.CdcPositionSaveOutcome.Advanced = 1 -> Excalibur.Dispatch.CdcPositionSaveOutcome
+Excalibur.Dispatch.CdcPositionSaveOutcome.Contended = 3 -> Excalibur.Dispatch.CdcPositionSaveOutcome
+Excalibur.Dispatch.CdcPositionSaveOutcome.RefusedAsStale = 2 -> Excalibur.Dispatch.CdcPositionSaveOutcome
+Excalibur.Dispatch.CdcPositionSaveOutcome.Unknown = 0 -> Excalibur.Dispatch.CdcPositionSaveOutcome
 Excalibur.Dispatch.Change<T>
 Excalibur.Dispatch.Change<T>.After.get -> T?
 Excalibur.Dispatch.Change<T>.After.init -> void
@@ -501,7 +506,7 @@ Excalibur.Dispatch.ICdcStateStore
 Excalibur.Dispatch.ICdcStateStore.DeletePositionAsync(string! consumerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Dispatch.ICdcStateStore.GetAllPositionsAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<(string! ConsumerId, Excalibur.Dispatch.ChangePosition! Position)>!
 Excalibur.Dispatch.ICdcStateStore.GetPositionAsync(string! consumerId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.ChangePosition?>!
-Excalibur.Dispatch.ICdcStateStore.SavePositionAsync(string! consumerId, Excalibur.Dispatch.ChangePosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.ICdcStateStore.SavePositionAsync(string! consumerId, Excalibur.Dispatch.ChangePosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.CdcPositionSaveOutcome>!
 Excalibur.Dispatch.IClaimScopedOutboxStore
 Excalibur.Dispatch.IClaimScopedOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, string! claimIdentity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>
 Excalibur.Dispatch.IClaimScopedOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, string! claimIdentity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>

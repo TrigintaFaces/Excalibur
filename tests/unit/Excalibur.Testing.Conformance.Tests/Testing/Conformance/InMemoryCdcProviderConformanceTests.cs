@@ -65,13 +65,15 @@ public sealed class InMemoryCdcProviderConformanceTests : CdcProviderConformance
 		public Task<ChangePosition?> GetPositionAsync(string consumerId, CancellationToken cancellationToken) =>
 			Task.FromResult(_positions.TryGetValue(consumerId, out var position) ? position : null);
 
-		public Task SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+		public Task<CdcPositionSaveOutcome> SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 		{
 			ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 			ArgumentNullException.ThrowIfNull(position);
 
+			// No watermark guard here on purpose: this fixture is the kit's unconditional-last-write-wins
+			// reference, so Advanced is what it actually did.
 			_positions[consumerId] = position;
-			return Task.CompletedTask;
+			return Task.FromResult(CdcPositionSaveOutcome.Advanced);
 		}
 
 		public Task<bool> DeletePositionAsync(string consumerId, CancellationToken cancellationToken) =>

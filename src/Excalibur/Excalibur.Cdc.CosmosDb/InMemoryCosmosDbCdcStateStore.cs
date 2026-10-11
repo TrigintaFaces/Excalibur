@@ -105,7 +105,7 @@ internal sealed class InMemoryCosmosDbCdcStateStore : ICosmosDbCdcStateStore
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
-	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
@@ -114,7 +114,10 @@ internal sealed class InMemoryCosmosDbCdcStateStore : ICosmosDbCdcStateStore
 			cosmosPosition = CosmosDbCdcPosition.FromContinuationToken(position.ToToken());
 		}
 
-		return SavePositionAsync(consumerId, cosmosPosition, cancellationToken);
+		await SavePositionAsync(consumerId, cosmosPosition, cancellationToken).ConfigureAwait(false);
+
+		// No watermark guard on this store: the write is unconditional, so it always advanced.
+		return CdcPositionSaveOutcome.Advanced;
 	}
 
 	/// <inheritdoc/>

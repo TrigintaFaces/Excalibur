@@ -198,7 +198,20 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
-	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	/// <remarks>
+	/// Translates this store's two provider-specific refusals into the outcomes the abstraction defines, so
+	/// a consumer handling a declined checkpoint needs neither this package nor Grpc.Core to do it.
+	/// <see cref="FirestoreStalePositionException"/> is the monotonic guard's deliberate refusal and carries
+	/// the store's own reading of both positions, so it maps to
+	/// <see cref="CdcPositionSaveOutcome.RefusedAsStale"/>. An ABORTED status is the opposite case: the
+	/// transaction never established which position should win, so it maps to
+	/// <see cref="CdcPositionSaveOutcome.Contended"/> and must not be reported as staleness — doing so would
+	/// tell a lone processor that a second one is ahead of it.
+	/// </remarks>
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(
+		string consumerId,
+		ChangePosition position,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
@@ -207,7 +220,24 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 			firestorePosition = FirestoreCdcPosition.FromBase64(position.ToToken());
 		}
 
-		return SavePositionAsync(consumerId, firestorePosition, cancellationToken);
+		try
+		{
+			await SavePositionAsync(consumerId, firestorePosition, cancellationToken).ConfigureAwait(false);
+			return CdcPositionSaveOutcome.Advanced;
+		}
+		catch (FirestoreStalePositionException)
+		{
+			return CdcPositionSaveOutcome.RefusedAsStale;
+		}
+		catch (RpcException rpc) when (rpc.StatusCode is StatusCode.Aborted or StatusCode.FailedPrecondition)
+		{
+			// Firestore reports transaction contention as ABORTED once RunTransactionAsync has exhausted its
+			// own retry budget, and the emulator adds "Transaction lock timeout." under the same status. Both
+			// mean the write did not apply and nothing was decided, which is exactly Contended. Cancellation
+			// is deliberately NOT caught here: a cancelled save is the caller's own doing and must surface.
+			LogSavePositionContended(consumerId, rpc.Status.Detail);
+			return CdcPositionSaveOutcome.Contended;
+		}
 	}
 
 	/// <inheritdoc/>

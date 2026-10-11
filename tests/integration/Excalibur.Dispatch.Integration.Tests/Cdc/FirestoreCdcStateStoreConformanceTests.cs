@@ -28,9 +28,11 @@ namespace Excalibur.Dispatch.Integration.Tests.Cdc;
 /// <para>
 /// ARCHITECT RULING (recorded on 5oy7c9): the kit tolerates a documented monotonic refusal rather than the
 /// store being weakened to satisfy an under-specified arm. The arm never asserted which write won, only that
-/// the concurrent saves complete and the final position is valid — <see cref="ConcurrentSaveMayRefuseAsStale"/>
-/// is the kit's extension point for exactly this, and this deriver's override recognizes
-/// <see cref="FirestoreStalePositionException"/> as the documented refusal.
+/// the concurrent saves complete and the final position is valid. That ruling stands and is now carried by
+/// the CONTRACT instead of by a per-store hook: <c>ICdcStateStore.SavePositionAsync</c> returns a
+/// <see cref="CdcPositionSaveOutcome"/>, so this store reports its refusal as
+/// <see cref="CdcPositionSaveOutcome.RefusedAsStale"/> and the kit needs to know nothing about
+/// <see cref="FirestoreStalePositionException"/>. The hook the ruling originally used is deleted.
 /// </para>
 /// <para>
 /// Positions are constructed with strictly increasing watermarks by index (<see cref="CreateTestPosition"/>),
@@ -98,15 +100,6 @@ public sealed class FirestoreCdcStateStoreConformanceTests : CdcProviderConforma
 			updateTime: BaseWatermark.AddSeconds(index),
 			lastDocumentId: $"doc-{index:D6}");
 
-	/// <inheritdoc />
-	/// <remarks>
-	/// The documented monotonic refusal this store's <c>SavePositionAsync</c> throws when a concurrent write
-	/// already advanced the stored watermark past the one being saved. See the class remarks for why this is
-	/// the correct behavior rather than a conformance gap.
-	/// </remarks>
-	protected override bool ConcurrentSaveMayRefuseAsStale(Exception exception) =>
-		exception is FirestoreStalePositionException;
-
 	[Fact] public Task SaveAndGetPosition_RoundTrips_Test() => SaveAndGetPosition_RoundTrips();
 	[Fact] public Task GetPosition_NoCheckpoint_ReturnsNull_Test() => GetPosition_NoCheckpoint_ReturnsNull();
 	[Fact] public Task SavePosition_MultipleConsumers_Independent_Test() => SavePosition_MultipleConsumers_Independent();
@@ -122,10 +115,12 @@ public sealed class FirestoreCdcStateStoreConformanceTests : CdcProviderConforma
 	[Fact] public Task ConcurrentSavePosition_AllSucceed_Test() => ConcurrentSavePosition_AllSucceed();
 
 	/// <summary>
-	/// THE ARM 5oy7c9 EXISTS FOR. Concurrent same-consumer writes on Firestore may legitimately throw
-	/// <see cref="FirestoreStalePositionException"/> for the writes that lose the race — that is this store's
-	/// documented, correct behavior, recognized via <see cref="ConcurrentSaveMayRefuseAsStale"/> rather than
-	/// papered over by weakening the store.
+	/// THE ARM 5oy7c9 EXISTS FOR. Concurrent same-consumer writes on Firestore legitimately lose the race for
+	/// all but one writer. The store reports each loser as <see cref="CdcPositionSaveOutcome.RefusedAsStale"/>
+	/// and a write it could not complete under contention as
+	/// <see cref="CdcPositionSaveOutcome.Contended"/> — that is this store's documented, correct behavior,
+	/// reported through the contract rather than papered over by weakening the store. Before the contract
+	/// could express it, contention surfaced here as a raw Grpc.Core RpcException and reddened CI twice.
 	/// </summary>
 	[Fact] public Task ConcurrentSavePosition_SameConsumer_LastWriteWins_Test() => ConcurrentSavePosition_SameConsumer_LastWriteWins();
 

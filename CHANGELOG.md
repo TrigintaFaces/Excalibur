@@ -17,6 +17,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking) â a CDC checkpoint save now reports whether it actually saved
+
+`ICdcStateStore.SavePositionAsync` returned `Task`. Two of the shipped providers can decline to write:
+PostgreSQL refuses to move a checkpoint backwards and did so **silently**, and Firestore refuses by
+throwing a provider-specific exception. A caller awaiting a bare `Task` could not tell a refusal from a
+write â the method returned normally in both cases â so a consumer could believe its progress was durable
+when the store had deliberately kept an older position. Three providers meanwhile wrote unconditionally.
+One signature, three different postconditions, and nothing in the contract said which one you had.
+
+It now returns `Task<CdcPositionSaveOutcome>`:
+
+- `Advanced` â the checkpoint holds the position you passed. **Test for this by name.**
+- `RefusedAsStale` â the store compared both positions and kept its own, which is later than yours.
+  Another writer is ahead of you on this consumer id.
+- `Contended` â the store could not complete the write because of concurrent activity and decided
+  nothing. Treat it as not applied; the next checkpoint supersedes it.
+- `Unknown` â the zero value, so an unassigned or defaulted result can never read as success.
+
+**To upgrade:** a caller that ignored the result still compiles. A caller that needs to know its progress
+is durable should branch on `Advanced` rather than on the absence of an exception. Decide success by
+testing for `Advanced` explicitly, never by excluding the refusals â that way any outcome added later
+starts out as a failure rather than silently as a success.
+
+Firestore's transport exception no longer crosses the abstraction either: transaction contention surfaced
+as a raw gRPC `RpcException` out of `SavePositionAsync`, so handling a contended checkpoint meant catching
+a Grpc.Core type. It is now reported as `Contended`.
+
+`IPostgresCdcStateStore.SavePositionAsync` returns the same outcome, for the same reason.
+
+
 ## [10.0.0-alpha.15] - 2026-10-10
 
 ### Fixed — a projection rebuild silently failed to reset view positions, on every provider

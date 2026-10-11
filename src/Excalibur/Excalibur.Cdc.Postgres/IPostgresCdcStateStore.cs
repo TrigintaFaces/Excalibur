@@ -14,8 +14,14 @@ public interface IPostgresCdcStateStore : ICdcStateStore, IAsyncDisposable, IDis
 	/// <summary>Gets the last processed LSN position for a processor.</summary>
 	Task<PostgresCdcPosition> GetLastPositionAsync(string processorId, string slotName, CancellationToken cancellationToken);
 
-	/// <summary>Saves the current LSN position for a processor.</summary>
-	Task SavePositionAsync(string processorId, string slotName, PostgresCdcPosition position, CancellationToken cancellationToken);
+	/// <summary>Saves the current LSN position for a processor, refusing to move it backwards.</summary>
+	/// <returns>
+	/// <see cref="CdcPositionSaveOutcome.Advanced"/> when the stored LSN now is <paramref name="position"/>,
+	/// or <see cref="CdcPositionSaveOutcome.RefusedAsStale"/> when the stored LSN was already at or beyond it
+	/// and nothing was written. The guard makes a regression a no-op, and this is how the caller learns that
+	/// is what happened.
+	/// </returns>
+	Task<CdcPositionSaveOutcome> SavePositionAsync(string processorId, string slotName, PostgresCdcPosition position, CancellationToken cancellationToken);
 
 	/// <summary>Gets detailed state information for all tracked tables.</summary>
 	Task<IReadOnlyList<PostgresCdcStateEntry>> GetAllStatesAsync(string processorId, CancellationToken cancellationToken);

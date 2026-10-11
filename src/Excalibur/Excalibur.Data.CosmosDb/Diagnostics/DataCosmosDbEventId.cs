@@ -354,6 +354,9 @@ internal static class DataCosmosDbEventId
 	/// <summary>CDC position save retried after a create conflict.</summary>
 	public const int CdcPositionSaveRetriedAfterConflict = 103505;
 
+	/// <summary>CDC checkpoint save exhausted its conflict retries and did not write.</summary>
+	public const int CdcPositionSaveContended = 103506;
+
 	// ========================================
 	// 103600-103699: Grant Service
 	// ========================================

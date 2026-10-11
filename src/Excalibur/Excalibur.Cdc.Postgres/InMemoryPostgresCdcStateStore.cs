@@ -40,7 +40,7 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	public Task SavePositionAsync(string processorId, string slotName, PostgresCdcPosition position, CancellationToken cancellationToken)
+	public Task<CdcPositionSaveOutcome> SavePositionAsync(string processorId, string slotName, PostgresCdcPosition position, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(slotName);
@@ -62,7 +62,10 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 			return existing;
 		});
 
-		return Task.CompletedTask;
+		// No watermark guard in the double: the write is unconditional, so it always advanced. A
+		// double reporting a refusal it never made would hide the real store's guard, not stand in
+		// for it.
+		return Task.FromResult(CdcPositionSaveOutcome.Advanced);
 	}
 
 	/// <inheritdoc/>
@@ -124,7 +127,7 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 		ArgumentNullException.ThrowIfNull(position);
@@ -147,7 +150,10 @@ internal sealed class InMemoryPostgresCdcStateStore : IPostgresCdcStateStore
 			return existing;
 		});
 
-		return Task.CompletedTask;
+		// No watermark guard in the double: the write is unconditional, so it always advanced. A
+		// double reporting a refusal it never made would hide the real store's guard, not stand in
+		// for it.
+		return Task.FromResult(CdcPositionSaveOutcome.Advanced);
 	}
 
 	/// <inheritdoc/>

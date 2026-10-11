@@ -59,26 +59,13 @@ public abstract class CdcProviderConformanceTestKit : ConformanceTestKit
 	/// <returns>A task representing the cleanup operation.</returns>
 	protected virtual Task CleanupAsync() => Task.CompletedTask;
 
-	/// <summary>
-	/// Declares whether a save that lost a concurrent race may throw instead of silently being overwritten.
-	/// The default implementation accepts no such exception, matching a store with no ordering guard.
-	/// </summary>
-	/// <param name="exception">An exception thrown by one of several concurrent <c>SavePositionAsync</c> calls.</param>
-	/// <returns>
-	/// <see langword="true"/> when <paramref name="exception"/> is this store's documented way of refusing to
-	/// regress a position that a concurrent writer already advanced past; otherwise <see langword="false"/>.
-	/// </returns>
-	/// <remarks>
-	/// A store that refuses to persist a stale position under concurrent writes is choosing the SAFER of two
-	/// wrong-looking outcomes, not failing to implement last-write-wins: last-write-wins was never a contract
-	/// this kit's callers can observe (nothing orders the concurrent tasks), so a store that instead never
-	/// regresses its own watermark satisfies the same real requirement — the position converges to something
-	/// valid — by a stronger route. Override this to recognize that store's specific refusal exception (for
-	/// example <c>CdcStalePositionException</c>) so <see cref="ConcurrentSavePosition_SameConsumer_LastWriteWins"/>
-	/// can tell "this write lost the race, by design" from "this store is broken." Do not weaken the store to
-	/// avoid overriding this — the refusal is the correct behavior; the arm's job is to recognize it.
-	/// </remarks>
-	protected virtual bool ConcurrentSaveMayRefuseAsStale(Exception exception) => false;
+	// A per-store ConcurrentSaveMayRefuseAsStale(Exception) hook used to live here, so the kit could
+	// recognize one provider's documented refusal EXCEPTION and tell it from a broken store. It is gone
+	// because the contract now carries that distinction itself: SavePositionAsync returns a
+	// CdcPositionSaveOutcome, so a refusal is a value every store reports the same way and no store has to
+	// teach the kit its own exception type. The hook could also only ever say "this exception is tolerable",
+	// which could not separate a deliberate monotonic refusal from a transport error that happened to be
+	// listed -- the distinction that let a gRPC ABORTED read as conformance-relevant noise for a while.
 
 	/// <summary>
 	/// Creates a unique consumer identifier for testing.
@@ -340,7 +327,19 @@ public abstract class CdcProviderConformanceTestKit : ConformanceTestKit
 			.ToList();
 
 		var tasks = consumers.Select(c => store.SavePositionAsync(c.Id, c.Position, CancellationToken.None));
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		var outcomes = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+		// Every consumer id is distinct, so these writes touch different keys and nothing can legitimately
+		// refuse or contend. This is the liveness half of the arm above: that one proves a refusal is
+		// reported, this one proves the store still writes when there is nothing to refuse. Without it, a
+		// store that refused everything would satisfy the refusal arm and look conforming.
+		var notAdvanced = outcomes.Where(o => o != CdcPositionSaveOutcome.Advanced).ToList();
+		if (notAdvanced.Count > 0)
+		{
+			throw new TestFixtureAssertionException(
+				"Saves to DISTINCT consumers must all advance — there is no shared key to refuse over. Got: "
+				+ string.Join(", ", notAdvanced));
+		}
 
 		foreach (var (id, position) in consumers)
 		{
@@ -353,46 +352,49 @@ public abstract class CdcProviderConformanceTestKit : ConformanceTestKit
 	});
 
 	/// <summary>
-	/// Verifies concurrent saves to the same consumer converge to a valid position — either by last-write-wins,
-	/// or by a documented refusal to regress a watermark a concurrent writer already advanced past. This does
-	/// NOT assert which one wins, only that the outcome is final and valid; see
-	/// <see cref="ConcurrentSaveMayRefuseAsStale"/> for why a refusing store is not a defect.
+	/// Verifies concurrent saves to the same consumer converge to a valid position, and that every save
+	/// REPORTS what it did. This does NOT assert which write wins — nothing orders the concurrent tasks, so
+	/// last-write-wins was never observable here — only that each save returns an outcome the caller can act
+	/// on, that at least one advanced, and that the final stored position is valid.
 	/// </summary>
+	/// <remarks>
+	/// A store that declines to regress its watermark is choosing the safer of two wrong-looking results and
+	/// is conforming; so is a store with no guard that writes unconditionally. What is NOT conforming is a
+	/// save that neither advances nor says why, which is what <see cref="CdcPositionSaveOutcome.Unknown"/>
+	/// means and why it is rejected here.
+	/// </remarks>
 	public virtual Task ConcurrentSavePosition_SameConsumer_LastWriteWins() => RunAsync(async store =>
 	{
 		var consumerId = CreateConsumerId();
 		const int concurrentWrites = 10;
 
-		// Not Task.WhenAll: it surfaces only the first exception, which is exactly the information this arm
-		// needs from EVERY task — a store that refuses N-1 of N writes as stale must still be told apart from
-		// one that refused all N (broken) or threw something ConcurrentSaveMayRefuseAsStale does not recognize
-		// (also broken). Each task is awaited individually so every outcome is observed.
+		// Not Task.WhenAll: it surfaces only the first fault, and this arm needs the outcome of EVERY task —
+		// a store that refuses N-1 of N must still be told apart from one that refused all N.
 		var tasks = Enumerable.Range(0, concurrentWrites)
 			.Select(i => store.SavePositionAsync(consumerId, CreateTestPosition(i), CancellationToken.None))
 			.ToList();
 
-		var succeeded = 0;
+		var outcomes = new List<CdcPositionSaveOutcome>(concurrentWrites);
 		foreach (var task in tasks)
 		{
-			try
-			{
-				await task.ConfigureAwait(false);
-				succeeded++;
-			}
-			catch (Exception ex) when (ConcurrentSaveMayRefuseAsStale(ex))
-			{
-				// A documented monotonic refusal: this write lost the race to a concurrent one with a later
-				// position, and the store correctly declined to regress its own watermark rather than silently
-				// letting the loser overwrite the winner.
-			}
+			outcomes.Add(await task.ConfigureAwait(false));
 		}
 
-		if (succeeded == 0)
+		if (outcomes.Contains(CdcPositionSaveOutcome.Unknown))
 		{
 			throw new TestFixtureAssertionException(
-				"Every concurrent write was refused as stale. A store that refuses all of N concurrent writes "
+				"A concurrent save reported Unknown, which means the store decided nothing and the caller "
+				+ "cannot tell whether the checkpoint was written. A store that declines must say WHY — "
+				+ "RefusedAsStale when it compared the positions, Contended when it could not.");
+		}
+
+		if (!outcomes.Contains(CdcPositionSaveOutcome.Advanced))
+		{
+			throw new TestFixtureAssertionException(
+				"No concurrent write advanced the checkpoint. A store that refuses all of N concurrent writes "
 				+ "is indistinguishable from one that accepts none, which is not the property this arm proves — "
-				+ "at least one write must land.");
+				+ "at least one write must land. Outcomes were: "
+				+ string.Join(", ", outcomes));
 		}
 
 		var retrieved = await store.GetPositionAsync(consumerId, CancellationToken.None).ConfigureAwait(false);

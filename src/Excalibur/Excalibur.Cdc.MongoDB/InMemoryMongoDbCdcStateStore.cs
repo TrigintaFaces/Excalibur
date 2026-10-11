@@ -130,11 +130,14 @@ internal sealed class InMemoryMongoDbCdcStateStore : IMongoDbCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 		var mongoPosition = MongoDbCdcPosition.FromChangePosition(position);
-		return SavePositionAsync(consumerId, mongoPosition, cancellationToken);
+		await SavePositionAsync(consumerId, mongoPosition, cancellationToken).ConfigureAwait(false);
+
+		// No watermark guard on this store: the write is unconditional, so it always advanced.
+		return CdcPositionSaveOutcome.Advanced;
 	}
 
 	/// <inheritdoc/>

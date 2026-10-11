@@ -26,4 +26,8 @@ public sealed partial class FirestoreCdcStateStore
 	[LoggerMessage(DataFirestoreEventId.CdcPositionNotFound, LogLevel.Debug,
 		"No CDC position found for processor '{ProcessorName}'")]
 	private partial void LogPositionNotFound(string processorName);
+
+	[LoggerMessage(DataFirestoreEventId.CdcSavePositionContended, LogLevel.Warning,
+		"CDC position for processor '{ProcessorName}' was not saved: the transaction could not complete because of concurrent activity ({Detail}). The next checkpoint supersedes it.")]
+	private partial void LogSavePositionContended(string processorName, string detail);
 }

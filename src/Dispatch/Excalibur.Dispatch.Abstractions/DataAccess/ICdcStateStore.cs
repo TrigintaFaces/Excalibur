@@ -76,12 +76,25 @@ public interface ICdcStateStore
 	/// The position to save. This represents the last successfully processed change.
 	/// </param>
 	/// <param name="cancellationToken">A token to observe for cancellation requests.</param>
-	/// <returns>A task representing the save operation.</returns>
+	/// <returns>
+	/// What the store did: <see cref="CdcPositionSaveOutcome.Advanced"/> when the checkpoint now holds
+	/// <paramref name="position"/>, or one of the refusals when it does not. Callers MUST test for
+	/// <see cref="CdcPositionSaveOutcome.Advanced"/> BY NAME — deciding success by excluding the known
+	/// refusals makes every member added later a success, which is how this contract would fail open.
+	/// </returns>
 	/// <remarks>
 	/// <para>
 	/// <b>Atomicity:</b>
-	/// Implementations should ensure atomic updates. If the save fails, the previous
-	/// checkpoint should remain intact.
+	/// Implementations MUST apply the checkpoint atomically. If the save does not apply, the previous
+	/// checkpoint remains intact and the return value says so.
+	/// </para>
+	/// <para>
+	/// <b>Monotonicity is permitted, and it is observable.</b> An implementation MAY refuse to move its
+	/// checkpoint backwards, reporting <see cref="CdcPositionSaveOutcome.RefusedAsStale"/>; an
+	/// implementation with no such guard performs an unconditional write and reports
+	/// <see cref="CdcPositionSaveOutcome.Advanced"/>. Both are conforming. What is NOT conforming is
+	/// declining the write and leaving the caller unable to tell: the outcome is the whole point of the
+	/// return value.
 	/// </para>
 	/// <para>
 	/// <b>Transactional Processing:</b>
@@ -89,7 +102,11 @@ public interface ICdcStateStore
 	/// as the business operation that processes the change.
 	/// </para>
 	/// </remarks>
-	Task SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken);
+	/// <exception cref="ArgumentException"><paramref name="consumerId"/> is empty or whitespace.</exception>
+	/// <exception cref="ArgumentNullException"><paramref name="position"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ObjectDisposedException">The store has been disposed.</exception>
+	/// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was signalled.</exception>
+	Task<CdcPositionSaveOutcome> SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Deletes the checkpoint for the specified consumer.

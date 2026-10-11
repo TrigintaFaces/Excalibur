@@ -124,7 +124,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	public async Task SavePositionAsync(string processorId, string slotName, PostgresCdcPosition position, CancellationToken cancellationToken)
+	public async Task<CdcPositionSaveOutcome> SavePositionAsync(string processorId, string slotName, PostgresCdcPosition position, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(processorId);
@@ -153,11 +153,17 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 			DO UPDATE SET position = @Position, updated_at = @UpdatedAt
 			WHERE EXCLUDED.position::pg_lsn > {_fullTableName}.position::pg_lsn";
 
-		_ = await connection
+		var affected = await connection
 			.ExecuteAsync(new CommandDefinition(sql,
 				new { ProcessorId = processorId, SlotName = slotName, Position = position.LsnString, UpdatedAt = DateTimeOffset.UtcNow },
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
+
+		// The WHERE on the DO UPDATE is what makes a regression a no-op, so zero rows means the guard
+		// declined and one row means it wrote. Returning it is the whole point: discarding this count left
+		// the caller unable to tell a refusal from an advance, which is the defect the comment above
+		// describes the cure for.
+		return affected > 0 ? CdcPositionSaveOutcome.Advanced : CdcPositionSaveOutcome.RefusedAsStale;
 	}
 
 	/// <inheritdoc/>
@@ -281,7 +287,7 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 	}
 
 	/// <inheritdoc/>
-	async Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 		var pgPosition = PostgresCdcPosition.FromChangePosition(position);
@@ -310,11 +316,14 @@ public sealed partial class PostgresCdcStateStore : IPostgresCdcStateStore
 			DO UPDATE SET position = @Position, updated_at = @UpdatedAt
 			WHERE EXCLUDED.position::pg_lsn > {_fullTableName}.position::pg_lsn";
 
-		_ = await connection
+		var affected = await connection
 			.ExecuteAsync(new CommandDefinition(sql,
 				new { ProcessorId = consumerId, SlotName = GenericSlotDiscriminator, Position = pgPosition.LsnString, UpdatedAt = DateTimeOffset.UtcNow },
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
+
+		// Zero rows means the guard declined; see the typed overload for why this count is the contract.
+		return affected > 0 ? CdcPositionSaveOutcome.Advanced : CdcPositionSaveOutcome.RefusedAsStale;
 	}
 
 	/// <inheritdoc/>

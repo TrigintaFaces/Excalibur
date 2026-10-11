@@ -213,13 +213,13 @@ public class CdcStateStore : ISqlServerCdcStateStore
 	}
 
 	/// <inheritdoc />
-	async Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(consumerId);
 		ArgumentNullException.ThrowIfNull(position);
 
 		var native = CdcPosition.FromChangePosition(position);
-		_ = await UpdateLastProcessedPositionAsync(
+		var rowsWritten = await UpdateLastProcessedPositionAsync(
 				consumerId,
 				GenericDiscriminator,
 				GenericDiscriminator,
@@ -229,6 +229,13 @@ public class CdcStateStore : ISqlServerCdcStateStore
 				fencingToken: null,
 				cancellationToken)
 			.ConfigureAwait(false);
+
+		// This path presents no fencing token, and the MERGE's MATCHED guard begins with
+		// `@fencingToken IS NULL` -- so the guard is satisfied unconditionally here and the update always
+		// fires. There is therefore no reachable staleness decision to report, and mapping zero rows to
+		// RefusedAsStale would describe a comparison this statement never performed. A zero is instead
+		// unexplained, which is precisely Unknown: the caller must treat the checkpoint as not saved.
+		return rowsWritten > 0 ? CdcPositionSaveOutcome.Advanced : CdcPositionSaveOutcome.Unknown;
 	}
 
 	/// <inheritdoc />

@@ -101,7 +101,7 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
-	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
@@ -110,7 +110,10 @@ internal sealed class InMemoryFirestoreCdcStateStore : IFirestoreCdcStateStore
 			firestorePosition = FirestoreCdcPosition.FromBase64(position.ToToken());
 		}
 
-		return SavePositionAsync(consumerId, firestorePosition, cancellationToken);
+		await SavePositionAsync(consumerId, firestorePosition, cancellationToken).ConfigureAwait(false);
+
+		// No watermark guard on this store: the write is unconditional, so it always advanced.
+		return CdcPositionSaveOutcome.Advanced;
 	}
 
 	/// <inheritdoc/>

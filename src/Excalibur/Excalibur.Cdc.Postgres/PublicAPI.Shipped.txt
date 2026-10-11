@@ -26,7 +26,7 @@ Excalibur.Cdc.Postgres.IPostgresCdcStateStore
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.Postgres.PostgresCdcStateEntry!>!>!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.GetLastPositionAsync(string! processorId, string! slotName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Postgres.PostgresCdcPosition>!
-Excalibur.Cdc.Postgres.IPostgresCdcStateStore.SavePositionAsync(string! processorId, string! slotName, Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Postgres.IPostgresCdcStateStore.SavePositionAsync(string! processorId, string! slotName, Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.CdcPositionSaveOutcome>!
 Excalibur.Cdc.Postgres.IPostgresCdcStateStore.SaveStateAsync(Excalibur.Cdc.Postgres.PostgresCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.PostgresCdcConnectionBuilderExtensions
 Excalibur.Cdc.Postgres.PostgresCdcOptions
@@ -99,7 +99,7 @@ Excalibur.Cdc.Postgres.PostgresCdcStateStore.DisposeAsync() -> System.Threading.
 Excalibur.Cdc.Postgres.PostgresCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.Postgres.PostgresCdcStateEntry!>!>!
 Excalibur.Cdc.Postgres.PostgresCdcStateStore.GetLastPositionAsync(string! processorId, string! slotName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Postgres.PostgresCdcPosition>!
 Excalibur.Cdc.Postgres.PostgresCdcStateStore.PostgresCdcStateStore(string! connectionString, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions!>! options) -> void
-Excalibur.Cdc.Postgres.PostgresCdcStateStore.SavePositionAsync(string! processorId, string! slotName, Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Postgres.PostgresCdcStateStore.SavePositionAsync(string! processorId, string! slotName, Excalibur.Cdc.Postgres.PostgresCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.CdcPositionSaveOutcome>!
 Excalibur.Cdc.Postgres.PostgresCdcStateStore.SaveStateAsync(Excalibur.Cdc.Postgres.PostgresCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions
 Excalibur.Cdc.Postgres.PostgresCdcStateStoreOptions.PostgresCdcStateStoreOptions() -> void

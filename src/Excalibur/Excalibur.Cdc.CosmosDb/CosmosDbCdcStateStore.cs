@@ -107,6 +107,28 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 	// not a backoff schedule; exhausting it rethrows rather than reporting a save that did not happen.
 	private const int SaveConflictRetryAttempts = 3;
 
+	/// <summary>
+	/// Cosmos' concurrent-write conflict status (449). Declared here as an int because
+	/// <see cref="HttpStatusCode"/> has no member for it -- it is outside the standard range the BCL enum
+	/// models, so there is nothing to compare against by name.
+	/// </summary>
+	private const int ConcurrentWriteConflictStatus = 449;
+
+	/// <summary>
+	/// Decides whether a <see cref="CosmosException"/> means a concurrent writer beat us to this item, as
+	/// opposed to a failure the caller must act on.
+	/// </summary>
+	/// <remarks>
+	/// Extracted so the decision is testable: it is the load-bearing half of the contention translation and
+	/// an exception filter written inline cannot be exercised without a live Cosmos endpoint.
+	/// </remarks>
+	internal static bool IsConcurrentWriteConflict(CosmosException exception)
+	{
+		ArgumentNullException.ThrowIfNull(exception);
+
+		return (int)exception.StatusCode is ConcurrentWriteConflictStatus or (int)HttpStatusCode.Conflict;
+	}
+
 	// Only a client this store built is a client this store may destroy. A supplied client is a shared
 	// singleton the host also hands to its other stores, so disposing it here would tear down connections
 	// belonging to code that never asked this store for anything.
@@ -321,7 +343,7 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 		await GetPositionAsync(consumerId, cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc/>
-	Task ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
+	async Task<CdcPositionSaveOutcome> ICdcStateStore.SavePositionAsync(string consumerId, ChangePosition position, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(position);
 
@@ -330,7 +352,38 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 			cosmosPosition = CosmosDbCdcPosition.FromContinuationToken(position.ToToken());
 		}
 
-		return SavePositionAsync(consumerId, cosmosPosition, cancellationToken);
+		try
+		{
+			await SavePositionAsync(consumerId, cosmosPosition, cancellationToken).ConfigureAwait(false);
+		}
+		catch (CosmosException ex) when (IsConcurrentWriteConflict(ex))
+		{
+			// Contention, not a decision about which position should win. Until this was translated, a consumer
+			// had to catch Microsoft.Azure.Cosmos' own exception type to handle a checkpoint this store had
+			// declined -- the same leak Firestore had with Grpc.Core.
+			//
+			// 449 IS THE STATUS THAT ACTUALLY OCCURS HERE, AND IT IS WHY THIS COMPARES A RAW int.
+			// System.Net.HttpStatusCode has no 449 member (its only member between 440 and 460 is 451), so a
+			// `ex.StatusCode is HttpStatusCode.X` filter cannot name it even in principle -- which is exactly
+			// how the typed overload's own retry guard above came to watch 409 while 449 went past it. Per
+			// Microsoft's resilience guidance 449 arises ONLY on writes, is safe to retry, and indicates
+			// several operations updating the same item; the SDK retries it with incremental back-off and
+			// surfaces it when that budget is spent, which is the case being translated. 409 is kept because
+			// the retry loop already treats it as the conflict condition.
+			//
+			// 412 is deliberately NOT here. The upsert passes no ItemRequestOptions and therefore no
+			// IfMatchEtag, so there is no precondition to fail: an arm for it could never fire, and keeping
+			// one would advertise an optimistic-concurrency check this store does not perform.
+			//
+			// 429 is deliberately NOT here either. A spent throttle budget means under-provisioned
+			// throughput, not transient contention, and reporting it as Contended would tell the caller to
+			// carry on when what it needs is more RU/s. Every other CosmosException still surfaces.
+			LogPositionSaveContended(consumerId, (int)ex.StatusCode);
+			return CdcPositionSaveOutcome.Contended;
+		}
+
+		// No watermark guard on this store: the write is unconditional, so a completed write advanced.
+		return CdcPositionSaveOutcome.Advanced;
 	}
 
 	/// <inheritdoc/>
@@ -470,6 +523,9 @@ public sealed partial class CosmosDbCdcStateStore : ICosmosDbCdcStateStore
 
 	[LoggerMessage(DataCosmosDbEventId.CdcPositionSaveRetriedAfterConflict, LogLevel.Debug, "Retrying position save for processor '{ProcessorName}' after a create conflict (attempt {Attempt})")]
 	private partial void LogPositionSaveRetriedAfterConflict(string processorName, int attempt);
+
+	[LoggerMessage(DataCosmosDbEventId.CdcPositionSaveContended, LogLevel.Warning, "CDC position for processor '{ProcessorName}' was not saved: the upsert was still conflicting (status {Status}) when the retry budget was spent. The next checkpoint supersedes it.")]
+	private partial void LogPositionSaveContended(string processorName, int status);
 
 	[LoggerMessage(DataCosmosDbEventId.CdcPositionNotFoundForDeletion, LogLevel.Debug, "Position not found for deletion for processor '{ProcessorName}'")]
 	private partial void LogPositionNotFoundForDelete(string processorName);
