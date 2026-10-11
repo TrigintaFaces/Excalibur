@@ -47,6 +47,25 @@ a Grpc.Core type. It is now reported as `Contended`.
 `IPostgresCdcStateStore.SavePositionAsync` returns the same outcome, for the same reason.
 
 
+### Fixed — a saga save that lost the write race threw a gRPC exception instead of a concurrency conflict
+
+`FirestoreSagaStore.SaveAsync` runs its version check and its write inside one Firestore transaction, and
+the client retries that transaction on contention. When those retries were spent the failure arrived at
+the caller as a raw `Grpc.Core.RpcException` carrying status `ABORTED`, while the same store rejects a
+losing writer on the version-gated path with `ConcurrencyException`. One lost race, two unrelated
+exception types, and the transport one obliged a consumer to reference Grpc.Core to tell "somebody else
+got there first" apart from "the store is broken".
+
+Contention is now reported as `ConcurrencyException`, carrying the expected and the current version, as
+every other saga provider already did. Only `ABORTED` is translated: the remaining statuses the provider
+treats as transient — `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`, `INTERNAL` — mean no
+version race took place, so they continue to surface rather than inviting a reload that cannot help.
+
+**To upgrade:** a caller that already handles `ConcurrencyException` from a saga save needs no change and
+now gets that handling on the contention path too. A caller that was catching `RpcException` around
+`SaveAsync` to detect contention should catch `ConcurrencyException` instead and may drop its Grpc.Core
+reference.
+
 ## [10.0.0-alpha.15] - 2026-10-10
 
 ### Fixed — a projection rebuild silently failed to reset view positions, on every provider
