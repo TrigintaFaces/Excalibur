@@ -21,6 +21,7 @@ using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Security;
 using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.ErrorHandling;
 
 using MessageEncryptionSample.Messages;
 
@@ -70,6 +71,14 @@ builder.Services.AddSingleton<IMessageEncryptionService, DataProtectionMessageEn
 // activation has nothing public to call and the host fails to start.
 builder.Services.AddInMemoryOutboxStore();
 builder.Services.AddInMemoryInboxStore();
+// The inbox/outbox processors require an EXPLICIT dead-letter decision. There is no default, so
+// that no deployment can ever silently discard a message it failed to deliver. This sample chooses
+// discard because it has no durable store to dead-letter into; a real deployment should register a
+// durable queue instead -- AddSqlServerDeadLetterQueue(o => o.ConnectionString = ...) -- so
+// exhausted messages are kept for inspection and replay rather than dropped. SQL Server is the
+// only durable IDeadLetterQueue the framework ships; on any other store, implement the interface.
+builder.Services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+
 builder.Services.AddInboxHostedService();
 
 // AddOutboxHostedService() is deliberately NOT called here.

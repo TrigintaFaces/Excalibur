@@ -4,6 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The test project is a nested folder of this one, so EVERY default item glob here
+         reaches into it - not just the C# one. This is the SDK's own hook for that and covers
+         all of them. Without it the Web/Worker SDK's **/*.json and **/*.config content globs
+         sweep the test project's own bin/ and obj/ restore artifacts into this project's
+         content, and a ProjectReference then copies them into the test project's output under
+         a folder named after the test assembly - which on Unix is the exact path the
+         extensionless apphost needs, so the build fails with MSB3024. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Company.ExcaliburOutbox.Tests/**</DefaultItemExcludes>
     <!-- Floats to the newest 10.0.0 PRERELEASE, which is what is published today. A bare
          10.* asks for >= 10.0.0 STABLE, which does not exist yet, so a fresh scaffold fails
          restore with NU1102 before the consumer has written a line of code. Change this to
@@ -40,10 +48,6 @@
     <!--#if (UseGooglePubSub) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Company.ExcaliburOutbox.Tests/**/*.cs" />
   </ItemGroup>
 
 </Project>

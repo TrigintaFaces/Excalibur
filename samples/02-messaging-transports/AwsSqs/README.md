@@ -124,6 +124,11 @@ The sample registers the framework outbox and inbox services:
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
     outbox.UseInMemory().EnableBackgroundProcessing()));
 builder.Services.AddInMemoryInboxStore();
+// The inbox/outbox processors require an explicit dead-letter decision -- there is no default, so no
+// deployment can silently discard a message it failed to deliver. This sample has no durable store to
+// dead-letter into, so it chooses discard; a real deployment registers a durable queue instead, for
+// example WithSqlServerDeadLetterQueue(...) on the outbox builder.
+builder.Services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 builder.Services.AddInboxHostedService();
 ```
 

@@ -620,8 +620,16 @@ dead-lettered without the breaker being entered or charged; and a healthy messag
 one is still delivered, which is the liveness arm without which the second would be satisfied by a drain
 that delivered nothing at all.
 
-**Consumer obligation.** Register an `IDeadLetterQueue`. Without one a poison row is discarded when it is
-dead-lettered, and its body — the only remaining copy of that message — is lost with it.
+**Consumer obligation, and it is no longer left to you.** Register an `IDeadLetterQueue`. The default
+processor has no dead-letter default: resolving it without a registered queue throws
+`InvalidOperationException` rather than constructing a processor that discards. Register a durable queue
+(`AddSqlServerDeadLetterQueue`, or `WithSqlServerDeadLetterQueue` on the outbox builder), or register
+`NullDeadLetterQueue.Instance` to choose discard deliberately.
+
+> **Superseded wording, quoted so a reader who inherited it recognises it.** This paragraph previously said
+> *"Without one a poison row is discarded when it is dead-lettered, and its body — the only remaining copy
+> of that message — is lost with it."* That described the behaviour before the decision became explicit.
+> No composition can reach it now: the processor refuses to resolve instead of discarding silently.
 
 ## The change-feed family (`ICloudNativeOutboxStore`)
 
@@ -947,6 +955,12 @@ database on every provider.
 
 ## Consumer obligations
 
+- **Register an `IDeadLetterQueue`, or register `NullDeadLetterQueue.Instance` to choose discard.** There
+  is no default. Falsifiable form: resolving the default `IOutboxProcessor` or `IInboxProcessor` with no
+  `IDeadLetterQueue` registered throws `InvalidOperationException`; it never returns a processor that
+  discards an exhausted message. A deployment therefore cannot silently drop a message it failed to
+  deliver — it either keeps it or refuses to run. Store-only staging and a consumer-supplied
+  `IOutboxProcessor` do not acquire this requirement.
 - **Handlers MUST be idempotent** (at-least-once ⇒ duplicates on retry/crash).
 - **Set the retry floor `F` greater than the maximum expected delivery duration.** If a dispatcher pauses
   mid-delivery long enough for its lease to expire, a retry can overlap the in-flight send; `F > max

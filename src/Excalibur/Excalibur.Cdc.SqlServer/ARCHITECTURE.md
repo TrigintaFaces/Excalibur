@@ -133,6 +133,17 @@ until a reader takes an item.
 6. **Decide what `OnFatalError` means for you.** Supplying it converts a handler throw from "stop the run"
    into "swallow, freeze this table, redeliver next run". Without it, the run stops on the first unhandled
    handler exception.
+7. **Provision the dedupe table with the current `002_CreateCdcIdempotencySchema.sql`, and drop an older
+   one rather than keeping it.** The dedupe key is `(TableName, Lsn, SeqVal, ConsumerId, DatabaseName)`,
+   and it carries `DatabaseName` because the checkpoint store matches on it. A table provisioned before
+   that column joined the key has a dedupe namespace *coarser* than the position it guards, and a coarser
+   namespace **suppresses** rather than duplicates: two configured sources that share a connection
+   identifier keep separate checkpoints while sharing one dedupe key, so the first to reach a position
+   marks it done for the other and a change is skipped that was never processed. No upgrade script exists
+   — the existing rows carry no value for the new axis, and inventing one is a guess that causes exactly
+   that suppression. The script refuses to run against a table with the old shape and names the remedy;
+   it does not silently skip. Dropping the table costs a bounded replay of already-processed changes,
+   which obligation 1 makes safe.
 
 ## Known gaps
 

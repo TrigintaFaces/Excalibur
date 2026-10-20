@@ -81,6 +81,27 @@ for f in "$GW_ROOT"/eng/ci/*.sh "$GW_ROOT"/eng/ci/*.py "$GW_ROOT"/eng/ci/*.ps1 "
         *.test.sh|*.test.py|*.test.ps1) continue ;;
         *.fixture.sh|*.fixture.py|*.fixture.ps1) continue ;;
         *.harness-lock.sh|harness-gates-ci.sh) continue ;;
+        # The three lines above enumerate ONE concept — "this file is a gate's own test or
+        # scaffolding, not a gate" — in a single hard-coded spelling. Two further spellings of that
+        # same concept exist in this tree, and a file using one entered the gate POPULATION and was
+        # then reported as an unwired gate. This is the over-capture mirror of the extension-set
+        # defect recorded in the header, and it costs the same thing: a check that flags non-defects
+        # is a check someone switches off.
+        #
+        # ONLY UNAMBIGUOUS SUFFIXES BELONG HERE, and that bound was learned by breaking it. A first
+        # attempt added `*-tests.py|*-tests.ps1|*-tests.sh`, which silently removed
+        # discover-required-tests.ps1 and invoke-required-tests.ps1 from the population — two real
+        # gates whose names merely END in the domain noun "required-tests". An exclusion that drops
+        # a gate is strictly worse than the false orphan it was added to fix: a false orphan is
+        # loud, and a gate that left the population is reported by nothing. Anything needing a
+        # judgement call about whether the name means "test" gets RENAMED to the tree's existing
+        # `*.test.py` convention instead of a new pattern here.
+        #
+        # `.Tests.ps1` is the Pester convention and names a test, never a gate.
+        *.Tests.ps1) continue ;;
+        # A dot-sourced PowerShell function library renders no verdict and has no exit of its own —
+        # it is a library its caller loads, so "is it wired" is not a question about it.
+        *.functions.ps1) continue ;;
     esac
     gates+=("$b")
 done
@@ -98,8 +119,34 @@ for c in "$GW_ROOT"/.github/workflows/*.yml \
          "$GW_ROOT"/eng/hooks/pre-commit "$GW_ROOT"/eng/hooks/pre-push \
          "$GW_ROOT"/eng/hooks/prepare-commit-msg "$GW_ROOT"/eng/hooks/post-checkout \
          "$GW_ROOT"/eng/hooks/post-merge "$GW_ROOT"/eng/ci/harness-gates-ci.sh \
-         ${GW_EXTRA_CALLER_GLOBS:-} "$GW_ROOT"/eng/ci/*-gate.sh ; do
+         ${GW_EXTRA_CALLER_GLOBS:-} ; do
     [ -f "$c" ] && callers+=("$c")
+done
+# THE CALLER SET IS NOW THE GATE POPULATION, not `eng/ci/*-gate.sh`. The comment above has always
+# said "A GATE IS ITSELF A CALLER SURFACE", and the glob implemented that for exactly one spelling
+# of a gate's name: a bash file whose basename ends `-gate.sh`. So a .py or .ps1 gate, or a gate
+# not named `*-gate.sh`, invoked a helper and that helper was reported as having no caller — five
+# of them, every one genuinely invoked: prepare-aot-inventory.ps1 and aot-inventory-docs.py (both
+# named on non-comment lines of aot-annotation-inventory-gate.py),
+# conformance-arm-skip-syntax.ps1 (conformance-arm-skip-census.py),
+# and two .functions.ps1 libraries dot-sourced by their runners. The asymmetry was the defect: the
+# population already enumerated .py and .ps1 gates, so it was POSSIBLE to be an orphan in a language
+# it was IMPOSSIBLE to be a caller in.
+#
+# It opens no loophole. A gate still cannot wire itself (the provenance tag below drops hits whose
+# only source is the gate's own file), and a gate whose only caller is an orphan still fails,
+# because that caller is enumerated and checked on its own.
+#
+# KNOWN GAP, stated rather than left for the next reader to rediscover: the corpus strip below
+# handles a PowerShell `<# ... #>` block only when the opener begins its own line. A gate named
+# inside comment-based help that opens mid-line would read as wired. Measured once, in
+# Invoke-AotSuppressionAudit.ps1's .EXAMPLE block, which opens `<#` on its own line and is
+# therefore stripped. Widen the strip if a real gate is ever mentioned only in such a block.
+for _g in "${gates[@]:-}"; do
+    [ -n "$_g" ] || continue
+    for _d in "$GW_ROOT/eng/ci" "$GW_ROOT/eng/hooks"; do
+        [ -f "$_d/$_g" ] && callers+=("$_d/$_g")
+    done
 done
 
 # SCOPE DISCLOSURE. The verdict below is only as wide as the caller set above, and which of those
@@ -160,7 +207,25 @@ for cf in "${callers[@]:-}"; do
     case "$cf" in
         *.md) _contrib="$(<"$cf")"
               [ -n "$_contrib" ] && printf '%s\n' "$_contrib" >>"$MD_CORPUS" ;;
-        *)    _contrib="$(grep -vE '^[[:space:]]*#' "$cf" | sed "s|^|$(basename "$cf")\||")"
+        # BLOCK COMMENTS ARE COMMENTS. The strip was `^[[:space:]]*#`, which sees a shell comment
+        # and is blind to a Python docstring and a PowerShell `<# #>` block -- so a gate NAMED IN
+        # PROSE inside one read as a caller. Measured, both in a module docstring's first lines:
+        # receipt-without-work-census.py names receipt-without-work-gate.sh, and
+        # config-binder-completeness-gate.py names its own .sh sibling. Each wired a BASELINED
+        # orphan, which is the worst version of this: the gate then reports the baseline entry as
+        # stale and advises deleting it, converting a tracked orphan into an invisible one.
+        # Only a block OPENING THE LINE is treated as a block, so a `"""` inside an expression
+        # cannot swallow code. One awk replaces the former grep+sed+basename -- fewer processes
+        # than it replaces, because latency here is paid by every run, by everyone.
+        *)    _contrib="$(awk -v tag="${cf##*/}" '
+                  inblk { if ($0 ~ /"""|#>/) inblk = 0; next }
+                  /^[[:space:]]*("""|<#)/ {
+                      if ($0 !~ /^[[:space:]]*""".*"""[[:space:]]*$/ && $0 !~ /<#.*#>/) inblk = 1
+                      next
+                  }
+                  /^[[:space:]]*#/ { next }
+                  { print tag "|" $0 }
+              ' "$cf")"
               [ -n "$_contrib" ] && printf '%s\n' "$_contrib" >>"$CODE_CORPUS" ;;
     esac
     if [ -z "$_contrib" ]; then

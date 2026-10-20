@@ -313,6 +313,8 @@ public class InboxCleanupJob
 Register the inbox hosted service for automatic background cleanup:
 
 ```csharp
+// The default inbox processor requires an explicit dead-letter decision -- see Before You Start.
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 services.AddInboxHostedService();
 ```
 
@@ -601,6 +603,8 @@ services.AddDispatch(dispatch =>
 Register the inbox hosted service for background cleanup and maintenance:
 
 ```csharp
+// The default inbox processor requires an explicit dead-letter decision -- see Before You Start.
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
 services.AddInboxHostedService();
 ```
 

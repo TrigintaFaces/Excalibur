@@ -113,6 +113,46 @@ BEGIN
 END
 GO
 
+-- ddl-migration: provisioning-only CdcProcessedEvents - the key cannot be widened in place. Adding
+-- DatabaseName to the primary key means dropping and recreating the clustered key that IS the
+-- deduplication mechanism, and the existing rows carry no value for the new axis -- any value chosen
+-- for them is a guess about which source database they came from, and a wrong guess suppresses a
+-- change rather than duplicating it. So no upgrade script ships: the table is dropped and recreated,
+-- which costs a bounded replay of already-processed changes against idempotent handlers (obligation 1
+-- in this package's ARCHITECTURE.md) and never a skipped change.
+
+-- SHAPE CHECK
+-- -----------
+-- Both statements below are guarded on the object being absent, so on a database provisioned before
+-- DatabaseName joined the key this script would otherwise succeed silently and leave the coarser
+-- dedupe namespace in place -- the exact defect described above, reported as a healthy deployment.
+-- An existing table with the wrong key fails here instead.
+IF OBJECT_ID(N'[Cdc].[CdcProcessedEvents]', N'U') IS NOT NULL
+BEGIN
+    DECLARE @shape NVARCHAR(200) = NULL;
+
+    IF COL_LENGTH(N'[Cdc].[CdcProcessedEvents]', N'DatabaseName') IS NULL
+        SET @shape = N'the DatabaseName column is absent';
+    ELSE IF NOT EXISTS (SELECT 1
+                        FROM sys.index_columns ic
+                        JOIN sys.indexes i
+                          ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+                        JOIN sys.columns c
+                          ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                        WHERE i.object_id = OBJECT_ID(N'[Cdc].[CdcProcessedEvents]')
+                          AND i.is_primary_key = 1
+                          AND c.name = N'DatabaseName')
+        SET @shape = N'the primary key does not cover DatabaseName';
+
+    IF @shape IS NOT NULL
+    BEGIN
+        RAISERROR(
+            N'[Cdc].[CdcProcessedEvents] already exists with the wrong shape: %s. Required: columns (TableName, Lsn, SeqVal, ConsumerId, DatabaseName, ProcessedAt) with PK_CdcProcessedEvents CLUSTERED over (TableName, Lsn, SeqVal, ConsumerId, DatabaseName). Without DatabaseName the dedupe key is coarser than the checkpoint it guards, which matches on (DatabaseConnectionIdentifier, DatabaseName, TableName) -- two configured sources sharing a connection identifier keep separate checkpoints while sharing one dedupe namespace, and the first to reach a position marks it done for the other, so a change is skipped that was never processed. No upgrade script ships: the existing rows carry no DatabaseName, and any value invented for them is a guess that suppresses changes rather than duplicating them. Drop [Cdc].[CdcProcessedEvents] and re-run this script. The cost is that changes already delivered may be delivered again; handlers are required to be idempotent, so that is bounded replay, not loss.',
+            16, 1, @shape);
+    END
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables t
     JOIN sys.schemas s ON t.schema_id = s.schema_id
     WHERE s.name = N'Cdc' AND t.name = N'CdcProcessedEvents')

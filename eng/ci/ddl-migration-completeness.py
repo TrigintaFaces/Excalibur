@@ -76,10 +76,18 @@ The escape hatch is deliberately narrow and deliberately visible in the diff:
 
     -- ddl-migration: provisioning-only <Table> - <reason>
 
-It must name the table and carry a reason, so it cannot be a blanket, and it lives in the changed
-artifact where a reviewer reading the change cannot miss it. A brand-new table needs no such
+It must name the table and carry a reason, so it cannot be a blanket, and it lives in the artifact
+itself where a reviewer reading the file cannot miss it. A brand-new table needs no such
 declaration and no migration: a script with no previous shipped content has nothing to migrate
 FROM, and that case is detected structurally (absent at base, present now) rather than declared.
+
+It is read from the CURRENT tree as well as from the revision being compared, on the same footing
+as ALTER coverage and for the same reason. Read only from the revision, the hatch is unreachable
+for every finding this gate actually reports: findings come from historical steps, a declaration
+cannot be added to a commit that already exists, and so the only remaining ways to close one were
+an ALTER nobody intends to write or a baseline row -- which is the finding being swallowed. A
+declaration added today is visible in the diff that adds it and in the file forever after, which is
+what the hatch was for.
 
 WHAT PRODUCES NO FINDING, BY CONSTRUCTION RATHER THAN BY RULE
 ------------------------------------------------------------
@@ -708,11 +716,26 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
     fields = field_types(after)
     setvars = sqlcmd_vars(after)
 
+    # The declaration is read from the CURRENT tree as well as from the content at the step being
+    # evaluated, for the same reason ALTER coverage is: the question is whether the change is
+    # declared un-migratable TODAY, not whether its author thought to say so in the commit that made
+    # it. Read only from `after`, the escape hatch could not close a single finding this gate
+    # REPORTS -- every reported finding comes from a historical step, a declaration cannot be added
+    # to a commit that already exists, and the error message's own instruction (declare it in the
+    # changed artifact) therefore changed nothing. Resolution is per source: a spelling that moved
+    # between the two revisions must be resolved against the revision it was written in.
+    sources = [(after, fields, setvars)]
+    current = read_at(root, WORKING_TREE, path)
+    if current is not None and current != after:
+        sources.append((current, field_types(current), sqlcmd_vars(current)))
+
     declared: dict[str, str] = {}
-    for match in _PROVISIONING_ONLY.finditer(after):
-        resolved = resolve(table_key(match.group("table")), defaults, fields, setvars)
-        if resolved is not None:
-            declared[resolved.upper()] = match.group("why").strip()
+    for content, content_fields, content_setvars in sources:
+        for match in _PROVISIONING_ONLY.finditer(content):
+            resolved = resolve(table_key(match.group("table")), defaults,
+                               content_fields, content_setvars)
+            if resolved is not None:
+                declared[resolved.upper()] = match.group("why").strip()
 
     findings: list[Finding] = []
 
@@ -1039,7 +1062,7 @@ def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
             "the guard sees the table and skips, and the column is never added -- so the first\n"
             "call fails on their database and never on ours. Ship an ALTER TABLE for the table and\n"
             "column in the same package, or, when the change genuinely cannot reach an existing\n"
-            "database, declare it in the changed artifact:\n\n"
+            "database, declare it in that artifact as it stands in the tree today:\n\n"
             "  -- ddl-migration: provisioning-only <Table> - <why an existing database is unaffected>\n\n"
             f"A gap that is known and not yet closed belongs in {os.path.basename(bpath)}, with the\n"
             "issue that will close it.",
@@ -1102,6 +1125,8 @@ def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
 #   LIVENESS a comment-only edit is ALLOWED
 #   LIVENESS a SET-option / batch-separator edit is ALLOWED
 #   LIVENESS a declared provisioning-only change is ALLOWED
+#   SAFETY   a committed delta with NO declaration anywhere still FAILS
+#   LIVENESS a declaration added AFTER the delta was committed is ALLOWED
 #   LIVENESS a column-level verification is ALLOWED
 #   REFUSE   an unparseable script does NOT report PASS
 #   REFUSE   an empty population does NOT report PASS
@@ -1310,7 +1335,8 @@ def _write(root: str, rel: str, body: str) -> None:
 
 
 def _fixture_repo(tmp: str, v1: dict[str, str], v2: dict[str, str],
-                  commit_v2: bool = True) -> tuple[str, str]:
+                  commit_v2: bool = True,
+                  v3: "dict[str, str] | None" = None) -> tuple[str, str]:
     """A real two-commit git repository -> (root, anchor sha).
 
     A fixture that stubbed the history would test the checker against the shape of its own
@@ -1352,6 +1378,12 @@ def _fixture_repo(tmp: str, v1: dict[str, str], v2: dict[str, str],
         # special case in the harness.
         subprocess.run(("git", "-C", root, "commit", "--quiet", "-m", "v2"),
                        capture_output=True, check=False)
+    # v3 is written AFTER v2 is committed and is never committed itself -- the only shape that can
+    # exercise "the delta is already in history and the declaration arrived later", which is the
+    # state every real finding is in. An arm that put both in one commit would prove the hatch works
+    # where it was never the problem.
+    for rel, body in (v3 or {}).items():
+        _write(root, rel, body)
     return root, anchor
 
 
@@ -1463,6 +1495,16 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
          {sql: _V1_SQL}, {sql: _V2_SQL_SET_OPTIONS}, set(), 0, True),
         ("LIVENESS a declared provisioning-only change is allowed",
          {sql: _V1_SQL}, {sql: _V2_SQL_DECLARED}, set(), 0, True),
+        # The hatch has to be reachable for a delta ALREADY IN HISTORY -- the state of every finding
+        # this gate reports, since it walks committed steps and a declaration cannot be added to a
+        # commit that already exists. These two arms are one proof and neither is worth anything
+        # alone: the first commits the change with no declaration anywhere and must FAIL, so an
+        # implementation that ignored declarations and always passed cannot satisfy the pair; the
+        # second adds the declaration afterwards, uncommitted, and must PASS.
+        ("SAFETY   a committed delta with no declaration anywhere still fails",
+         {sql: _V1_SQL}, {sql: _V2_SQL_ADDS_COLUMN}, set(), 1, True),
+        ("LIVENESS a declaration added AFTER the delta was committed is allowed",
+         {sql: _V1_SQL}, {sql: _V2_SQL_ADDS_COLUMN}, set(), 0, True, {sql: _V2_SQL_DECLARED}),
         ("LIVENESS a column-level verification is allowed",
          {sql: _V1_SQL, verify: _VERIFY_COLUMN_LEVEL_CS},
          {sql: _V1_SQL, verify: _VERIFY_COLUMN_LEVEL_CS}, set(), 0, True),
@@ -1544,8 +1586,9 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
     tmp = tempfile.mkdtemp()
     saved = {k: os.environ.get(k) for k in ("DDL_MIGRATION_REPO", "DDL_MIGRATION_BASELINE")}
     try:
-        for label, v1, v2, baseline_entries, want, commit_v2 in arms:
-            root, anchor = _fixture_repo(tmp, v1, v2, commit_v2=commit_v2)
+        for label, v1, v2, baseline_entries, want, commit_v2, *later in arms:
+            root, anchor = _fixture_repo(tmp, v1, v2, commit_v2=commit_v2,
+                                         v3=later[0] if later else None)
             fixture_baseline = os.path.join(tmp, "fixture.baseline.txt")
             with open(fixture_baseline, "w", encoding="utf-8") as fh:
                 # A FIXTURE baseline, never the real one. Pointed at the real file, every arm would

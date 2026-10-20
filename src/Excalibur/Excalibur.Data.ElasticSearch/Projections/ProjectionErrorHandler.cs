@@ -357,8 +357,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 				request.RequestConfiguration = CreateSingleAttemptConfiguration();
 				response = await _client.CreateAsync(request, token).ConfigureAwait(false);
 				token.ThrowIfCancellationRequested();
-				return ProjectionErrorPersistenceRetry.IsRetryableFailure(response.ApiCallDetails?.HttpStatusCode,
-					response.ApiCallDetails?.OriginalException);
+				return ProjectionErrorPersistenceRetry.IsUnsettledCreateOutcome(response.ApiCallDetails?.HttpStatusCode);
 			}, cancellationToken).ConfigureAwait(false);
 
 			if (response is { IsValidResponse: false })
@@ -398,34 +397,63 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 				token.ThrowIfCancellationRequested();
 				if (response.Items is null || response.Items.Count == 0)
 				{
-					return ProjectionErrorPersistenceRetry.IsRetryableFailure(response.ApiCallDetails?.HttpStatusCode,
-						response.ApiCallDetails?.OriginalException);
+					// No interpretable item list, so this envelope says nothing about any record in it --
+					// including a 200, which is the correct status for a HEALTHY bulk response and is only
+					// uninterpretable because of the condition just tested. `pending` is untouched on this
+					// path, so it is still the full set or the last set a response validated; replaying it
+					// is not an arbitrary subset.
+					return ProjectionErrorPersistenceRetry.IsUnsettledBulkEnvelope(response.ApiCallDetails?.HttpStatusCode);
 				}
 
-				// A malformed response supplies no authority to replay an arbitrary subset.
-				if (response.ApiCallDetails?.HttpStatusCode is { } status && status is >= 400 && !ProjectionErrorPersistenceRetry.IsTransientStatus(status))
-				{
-					return false;
-				}
+				// A malformed response supplies no authority to replay an arbitrary subset -- which is what
+				// the shape check below establishes. The envelope's STATUS is deliberately not consulted
+				// here: a status-based guard stood at this line enumerating which codes were transient and
+				// treating the rest as a verdict, so a 500, 507 or 408 arriving alongside a usable item
+				// list ended the loop and discarded the batch. Whether Elasticsearch answered is decided
+				// per item below, where the answer actually lives.
 				var expected = pending.ToDictionary(static record => record.Id, StringComparer.Ordinal);
-				if (response.Items.Count != expected.Count ||
-					response.Items.Any(item => item.Id is null || !expected.ContainsKey(item.Id) || !string.Equals(item.Operation, "create", StringComparison.Ordinal)) ||
-					response.Items.Select(static item => item.Id).Distinct(StringComparer.Ordinal).Count() != expected.Count)
+
+				// ATTRIBUTION, and it is terminal. A response carrying an id we never sent, an operation we
+				// never issued, or the same id twice is not a partial answer -- it is an incoherent one, and
+				// incoherence is a fact about the RESPONDER, not about our records. It takes a rewriting
+				// proxy, a wrong endpoint or a version mismatch to produce, and no number of replays
+				// changes who answered. Note the duplicate test is against this RESPONSE's own count, not
+				// against ours: measured against `expected.Count` it would also catch mere incompleteness
+				// and route it here, which would silently defeat the branch below.
+				if (response.Items.Any(item => item.Id is null || !expected.ContainsKey(item.Id) || !string.Equals(item.Operation, "create", StringComparison.Ordinal)) ||
+					response.Items.Select(static item => item.Id).Distinct(StringComparer.Ordinal).Count() != response.Items.Count)
 				{
 					return false;
 				}
 
+				// COMPLETENESS, and it is a replay. Every id present is ours and distinct, there are simply
+				// fewer than we sent. That is an ABSENCE of evidence about the missing records -- the same
+				// physical event as a truncated response, one degree less severe, because loss OMITS and
+				// cannot INVENT. `pending` is untouched here, so the whole validated set is replayed and
+				// nothing is selected on no evidence.
+				if (response.Items.Count != expected.Count)
+				{
+					return true;
+				}
+
+				// Every id here is one of ours, present exactly once -- the shape check above establishes
+				// that, and it is what makes choosing a replay subset legitimate rather than a guess.
+				// Only a verdict removes a record from the set; an item we could not interpret is replayed,
+				// because the alternative is discarding it on no evidence. Replaying more creates cannot
+				// lose a record, and the attempt budget bounds the loop whatever its size.
 				var retryable = new List<ProjectionErrorRecord>();
 				foreach (var item in response.Items)
 				{
-					if (ProjectionErrorPersistenceRetry.IsTransientStatus(item.Status))
+					switch (ProjectionErrorPersistenceRetry.ClassifyBulkItem(item.Status, item.Error is not null))
 					{
-						retryable.Add(expected[item.Id!]);
-					}
-					else if (item.Status is < 200 or >= 300 || item.Error is not null)
-					{
-						// Includes conflict: an ambiguous earlier create is not proof of an identical stored payload.
-						permanentFailures++;
+						case ProjectionErrorPersistenceRetry.BulkItemOutcome.Stored:
+							break;
+						case ProjectionErrorPersistenceRetry.BulkItemOutcome.Rejected:
+							permanentFailures++;
+							break;
+						default:
+							retryable.Add(expected[item.Id!]);
+							break;
 					}
 				}
 				pending = retryable;

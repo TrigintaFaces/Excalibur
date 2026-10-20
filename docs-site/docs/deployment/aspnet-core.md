@@ -38,6 +38,10 @@ builder.Services.AddExcalibur(excalibur =>
     excalibur.AddOutbox(outbox =>
     {
         outbox.UseSqlServer(opts => opts.ConnectionString(connectionString));
+        // The processor has no dead-letter default, so that no deployment can silently discard a
+        // message whose delivery was exhausted. Register NullDeadLetterQueue.Instance as
+        // IDeadLetterQueue instead to choose discard deliberately.
+        outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
         outbox.EnableBackgroundProcessing();
     });
 });

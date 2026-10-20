@@ -1065,9 +1065,9 @@
       "warningId": "IL3050"
     },
     {
-      "line": 314,
+      "line": 315,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of them is already referenced by the registration that put it in the collection, so trimming keeps it and its constructors: this method reads types the composition root named, never types it discovered.",
+      "justification": "Typed handler descriptors carry annotated constructor/property metadata and bypass this compatibility branch. Ordinary descriptors remain supported for managed applications and generated compositions that preserve their own metadata. Ordinary DI registration alone does not preserve context properties under trimming; Native AOT consumers must use typed/source-generated registration or explicitly annotated registry registration.",
       "warningId": "IL2072"
     },
     {
@@ -5711,6 +5711,60 @@
       "warningId": "IL3050",
       "reviewedBy": "Liskov existence review, 2026-10-13",
       "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 174,
+      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
+      "justification": "The null-resolver JIT fallback is enabled only when both dynamic code and JSON reflection are available.",
+      "warningId": "IL2026",
+      "verdict": "PROVABLY-SAFE",
+      "classifiedBy": "inspection",
+      "note": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the AOT-safe alternatives (AddAotJsonSerialization, or supplying TypeInfoResolver)."
+    },
+    {
+      "line": 175,
+      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
+      "justification": "NativeAOT takes the configured metadata branch and cannot enter this fallback.",
+      "warningId": "IL3050",
+      "verdict": "PROVABLY-SAFE",
+      "classifiedBy": "inspection",
+      "note": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the AOT-safe alternatives (AddAotJsonSerialization, or supplying TypeInfoResolver)."
+    },
+    {
+      "line": 66,
+      "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs",
+      "justification": "Only the configuration-bound branch binds reflectively, and the entry point that supplies the section -- AddElasticSearchProjections(IConfiguration, ...) -- carries the annotation, so a consumer has already been warned at the door they used. Annotating this method instead would warn the node-uri and action paths, which bind nothing.",
+      "warningId": "IL2026",
+      "verdict": "PROVABLY-SAFE",
+      "classifiedBy": "inspection",
+      "note": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:74); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:54), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:288) -- inside the public entry point at src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:281, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:279-280). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing."
+    },
+    {
+      "line": 68,
+      "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs",
+      "justification": "See the IL2026 justification above.",
+      "warningId": "IL3050",
+      "verdict": "PROVABLY-SAFE",
+      "classifiedBy": "inspection",
+      "note": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:74); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:54), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:288) -- inside the public entry point at src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:281, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:279-280). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing."
+    },
+    {
+      "line": 46,
+      "file": "src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs",
+      "justification": "Only the configuration-bound branch reaches the reflective binder, and the annotated public entry point that selects that branch already warns the consumer. The node-uri and shared-action branches bind nothing.",
+      "warningId": "IL2026",
+      "verdict": "PROVABLY-SAFE",
+      "classifiedBy": "inspection",
+      "note": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:54); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:34), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259) -- inside the public entry point at src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:250, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:248-249). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing."
+    },
+    {
+      "line": 48,
+      "file": "src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs",
+      "justification": "Only the configuration-bound branch reaches the reflective binder, and the annotated public entry point that selects that branch already warns the consumer. The node-uri and shared-action branches bind nothing.",
+      "warningId": "IL3050",
+      "verdict": "PROVABLY-SAFE",
+      "classifiedBy": "inspection",
+      "note": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:54); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:34), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259) -- inside the public entry point at src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:250, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:248-249). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing."
     }
   ],
   "description": "AOT suppression baseline for Excalibur.Dispatch. Existing suppressions are grandfathered. New suppressions require justification and approval."

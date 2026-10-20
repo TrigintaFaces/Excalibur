@@ -26,6 +26,31 @@
 -- The clustered key is deliberately NOT unique: one external identity may map to more than one
 -- aggregate type, which is the whole point of carrying AggregateType in the primary key.
 
+-- ddl-migration: provisioning-only IdentityMap - the key width fix cannot be applied in place.
+-- Converting a CLUSTERED primary key to NONCLUSTERED means dropping it, and dropping it removes the
+-- only uniqueness guarantee the table has while rows are still being written through it. No upgrade
+-- script ships for that reason; a database provisioned before the fix is dropped and recreated. What
+-- this script will NOT do is report success on one -- see the shape check below.
+
+-- SHAPE CHECK
+-- -----------
+-- Every statement below is guarded on the object being absent, so on an existing database this script
+-- would otherwise succeed silently and leave the old, broken key in place. That is the worst outcome:
+-- the operator is told the schema is correct, and the first oversized mapping fails at run time with
+-- Msg 1946 instead. So an existing table whose primary key is CLUSTERED fails here, loudly.
+IF OBJECT_ID(N'dbo.IdentityMap', N'U') IS NOT NULL
+   AND EXISTS (SELECT 1
+               FROM sys.indexes
+               WHERE object_id = OBJECT_ID(N'dbo.IdentityMap')
+                 AND name = N'PK_IdentityMap'
+                 AND type_desc = N'CLUSTERED')
+BEGIN
+    RAISERROR(
+        N'[dbo].[IdentityMap] already exists with PK_IdentityMap declared CLUSTERED. Required: PK_IdentityMap NONCLUSTERED over (ExternalSystem, ExternalId, AggregateType), with a CLUSTERED index CIX_IdentityMap_External over (ExternalSystem, ExternalId). A CLUSTERED key over the full triple is 1280 bytes, past SQL Server''s 900-byte clustered limit, so the table refuses any mapping whose three identifiers together exceed ~450 characters with Msg 1946. No upgrade script ships for this: changing the key means dropping the only uniqueness guarantee on the table. Drop [dbo].[IdentityMap] and re-run this script. Mappings are a cache of external identity, rebuildable from the source system; if yours are not, copy the rows out first and insert them back after.',
+        16, 1);
+END
+GO
+
 IF OBJECT_ID(N'dbo.IdentityMap', N'U') IS NULL
 BEGIN
     CREATE TABLE [dbo].[IdentityMap] (

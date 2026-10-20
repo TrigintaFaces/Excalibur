@@ -181,6 +181,15 @@ builder.Services.AddSqlServerOutboxStore(options =>
     options.ConnectionString = builder.Configuration.GetConnectionString("Default");
 });
 
+// The outbox processor requires an explicit dead-letter decision -- there is no default, so that
+// no deployment can silently discard a message it failed to deliver. A durable queue keeps
+// exhausted messages for inspection and replay. To discard them deliberately instead, register
+// NullDeadLetterQueue.Instance as IDeadLetterQueue.
+builder.Services.AddSqlServerDeadLetterQueue(options =>
+{
+    options.ConnectionString = builder.Configuration.GetConnectionString("Default");
+});
+
 // Add background service
 builder.Services.AddOutboxHostedService();
 

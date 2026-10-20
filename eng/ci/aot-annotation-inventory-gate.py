@@ -92,7 +92,7 @@ def main():
     parser.add_argument('--configuration', default='Release')
     parser.add_argument('--write-candidate')
     parser.add_argument('--self-test', action='store_true')
-    parser.add_argument('--self-test-script', default='eng/ci/aot-annotation-inventory-selftest.py')
+    parser.add_argument('--self-test-script', default='eng/ci/aot-annotation-inventory-gate.test.py')
     parser.add_argument('--check-docs', action='store_true')
     parser.add_argument('--docs-helper', default='eng/ci/aot-inventory-docs.py')
     parser.add_argument('--docs', default='docs-site/docs/advanced/aot-compatibility.md')

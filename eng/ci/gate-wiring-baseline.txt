@@ -187,3 +187,26 @@ collect-cache-evidence.py
 # operator pays. Neither is a file move, so neither is being decided here.
 invoke-required-tests.ps1
 discover-required-tests.ps1
+
+# --- the two sample-verification scripts ------------------------------------------------------
+#
+# These arrived in 38e4b4b774, whose own commit body says it carried "roughly 900 files of other
+# agents' in-flight work that was sitting uncommitted in the shared tree" and "was not reviewed
+# file by file". So gate-wiring is right that nothing invokes them, and it is also right that this
+# is the first time anyone has looked: they were landed as a tree snapshot, not as finished work.
+#
+# They are NOT report generators -- both throw on a bad verdict, so an absent caller really is an
+# unenforced check, which is the stronger version of this debt rather than the weaker one.
+#
+# Why they are baselined instead of wired. Each needs inputs that only a build produces -- a built
+# sample assembly and a results directory for the first, a sample AOT publish run for the second --
+# so their caller has to be a workflow job, and adding one spends per-run Actions budget the
+# operator is deliberately not spending. Baselining records the gap where the gate will keep
+# reporting it; it does not close it.
+#
+# Why they are not deleted. Deleting is the other legitimate answer here and was considered. It is
+# declined because these are two days old, unreviewed, and plainly mid-delivery: their author's
+# intent is not recoverable from the tree, and a deletion pass over somebody's in-flight work is
+# not a wiring decision. Whoever owns the sample-certification path decides wire-or-delete.
+Verify-CosmosEventStoreSampleModes.ps1
+Verify-SampleAotDiagnosticPolicy.ps1

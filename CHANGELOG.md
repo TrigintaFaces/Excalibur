@@ -41,6 +41,33 @@ stamping one, and a blank envelope tenant is refused — so crypto-shredded data
 That is a loud refusal, not data loss: the ciphertext and the key are untouched. See
 [Decryption requires the caller's tenant](https://docs.excalibur-dispatch.dev/docs/migration/decryption-requires-the-callers-tenant).
 
+### Changed (breaking) — the inbox/outbox dead-letter decision is now explicit, with no default
+
+The default inbox and outbox processors require an explicitly registered `IDeadLetterQueue`. Resolving
+either one without a queue throws `InvalidOperationException` instead of constructing a processor that
+drops exhausted messages. There is deliberately no default: a message marked delivered that was never
+delivered is indistinguishable from a success from outside the host, so the decision is one a deployment
+has to state rather than inherit.
+
+Register a durable queue so exhausted messages are kept for inspection and replay:
+
+```csharp
+services.AddSqlServerDeadLetterQueue(options => options.ConnectionString = connectionString);
+
+// or, on the outbox builder:
+//   outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
+```
+
+Apply the provider's packaged dead-letter schema before use. To discard terminal failures deliberately,
+register that choice rather than inheriting it:
+
+```csharp
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+```
+
+Both types are in `Excalibur.Dispatch.ErrorHandling`. Store-only staging and a consumer-supplied
+`IOutboxProcessor` are unaffected — the requirement belongs to the default processors, not to the stores.
+
 ### Changed (breaking) — a refused dead-letter mark is reported, and the store owns schedule due-ness
 
 `IDeadLetterableOutboxStore.MarkDeadLetteredAsync` returned a bare `ValueTask`, so the Redis, MongoDB and
@@ -53,6 +80,34 @@ returns the verdict it was already computing and discarding.
 
 Schedule due-ness moved to the store rather than the caller's clock, so two hosts with skewed clocks no
 longer disagree about whether a scheduled message is ready.
+
+### Changed (breaking) — two SQL Server provisioning scripts refuse an existing table of the wrong shape
+
+`Excalibur.Data.IdentityMap.SqlServer` and `Excalibur.Cdc.SqlServer` each corrected the shape of a table
+they provision, and **neither correction can be applied to an existing table.** The scripts are guarded on
+the object being absent, so until now re-running one against a database provisioned by an earlier
+prerelease succeeded, changed nothing, and reported a healthy schema while leaving the old shape in place.
+Each script now probes the existing object and fails with the shape it found, the shape it requires, and
+the remedy — **drop the object and re-run the script.** There is no `ALTER TABLE` upgrade path for either,
+and that is deliberate rather than pending:
+
+- **`[dbo].[IdentityMap]`** — `PK_IdentityMap` is `NONCLUSTERED` with a separate clustered index over
+  `(ExternalSystem, ExternalId)`. A clustered key over the full triple is 1280 bytes, past SQL Server's
+  900-byte clustered limit, so a table created by an earlier prerelease accepts the `CREATE` and then
+  refuses any mapping whose three identifiers exceed roughly 450 characters, with Msg 1946. Changing the
+  key in place means dropping the only uniqueness guarantee the table has. Mappings are a cache of
+  external identity and are rebuildable from the source system; copy the rows out first if yours are not.
+- **`[Cdc].[CdcProcessedEvents]`** — the dedupe key gained `DatabaseName`, because the checkpoint store
+  matches on it. Without that column the dedupe namespace is *coarser* than the position it guards, and a
+  coarser namespace suppresses rather than duplicates: two configured sources sharing a connection
+  identifier keep separate checkpoints while sharing one dedupe key, so the first to reach a position
+  marks it done for the other and a change is skipped that was never processed. Existing rows carry no
+  value for the new axis and inventing one causes exactly that suppression, so the table is dropped rather
+  than migrated. The cost is a bounded replay of already-processed changes, which the package already
+  requires handlers to tolerate.
+
+A database provisioned by the current scripts is unaffected: the probes are a no-op and the scripts stay
+safe to re-run.
 
 ### Fixed — a data-processing enqueue reported success without checking a row landed
 

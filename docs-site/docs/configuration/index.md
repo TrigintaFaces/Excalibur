@@ -96,6 +96,9 @@ services.AddExcalibur(excalibur =>
     excalibur.AddOutbox(outbox =>
     {
         outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+              // The processor has no dead-letter default -- register a durable queue, or
+              // NullDeadLetterQueue.Instance as IDeadLetterQueue to choose discard.
+              .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
               .EnableBackgroundProcessing()
               .WithProcessing(p => p.BatchSize(100));
     });

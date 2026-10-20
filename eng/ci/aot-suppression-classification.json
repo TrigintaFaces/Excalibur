@@ -869,7 +869,7 @@
     {
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
       "warningId": "IL2072",
-      "justification": "The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of them is already referenced by the registration that put it in the collection, so trimming keeps it and its constructors: this method reads types the composition root named, never types it discovered.",
+      "justification": "Typed handler descriptors carry annotated constructor/property metadata and bypass this compatibility branch. Ordinary descriptors remain supported for managed applications and generated compositions that preserve their own metadata. Ordinary DI registration alone does not preserve context properties under trimming; Native AOT consumers must use typed/source-generated registration or explicitly annotated registry registration.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
       "mechanism": "A whole-tree strip and rebuild refutes the prior DEAD-REDUNDANT verdict: with every suppression of this code in this file neutralised -- counting all three spellings -- and the solution rebuilt, this code FIRES in this file. The prior verdict rested on a silence produced by an instrument that could not rewrite this suppression's spelling, so the code was never unsuppressed and 'nothing fired' meant 'the site was never reached'. Baseline control, same worktree and same flags with nothing neutralised: zero diagnostics of any IL code, over the same projects producing output assemblies -- so the firing is caused by the neutralisation and is not pre-existing. Load-bearing, not dead. Whether it is PROVABLY-SAFE or SHOULD-PROPAGATE is a judgement a build cannot make.",
       "demonstratedBy": "A whole-tree strip and rebuild refutes the prior DEAD-REDUNDANT verdict: with every suppression of this code in this file neutralised -- counting all three spellings -- and the solution rebuilt, this code FIRES in this file. The prior verdict rested on a silence produced by an instrument that could not rewrite this suppression's spelling, so the code was never unsuppressed and 'nothing fired' meant 'the site was never reached'. Baseline control, same worktree and same flags with nothing neutralised: zero diagnostics of any IL code, over the same projects producing output assemblies -- so the firing is caused by the neutralisation and is not pre-existing. Load-bearing, not dead. Whether it is PROVABLY-SAFE or SHOULD-PROPAGATE is a judgement a build cannot make.",
@@ -5175,88 +5175,136 @@
       "warningId": "IL3050",
       "justification": "Reflection-based configuration runs only when RuntimeFeature.IsDynamicCodeSupported; the Native AOT branch initializes the resolver from JsonSerializerContext.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs",
       "warningId": "IL2026",
       "justification": "Reflection metadata is reachable only when dynamic code and JSON reflection are enabled; Native AOT uses consumer metadata or the empty resolver.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamDocumentReader.cs",
       "warningId": "IL2026",
       "justification": "Reflection metadata is reachable only when dynamic code and JSON reflection are enabled; Native AOT uses consumer metadata or the empty resolver.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventStore.cs",
       "warningId": "IL2026",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventStore.cs",
       "warningId": "IL3050",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "warningId": "IL2026",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "warningId": "IL2026",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; metadata serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "warningId": "IL3050",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
       "warningId": "IL3050",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; metadata serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
       "warningId": "IL2026",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
     },
     {
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
       "warningId": "IL3050",
       "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
       "verdict": "UNCLASSIFIED-NEEDS-OWNER",
-      "owner": "PlatformDeveloper (Excalibur_Dispatch-33cav7)",
-      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: 7ul69s-dynamo-final-20261013, 7ul69s-metadata-guards-20261013, 7ul69s-sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+      "owner": "PlatformDeveloper",
+      "mechanism": "Guard accurately describes the bounded source path, independently reviewed by Liskov. Supported reflection paths and consumer-supplied resolvers remain; no universal no-reflection verdict is earned. Local controls: dynamo-final-20261013, metadata-guards-20261013, sdk-native-final-20261013. Cloud and whole-package AOT behavior remain unverified."
+    },
+    {
+      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
+      "warningId": "IL2026",
+      "justification": "The null-resolver JIT fallback is enabled only when both dynamic code and JSON reflection are available.",
+      "verdict": "PROVABLY-SAFE",
+      "mechanism": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the AOT-safe alternatives (AddAotJsonSerialization, or supplying TypeInfoResolver).",
+      "demonstratedBy": "structural, re-runnable: `grep -n 'IsDynamicCodeSupported\\|MakeReadOnly(populateMissingResolver' src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs` shows the guard at :168 dominating the suppressed statement at :176, inside the same `if (_options.TypeInfoResolver is null)` block. Not evidenced by strip-and-rebuild: that was not run."
+    },
+    {
+      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
+      "warningId": "IL3050",
+      "justification": "NativeAOT takes the configured metadata branch and cannot enter this fallback.",
+      "verdict": "PROVABLY-SAFE",
+      "mechanism": "Bounded by a throwing runtime guard. The suppressed statement is `_options.MakeReadOnly(populateMissingResolver: true)` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:176, reachable only past `if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault) throw` at src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs:168. The native compiler substitutes RuntimeFeature.IsDynamicCodeSupported to false and removes the branch, so the populate-missing-resolver fallback cannot be entered in a natively compiled application. When reflection is unavailable the guard does not degrade silently: it throws, and the message names the AOT-safe alternatives (AddAotJsonSerialization, or supplying TypeInfoResolver).",
+      "demonstratedBy": "structural, re-runnable: `grep -n 'IsDynamicCodeSupported\\|MakeReadOnly(populateMissingResolver' src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs` shows the guard at :168 dominating the suppressed statement at :176, inside the same `if (_options.TypeInfoResolver is null)` block. Not evidenced by strip-and-rebuild: that was not run."
+    },
+    {
+      "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs",
+      "warningId": "IL2026",
+      "justification": "Only the configuration-bound branch binds reflectively, and the entry point that supplies the section -- AddElasticSearchProjections(IConfiguration, ...) -- carries the annotation, so a consumer has already been warned at the door they used. Annotating this method instead would warn the node-uri and action paths, which bind nothing.",
+      "verdict": "PROVABLY-SAFE",
+      "mechanism": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:74); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:54), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:288) -- inside the public entry point at src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:281, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:279-280). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing.",
+      "demonstratedBy": "structural, re-runnable: `grep -n 'new ElasticSearchProjectionRegistrar' src/ tests/ samples/ --include=*.cs` returns exactly three construction sites, of which one passes a section (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:288); `grep -n 'RequiresUnreferencedCode\\|RequiresDynamicCode' src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs` shows the type-matched attributes co-declared on that entry point. Not evidenced by strip-and-rebuild: that was not run."
+    },
+    {
+      "file": "src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs",
+      "warningId": "IL3050",
+      "justification": "See the IL2026 justification above.",
+      "verdict": "PROVABLY-SAFE",
+      "mechanism": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:74); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionRegistrar.cs:54), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:288) -- inside the public entry point at src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:281, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:279-280). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing.",
+      "demonstratedBy": "structural, re-runnable: `grep -n 'new ElasticSearchProjectionRegistrar' src/ tests/ samples/ --include=*.cs` returns exactly three construction sites, of which one passes a section (src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs:288); `grep -n 'RequiresUnreferencedCode\\|RequiresDynamicCode' src/Excalibur/Excalibur.Data.ElasticSearch/Projections/ElasticSearchProjectionStoreExtensions.cs` shows the type-matched attributes co-declared on that entry point. Not evidenced by strip-and-rebuild: that was not run."
+    },
+    {
+      "file": "src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs",
+      "warningId": "IL2026",
+      "justification": "Only the configuration-bound branch reaches the reflective binder, and the annotated public entry point that selects that branch already warns the consumer. The node-uri and shared-action branches bind nothing.",
+      "verdict": "PROVABLY-SAFE",
+      "mechanism": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:54); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:34), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259) -- inside the public entry point at src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:250, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:248-249). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing.",
+      "demonstratedBy": "structural, re-runnable: `grep -n 'new OpenSearchProjectionRegistrar' src/ tests/ samples/ --include=*.cs` returns exactly three construction sites, of which one passes a section (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259); `grep -n 'RequiresUnreferencedCode\\|RequiresDynamicCode' src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs` shows the type-matched attributes co-declared on that entry point. Not evidenced by strip-and-rebuild: that was not run."
+    },
+    {
+      "file": "src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs",
+      "warningId": "IL3050",
+      "justification": "Only the configuration-bound branch reaches the reflective binder, and the annotated public entry point that selects that branch already warns the consumer. The node-uri and shared-action branches bind nothing.",
+      "verdict": "PROVABLY-SAFE",
+      "mechanism": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:54); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:34), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259) -- inside the public entry point at src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:250, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:248-249). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing.",
+      "demonstratedBy": "structural, re-runnable: `grep -n 'new OpenSearchProjectionRegistrar' src/ tests/ samples/ --include=*.cs` returns exactly three construction sites, of which one passes a section (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259); `grep -n 'RequiresUnreferencedCode\\|RequiresDynamicCode' src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs` shows the type-matched attributes co-declared on that entry point. Not evidenced by strip-and-rebuild: that was not run."
     }
   ]
 }

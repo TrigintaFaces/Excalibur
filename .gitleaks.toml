@@ -68,4 +68,11 @@ regexes = [
 
     # PowerShell script name "collect-evidence.ps1" misidentified as API key
     '''collect-evidence\.ps1''',
+
+    # Canonical crypto-shredding test generation marker. KeyGeneration is a validated
+    # 32-char lowercase hex value (KeyGeneration.Mint/Parse), so a fixture cannot use a
+    # non-entropy placeholder without ceasing to be representative. One shared constant
+    # keeps this to a single allowlist row; reuse it in new crypto-shredding fixtures
+    # rather than minting a fresh hex value per test.
+    '''f3a1c0de5b7948e2a6d4019fcb82e57d''',
 ]

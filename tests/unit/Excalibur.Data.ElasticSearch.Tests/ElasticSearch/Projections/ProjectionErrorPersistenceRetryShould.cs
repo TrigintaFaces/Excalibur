@@ -28,30 +28,25 @@ namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 [Trait("Pattern", "Resilience")]
 public sealed class ProjectionErrorPersistenceRetryShould
 {
-	[Theory]
-	[InlineData(SocketError.ConnectionReset)]
-	[InlineData(SocketError.ConnectionAborted)]
-	[InlineData(SocketError.ConnectionRefused)]
-	[InlineData(SocketError.NetworkUnreachable)]
-	[InlineData(SocketError.TimedOut)]
-	public void RetryOnlyKnownSocketFaultsInsideHttpTransportChain(SocketError error)
-	{
-		var reset = new HttpRequestException("network failure", new IOException("socket transport failure", new SocketException((int)error)));
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(null, reset).ShouldBeTrue();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(400, reset).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(401, reset).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(409, reset).ShouldBeFalse();
-	}
-
-	[Fact]
-	public void RefuseUnknownHttpAndNonTransportIoFaults()
-	{
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(null, new HttpRequestException("unknown cause")).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(null, new IOException("file error")).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(null, new HttpRequestException("file error", new IOException("file error"))).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(null, new IOException("unrecognized chain", new SocketException((int)SocketError.ConnectionReset))).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(null, new HttpRequestException("unsupported socket fault", new IOException("socket failure", new SocketException((int)SocketError.AccessDenied)))).ShouldBeFalse();
-	}
+	// The five tests that stood here exercised an allowlist of transient exception types which has been
+	// deleted. It defaulted to "permanent" on anything it did not enumerate, and for an idempotent create
+	// that default discarded the record; four separate data-loss defects came out of it. Each property it
+	// asserted is accounted for rather than dropped:
+	//
+	//   "a known status outranks a secondary transport exception" -- now INEXPRESSIBLE. The replacement
+	//     predicate takes no exception parameter at all, so nothing can violate it and no test can defend
+	//     it. (PreferKnownHttpStatusToSecondaryTransportFailure, PreferKnownStatusOnSdkTransportExceptionChannel)
+	//   "a conclusive 4xx is terminal" -- kept, and widened, by ReplayACreateOnlyUntilElasticsearchSettlesIt
+	//     and SettleA408NeitherWay, which also pin the 408 case the old rule got wrong.
+	//     (RefuseUnknownHttpAndNonTransportIoFaults)
+	//   "only enumerated socket faults retry" -- DELIBERATELY REVERSED. Enumerating which faults deserve a
+	//     replay is the defect; a create with no interpretable answer is replayed whatever the fault was.
+	//     ReplayAThrownFailureWithinTheBudgetThenPropagateIt pins the new rule and the budget that bounds
+	//     it. (RetryOnlyKnownSocketFaultsInsideHttpTransportChain,
+	//     DistinguishKnownNetworkFaultsFromUnknownAndCancellationFailures)
+	//
+	// Caller cancellation is no longer classified from the thrown object either: it is decided by the
+	// caller's own token, which PropagateCancellationDuringFirstWriteWithoutRetrying covers.
 
 	[Fact]
 	public async Task KeepConcurrentHandlerCallsAndRequestBudgetsIndependent()
@@ -74,40 +69,6 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		endpoint.Writes.GroupBy(static request => request.Path).Select(static group => group.Count()).ShouldAllBe(static count => count == 2);
 	}
 
-	[Theory]
-	[InlineData(400, false)]
-	[InlineData(401, false)]
-	[InlineData(403, false)]
-	[InlineData(404, false)]
-	[InlineData(409, false)]
-	[InlineData(503, true)]
-	[InlineData(null, true)]
-	public void PreferKnownHttpStatusToSecondaryTransportFailure(int? status, bool retry)
-	{
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(status, new TimeoutException()).ShouldBe(retry);
-		ProjectionErrorPersistenceRetry.IsRetryableFailure(status, new HttpIOException(HttpRequestError.ResponseEnded)).ShouldBe(retry);
-	}
-
-	[Theory]
-	[InlineData(400, false)]
-	[InlineData(401, false)]
-	[InlineData(409, false)]
-	[InlineData(503, true)]
-	public async Task PreferKnownStatusOnSdkTransportExceptionChannel(int status, bool retry)
-	{
-		var network = new HttpIOException(HttpRequestError.ResponseEnded);
-		var client = new ElasticsearchClient(new ElasticsearchClientSettings(new SingleNodePool(new Uri("http://localhost:9200")),
-			new InMemoryRequestInvoker(Encoding.UTF8.GetBytes("{}"), status, network, "application/json",
-				new Dictionary<string, IEnumerable<string>> { ["X-Elastic-Product"] = ["Elasticsearch"] })));
-		var response = await client.CreateAsync(new CreateRequest<object>(new { Id = "record" }, "errors", "record")
-		{
-			RequestConfiguration = new RequestConfiguration { MaxRetries = 0 },
-		}, CancellationToken.None);
-		response.ApiCallDetails.HttpStatusCode.ShouldBe(status);
-		response.ApiCallDetails.OriginalException.ShouldBeSameAs(network);
-		var exception = new TransportException(PipelineFailure.BadResponse, "simulated SDK failure", response);
-		ProjectionErrorPersistenceRetry.IsTransientFailure(exception).ShouldBe(retry);
-	}
 	[Fact]
 	public async Task KeepOverlappingExecutionEligibilityAndCountersIndependent()
 	{
@@ -141,17 +102,23 @@ public sealed class ProjectionErrorPersistenceRetryShould
 	}
 
 	[Fact]
-	public async Task PropagateTerminalExceptionAfterRetryEligibleResult()
+	public async Task ReplayAThrownFailureWithinTheBudgetThenPropagateIt()
 	{
+		// Renamed from PropagateTerminalExceptionAfterRetryEligibleResult, because there is no longer a
+		// "terminal exception" category here and the old name asserted the defect. A thrown exception
+		// means no response was interpreted, so the outcome is UNKNOWN and is replayed -- never judged by
+		// the type of the thrown object, which is the allowlist mistake that discarded records. What makes
+		// it terminate is the BUDGET, and what this pins is that the budget is finite and the exception
+		// still reaches the caller rather than being swallowed by the retries.
 		using var logs = new CapturingLoggerProvider();
 		var pipeline = ProjectionErrorPersistenceRetry.Create(new ProjectionRetryOptions { BaseDelay = TimeSpan.Zero }, 3, logs.CreateLogger("control"), "control");
 		var attempts = 0;
 		await Should.ThrowAsync<InvalidOperationException>(() => pipeline.ExecuteAsync(_ =>
 		{
 			if (++attempts == 1) { return ValueTask.FromResult(true); }
-			throw new InvalidOperationException("terminal failure after transient result");
+			throw new InvalidOperationException("failure after a retry-eligible result");
 		}, CancellationToken.None).AsTask());
-		attempts.ShouldBe(2);
+		attempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -183,10 +150,99 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		endpoint.Writes.Count.ShouldBe(1);
 	}
 
+	[Theory]
+	// Elasticsearch's own create outcomes settle the write; everything else leaves it unknown. The
+	// SETTLED rows are the liveness half: a stored record must not be replayed, or a success loops.
+	[InlineData(201, false)]  // created
+	[InlineData(409, false)]  // the id already exists, so an earlier attempt stored it
+	[InlineData(400, false)]  // malformed document: replaying cannot help
+	[InlineData(401, false)]
+	[InlineData(403, false)]
+	[InlineData(404, false)]
+	[InlineData(413, false)]  // any conclusive client error, not just the ones we thought to name
+	// The UNSETTLED rows are the safety half: no interpretable create outcome reached us.
+	[InlineData(200, true)]   // Elasticsearch never answers a create with 200, so this is not its answer
+	[InlineData(429, true)]   // a request to come back, not a verdict
+	[InlineData(500, true)]
+	[InlineData(502, true)]
+	[InlineData(503, true)]
+	[InlineData(504, true)]
+	[InlineData(null, true)]  // no status at all
+	public void ReplayACreateOnlyUntilElasticsearchSettlesIt(int? status, bool unsettled) =>
+		ProjectionErrorPersistenceRetry.IsUnsettledCreateOutcome(status).ShouldBe(unsettled);
+
+	[Theory]
+	// The bulk ENVELOPE has its own settled set, and 200 is the reason it cannot share the create's.
+	// 200 is the CORRECT status for a healthy bulk response; it is unsettled here only because this
+	// predicate is reached solely when the response carried no interpretable item list.
+	[InlineData(400, false)]
+	[InlineData(422, false)]
+	[InlineData(200, true)]   // a healthy bulk status, but no item list arrived with it
+	[InlineData(201, true)]   // not a bulk envelope answer at all
+	[InlineData(408, true)]
+	[InlineData(429, true)]
+	[InlineData(503, true)]
+	[InlineData(null, true)]
+	public void ReplayABulkEnvelopeItCouldNotInterpret(int? status, bool unsettled) =>
+		ProjectionErrorPersistenceRetry.IsUnsettledBulkEnvelope(status).ShouldBe(unsettled);
+
+	[Theory]
+	// A bulk ITEM is settled only by a stored outcome or a verdict. The three Unknown rows below were
+	// each counted a PERMANENT failure by the rule this replaced, so each one is a record that was
+	// discarded on no evidence -- and a per-item 5xx is the commonest real bulk partial failure.
+	[InlineData(201, false, "Stored")]
+	[InlineData(409, false, "Stored")]
+	[InlineData(400, true, "Rejected")]
+	[InlineData(422, true, "Rejected")]
+	[InlineData(408, false, "Unknown")]
+	[InlineData(500, false, "Unknown")]
+	[InlineData(0, false, "Unknown")]
+	[InlineData(429, false, "Unknown")]
+	[InlineData(503, false, "Unknown")]
+	// Takes the expectation as a name, not the enum: the enum is internal and a public xUnit method
+	// must not widen it. The test project reaches it via InternalsVisibleTo, not via a visibility change.
+	public void ReplayABulkItemItCouldNotInterpret(int status, bool hasError, string expected) =>
+		ProjectionErrorPersistenceRetry.ClassifyBulkItem(status, hasError).ToString().ShouldBe(expected);
+
 	[Fact]
-	public async Task RecoverDroppedAcknowledgementWithinSameCreateBudget()
+	public void CountAConflictAsStoredBecauseOnlyThisExecutionMintsTheId()
 	{
-		using var endpoint = new RecordingEndpoint((attempt, _) => attempt == 1 ? (-1, "") : (409, "{}"));
+		// The record id is Guid.NewGuid() minted by this handler, so nothing else can have created it:
+		// a conflict is proof that an EARLIER ATTEMPT OF THIS EXECUTION stored the document. Counting it
+		// a failure under-reported durable records, and would under-report them far more now that an
+		// uninterpretable response is replayed rather than discarded, which makes replay the normal path.
+		ProjectionErrorPersistenceRetry.ClassifyBulkItem(409, false)
+			.ShouldBe(ProjectionErrorPersistenceRetry.BulkItemOutcome.Stored);
+
+		// A stored status carrying an error is not interpretable as stored, so it is replayed. An error
+		// alongside a verdict is merely that verdict's reason and does not change it.
+		ProjectionErrorPersistenceRetry.ClassifyBulkItem(409, true)
+			.ShouldBe(ProjectionErrorPersistenceRetry.BulkItemOutcome.Unknown);
+		ProjectionErrorPersistenceRetry.ClassifyBulkItem(201, true)
+			.ShouldBe(ProjectionErrorPersistenceRetry.BulkItemOutcome.Unknown);
+	}
+
+	[Fact]
+	public void SettleA408NeitherWay()
+	{
+		// 408 means the server gave up partway through READING the request, so the document may already
+		// be stored. Expressing the conclusive client errors as a 4xx range swept 408 in and discarded
+		// the record; it is enumerated now precisely so this case falls through to "unknown".
+		ProjectionErrorPersistenceRetry.IsUnsettledCreateOutcome(408).ShouldBeTrue();
+		ProjectionErrorPersistenceRetry.IsUnsettledBulkEnvelope(408).ShouldBeTrue();
+		ProjectionErrorPersistenceRetry.IsSettledCreateStatus(408).ShouldBeFalse();
+	}
+
+	[Theory]
+	// A severed acknowledgement has two shapes and the platform decides which one we see: a reset before
+	// any status (Windows) and a status whose body never arrives (Linux, macOS). Both leave the create's
+	// outcome unknown, so both must be replayed. Covering only the first made this test pass on Windows
+	// and fail on every other platform.
+	[InlineData(-1)]
+	[InlineData(200)]
+	public async Task RecoverDroppedAcknowledgementWithinSameCreateBudget(int severance)
+	{
+		using var endpoint = new RecordingEndpoint((attempt, _) => attempt == 1 ? (severance, "") : (409, "{}"));
 		using var provider = Build(endpoint, true, 3);
 		await provider.GetRequiredService<IProjectionErrorHandler>().HandleProjectionErrorAsync(Context(), CancellationToken.None);
 		var writes = endpoint.Writes.ToArray();
@@ -194,17 +250,6 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		writes[0].Path.ShouldBe(writes[1].Path);
 		writes[0].Path.ShouldContain("/_create/");
 		endpoint.Logs.Entries.Count(static entry => entry.Message.StartsWith("Retrying projection error persistence", StringComparison.Ordinal)).ShouldBe(1);
-	}
-
-	[Fact]
-	public void DistinguishKnownNetworkFaultsFromUnknownAndCancellationFailures()
-	{
-		ProjectionErrorPersistenceRetry.IsTransientFailure(new HttpRequestException(HttpRequestError.ConnectionError)).ShouldBeTrue();
-		ProjectionErrorPersistenceRetry.IsTransientFailure(new HttpIOException(HttpRequestError.ResponseEnded)).ShouldBeTrue();
-		ProjectionErrorPersistenceRetry.IsTransientFailure(new TaskCanceledException("timeout", new TimeoutException())).ShouldBeTrue();
-		ProjectionErrorPersistenceRetry.IsTransientFailure(new HttpRequestException(HttpRequestError.SecureConnectionError)).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsTransientFailure(new InvalidOperationException()).ShouldBeFalse();
-		ProjectionErrorPersistenceRetry.IsTransientFailure(new OperationCanceledException()).ShouldBeFalse();
 	}
 
 	[Fact]
@@ -359,6 +404,13 @@ public sealed class ProjectionErrorPersistenceRetryShould
 	[Theory]
 	[InlineData(200)]
 	[InlineData(503)]
+	// 500 and 507 are the rows that matter, and nothing covered them. A status guard stood on this path
+	// enumerating which envelope codes were transient (429, 502, 503, 504) and treating every other 4xx
+	// and 5xx as a verdict, so an envelope like these -- arriving WITH a perfectly usable item list --
+	// ended the loop and discarded the batch. The per-item outcomes below are where the answer actually
+	// is; the envelope status says nothing once the items parsed. Both rows RED if that guard returns.
+	[InlineData(500)]
+	[InlineData(507)]
 	public async Task RetryOnlyTransientFailedBulkItems(int firstStatus)
 	{
 		using var endpoint = new RecordingEndpoint((attempt, body) =>
@@ -386,11 +438,41 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		endpoint.Logs.Entries.ShouldContain(static entry => entry.Message.Contains("Unable to confirm storage of 1/3", StringComparison.Ordinal));
 	}
 
+	[Fact]
+	public async Task ReplayAnIncompleteBulkResponseBecauseAbsenceIsNotEvidence()
+	{
+		// A response listing FEWER items than we sent, every one of them ours, says nothing about the
+		// records it omitted. That is the same physical event as a severed response -- loss omits, it
+		// cannot invent -- so the omitted records must be replayed rather than counted as failures.
+		// This arm is the sixth and last site where an absence of evidence was read as a verdict.
+		var attempts = 0;
+		using var endpoint = new RecordingEndpoint((attempt, body) =>
+		{
+			attempts = attempt;
+			var ids = body.Split('\u000A', StringSplitOptions.RemoveEmptyEntries).Where((_, index) => index % 2 == 0)
+				.Select(line => JsonDocument.Parse(line).RootElement.EnumerateObject().Single().Value.GetProperty("_id").GetString()).ToArray();
+			// Attempt 1 answers about only the first of the two records it was sent; attempt 2 answers fully.
+			var items = ids.Select(id => new { create = new { _id = id, status = 201 } });
+			return (200, JsonSerializer.Serialize(new { errors = attempt == 1, items = attempt == 1 ? items.Take(1) : items }));
+		});
+		using var provider = Build(endpoint, true, 3);
+		await provider.GetRequiredService<IProjectionErrorHandler>().HandleBulkOperationErrorsAsync(new BulkOperationErrorContext
+		{
+			ProjectionType = "orders", OperationType = "BulkIndex", IndexName = "orders", TotalDocuments = 2, SuccessfulDocuments = 0,
+			Failures = [new BulkOperationFailure { DocumentId = "1", ErrorMessage = "failed" }, new BulkOperationFailure { DocumentId = "2", ErrorMessage = "failed" }],
+		}, CancellationToken.None);
+		attempts.ShouldBe(2, endpoint.DiagnosticSummary);
+		endpoint.Writes.Count.ShouldBe(2, endpoint.DiagnosticSummary);
+	}
+
 	[Theory]
+	// These three are UNATTRIBUTABLE: the response talks about something we did not send, so it is
+	// evidence about the responder rather than about our records, and a bounded retry cannot change who
+	// answered. `duplicate-id` belongs here even though every id in it is ours -- answering the same
+	// question twice is incoherent, not partial, and loss cannot produce it.
 	[InlineData("wrong-operation")]
 	[InlineData("unexpected-id")]
 	[InlineData("duplicate-id")]
-	[InlineData("missing-item")]
 	public async Task RefuseMalformedBulkAuthority(string defect)
 	{
 		using var endpoint = new RecordingEndpoint((_, body) =>

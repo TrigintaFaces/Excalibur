@@ -665,6 +665,10 @@ tenant is still implied by your own operational records.
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+          // The processor has no dead-letter default -- see Dead Letter Handling below. A durable queue
+          // keeps exhausted messages for inspection and replay; registering
+          // NullDeadLetterQueue.Instance instead chooses discard deliberately.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 }));
 ```
@@ -678,6 +682,10 @@ calls neither `EnableBackgroundProcessing()` nor `AddOutboxHostedService()` will
 publish nothing, which is a valid topology if you drain from a separate worker process or by triggering
 `IOutboxProcessor` yourself — and a silent mistake if you did not intend it. The
 `EnableBackgroundProcessing` option reports the builder opt-in.
+
+Both opt-ins also require an explicit dead-letter decision — there is no default, so that no deployment
+can silently discard a message whose delivery was exhausted. Register a durable queue or explicitly
+register `NullDeadLetterQueue.Instance`; see [Dead Letter Handling](#dead-letter-handling).
 
 Both opt-ins use the registered `IOutboxProcessor` unless you supply a custom `IOutboxPublisher`.
 Configure Dispatch and an outbox store before starting the host. See

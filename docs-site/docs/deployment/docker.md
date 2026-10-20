@@ -287,6 +287,10 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
     outbox.UseSqlServer(builder.Configuration.GetConnectionString("Default")!)
           .WithProcessing(p => p.BatchSize(100)
                                 .PollingInterval(TimeSpan.FromSeconds(30)))
+          // The processor has no dead-letter default. Register NullDeadLetterQueue.Instance as
+          // IDeadLetterQueue instead to choose discard deliberately.
+          .WithSqlServerDeadLetterQueue(dlq =>
+              dlq.ConnectionString = builder.Configuration.GetConnectionString("Default")!)
           .EnableBackgroundProcessing();
 }));
 

@@ -69,6 +69,17 @@ gates:
     kind_evidence: "no exit-1 / exit $E_* path found"
     runs_in: ci
     published: true
+    has_test: true
+    has_lock: false
+  # kind DERIVED by reading the file, not stamped from the exit-code proxy: it defines only
+  # functions, has no __main__ and no sys.exit, and is loaded by
+  # aot-annotation-inventory-gate.py via spec_from_file_location. It returns dicts to that
+  # caller and cannot render a verdict of its own, which is what reporter means here.
+  - path: "eng/ci/aot-inventory-docs.py"
+    kind: reporter
+    kind_evidence: "module with no __main__ and no exit path; loaded by aot-annotation-inventory-gate.py"
+    runs_in: ci
+    published: true
     has_test: false
     has_lock: false
   - path: "eng/ci/aot-promise-coherence-gate.py"

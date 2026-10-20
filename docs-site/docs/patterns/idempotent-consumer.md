@@ -506,6 +506,15 @@ services.AddSqlServerInboxStore(options =>
     options.ConnectionString = connectionString;
 });
 
+// The inbox/outbox processors require an explicit dead-letter decision -- there is no default, so that no
+// deployment can silently discard a message it failed to deliver. The durable queue keeps exhausted
+// messages for inspection and replay; registering NullDeadLetterQueue.Instance as IDeadLetterQueue
+// instead chooses discard deliberately.
+services.AddSqlServerDeadLetterQueue(options =>
+{
+    options.ConnectionString = connectionString;
+});
+
 // Background processing
 services.AddOutboxHostedService();
 services.AddInboxHostedService();

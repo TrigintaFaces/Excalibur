@@ -41,9 +41,31 @@ With an outbox:
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString)
           .EnableBackgroundProcessing();
 }));
 ```
+
+:::warning The dead-letter decision is required -- there is no default
+Every composition on this page that drains the outbox -- `EnableBackgroundProcessing()` or
+`AddOutboxHostedService()` -- also needs an `IDeadLetterQueue`. The default processor refuses to resolve
+without one, so that no deployment can silently discard a message whose delivery was exhausted. The
+variants below omit it to keep the setting under discussion in view; add one of these to each:
+
+```csharp
+// Durable -- exhausted messages are kept for inspection and replay. SQL Server is the only durable
+// queue the framework ships: on another provider, point this one at a SQL Server connection or
+// supply your own IDeadLetterQueue implementation.
+outbox.WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
+
+// Or discard, chosen deliberately rather than inherited.
+services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+```
+
+`IDeadLetterQueue` and `NullDeadLetterQueue` are in `Excalibur.Dispatch.ErrorHandling`. Apply the
+provider's packaged dead-letter schema before using the durable queue. See
+[Dead Letter Handling](../patterns/outbox.md#dead-letter-handling).
+:::
 
 Alternatively, use the unified builder:
 

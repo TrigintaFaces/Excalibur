@@ -394,7 +394,12 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
-          .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
+          .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
+          // The outbox processor requires an explicit dead-letter decision -- there is no default, so
+          // that no deployment can silently discard a message it failed to deliver. A durable queue
+          // keeps exhausted messages for inspection and replay. To discard them deliberately instead,
+          // register NullDeadLetterQueue.Instance as IDeadLetterQueue.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
 }));
 builder.Services.AddOutboxHostedService();
 
@@ -444,7 +449,12 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(opts => opts.ConnectionString(connectionString))
-          .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)));
+          .WithProcessing(p => p.PollingInterval(TimeSpan.FromSeconds(5)))
+          // The outbox processor requires an explicit dead-letter decision -- there is no default, so
+          // that no deployment can silently discard a message it failed to deliver. A durable queue
+          // keeps exhausted messages for inspection and replay. To discard them deliberately instead,
+          // register NullDeadLetterQueue.Instance as IDeadLetterQueue.
+          .WithSqlServerDeadLetterQueue(dlq => dlq.ConnectionString = connectionString);
 }));
 builder.Services.AddOutboxHostedService();
 ```

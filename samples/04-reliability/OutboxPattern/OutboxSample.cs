@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Configuration;
+using Excalibur.Dispatch.ErrorHandling;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -66,6 +67,18 @@ public static class OutboxSample
         		.EnableBackgroundProcessing(); // Start the background processor hosted service
         }));
         
+        // The background processor requires an EXPLICIT dead-letter decision. There is no default, so
+        // that no deployment can silently discard a message it failed to deliver. Note WHERE this one
+        // surfaces: the drain loop resolves its processor per iteration, so without this line the host
+        // starts cleanly and throws on the FIRST DRAIN rather than at startup.
+        //
+        // This sample discards, because UseInMemory() above gives it nowhere durable to dead-letter to.
+        // A real outbox deployment should NOT copy that choice -- it is the one place the pattern most
+        // needs a durable queue, since MaxRetryCount(3) above is exactly what decides when a message
+        // becomes someone's problem to inspect:
+        //   services.AddSqlServerDeadLetterQueue(o => o.ConnectionString = ...);
+        builder.Services.AddSingleton<IDeadLetterQueue>(NullDeadLetterQueue.Instance);
+
         // ============================================================
         // Configure Inbox infrastructure (store)
         // ============================================================
