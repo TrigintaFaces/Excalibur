@@ -167,7 +167,7 @@ public sealed class GlobalExceptionHandlerShould
         await using var app = builder.Build();
         app.UseExceptionHandler();
         app.MapGet("/throw", (Func<IResult>)(() => throw exception));
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the in-process HTTP request, so a hang fails this test rather than stalling the shard
         try
         {
             await app.StartAsync(deadline.Token);
@@ -177,7 +177,7 @@ public sealed class GlobalExceptionHandlerShould
         }
         finally
         {
-            using var stopDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var stopDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds host shutdown in the finally block
             await app.StopAsync(stopDeadline.Token);
         }
     }

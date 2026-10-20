@@ -25,7 +25,7 @@ public sealed class KeyCacheAdministrationShould
 
 			// Scheduling opportunity for replacement callbacks in the old implementation;
 			// this delay does not prove that those callbacks have drained.
-			await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+			await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken); // delay-ok: a scheduling opportunity only -- as the comment above states, the assertion does not depend on it having elapsed
 			cache.TryGet("replaced").ShouldBeSameAs(metadata);
 			cache.Clear();
 			cache.TryGet("replaced").ShouldBeNull();

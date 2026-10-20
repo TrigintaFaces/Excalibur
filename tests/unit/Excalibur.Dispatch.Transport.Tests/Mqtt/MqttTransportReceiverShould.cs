@@ -856,7 +856,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 				}
 			});
 		await using var receiver = new MqttTransportReceiver(connections, _options, NullLogger<MqttTransportReceiver>.Instance);
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: ReceiveAsync blocks on an empty buffer until its token cancels, so an unbounded token hangs the run
 		var receive = receiver.ReceiveAsync(1, bounded.Token);
 		var originalArgs = new MqttApplicationMessageReceivedEventArgs("original-session",
 			new MqttApplicationMessage { Topic = _options.Topic }, new MqttPublishPacket(), (_, _) =>
@@ -923,7 +923,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 				return Task.FromResult(new MqttClientConnectResult());
 			});
 		await using var receiver = new MqttTransportReceiver(connections, _options, NullLogger<MqttTransportReceiver>.Instance);
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds a receive that blocks on an empty buffer; the message was already raised, so the bound is never reached
 		var observedFailure = await Should.ThrowAsync<IOException>(() => receiver.ReceiveAsync(1, bounded.Token));
 		observedFailure.ShouldBeSameAs(firstFailure);
 		var change = await Should.ThrowAsync<InvalidOperationException>(() => receiver.ReceiveAsync(1, bounded.Token));
@@ -942,7 +942,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 		await using var owned = receiver;
 		var client = (IMqttClient)receiver.GetService(typeof(IMqttClient))!;
 		A.CallTo(() => client.IsConnected).Returns(false);
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds a receive that blocks on an empty buffer; the message was already raised, so the bound is never reached
 		var receive = receiver.ReceiveAsync(1, bounded.Token);
 		client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>
 			.With(new MqttApplicationMessageReceivedEventArgs("reconnected-session",
@@ -969,7 +969,7 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 			.WithCleanStart(cleanStart).WithSessionExpiryInterval(expirySeconds).Build();
 		A.CallTo(() => connections.BuildClientOptions("sub")).Returns(connectionRequest);
 		var receiver = new MqttTransportReceiver(connections, _options, NullLogger<MqttTransportReceiver>.Instance);
-		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds a receive that blocks on an empty buffer; the message was already raised, so the bound is never reached
 		try
 		{
 			var receive = receiver.ReceiveAsync(1, bounded.Token);

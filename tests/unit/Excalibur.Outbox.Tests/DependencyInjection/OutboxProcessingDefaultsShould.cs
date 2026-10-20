@@ -56,7 +56,7 @@ public sealed class OutboxProcessingDefaultsShould
             var schedule = store.Schedules.Single();
             schedule.ShouldBeGreaterThanOrEqualTo(before.AddSeconds(5));
             schedule.ShouldBeLessThanOrEqualTo(after.AddSeconds(5));
-            await Task.Delay(TimeSpan.FromMilliseconds(1200), deadline.Token);
+            await Task.Delay(TimeSpan.FromMilliseconds(1200), deadline.Token); // delay-ok: part of the default 5s schedule must elapse; the assertion is that the message is STILL not due
             (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         }
         else

@@ -71,7 +71,7 @@ public sealed class MessageResultExtensionsShould : UnitTestBase
 				: source.Map<int, string>(static _ => throw new InvalidOperationException("Failed result invoked mapper"));
 			return transformed.ToHttpResult();
 		});
-		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the in-process HTTP request, so a hang fails this test rather than stalling the shard
 		try
 		{
 			await app.StartAsync(deadline.Token);
@@ -81,7 +81,7 @@ public sealed class MessageResultExtensionsShould : UnitTestBase
 		}
 		finally
 		{
-			using var stopDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using var stopDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds host shutdown in the finally block
 			await app.StopAsync(stopDeadline.Token);
 		}
 	}

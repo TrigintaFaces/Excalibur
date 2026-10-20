@@ -69,7 +69,7 @@ public sealed class AwsSnsPersistedRetryPhysicalRequestsShould
 		message.RetryCount.ShouldBe(1);
 		state.PublishCalls.ShouldBe(1, Diagnostics(message, state, handler));
 		handler.Requests.ShouldBe(1, Diagnostics(message, state, handler));
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
 		state.PublishCalls.ShouldBe(2, "each durable attempt invokes the bus once, without middleware multiplication");
 		handler.Requests.ShouldBe(2, "each durable attempt must make one physical request with no SDK or foreground retry multiplication");

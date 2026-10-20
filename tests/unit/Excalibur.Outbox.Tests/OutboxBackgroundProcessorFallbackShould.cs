@@ -120,7 +120,7 @@ public sealed class OutboxBackgroundProcessorFallbackShould
 		{
 			await worker.StartAsync(CancellationToken.None);
 			await state.Entered.Task.WaitAsync(Bound);
-			using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+			using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)); // deadline-ok: the 100ms stop budget IS the behaviour under test -- the catch below asserts it fired
 			try { await worker.StopAsync(deadline.Token).WaitAsync(Bound); }
 			catch (OperationCanceledException) when (deadline.IsCancellationRequested) { }
 			state.Token.IsCancellationRequested.ShouldBeTrue();

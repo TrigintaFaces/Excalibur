@@ -90,7 +90,7 @@ public sealed class SqlServerScheduleProcessRecoveryShould(SqlServerFixture fixt
                 "The database grant must still be live after the owned child has exited; otherwise this did not test crash recovery.");
             while (await HasLiveGrantAsync(message.Id, oldLease.OwnerToken, token))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(100), token);
+                await Task.Delay(TimeSpan.FromMilliseconds(100), token); // delay-ok: poll pacing; the loop exits on the DB grant clearing, not on elapsed time
             }
         }
         else

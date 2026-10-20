@@ -46,7 +46,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		message.RetryCount.ShouldBe(1);
 		state.Calls.ShouldBe(1);
 		handler.Requests.ShouldBe(1);
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(0);
 		handler.Requests.ShouldBe(2, Diagnostics(message, state, handler));
 		state.Calls.ShouldBe(2);
@@ -88,7 +88,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		message.Status.ShouldBe(OutboxStatus.Failed);
 		message.RetryCount.ShouldBe(1);
 		handler.Requests.ShouldBe(1);
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(1, Diagnostics(message, state, handler));
 		message.Status.ShouldBe(OutboxStatus.Sent);
 		state.Calls.ShouldBe(2);
@@ -150,7 +150,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		handler.Requests.ShouldBe(1);
 		state.Calls.ShouldBe(1);
 		provider.GetRequiredService<RetainingQueue>().Entries.ShouldBeEmpty();
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		(await processor.DispatchPendingMessagesAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ShouldBe(1);
 		message.Status.ShouldBe(OutboxStatus.Sent);
 		message.Id.ShouldBe(originalId);
@@ -171,7 +171,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var message = await StageAsync(provider).ConfigureAwait(false);
 		await DrainAsync(provider, "uncertain-first").ConfigureAwait(false);
 		message.Status.ShouldBe(OutboxStatus.Failed);
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		await DrainAsync(provider, "uncertain-recreated").ConfigureAwait(false);
 		message.Status.ShouldBe(OutboxStatus.DeadLettered);
 		handler.Requests.ShouldBe(2);
@@ -199,7 +199,7 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		var originalPayload = message.Payload.ToArray();
 		await DrainAsync(provider, "queue-outage-first").ConfigureAwait(false);
 		message.Status.ShouldBe(OutboxStatus.Failed);
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		await DrainAsync(provider, "queue-outage-exhausted").ConfigureAwait(false);
 		handler.Requests.ShouldBe(2);
 		queue.EnqueueAttempts.ShouldBe(1);
@@ -207,12 +207,12 @@ public sealed class AwsEventBridgePersistedAcceptanceShould
 		message.RetryCount.ShouldBe(2, "the observed physical attempt must be persisted even though the external queue write failed");
 		message.Payload.ShouldBe(originalPayload);
 		queue.Entries.ShouldBeEmpty();
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		await DrainAsync(provider, "queue-outage-recreated").ConfigureAwait(false);
 		handler.Requests.ShouldBe(2, "a successor must retry disposition, not publish beyond the persisted physical-attempt cap");
 		queue.EnqueueAttempts.ShouldBe(2);
 		queue.Unavailable = false;
-		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(1100), TestContext.Current.CancellationToken).ConfigureAwait(false); // delay-ok: the persisted retry floor must actually elapse before the next attempt is due -- that interval is the behaviour under test
 		await DrainAsync(provider, "queue-recovered").ConfigureAwait(false);
 		handler.Requests.ShouldBe(2);
 		state.Calls.ShouldBe(2);

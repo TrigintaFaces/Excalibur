@@ -106,7 +106,7 @@ public sealed class OutboxPollingIntervalReachesTheDrainLoopShould
     public void RefuseUnsupportedFinalPollingTimeoutAtStartup(double milliseconds)
     {
         var delay = TimeSpan.FromMilliseconds(milliseconds);
-        Should.Throw<ArgumentOutOfRangeException>(() => Task.Delay(delay, new CancellationToken(true)));
+        Should.Throw<ArgumentOutOfRangeException>(() => Task.Delay(delay, new CancellationToken(true))); // delay-ok: Task.Delay is the BCL oracle for what the runtime itself rejects -- nothing waits here
         using var provider = BuildFinalOptionsProvider(options => options.PollingInterval = delay);
         AssertStartupRefuses(provider, nameof(OutboxProcessingOptions.PollingInterval));
     }
@@ -137,7 +137,7 @@ public sealed class OutboxPollingIntervalReachesTheDrainLoopShould
     public void PreserveNativeSupportedPollingAndImmediateDrainPolicies(double milliseconds)
     {
         var delay = TimeSpan.FromMilliseconds(milliseconds);
-        Task.Delay(delay, new CancellationToken(true)).IsCanceled.ShouldBeTrue();
+        Task.Delay(delay, new CancellationToken(true)).IsCanceled.ShouldBeTrue(); // delay-ok: Task.Delay against an already-cancelled token is the BCL oracle for native support -- nothing waits here
         using var immediateDrain = new CancellationTokenSource(TimeSpan.Zero);
         immediateDrain.IsCancellationRequested.ShouldBeTrue();
         using var provider = BuildFinalOptionsProvider(options =>

@@ -904,8 +904,11 @@ same provisioning type, so the floor and the startup check report the same condi
   collision and the data loss it causes are distinguishable failures rather than one aborted arm.
   `DeriveDifferentHandles_ForTenantAndSubjectSplitsThatConcatenateIdentically` binds the length-prefixed
   composition against the collision plain concatenation would introduce, and
-  `DeriveOneHandle_ForEverySpellingOfAnAbsentTenant` binds the write path's default identity to the
-  sentinel an untenanted erasure request is persisted as. Measured, not predicted: a derivation that
+  `ATenantQualifiedSubjectKeyHandleShould.RefuseAnUnresolvedOwner` binds an unresolvable owner as
+  INEXPRESSIBLE rather than defaulted -- a `null`, empty or whitespace tenant throws instead of folding to
+  a shared handle -- and `ATenantQualifiedSubjectKeyHandleShould.KeepDefaultAndUntenantedOwnersIndependent`
+  binds the default tenant and the untenanted sentinel as SEPARATE owners, so erasing one leaves the
+  other's ciphertext decryptable. Measured, not predicted: a derivation that
   ignores its tenant argument turns the first and third arms RED -- the first naming tenant B's field as
   `null` -- while the liveness arm stays GREEN, because under one shared key the erasing tenant's own
   fields are still tombstoned. That is why both halves exist, and it is why a liveness-only arm could not

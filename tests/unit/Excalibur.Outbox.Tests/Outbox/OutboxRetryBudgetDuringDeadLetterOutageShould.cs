@@ -46,7 +46,7 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             row.Payload = JsonSerializer.SerializeToUtf8Bytes(new BudgetEvent("healthy"));
         }
         state.QueueAvailable = true;
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must actually elapse before the successor's attempt is due
         await using (var successor = Create(provider, state, degree, true))
         {
             successor.Init("terminal-successor");
@@ -119,7 +119,7 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             await processor.DispatchPendingMessagesAsync(deadline.Token);
             if (drain < 3)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+                await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must actually elapse before the successor's attempt is due
             }
         }
 
@@ -134,7 +134,7 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
         state.Retained.ShouldBeEmpty();
 
         state.QueueAvailable = true;
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must actually elapse before the successor's attempt is due
         await using (var recovered = Create(provider, state, degree, batch))
         {
             recovered.Init("recovered-budget");
@@ -187,7 +187,7 @@ public sealed class OutboxRetryBudgetDuringDeadLetterOutageShould
             await processor.DispatchPendingMessagesAsync(deadline.Token);
             if (drain == 0)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+                await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must actually elapse before the successor's attempt is due
             }
         }
         state.FailedCalls.ShouldBe(0);

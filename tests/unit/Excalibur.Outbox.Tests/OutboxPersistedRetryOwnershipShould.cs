@@ -35,11 +35,11 @@ public sealed class OutboxPersistedRetryOwnershipShould
         var message = await StageClassifiedAsync(provider, "typed-single");
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("typed-permanent-owner-test");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(1);
         message.Status.ShouldBe(OutboxStatus.DeadLettered, $"the original typed failure must retire immediately: {message.LastError}");
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse; the assertion is that a terminal failure is NOT retried once it has
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(1, "a terminal permanent or poison failure must not invoke its handler again");
     }
@@ -56,12 +56,12 @@ public sealed class OutboxPersistedRetryOwnershipShould
         var message = await StageClassifiedAsync(provider, "typed-fanout");
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("typed-fanout-owner-test");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.RouteCalls.ShouldBe([1, 1], customMessage: $"both actual bus routes must execute: {message.LastError}");
         message.Status.ShouldBe(mixed ? OutboxStatus.Failed : OutboxStatus.DeadLettered,
             $"only all known Permanent/Poison route failures justify immediate retirement: {message.LastError}");
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse; the assertion is that a terminal failure is NOT retried once it has
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         if (mixed)
         {
@@ -85,7 +85,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
     [InlineData(true)]
     public async Task Treat_A_Wrapped_Caller_Cancellation_As_No_Persisted_Or_Breaker_Failure(bool batch)
     {
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: this token is the wrapped CALLER cancellation under test, not a test-harness bound
         var state = new FaultState { WrappedCallerCancellation = cancellation };
         await using var provider = Build(state, batchProcessing: batch);
         var message = await StageClassifiedAsync(provider, "wrapped-caller-cancellation");
@@ -111,7 +111,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         var message = await StageClassifiedAsync(provider, "independent-timeout");
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("independent-timeout-owner-test");
-        using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch and is then asserted NOT to have fired, which is the independence this test proves
         (await processor.DispatchPendingMessagesAsync(caller.Token)).ShouldBe(0);
         caller.IsCancellationRequested.ShouldBeFalse();
         state.Calls.ShouldBe(1);
@@ -131,12 +131,12 @@ public sealed class OutboxPersistedRetryOwnershipShould
         var message = await StageClassifiedAsync(provider, "unknown-result-custom-classifier");
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("unknown-result-owner-test");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(1);
         message.Status.ShouldBe(OutboxStatus.Failed);
         message.RetryCount.ShouldBe(1);
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse; the assertion is that a terminal failure is NOT retried once it has
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(2);
         message.Status.ShouldBe(OutboxStatus.Failed);
@@ -161,7 +161,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         for (var attempt = 1; attempt <= 4; attempt++)
         {
             (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
-            if (attempt < 4) await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+            if (attempt < 4) await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse between attempts -- that per-attempt interval is the behaviour under test
         }
         state.Calls.ShouldBe(4);
         message.Status.ShouldBe(OutboxStatus.DeadLettered);
@@ -183,7 +183,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         await store.StageMessageAsync(message, CancellationToken.None);
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("missing-handler-owner-test");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         message.Status.ShouldBe(OutboxStatus.Failed);
         message.RetryCount.ShouldBe(1);
@@ -202,7 +202,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         await store.StageMessageAsync(message, CancellationToken.None);
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("nested-owner-test");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(1);
         state.Calls.ShouldBe(1);
         state.NestedCalls.ShouldBe(3);
@@ -222,7 +222,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         foreach (var message in messages) await store.StageMessageAsync(message, CancellationToken.None);
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("parallel-owner-test");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
         state.Calls.ShouldBe(2);
         foreach (var message in messages)
@@ -245,7 +245,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         await store.StageMessageAsync(message, CancellationToken.None);
         var processor = provider.GetRequiredService<IOutboxProcessor>();
         processor.Init("cancel-owner-test");
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: this token is the wrapped CALLER cancellation under test, not a test-harness bound
         var running = processor.DispatchPendingMessagesAsync(cancellation.Token);
         await state.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await cancellation.CancelAsync();
@@ -272,7 +272,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
         {
             (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
             message.Status.ShouldBe(attempt < 4 ? OutboxStatus.Failed : OutboxStatus.DeadLettered);
-            if (attempt < 4) await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token);
+            if (attempt < 4) await Task.Delay(TimeSpan.FromMilliseconds(1100), deadline.Token); // delay-ok: the retry floor must elapse between attempts -- that per-attempt interval is the behaviour under test
         }
         state.Calls.ShouldBe(4, "the persisted four-attempt budget must not multiply by three pipeline attempts");
         (await processor.DispatchPendingMessagesAsync(deadline.Token)).ShouldBe(0);
@@ -284,7 +284,7 @@ public sealed class OutboxPersistedRetryOwnershipShould
     {
         var state = new FaultState();
         await using var provider = Build(state);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a handler that never returns fails this test rather than stalling the shard
         await using var scope = provider.CreateAsyncScope();
         await Should.ThrowAsync<IOException>(() => scope.ServiceProvider.GetRequiredService<IDispatcher>()
             .DispatchAsync(new OwnedRetryEvent("foreground"), deadline.Token));

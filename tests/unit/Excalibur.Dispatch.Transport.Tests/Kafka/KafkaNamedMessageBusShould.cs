@@ -105,7 +105,7 @@ public sealed class KafkaNamedMessageBusShould
 			.Returns(Task.FromResult(new DeliveryResult<string, byte[]>()));
 		await using var provider = services.BuildServiceProvider();
 		await using var scope = provider.CreateAsyncScope();
-		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a producer that never completes fails this test rather than stalling the shard
 		var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().DispatchAsync(new RoutedBusEvent(), deadline.Token);
 		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => producer.ProduceAsync("routed-topic", A<Message<string, byte[]>>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();

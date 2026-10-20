@@ -40,7 +40,7 @@ public sealed class AwsSqsRetryBudgetShould
 		var message = await Controls.StageAsync(provider, "invalid-owned-sdk-budget").ConfigureAwait(false);
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
 		processor.Init("owned-invalid-sqs-sdk-budget");
-		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the dispatch, so a hidden SDK retry loop fails this test rather than stalling the shard
 		(await processor.DispatchPendingMessagesAsync(deadline.Token).ConfigureAwait(false)).ShouldBe(0);
 		state.PublishCalls.ShouldBe(1, message.LastError);
 		handler.Requests.ShouldBe(0, "a client with hidden SDK retries must be refused before sending");
@@ -79,7 +79,7 @@ public sealed class AwsSqsRetryBudgetShould
 		options.MaxRetryAttempts = frameworkRetries;
 		await using var provider = Controls.Build(client, new Controls.PublishState(), options);
 		var bus = provider.GetRequiredService<AwsSqsMessageBus>();
-		using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the foreground publish, so an unbounded SDK retry budget fails this test rather than stalling the shard
 		_ = await Should.ThrowAsync<AmazonSQSException>(() =>
 			bus.PublishAsync(new BudgetEvent("foreground"), new MessageContext(), caller.Token)).ConfigureAwait(false);
 		handler.Requests.ShouldBe(frameworkRetries + 1, "the foreground policy is the sole owner of HTTP attempts when SDK retries are zero");
@@ -95,7 +95,7 @@ public sealed class AwsSqsRetryBudgetShould
 		using var client = Controls.CreateClient(http, maxErrorRetry: 0);
 		await using var provider = Controls.Build(client, new Controls.PublishState(), SendOptions());
 		var bus = provider.GetRequiredService<AwsSqsMessageBus>();
-		using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the foreground publish, so an unbounded SDK retry budget fails this test rather than stalling the shard
 		var running = bus.PublishAsync(new BudgetEvent("caller-cancel"), new MessageContext(), caller.Token);
 		try
 		{
@@ -122,7 +122,7 @@ public sealed class AwsSqsRetryBudgetShould
 		options.RequestTimeout = TimeSpan.FromMilliseconds(100);
 		await using var provider = Controls.Build(client, new Controls.PublishState(), options);
 		var bus = provider.GetRequiredService<AwsSqsMessageBus>();
-		using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var caller = new CancellationTokenSource(TimeSpan.FromSeconds(5)); // deadline-ok: bounds the foreground publish, so an unbounded SDK retry budget fails this test rather than stalling the shard
 		var running = bus.PublishAsync(new BudgetEvent("send-deadline"), new MessageContext(), caller.Token);
 		try
 		{

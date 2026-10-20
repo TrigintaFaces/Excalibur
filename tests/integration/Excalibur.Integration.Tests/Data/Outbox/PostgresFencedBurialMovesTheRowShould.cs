@@ -267,7 +267,7 @@ public sealed class PostgresFencedBurialMovesTheRowShould(PostgresOutboxStoreCon
         {
             waiting = await observer.QuerySingleAsync<bool>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%WITH fence AS (%')").ConfigureAwait(false);
             if (waiting) { break; }
-            await Task.Delay(25).ConfigureAwait(false);
+            await Task.Delay(25).ConfigureAwait(false); // delay-ok: poll pacing; the loop breaks on pg_stat_activity reporting the lock wait
         }
         try
         {

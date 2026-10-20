@@ -84,14 +84,14 @@ public sealed class InMemoryOutboxScheduledFailureShould
             capability.ShouldNotBeNull();
             await ((IBackoffSchedulableOutboxStore)capability).MarkFailedWithBackoffAsync(message.Id, "retry", 2, requested, CancellationToken.None);
         }
-        await Task.Delay(TimeSpan.FromMilliseconds(1200));
+        await Task.Delay(TimeSpan.FromMilliseconds(1200)); // delay-ok: the store's shorter floor must actually elapse; the assertion is that the caller's LONGER schedule still blocks
         (await store.GetUnsentMessagesAsync(1, 10, CancellationToken.None)).ShouldBeEmpty(
             "the caller's later schedule must still block retry after the shorter store floor elapsed");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(6)); // deadline-ok: bounds the retry poll below, so a row that never arrives fails the test instead of hanging the shard
         OutboundMessage[] retry;
         do
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token);
+            await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token); // delay-ok: poll pacing; the loop exits on the row becoming visible, bounded by deadline
             retry = (await store.GetUnsentMessagesAsync(1, 10, deadline.Token)).ToArray();
         } while (retry.Length == 0);
         retry.Single().Id.ShouldBe(message.Id);

@@ -108,7 +108,14 @@ tds_line_is_violation() {
     # duration is still flagged. Scoped to the Delay call's FIRST ARGUMENT, not the whole line: a
     # line-wide match would also excuse a real fixed-delay sync-wait that merely mentioned
     # Timeout.Infinite elsewhere on it. Matched as a prefix, so it covers both spellings.
-    [[ $line =~ Task\.Delay[[:space:]]*\([[:space:]]*Timeout\.Infinite ]] && return 1
+    #
+    # The leading qualifier group is load-bearing, not defensive. `System.Threading.Timeout` has to
+    # be written out whenever a file also carries `using Polly.Timeout;`, because bare `Timeout` is
+    # then ambiguous between the type and the namespace and the compiler refuses it. Without the
+    # qualifier group this gate flagged a block-until-cancelled fake in exactly that file while
+    # exempting the identical idiom one file over -- so the pragma it demanded would have been
+    # payment for a name collision, not for a clock dependence.
+    [[ $line =~ Task\.Delay[[:space:]]*\([[:space:]]*([A-Za-z_][A-Za-z0-9_]*\.)*Timeout\.Infinite ]] && return 1
     return 0
 }
 
@@ -324,6 +331,17 @@ self_test() {
     fi
     if tds_line_is_violation '        var found = await WaitHelpers.WaitUntilAsync(() => x, t);'; then
         echo "self-test FAIL: flagged a line with no Task.Delay" >&2; pass=0
+    fi
+    if tds_line_is_violation '  await Task.Delay(Timeout.InfiniteTimeSpan, token);'; then
+        echo "self-test FAIL: flagged an unqualified block-until-cancelled infinite delay" >&2; pass=0
+    fi
+    if tds_line_is_violation '  await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, token);'; then
+        echo "self-test FAIL: flagged a NAMESPACE-QUALIFIED infinite delay, which a 'using Polly.Timeout' forces" >&2; pass=0
+    fi
+    # SAFETY half of the pair above: the qualifier group must not become a wildcard that excuses a
+    # real fixed delay merely because the word Timeout appears somewhere in its arguments.
+    if ! tds_line_is_violation '  await Task.Delay(TimeSpan.FromMilliseconds(500), Timeout.InfiniteTimeSpan is null ? a : b);'; then
+        echo "self-test FAIL: the infinite-delay exemption excused a real fixed-duration delay" >&2; pass=0
     fi
 
     # --- Predicate: short wall-clock deadlines -----------------------------

@@ -55,20 +55,21 @@ completed and must not be reintroduced.
 ## Evidence
 
 Conformance arms in `Excalibur.Data.ElasticSearch.Tests`,
-`ElasticSearch/Projections/ProjectionErrorPersistenceRetryShould`. Each is mutant-proven: the named
+`ProjectionErrorPersistenceRetryShould`
+(`tests/unit/Excalibur.Data.ElasticSearch.Tests/ElasticSearch/Projections/`). Each is mutant-proven: the named
 arm goes RED under a one-token change to the property it defends, and nothing else does.
 
 | arm | what it RED-detects |
 |---|---|
-| `RecoverDroppedAcknowledgementWithinSameCreateBudget` | a severed acknowledgement treated as settled — covers **both** shapes, a reset before any status and a status whose body never arrives |
-| `ReplayACreateOnlyUntilElasticsearchSettlesIt` | a status wrongly added to or removed from the settled set, with the settled rows as the liveness half so a stored record cannot loop |
-| `SettleA408NeitherWay` | `408` treated as a verdict |
-| `ReplayABulkEnvelopeItCouldNotInterpret` | an uninterpretable bulk envelope treated as settled |
-| `ReplayABulkItemItCouldNotInterpret` | a per-item `5xx`, `408`, or absent status counted a permanent failure |
-| `ReplayAnIncompleteBulkResponseBecauseAbsenceIsNotEvidence` | a response listing fewer items than were sent treated as terminal |
-| `RefuseMalformedBulkAuthority` | the converse — an unattributable response wrongly replayed |
-| `CountAConflictAsStoredBecauseOnlyThisExecutionMintsTheId` | a conflict counted as a failure rather than as storage |
-| `ReplayAThrownFailureWithinTheBudgetThenPropagateIt` | a throw classified by exception type, and an unbounded budget |
+| `ProjectionErrorPersistenceRetryShould.RecoverDroppedAcknowledgementWithinSameCreateBudget` | a severed acknowledgement treated as settled — covers **both** shapes, a reset before any status and a status whose body never arrives |
+| `ProjectionErrorPersistenceRetryShould.ReplayACreateOnlyUntilElasticsearchSettlesIt` | a status wrongly added to or removed from the settled set, with the settled rows as the liveness half so a stored record cannot loop |
+| `ProjectionErrorPersistenceRetryShould.SettleA408NeitherWay` | `408` treated as a verdict |
+| `ProjectionErrorPersistenceRetryShould.ReplayABulkEnvelopeItCouldNotInterpret` | an uninterpretable bulk envelope treated as settled |
+| `ProjectionErrorPersistenceRetryShould.ReplayABulkItemItCouldNotInterpret` | a per-item `5xx`, `408`, or absent status counted a permanent failure |
+| `ProjectionErrorPersistenceRetryShould.ReplayAnIncompleteBulkResponseBecauseAbsenceIsNotEvidence` | a response listing fewer items than were sent treated as terminal |
+| `ProjectionErrorPersistenceRetryShould.RefuseMalformedBulkAuthority` | the converse — an unattributable response wrongly replayed |
+| `ProjectionErrorPersistenceRetryShould.CountAConflictAsStoredBecauseOnlyThisExecutionMintsTheId` | a conflict counted as a failure rather than as storage |
+| `ProjectionErrorPersistenceRetryShould.ReplayAThrownFailureWithinTheBudgetThenPropagateIt` | a throw classified by exception type, and an unbounded budget |
 
 ---
 

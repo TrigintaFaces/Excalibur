@@ -159,7 +159,7 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 			admissionDeadline.CancelAfter(TimeSpan.FromSeconds(5));
 			while ((int)(await waiting.ExecuteScalarAsync(admissionDeadline.Token).ConfigureAwait(false))! == 0)
 			{
-				await Task.Delay(20, admissionDeadline.Token).ConfigureAwait(false);
+				await Task.Delay(20, admissionDeadline.Token).ConfigureAwait(false); // delay-ok: poll pacing; the loop exits on the row being admitted, bounded by admissionDeadline
 			}
 			// The blocker already owns this row: query through its transaction so the proof
 			// cannot itself wait behind the authority lock. A slow setup must fail, not
@@ -171,7 +171,7 @@ public sealed class SqlServerScheduleStoreConformanceShould(SqlServerFixture fix
 			((bool)(await stillLive.ExecuteScalarAsync(token).ConfigureAwait(false))!).ShouldBeTrue(
 				"The original DB grant must still be live after the renewal RPC is observed waiting on its row lock.");
 			// An actual SQL wait and a still-live DB grant are observed before expiry.
-			await Task.Delay(TimeSpan.FromMilliseconds(2250), token).ConfigureAwait(false);
+			await Task.Delay(TimeSpan.FromMilliseconds(2250), token).ConfigureAwait(false); // delay-ok: the lease TTL must actually elapse -- that expiry IS the behaviour under test, not a wait for a background task
 		}
 		finally
 		{
