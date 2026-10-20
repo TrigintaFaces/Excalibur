@@ -308,7 +308,7 @@ public class SqlServerIntegrationTests : IAsyncLifetime
     public SqlServerIntegrationTests()
     {
         _sqlContainer = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+            .WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
             .Build();
     }
 

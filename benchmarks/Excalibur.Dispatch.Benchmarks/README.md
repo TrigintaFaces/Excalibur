@@ -1009,7 +1009,7 @@ fixture timings or feature availability.
 
 ### Testcontainers (SQL Server)
 
-**Image**: `mcr.microsoft.com/mssql/server:2022-latest`
+**Image**: `mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04`
 
 **Usage**: Event Sourcing and Outbox benchmarks
 

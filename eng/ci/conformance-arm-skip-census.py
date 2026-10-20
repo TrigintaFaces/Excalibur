@@ -57,14 +57,22 @@ def syntax_census(paths, kits):
         result = subprocess.run(["pwsh", "-NoProfile", "-File", str(helper), "-RequestPath", str(request)],
                                 capture_output=True, text=True, timeout=90,
                                 cwd=pathlib.Path(__file__).resolve().parents[2])
-        if result.returncode or result.stderr:
+        # The predicate is "the helper produced a complete payload", NOT "the helper stayed quiet".
+        # stderr is not a verdict: a pwsh process that LoadFroms two assemblies and runs Add-Type has
+        # several legitimate ways to emit a benign line, and any one of them used to refuse every arm
+        # of this gate. Completeness is what matters and it is checked below -- roster identity, the
+        # Roslyn pair, field types, candidate-count coherence. stderr is still reported on a real
+        # failure, where it is the most useful thing we have.
+        if result.returncode:
             raise ValueError("syntax helper failed: " + (result.stderr or result.stdout)[-1500:])
         payload = json.loads(result.stdout)
         files = payload["files"]
         by_path = {entry["Path"]: entry for entry in files}
         if len(files) != len(paths) or len(by_path) != len(paths) or set(by_path) != set(paths):
             raise ValueError("syntax helper input/output roster differs")
-        if len(payload["roslyn"]) != 2 or not payload["sdk"]:
+        # The Roslyn pair IS the toolchain identity -- it cannot be short without LoadFrom having
+        # thrown first, so this half is self-enforcing. There is no SDK clause: no SDK is resolved.
+        if len(payload["roslyn"]) != 2:
             raise ValueError("syntax toolchain identity is incomplete")
         for entry in files:
             if entry["CandidateCount"] < len(entry["Calls"]):
@@ -107,6 +115,19 @@ NEW_TARGET_TYPED = re.compile(
 # whose closure contains the contract, exactly as a constructed store must. A suite that registers a
 # neighbour's provider is judged over that provider too, which is correct -- it really does use it.
 ADDS = re.compile(r"\.Add([A-Z][A-Za-z0-9_]*)\s*[(<]")
+
+# A provider reached through a COMPOSED BUILDER rather than a dedicated registration extension.
+# `.AddSqlServerSagaStore(...)` works under ADDS above because the name minus "Add" IS the store's
+# type name. Four providers ship no such extension -- their only public path is the composed builder,
+# `AddExcalibur(x => x.AddSagas(saga => saga.UseCosmosDb(...)))` -- and for those, "Use" minus its verb
+# yields a provider name and not a type. The store is the provider name joined to the contract's name
+# without its leading I: UseCosmosDb + ISagaStore -> CosmosDbSagaStore.
+#
+# This CANNOT fabricate a derivation, which is what makes guessing a name acceptable here: every
+# candidate still has to be a type declared in the tree whose interface closure contains the contract,
+# and a composition that names nothing real is dropped by that filter exactly as any other miss is.
+# So the rule can only ever ADD a derivation the tree already supports, never invent one.
+USES = re.compile(r"\.Use([A-Z][A-Za-z0-9_]*)\s*[(<]")
 
 
 def derivations(src, kit):
@@ -311,7 +332,7 @@ def main():
         print("UNPARSED\ttooling\t" + str(error).replace("\n", " ").replace("\r", " ").replace("\t", " "))
         print("COUNTS\t0\t0\t0")
         return
-    records.append("SYNTAX\tSDK " + toolchain["sdk"] + "; " + toolchain["parserHost"] + "\t" + ",".join(a["sha256"] for a in toolchain["roslyn"]))
+    records.append("SYNTAX\t" + toolchain["parserHost"] + "\t" + ",".join(a["sha256"] for a in toolchain["roslyn"]))
     for path, entry in syntax.items():
         for refusal in entry["Refusals"]:
             records.append("UNPARSED\t%s\t%s" % (path, refusal))
@@ -380,8 +401,22 @@ def main():
             # on the constructed type is what stops one suite's store being credited to its
             # neighbour. A suite constructing several is judged over each of them, because a store
             # that hides a capability it has is a finding whichever of them it is.
+            composed = set()
+            if contract.startswith("I") and len(contract) > 1 and contract[1].isupper():
+                # Resolved case-INSENSITIVELY against declared types, because the builder verb and the
+                # type it reaches do not always agree on the casing of an acronym: .UseCosmosDb pairs
+                # with CosmosDbSagaStore, while .UseMongoDB pairs with MongoDbSagaStore. Requiring an
+                # exact match would silently refuse that provider and report the oracle as underivable,
+                # which is a verdict about our naming rather than about the suite. Matching is still
+                # anchored on a type that EXISTS and whose closure carries the contract, so tolerance
+                # here widens nothing: an unmatched composition is dropped exactly as before.
+                folded = {name.casefold(): name for name in decls}
+                for provider in USES.findall(src):
+                    resolved = folded.get((provider + contract[1:]).casefold())
+                    if resolved:
+                        composed.add(resolved)
             candidates = (set(NEW.findall(src)) | set(NEW_TARGET_TYPED.findall(src))
-                          | set(ADDS.findall(src)))
+                          | set(ADDS.findall(src)) | composed)
             stores = sorted(
                 n for n in candidates
                 if n in decls and contract in (closure(decls, n) | {n})

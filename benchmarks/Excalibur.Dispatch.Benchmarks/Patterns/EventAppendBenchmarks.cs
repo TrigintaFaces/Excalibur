@@ -46,7 +46,7 @@ public class EventAppendBenchmarks
 		{
 			// Start SQL Server container
 			_sqlContainer = new MsSqlBuilder()
-				.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+				.WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
 				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024)
 				.Build();
 

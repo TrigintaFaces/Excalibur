@@ -49,7 +49,7 @@ public class OutboxBackpressureLoadTest
 	public async Task GlobalSetup()
 	{
 		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+			.WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
 			.Build();
 
 		await _sqlContainer.StartAsync().ConfigureAwait(false);

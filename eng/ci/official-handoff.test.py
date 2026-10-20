@@ -171,6 +171,31 @@ class HandoffControls(unittest.TestCase):
                     rules[0]['branch_policies'] + [{'type': 'branch', 'name': 'feature/*'}]):
             rules_path.write_text(json.dumps([{'branch_policies': bad}]))
             self.execute('packages', 'Verify signing environment protections', succeeds=False)
+        rules_path.write_text(json.dumps(rules))
+
+        # LIVENESS of the one deliberate relaxation. prevent_self_review enforces that an account
+        # OTHER than the triggerer approves, which a single-collaborator repository cannot satisfy --
+        # requiring it made an official signed build impossible rather than careful. Permitting it is
+        # therefore the intended behaviour, and this arm is what stops the condition being quietly
+        # reinstated: if someone re-adds it, this goes red and names the trade instead of a release
+        # discovering it.
+        for self_review in (False, None):
+            with self.subTest(prevent_self_review=self_review):
+                model = copy.deepcopy(good)
+                model['protection_rules'][0]['prevent_self_review'] = self_review
+                metadata.write_text(json.dumps(model))
+                self.execute('packages', 'Verify signing environment protections')
+
+        # SAFETY of what the relaxation KEPT. The reviewer gate must still exist and still name
+        # somebody: a rule carrying no reviewers is an environment that pauses for nobody, which is
+        # indistinguishable from no gate at all. Signing must never proceed unattended.
+        for reviewers in ([], None):
+            with self.subTest(reviewers=reviewers):
+                model = copy.deepcopy(good)
+                model['protection_rules'][0]['reviewers'] = reviewers
+                metadata.write_text(json.dumps(model))
+                self.execute('packages', 'Verify signing environment protections', succeeds=False)
+        metadata.write_text(json.dumps(good))
 
     def test_split_workflow_mutations_are_rejected(self):
         spec = importlib.util.spec_from_file_location('promotion', ROOT / 'eng/ci/promotion-contract-gate.py')

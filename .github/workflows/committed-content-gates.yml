@@ -376,6 +376,15 @@ jobs:
       - name: conformance-arm-skip-gate
         run: bash eng/ci/conformance-arm-skip-gate.sh
 
+      # The census program above carries 14 unit tests and, until now, NOTHING invoked them -- not a
+      # workflow, not a hook, not another script. It was the only script under eng/ci referenced from
+      # nowhere at all. A test nobody runs is indistinguishable from a test that does not exist, and
+      # the right remedy for one is to run it rather than to delete it. The census is the part of the
+      # gate above that classifies C# syntax, so a regression in it silently changes every verdict the
+      # gate renders.
+      - name: conformance-arm-skip-census unit tests
+        run: python3 eng/ci/conformance-arm-skip-census.test.py
+
       # BLOCKING — a subsystem ARCHITECTURE.md guarantee whose named enforcing test has drifted (renamed,
       # deleted, or moved to a different class) reads as documented-and-verified while nothing checks it.
       # Extracts every backtick-quoted test citation from each "## Evidence" section and confirms it
@@ -389,6 +398,40 @@ jobs:
 
       - name: architecture-evidence-gate
         run: bash eng/ci/architecture-evidence-gate.sh
+
+      # BLOCKING — thirteen gates that already run in CI had their own self-test invoked by nothing.
+      # A gate enforces; its self-test is the only thing establishing that the gate can still FAIL.
+      # Wired separately, those two facts drift: a gate whose detection silently goes vacuous keeps
+      # reporting the same green, and nothing anywhere notices. That is not hypothetical here -- a
+      # gate in this very job was recently found refusing every arm universally, and the only reason
+      # it was caught is that ITS self-test was wired and went red. The thirteen below had no such
+      # tripwire.
+      #
+      # Run as one batch because they share a single rationale, and each is reported by name with its
+      # own exit code so a failure stays diagnosable. Shell only, no compiler, no test run, so this
+      # costs the job seconds and costs a commit nothing. Every one of these passed when wired; a new
+      # failure here means that gate lost the ability to detect what it claims to detect, which is a
+      # finding about the gate and must not be silenced by removing it from this list.
+      - name: Non-vacuity of wired gates whose self-test was unwired
+        run: |
+          set -u
+          failed=0
+          for g in assert-tests-executed conformance-backend-coverage-gate conformance-fork-gate \
+                   gate-denominator-gate inbox-decorator-seam-gate orphan-test-project-gate \
+                   orphaned-constant-gate package-metadata-gate persistence-health-deriver-gate \
+                   sql-predicate-gate task-delay-syncwait-gate workflow-hygiene-gate \
+                   wwmd-reinvention-smells spa-gate; do
+            bash "eng/ci/$g.sh" --self-test > "/tmp/$g.selftest.log" 2>&1
+            rc=$?
+            if [ "$rc" -eq 0 ]; then
+              echo "  ok      $g"
+            else
+              echo "::error::$g --self-test exited $rc; its gate can no longer be shown to fail"
+              tail -20 "/tmp/$g.selftest.log" | sed 's/^/      /'
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || exit 1
 
       # BLOCKING — a seam whose blast radius demands a higher CLASS of guarantee than it produces,
       # reported as covered. architecture-evidence-gate (above) asserts that a guarantee's named test

@@ -3,10 +3,17 @@
 param([Parameter(Mandatory)][string]$RequestPath)
 $ErrorActionPreference = 'Stop'
 $request = Get-Content -LiteralPath $RequestPath -Raw | ConvertFrom-Json
-$version = (& dotnet --version).Trim()
-if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the repository SDK.' }
 # Add-Type already uses PowerShell's Roslyn. Loading the SDK's different version into
 # the same load context fails; use the host's coherent pair and fingerprint it explicitly.
+#
+# NO SDK IS RESOLVED HERE, DELIBERATELY. The parse runs on the Roslyn pair shipped inside
+# PowerShell, so the repository's SDK takes no part in it and cannot inform it. An earlier
+# revision read `dotnet --version` purely to label the fingerprint, and threw when it could
+# not -- which let an unrelated toolchain veto the whole census, in a job that checks the
+# tree out without installing an SDK. A language-level skew between this Roslyn and the
+# source is still caught, loudly: every parse Error below becomes a Refusal, which the
+# caller reports as UNPARSED with a file and a line. The identity that governs the parse is
+# the Roslyn pair, and that is what the payload fingerprints.
 $assemblies = @('Microsoft.CodeAnalysis.dll','Microsoft.CodeAnalysis.CSharp.dll') | ForEach-Object { Join-Path $PSHOME $_ }
 foreach ($path in $assemblies) { [void][Reflection.Assembly]::LoadFrom($path) }
 $references = @($assemblies) + @('System.Runtime.dll','System.Collections.dll','System.Collections.Immutable.dll','System.Linq.dll') |
@@ -128,7 +135,6 @@ namespace Excalibur.CI {
 '@
 $files = @($request.paths | ForEach-Object { [Excalibur.CI.ConformanceSyntax]::Parse($_, [string[]]$request.kits) })
 [ordered]@{
-    sdk = $version
     parserHost = "PowerShell $($PSVersionTable.PSVersion)"
     roslyn = @($assemblies | ForEach-Object { @{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash;version=[Reflection.AssemblyName]::GetAssemblyName($_).Version.ToString()} })
     files = $files

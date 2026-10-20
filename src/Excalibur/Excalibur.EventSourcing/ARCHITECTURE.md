@@ -1506,23 +1506,41 @@ unconditionally and has none of the above; the apply path degrades to the previo
 re-delivered batch is folded twice. That degradation is **silent by design of the capability pattern** —
 the write succeeds and reports success, because a capability that is absent is simply not asked for.
 
-**CORRECTED: this paragraph used to say "a host that depends on the guarantee should require it at
-startup", and the framework gives you no way to do that.** There is no registration-time check, no
-options validator, and no exception; asking for the capability is the apply path's own internal decision
-and a host cannot observe it. Telling you to do something the surface does not support is worse than
-saying nothing, so here is what you can actually do:
+**CORRECTED AGAIN, and the previous correction was wrong in the reassuring direction — which is the
+expensive direction.** This paragraph twice told you something false. It first said a host "should
+require it at startup"; the correction then said "the framework gives you no way to do that … There is
+no registration-time check, no options validator, and no exception", and closed with "A startup gate …
+is owed and is not yet built". **Both the denial and the closing sentence are false, and so was the
+store list.** What is actually true:
 
-- **All eight stores the framework ships provide the capability**, so a host using a shipped store has
-  the guarantee. If that is you, no action.
+- **A startup requirement EXISTS: `RequirePositionedProjectionWrites()`** on the event-sourcing builder.
+  It registers a validator that resolves each registered projection store and fails startup when the
+  capability is not reachable. It is **opt-in and off by default**, so a host that has not called it
+  gets the silent degradation described above. Nothing in the framework calls it, and no sample does.
+- **The claim "all eight stores the framework ships provide the capability, so … no action" was FALSE.**
+  The eight **provider** stores (SQL Server, Postgres, MongoDB, Cosmos DB, DynamoDB, Elasticsearch,
+  OpenSearch, Firestore) do provide it. **`InMemoryProjectionStore<T>` — shipped in this package, and
+  the store the samples and most first projections run on — does NOT.** A host on the in-memory store
+  was told it had the guarantee and had no action to take, while its projections folded at-least-once.
+  If that is you, the handler guidance in the next bullet applies to you.
 - **If you supply your own `IProjectionStore<T>`, implement `IPositionedProjectionStore<T>` as well**, or
   accept that your projections are folded at-least-once and make your handlers assignment-shaped rather
   than accumulating. An accumulating handler on a store without the capability double-counts on every
   restart, without bound.
-- **If you DECORATE a shipped store, forward `GetService`.** The capability is discovered by asking the
-  store for it, so a decorator that does not forward the call hides a capability its inner store has —
-  and the degradation above is what you get, silently, from a decorator that looks harmless.
+- **If you DECORATE a store, forward `GetService`.** The capability is discovered by asking the store for
+  it, so a decorator that does not forward the call hides a capability its inner store has — and the
+  degradation above is what you get, silently, from a decorator that looks harmless. **The contract does
+  not currently oblige you to forward it**: `GetService`'s postcondition is "a capability or null", so a
+  non-forwarding decorator is conformant and nothing detects it. Treat forwarding as required of you
+  anyway until the contract makes it so.
 
-A startup gate that lets a host say "refuse to start without this" is owed and is not yet built.
+**Known gap, stated rather than implied.** Whether the capability is reachable is a property of an
+execution, not of the program: a store that resolves per-request from ambient state can answer
+differently at startup and at write time, and a sharded topology must be homogeneous in this capability
+or the write path throws. So the opt-in requirement above establishes that the capability was reachable
+once, for one composition — not that every later write will find it. Closing this needs the contract to
+fix a store's capability set at construction, and needs the optional-capability families separated so
+that dropping a guarantee is refused rather than silently tolerated. Neither is built.
 
 ## The two conjuncts, and why neither substitutes for the other
 

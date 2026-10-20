@@ -127,7 +127,7 @@ internal static class Program
                     runs.Add(new { method, cycle, rows = rows.Length, distinctIds = rows.Select(r => r.id).Distinct().Count(), payloadBytes = size * 1024 });
                 }
                 summaries.Add(new { messageCount = count, payloadSizeKb = size, sqlVersion = version, containerId = id,
-                    configuredImage = "mcr.microsoft.com/mssql/server:2022-latest", actualImageId = imageId, columns, runs,
+                    configuredImage = "mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04", actualImageId = imageId, columns, runs,
                     eventSchemaEntryExecuted = true, outboxResourceVerified = true });
             }
             finally
@@ -184,7 +184,7 @@ internal static class Program
         catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { return null; }
         if (string.IsNullOrEmpty(id)) return null;
         Require(Regex.IsMatch(id, "^[a-f0-9]{64}$"), "Owned container ID malformed.");
-        if (!Containers.Any(c => c.id == id)) Containers.Add(new Owned(id, "mcr.microsoft.com/mssql/server:2022-latest", null, false));
+        if (!Containers.Any(c => c.id == id)) Containers.Add(new Owned(id, "mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04", null, false));
         SaveOwned(); return id;
     }
     private static void SetOwned(string id, string? image, bool disposed)

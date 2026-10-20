@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:2026.10.0
     container_name: localstack-sqs
     ports:
       - "4566:4566"           # LocalStack Gateway

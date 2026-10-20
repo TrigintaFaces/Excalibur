@@ -30,7 +30,7 @@ public class SqlServerContainerFixture : ContainerFixtureBase, IDatabaseContaine
 	public IDbConnection CreateDbConnection() => new SqlConnection(ConnectionString);
 
 	/// <summary>Gets the Docker image used for the SQL Server container.</summary>
-	protected virtual string Image => "mcr.microsoft.com/mssql/server:2022-latest";
+	protected virtual string Image => "mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04";
 
 	/// <inheritdoc />
 	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)

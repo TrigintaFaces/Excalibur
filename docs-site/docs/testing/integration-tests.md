@@ -31,7 +31,7 @@ using Xunit;
 public class SqlServerIntegrationTests : IAsyncLifetime
 {
     private readonly MsSqlContainer _container = new MsSqlBuilder()
-        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+        .WithImage("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")
         .Build();
 
     private ServiceProvider _provider = null!;

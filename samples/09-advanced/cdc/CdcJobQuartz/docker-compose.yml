@@ -23,7 +23,7 @@ services:
   # SQL Server #1 - CDC Source (Legacy Database)
   # ==========================================================================
   sqlserver-cdc:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04
     container_name: excalibur-sqlserver-cdc-job
     hostname: sqlserver-cdc
     ports:
@@ -48,7 +48,7 @@ services:
   # SQL Server #2 - Event Store
   # ==========================================================================
   sqlserver-eventstore:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04
     container_name: excalibur-sqlserver-eventstore-job
     hostname: sqlserver-eventstore
     ports:

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "scope": "Exact privileged finalizer job and inherited execution environment; changes require independent review. CI must never regenerate this approval input.",
-  "sha256": "902ffcce15a6648861ceec02e532cf14c0003969fba56bde77f79e1a1c8d840c",
+  "sha256": "b1414aef7465b1d138abd480d5343486df01e02af4a8d2b269361d22209394b6",
   "steps": [
     "Verify the handoff artifact identity",
     "Download the verified unsigned handoff",

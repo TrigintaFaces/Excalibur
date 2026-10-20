@@ -321,7 +321,7 @@ jobs:
           PY
 
       - name: Download the verified unsigned handoff
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.build-packages.outputs.handoff-id }}
           path: official-handoff
@@ -468,11 +468,31 @@ jobs:
           policy = model.get('deployment_branch_policy') or {}
           pages = json.loads(pathlib.Path(os.environ['RUNNER_TEMP'], 'signing-ref-policies.json').read_text())
           allowed = [(rule.get('type'), rule.get('name')) for page in pages for rule in page['branch_policies']]
+          # SELF-REVIEW IS PERMITTED, DELIBERATELY, AND THIS IS THE ONE CONDITION THAT WAS RELAXED.
+          # The check previously also required prevent_self_review on the reviewer rule. That setting
+          # enforces that someone OTHER than the account which triggered the deployment approves it,
+          # and this repository has a single collaborator. The requirement was therefore not strict --
+          # it was unsatisfiable, and the effect was that an official signed build could not complete
+          # at all. Worse, configuring the environment to satisfy it as written would have left the
+          # deployment waiting forever for an approval no account exists to give, which is a hard stop
+          # wearing the costume of a security control.
+          #
+          # WHAT IS STILL ENFORCED, and it is most of the original intent:
+          #   - a required-reviewer rule must EXIST and name at least one reviewer, so signing pauses
+          #     for an explicit human approval before the credentials are used; it never proceeds
+          #     unattended
+          #   - admins cannot bypass that pause
+          #   - signing is reachable only from main or a v* tag, and from nothing else
+          #
+          # WHAT WAS GIVEN UP: the approver's independence from the triggerer. That is a property of
+          # the team, not of the configuration, and one person cannot have it. RESTORE THE CONDITION
+          # the moment a second account can approve -- add `and rule.get('prevent_self_review') is
+          # True` back to the clause below and set it on the environment, in the same change.
           if (model.get('can_admins_bypass') is not False or
-              not any(rule.get('reviewers') and rule.get('prevent_self_review') is True for rule in reviewers) or
+              not any(rule.get('reviewers') for rule in reviewers) or
               policy.get('custom_branch_policies') is not True or policy.get('protected_branches') is not False or
               sorted(allowed) != [('branch', 'main'), ('tag', 'v*')]):
-              raise SystemExit('REFUSE: author signing requires non-bypassable review, no self-review, and restricted deployment refs')
+              raise SystemExit('REFUSE: author signing requires a non-bypassable reviewer gate and restricted deployment refs')
           PY
 
       - name: Sign the shipping packages

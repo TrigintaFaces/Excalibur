@@ -125,6 +125,36 @@ class CensusTests(unittest.TestCase):
         self.assertTrue(any(r.startswith("UNPARSED\ttooling\t") for r in records), records)
         self.assertIn("COUNTS\t0\t0\t0", records)
 
+    def test_composed_builder_provider_is_derived_despite_acronym_casing(self):
+        # LIVENESS. A provider whose only public path is a composed builder -- no dedicated
+        # Add<Provider><Contract> extension -- must still be derived, and the casing of an acronym in
+        # the builder verb need not match the casing in the type it reaches. `.UseMongoDB` reaching
+        # MongoDbWidgetStore is the real shape: four shipped saga providers are registered this way,
+        # and requiring an exact-case match reported their oracle as underivable, which is a verdict
+        # about our own naming rather than about the suite.
+        (self.root / "src/mongo.cs").write_text(
+            "public class MongoDbWidgetStore : IWidgetStore, ICap {}", encoding="utf-8")
+        (self.root / "tests/MongoSuite.cs").write_text(
+            "public class MongoSuite : WidgetConformanceTestKit { "
+            "void Configure() => services.AddExcalibur(x => x.AddWidgets(w => w.UseMongoDB(m => m.Thing()))); }",
+            encoding="utf-8")
+        records = self.census('SkipArm(nameof(Arm), typeof(ICap), "unavailable");')
+        self.assertIn("BINDS\tMongoSuite\tArm\tICap\tMongoDbWidgetStore", records)
+        self.assertFalse([r for r in records if r.startswith("NOSTORE\tWidgetConformanceTestKit\tMongoSuite")], records)
+
+    def test_composed_builder_cannot_fabricate_a_store_that_does_not_exist(self):
+        # SAFETY, and it is the arm that makes the liveness arm above safe to have. The composition
+        # GUESSES a type name from the builder verb, so it must only ever resolve to a type that is
+        # declared in the tree and whose closure carries the contract. A verb naming nothing real must
+        # leave the oracle underivable -- reported as NOSTORE -- never credited with a store.
+        (self.root / "tests/GhostSuite.cs").write_text(
+            "public class GhostSuite : WidgetConformanceTestKit { "
+            "void Configure() => services.AddExcalibur(x => x.AddWidgets(w => w.UseGhost(g => g.Thing()))); }",
+            encoding="utf-8")
+        records = self.census('SkipArm(nameof(Arm), typeof(ICap), "unavailable");')
+        self.assertIn("NOSTORE\tWidgetConformanceTestKit\tGhostSuite", records)
+        self.assertFalse([r for r in records if "GhostWidgetStore" in r], records)
+
 
 if __name__ == "__main__":
     unittest.main()
