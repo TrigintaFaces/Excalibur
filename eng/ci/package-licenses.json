@@ -184,5 +184,6 @@
   "Testcontainers.Redis": "MIT",
   "VaultSharp": "Apache-2.0",
   "YamlDotNet": "MIT",
-  "xunit.v3.extensibility.core": "Apache-2.0"
+  "xunit.v3.extensibility.core": "Apache-2.0",
+  "System.Security.Cryptography.Pkcs": "MIT"
 }

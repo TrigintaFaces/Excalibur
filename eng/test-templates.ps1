@@ -79,9 +79,16 @@ $script:RuntimeSourceIdentity = Get-CompositionSourceIdentity $RepoRoot
 $script:RuntimeSourceIdentity | ConvertTo-Json -Depth 6 |
     Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'runtime-source-identity.json') -Encoding utf8
 $script:CandidatePackageHashes = @{}
+# Two naming conventions, and the key below belongs to only one of them. The global packages folder
+# stores a package LOWERCASED, so the consumption check hashes it by the lowercased name; a feed
+# keeps the package id's own casing (Excalibur.Data.InMemory.*.nupkg). The lowercased key therefore
+# names no file in the feed, and the anti-tamper fence must resolve the real name instead -- which is
+# why it is recorded here next to the hash.
+$script:CandidatePackageFiles = @{}
 if ($LocalFeed) {
     foreach ($package in @(Get-ChildItem -LiteralPath $LocalFeed -Filter '*.nupkg' -File)) {
         $script:CandidatePackageHashes[$package.Name.ToLowerInvariant()] = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash
+        $script:CandidatePackageFiles[$package.Name.ToLowerInvariant()] = $package.Name
     }
     $script:CandidatePackageHashes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'candidate-package-hashes.json') -Encoding utf8
 }
@@ -797,9 +804,12 @@ function Invoke-Cleanup {
         }
         if ($LocalFeed) {
             foreach ($name in $script:CandidatePackageHashes.Keys) {
-                $path = Join-Path $LocalFeed $name
+                # The feed file, by its real name -- not the lowercased hash key, which resolves to
+                # nothing on a case-sensitive filesystem and made every package read as rewritten.
+                $file = $script:CandidatePackageFiles[$name]
+                $path = Join-Path $LocalFeed $file
                 if (-not (Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $script:CandidatePackageHashes[$name]) {
-                    Write-TestResult 'Candidate package remained unchanged' $false $name
+                    Write-TestResult 'Candidate package remained unchanged' $false $file
                 }
             }
         }

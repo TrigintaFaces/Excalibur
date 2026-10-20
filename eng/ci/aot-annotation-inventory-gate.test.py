@@ -14,7 +14,7 @@ parser.add_argument('--scanner-dll')
 parser.add_argument('--fixtures')
 args = parser.parse_args()
 repo=Path(args.repo).resolve()
-dll=Path(args.scanner_dll).resolve() if args.scanner_dll else repo/'tools/AotAnnotationInventory/bin/Release/net10.0/AotAnnotationInventory.dll'
+dll=Path(args.scanner_dll).resolve() if args.scanner_dll else repo/'eng/tools/AotAnnotationInventory/bin/Release/net10.0/AotAnnotationInventory.dll'
 candidate=dll.parents[3]
 fixtures=Path(args.fixtures).resolve() if args.fixtures else repo/'eng/ci/aot-inventory-fixtures'
 output = Path(args.output).resolve()
@@ -234,4 +234,8 @@ summary = {'scope':'candidate scanner controls only; not adapter or repository c
            'failed':sum(r['status']=='failed' for r in results),
            'unavailable':sum(r['status']=='unavailable' for r in results)}
 (output / 'summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
+# The caller retains this stream, so naming the arm here is what makes a failure readable.
+for result in results:
+    if result['status'] != 'passed':
+        print(f"{result['status']}: {result['name']}: {result.get('error') or result.get('reason', '')}")
 raise SystemExit(1 if summary['failed'] else 0)

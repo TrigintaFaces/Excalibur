@@ -51,6 +51,13 @@ seams:
     met: [R1, R2]
     unmet: [R3, R4]
 
+  - name: elasticsearch-projection-errors
+    architecture_md: src/Excalibur/Excalibur.Data.ElasticSearch/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "A dropped projection-error record is the only durable evidence that a projection failed, so its loss is silent: nothing downstream ever learns the projection broke."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
   - name: outbox-redis
     architecture_md: src/Excalibur/Excalibur.Outbox.Redis/ARCHITECTURE.md
     blast_radius: catastrophic

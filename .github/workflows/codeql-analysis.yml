@@ -97,7 +97,7 @@ jobs:
             paths-ignore:
               - 'archive/**'
               - 'management/**'
-              - 'tools/**'
+              - 'eng/tools/**'
               - '**/obj/**'
               - '**/bin/**'
 

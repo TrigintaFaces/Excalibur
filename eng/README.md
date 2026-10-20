@@ -8,7 +8,7 @@ This folder contains all build, validation, and CI scripts for the repository. I
 |------|---------|
 | `eng/*.ps1` | Top-level build and validation scripts |
 | `eng/ci/` | CI-only pipeline scripts |
-| `eng/tools/` | Index reconciliation and sync utilities |
+| `eng/tools/` | Build utilities the CI gates build and run (not packaged) |
 | `eng/compliance/` | Compliance evidence collection and reporting |
 | `eng/hooks/` | Git hooks |
 | `eng/api/` | Public API baselines for compatibility |

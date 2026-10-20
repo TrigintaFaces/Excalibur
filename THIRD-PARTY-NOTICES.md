@@ -88,7 +88,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Marten | 9.13.0 | MIT |
 | Medo.Uuid7 | 3.2.0 | MIT |
 | MemoryPack | 1.21.4 | MIT |
-| MessagePack | 3.1.7 | MIT |
+| MessagePack | 3.1.9 | MIT |
 | Microsoft.ApplicationInsights | 3.1.0 | MIT |
 | Microsoft.ApplicationInsights.AspNetCore | 3.1.0 | MIT |
 | Microsoft.AspNetCore.Authorization | 10.0.7 | MIT |
@@ -180,7 +180,8 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | System.Diagnostics.PerformanceCounter | 10.0.7 | MIT |
 | System.IO.Hashing | 10.0.7 | MIT |
 | System.IdentityModel.Tokens.Jwt | 8.17.0 | MIT |
-| System.Security.Cryptography.Xml | 10.0.10 | MIT |
+| System.Security.Cryptography.Pkcs | 10.0.13 | MIT |
+| System.Security.Cryptography.Xml | 10.0.13 | MIT |
 | System.Text.Json | 10.0.7 | MIT |
 | System.Threading.Channels | 10.0.7 | MIT |
 | System.Threading.RateLimiting | 10.0.7 | MIT |

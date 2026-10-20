@@ -224,7 +224,7 @@ exclusions:
     reason: "Raw template projects are solution items, validated after instantiation; template package is explicitly governed"
   - path: labs/**
     reason: "Experimental - not governed"
-  - path: tools/**
+  - path: eng/tools/**
     reason: "Build utilities - not packaged"
 
 projects:

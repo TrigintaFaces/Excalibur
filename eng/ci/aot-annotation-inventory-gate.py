@@ -82,9 +82,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', default=str(Path(__file__).resolve().parents[2]))
     parser.add_argument('--output')
-    parser.add_argument('--project', default='tools/AotAnnotationInventory/AotAnnotationInventory.csproj')
+    parser.add_argument('--project', default='eng/tools/AotAnnotationInventory/AotAnnotationInventory.csproj')
     parser.add_argument('--prepare-script', default='eng/ci/prepare-aot-inventory.ps1')
-    parser.add_argument('--merge-script', default='tools/AotAnnotationInventory/Merge-ConfiguredInventories.py')
+    parser.add_argument('--merge-script', default='eng/tools/AotAnnotationInventory/Merge-ConfiguredInventories.py')
     parser.add_argument('--baseline', default='eng/ci/aot-annotation-inventory.json')
     parser.add_argument('--shipping-filter', default='eng/ci/shards/ShippingOnly.slnf')
     parser.add_argument('--dotnet', default='dotnet')
@@ -148,12 +148,8 @@ def main():
 
     def fingerprint():
         paths = set()
-        for root in (repo/'src', repo/'tools', repo/'eng'):
+        for root in (repo/'src', repo/'eng'):
             if not root.is_dir():
-                # Artifact review can override the entire helper location before tools/ exists.
-                # Production still requires the actual selected project/helper files via fixed inputs.
-                if root == repo/'tools':
-                    continue
                 raise Refusal(f'Missing governed directory: {root}')
             for directory, dirs, files in os.walk(root, followlinks=False):
                 for name in list(dirs):
@@ -167,7 +163,7 @@ def main():
                     if is_reparse(path):
                         raise Refusal(f'Linked governed file: {path}')
                     paths.add(path)
-        # Configurable artifact helper paths must also be pinned even outside production tools/eng.
+        # Configurable artifact helper paths must also be pinned even outside production src/eng.
         paths.update(project.parent.glob('*.cs'))
         paths.update(project.parent.glob('*.csproj'))
         paths.update(fixed)
@@ -330,7 +326,10 @@ def main():
                 (output/'source-after.json').write_text(json.dumps(after,indent=2),encoding='utf-8')
                 receipt['sourceUnchanged'] = before == after
                 if before != after:
-                    receipt.update(status='REFUSE',error='Governed source/config/tool population changed during verification')
+                    # Name the paths: without them the refusal is undiagnosable once the evidence is discarded.
+                    changed = sorted(set(before) ^ set(after)) + sorted(p for p in before if p in after and before[p] != after[p])
+                    receipt.update(status='REFUSE',error=f'Governed source/config/tool population changed during '
+                                   f'verification ({len(changed)} path(s)): ' + '; '.join(changed[:10]))
                     exit_code = 2
             except (Refusal,OSError) as error:
                 receipt.update(status='REFUSE',error=f'Final fingerprint failed: {error}')
@@ -345,6 +344,17 @@ def main():
                 receipt.update(status='REFUSE',error=f'Candidate could not be written: {error}')
                 exit_code = 2
         (output/'gate-receipt.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+    if receipt['status'] == 'REFUSE':
+        # A runner discards the evidence directory, so a refusal that only names it is unreadable.
+        print(f"REFUSE reason: {receipt.get('error')}", file=sys.stderr)
+        for item in receipt['commands']:
+            if not (item.get('exitCode') or item.get('timedOut')):
+                continue
+            for stream in ('stdout','stderr'):
+                log = Path(item[stream])
+                if log.is_file():
+                    for line in log.read_text(encoding='utf-8',errors='replace').splitlines()[-40:]:
+                        print(f"  {item['label']}.{stream}: {line}", file=sys.stderr)
     print(f"{receipt['status']}: {output}")
     return exit_code
 
