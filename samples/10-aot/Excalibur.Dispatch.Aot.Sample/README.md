@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Aot.Sample
 
-This sample demonstrates **Native AOT compilation** with Dispatch source generators. It shows how to build a fully AOT-compatible message dispatching application with zero runtime reflection.
+This sample demonstrates **Native AOT compilation** with Dispatch source generators for handler discovery, invocation and JSON serialization, without runtime code generation.
 
 ## Prerequisites
 
@@ -32,7 +32,16 @@ dotnet publish -c Release
 
 ## Expected Output
 
-When you run the sample (JIT or native), you should see output similar to:
+Run the published executable with `--crypto-shred-smoke` to exercise real AES-GCM field encryption
+for two tenants sharing a subject ID. The control requires native execution, checks explicit ownership
+for both ordinary tenant names and the distinct default/untenanted partitions,
+without an ambient tenant, rejects cross-tenant reads before and after destruction, and confirms that
+destroying one tenant's key leaves the other tenant's plaintext readable. It uses the public external
+destruction-recording API after observing completed key deletion. The in-memory key store and ledger
+are demonstration fixtures, not durable production storage. This control does not verify the
+ErasureService workflow, event-store replay or cloud providers.
+
+When you run the sample (JIT or native), the first six demos produce output similar to this excerpt:
 
 ```
 ================================================
@@ -69,9 +78,24 @@ Transport running: True
 ================================================
 ```
 
-All 6 demos should complete without errors in both JIT and native AOT modes.
+All 12 default demos should complete without errors in both JIT and native AOT modes. The later demos cover event-sourced aggregates, event-store round trips, reconstruction, transport publish/subscribe, SOC 2 configuration binding and JSON report export.
+
+The SOC 2 configuration demo checks the resolved system name, description, services, infrastructure and data types against the configured values before exporting a report. A mismatch throws and makes the process exit unsuccessfully, so a native smoke run cannot silently accept lost configuration values. This checks the sample's representative options; it does not certify every provider or optional configuration shape. The SQL-backed Quartz smoke below requires a separate invocation.
 
 ## AOT Configuration
+
+### Handler context binding
+
+`AddDispatch` selects the container-based `AotHandlerActivator` when dynamic code is unavailable.
+Handlers that need the current context can implement `IMessageContextAware`; a generated or
+explicitly registered context setter is the next choice. Plain writable `IMessageContext`
+properties are also supported through cached, preserved property metadata. Native AOT permits
+this bounded reflection; it does not require dropping context binding.
+
+The runnable [native activation probe](../../../tests/harnesses/HandlerActivationAotProbe/README.md)
+demonstrates interface, registered-setter and plain-property binding and verifies that context
+references survive native compilation. Managed benchmark classes with `Aot` in their names do
+not establish NativeAOT compatibility; publish and execute the native artifact separately.
 
 The project is configured for full AOT compatibility in the `.csproj`:
 

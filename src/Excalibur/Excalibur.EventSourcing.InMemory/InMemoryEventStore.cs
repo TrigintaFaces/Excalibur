@@ -252,24 +252,32 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  return new ValueTask<IReadOnlyList<StoredEvent>>(events.ToArray());
  }
 
- // Find first event with version > fromVersion using linear scan
- // (binary search would require StoredEvent to implement IComparable or a comparer)
+ // Find the upper bound without adding to fromVersion, which may be long.MaxValue.
+ // Appends assign increasing storage versions; erasure preserves those versions.
+ // Keep the stream lock through both the search and the copy.
  var startIndex = 0;
- for (var i = 0; i < events.Count; i++)
+ var endIndex = events.Count;
+ while (startIndex < endIndex)
  {
- if (events[i].Version > fromVersion)
+ var middleIndex = startIndex + ((endIndex - startIndex) / 2);
+ if (events[middleIndex].Version <= fromVersion)
  {
- startIndex = i;
- break;
+ startIndex = middleIndex + 1;
+ }
+ else
+ {
+ endIndex = middleIndex;
+ }
  }
 
- if (i == events.Count - 1)
+ // A failed append can leave an existing empty stream. Preserve its fresh empty
+ // array path below, separately from an exhausted nonempty stream's shared empty.
+ if (startIndex == events.Count && events.Count > 0)
  {
  // All events have version <= fromVersion
  _ = (activity?.SetTag(EventSourcingTags.EventCount, 0));
  activity.SetOperationResult(EventSourcingTagValues.Success);
  return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
- }
  }
 
  // Copy range from startIndex to end - avoids LINQ Where/OrderBy/ToList allocations
@@ -422,7 +430,7 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  Metadata: @event.Metadata != null ? SerializeMetadata(@event.Metadata): null,
 #pragma warning restore IL2026, IL3050
  Version: version,
- Timestamp: @event.OccurredAt));
+ Timestamp: @event.OccurredAt) { TenantId = key.TenantId });
  }
 
  var firstPosition = Interlocked.Add(ref _position, eventList.Count) - eventList.Count + 1;

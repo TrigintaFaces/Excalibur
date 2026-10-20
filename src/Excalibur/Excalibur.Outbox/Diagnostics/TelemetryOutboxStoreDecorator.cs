@@ -197,11 +197,16 @@ internal sealed class TelemetryOutboxStoreDecorator(IOutboxStore inner) : Outbox
 
 	private sealed class MeasuredDeadLetterable(IDeadLetterableOutboxStore inner, TelemetryOutboxStoreDecorator owner) : IDeadLetterableOutboxStore
 	{
-		public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+		public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 		{
 			var sw = ValueStopwatch.StartNew();
-			await inner.MarkDeadLetteredAsync(messageId, reason, cancellationToken).ConfigureAwait(false);
+
+			// Forwarded, not swallowed. A decorator that awaits the inner store and returns nothing
+			// reinstates the defect the outcome exists to prevent, for every host that enables telemetry
+			// only -- and it does so invisibly, because the decorated path still compiles and still logs.
+			var outcome = await inner.MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken).ConfigureAwait(false);
 			owner.RecordOperation("mark_dead_lettered", 1, sw.Elapsed.TotalMilliseconds);
+			return outcome;
 		}
 	}
 

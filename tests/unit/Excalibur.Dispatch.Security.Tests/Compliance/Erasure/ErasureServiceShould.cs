@@ -548,6 +548,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -613,6 +614,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -639,6 +641,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -674,6 +677,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -731,6 +735,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -758,6 +763,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -813,6 +819,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -854,6 +861,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -970,6 +978,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -999,6 +1008,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -1032,6 +1042,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -1074,6 +1085,7 @@ public sealed class ErasureServiceShould
 		var status = new ErasureStatus
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,

@@ -87,7 +87,7 @@ public sealed class SubjectFieldCryptorEnvelopeMarkerShould
 
 		record.Email = record.Email[EncryptedFieldBinding.StringEnvelopePrefix.Length..];
 
-		await cryptor.DecryptFieldsAsync(record, CancellationToken.None).ConfigureAwait(false);
+		await cryptor.DecryptFieldsAsync(record, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).ConfigureAwait(false);
 
 		record.Email.ShouldBe(
 			Plaintext,
@@ -118,8 +118,8 @@ public sealed class SubjectFieldCryptorEnvelopeMarkerShould
 					Iv = [],
 				});
 
-		A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<CancellationToken>._))
-			.ReturnsLazily((EncryptedData envelope, CancellationToken _) => envelope.Ciphertext);
+		A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((EncryptedData envelope, string _, CancellationToken _) => envelope.Ciphertext);
 #pragma warning restore CA2012
 
 		return encryptor;

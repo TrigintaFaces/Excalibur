@@ -39,13 +39,30 @@ Each transport package provides CloudEvents serialization for wire-level interop
 
 | Transport | Registration |
 |-----------|-------------|
-| RabbitMQ | `services.AddRabbitMqCloudEvents()` |
-| Apache Kafka | `services.AddKafkaCloudEvents()` |
-| Azure Service Bus | `services.AddAzureCloudEvents()` |
-| AWS SQS | `services.AddAwsSqsCloudEvents()` |
-| Google Pub/Sub | `services.AddGooglePubSubCloudEvents()` |
+| RabbitMQ | `services.AddCloudEventsForRabbitMq()` |
+| Apache Kafka | `services.AddCloudEventsForKafka()` |
+| Azure Service Bus | `services.AddCloudEventsForServiceBus()` |
+| Azure Event Hubs | `services.AddCloudEventsForEventHubs()` |
+| AWS SQS | `services.AddCloudEventsForSqs()` |
+| AWS SNS | `services.AddCloudEventsForSns()` |
+| AWS EventBridge | `services.AddCloudEventsForEventBridge()` |
+| Google Pub/Sub | `services.AddCloudEventsForPubSub()` |
+| MQTT | `services.AddCloudEventsForMqtt()` |
 
 Transport packages register `ICloudEventEncoder<T>`, `ICloudEventEnvelopeConverter`, and `IEnvelopeCloudEventBridge` automatically.
+
+When using the EventBridge message bus, publication requires a positive per-entry
+`PutEvents` acknowledgement; HTTP 200 can still contain rejected entries. Established
+transient entry failures propagate to the configured retry owner, while permanent or
+unsupported acknowledgements do not silently complete an outbox message. This sample
+prints pipeline attributes locally and does not exercise EventBridge ingestion or
+target rules.
+
+CloudEvents use their configured JSON representation. The native EventBridge bus
+instead wraps pluggable serializer bytes as `{"payload":"BASE64"}`; native target
+consumers decode that field before deserialization. An accepted event ID does not
+guarantee downstream delivery or deduplication. See the [EventBridge acknowledgement
+and payload guidance](https://docs.excalibur-dispatch.dev/docs/transports/aws-sqs#eventbridge-ingestion-acknowledgements).
 
 ## Running the Sample
 

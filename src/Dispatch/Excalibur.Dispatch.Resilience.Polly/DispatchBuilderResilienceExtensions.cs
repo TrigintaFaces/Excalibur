@@ -52,12 +52,12 @@ public static class DispatchBuilderResilienceExtensions
 	/// Thrown when <paramref name="builder"/> is null.
 	/// </exception>
 	/// <remarks>
-	/// Tune the individual stages through the options types their subsystems own, so each knob has a
-	/// single home:
+	/// Register named policies through their subsystem configuration, then resolve and execute them at
+	/// the dependency boundary. Registering services does not install retry middleware:
 	/// <code>
 	/// services.AddDispatch(dispatch =&gt; dispatch.UseResilience());
-	/// services.Configure&lt;PollyRetryOptions&gt;(o =&gt; o.MaxAttempts = 3);
-	/// services.Configure&lt;CircuitBreakerOptions&gt;(o =&gt; o.ConsecutiveFailureThreshold = 5);
+	/// services.AddPollyRetryPolicy("orders", o =&gt; o.MaxRetryAttempts = 3);
+	/// services.AddPollyCircuitBreaker("orders-circuit", o =&gt; o.MinimumThroughput = 5);
 	/// </code>
 	/// </remarks>
 	[RequiresUnreferencedCode(

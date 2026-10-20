@@ -177,4 +177,4 @@ For enterprise needs, consider:
 
 ---
 
-*Last Updated: Sprint 342 (W5.T5.2 Support & Compatibility Policy)*
+*Last updated: 9 August 2026*

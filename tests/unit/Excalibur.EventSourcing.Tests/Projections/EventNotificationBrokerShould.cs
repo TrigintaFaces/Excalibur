@@ -14,7 +14,7 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 public sealed class EventNotificationBrokerShould
 {
 	private readonly InMemoryProjectionRegistry _registry = new();
-	private readonly InMemoryProjectionStore<OrderSummary> _projectionStore = new();
+	private readonly TestProjectionStore<OrderSummary> _projectionStore = new();
 	private readonly ServiceCollection _services = new();
 	private readonly EventNotificationOptions _options = new();
 

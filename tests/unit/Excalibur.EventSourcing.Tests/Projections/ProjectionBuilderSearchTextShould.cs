@@ -164,7 +164,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		});
 		builder.Build();
 
-		var store = new InMemoryProjectionStore<SearchableOrder>();
+		var store = new TestProjectionStore<SearchableOrder>();
 		var services = BuildServiceProvider(store);
 		var registration = _registry.GetRegistration(typeof(SearchableOrder))!;
 		var context = CreateContext("order-1");
@@ -194,7 +194,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		});
 		builder.Build();
 
-		var store = new InMemoryProjectionStore<SearchableOrder>();
+		var store = new TestProjectionStore<SearchableOrder>();
 		var services = BuildServiceProvider(store);
 		var registration = _registry.GetRegistration(typeof(SearchableOrder))!;
 		var context = CreateContext("order-2");
@@ -235,7 +235,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		});
 		builder.Build();
 
-		var store = new InMemoryProjectionStore<SearchableOrder>();
+		var store = new TestProjectionStore<SearchableOrder>();
 		var services = BuildServiceProvider(store);
 		var registration = _registry.GetRegistration(typeof(SearchableOrder))!;
 		var context = CreateContext("order-3");
@@ -273,7 +273,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		builder.KeyedBy<TestOrderPlaced>(e => $"amount-{e.Amount}");
 		builder.Build();
 
-		var store = new InMemoryProjectionStore<SearchableOrder>();
+		var store = new TestProjectionStore<SearchableOrder>();
 		var services = BuildServiceProvider(store);
 		var registration = _registry.GetRegistration(typeof(SearchableOrder))!;
 		var context = CreateContext("agg-1");
@@ -313,7 +313,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		var registry = new InMemoryProjectionRegistry();
 		builder.Build(registry);
 
-		var store = new InMemoryProjectionStore<SearchableOrder>();
+		var store = new TestProjectionStore<SearchableOrder>();
 		services.AddSingleton<IProjectionStore<SearchableOrder>>(store);
 		var sp = services.BuildServiceProvider();
 

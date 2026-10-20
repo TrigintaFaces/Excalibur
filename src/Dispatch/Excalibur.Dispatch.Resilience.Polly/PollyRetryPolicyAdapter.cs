@@ -43,8 +43,9 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? NullLogger.Instance;
 
-		// Create Polly resilience pipeline with retry strategy
-		_pipeline = new ResiliencePipelineBuilder()
+		// Zero is a supported framework setting: execute once without a retry strategy.
+		// Polly's retry strategy itself requires at least one retry.
+		_pipeline = _options.MaxRetryAttempts == 0 ? ResiliencePipeline.Empty : new ResiliencePipelineBuilder()
 			.AddRetry(new RetryStrategyOptions
 			{
 				MaxRetryAttempts = _options.MaxRetryAttempts,
@@ -54,8 +55,8 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 					BackoffStrategy.Linear => DelayBackoffType.Linear,
 					BackoffStrategy.Exponential => DelayBackoffType.Exponential,
 					BackoffStrategy.Fixed => DelayBackoffType.Constant,
-					// FullJitter maps to Polly's exponential backoff with jitter forced on — Polly v8 has no
-					// distinct FullJitter member; UseJitter applies its AWS-style jitter on the exponential base.
+					// Preserve the legacy FullJitter selector using Polly's exponential jitter strategy.
+					// Polly uses DecorrelatedJitterBackoffV2 here, rather than a separate full-jitter algorithm.
 					BackoffStrategy.FullJitter => DelayBackoffType.Exponential,
 					_ => DelayBackoffType.Exponential,
 				},
@@ -66,13 +67,11 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 				// was silently getting no cap at all. The option was only ever read by the duplicate
 				// concrete retry implementation, which nothing resolved, so the knob looked honoured.
 				MaxDelay = _options.MaxDelay,
-				// The floor is composed with AND, so a consumer predicate can only ever NARROW what is retried,
-				// never widen it. Written the other way round -- consulting ShouldRetry first, or defaulting to
-				// true and letting the predicate opt out -- a caller who supplies no predicate (the default)
-				// retries a permanently-failing operation forever, and a caller who supplies a permissive one
-				// can re-enable it deliberately. Neither is a choice worth offering.
+				// Retain the tenant-isolation floor. Otherwise use Polly's cancellation exclusion by default;
+				// an explicit predicate can select attempt-local cancellation when the caller is still active.
 				ShouldHandle = new PredicateBuilder()
-					.Handle<Exception>(ex => !IsNeverRetryable(ex) && (_options.ShouldRetry?.Invoke(ex) ?? true)),
+					.Handle<Exception>(ex => !IsNeverRetryable(ex) &&
+						(_options.ShouldRetry?.Invoke(ex) ?? (ex is not OperationCanceledException))),
 				OnRetry = args =>
 				{
 					LogRetryAttempt(args.AttemptNumber, args.RetryDelay.TotalMilliseconds, args.Outcome.Exception?.Message,

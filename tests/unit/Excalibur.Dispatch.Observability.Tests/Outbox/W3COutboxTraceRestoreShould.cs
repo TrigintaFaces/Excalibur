@@ -41,6 +41,9 @@ public sealed class W3COutboxTraceRestoreShould
         // MarkSentAsync returns a non-generic ValueTask — a faked call completes by default (no setup needed).
 
         var serializer = A.Fake<IPayloadSerializer>();
+        Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.RegisterType<TraceEvent>();
+        staged.MessageType = typeof(TraceEvent).AssemblyQualifiedName!;
+        A.CallTo(() => serializer.DeserializeObject(staged.Payload, typeof(TraceEvent))).Returns(new TraceEvent());
         var serviceProvider = A.Fake<IServiceProvider>();
         var logger = A.Fake<ILogger<MessageBusOutboxPublisher>>();
 
@@ -155,4 +158,5 @@ public sealed class W3COutboxTraceRestoreShould
         // Assert — malformed value is not propagated; publish still occurs (fail-open).
         context.GetTraceParent().ShouldBeNull();
     }
+    private sealed class TraceEvent : IDispatchEvent;
 }

@@ -206,7 +206,7 @@ public sealed class ProjectionBuilderShould
 	public async Task InlineApplyDelegateAppliesEventsAndPersists()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -361,7 +361,7 @@ public sealed class ProjectionBuilderShould
 	public async Task KeyedByResolvesProjectionIdFromEvent()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -411,55 +411,6 @@ public sealed class ProjectionBuilderShould
 
 		// Assert
 		result.ShouldBeSameAs(builder);
-	}
-
-	// --- WithStore tests ---
-
-	[Fact]
-	public void SetStoreType()
-	{
-		// Arrange
-		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-
-		// Act
-		builder.WithStore<InMemoryProjectionStore<OrderSummary>>();
-		builder.Inline();
-		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
-		builder.Build();
-
-		// Assert
-		var registration = _registry.GetRegistration(typeof(OrderSummary));
-		registration.ShouldNotBeNull();
-		registration.StoreType.ShouldBe(typeof(InMemoryProjectionStore<OrderSummary>));
-		builder.StoreType.ShouldBe(typeof(InMemoryProjectionStore<OrderSummary>));
-	}
-
-	[Fact]
-	public void ReturnBuilderForFluentChainingWithWithStore()
-	{
-		// Arrange
-		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-
-		// Act
-		var result = builder.WithStore<InMemoryProjectionStore<OrderSummary>>();
-
-		// Assert
-		result.ShouldBeSameAs(builder);
-	}
-
-	[Fact]
-	public void DefaultStoreTypeToNull()
-	{
-		// Arrange
-		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
-		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
-		builder.Build();
-
-		// Assert
-		var registration = _registry.GetRegistration(typeof(OrderSummary));
-		registration.ShouldNotBeNull();
-		registration.StoreType.ShouldBeNull();
 	}
 
 	// --- WithOptions tests ---
@@ -536,19 +487,18 @@ public sealed class ProjectionBuilderShould
 		registration.Options.ShouldBeNull();
 	}
 
-	// --- Full fluent chaining with all 4 new methods ---
+	// --- Full fluent chaining ---
 
 	[Fact]
-	public void SupportFullFluentChainingWithAllNewMethods()
+	public void SupportFullFluentChaining()
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
-		// Act -- all 4 new methods + existing ones in a single fluent chain
+		// Act -- every fluent method in a single chain
 		var result = builder
 			.Inline()
 			.KeyedBy<TestOrderPlaced>(e => e.AggregateId)
-			.WithStore<InMemoryProjectionStore<OrderSummary>>()
 			.WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(50))
 			.WhenDeleted((id, ct) => Task.CompletedTask)
 			.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount)
@@ -562,7 +512,7 @@ public sealed class ProjectionBuilderShould
 	public async Task SyncOnlyFastPathShouldNotCreateGhostProjectionsForUnrelatedEvents()
 	{
 		// Arrange -- projection handles only TestOrderPlaced, NOT TestOrderShipped
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -592,7 +542,7 @@ public sealed class ProjectionBuilderShould
 	public async Task SyncOnlyFastPathShouldOnlyProjectMatchingEvents()
 	{
 		// Arrange -- projection handles TestOrderPlaced but NOT TestOrderShipped
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -626,7 +576,7 @@ public sealed class ProjectionBuilderShould
 	public async Task InlineApplyDelegateMergesWithExistingState()
 	{
 		// Arrange -- pre-seed store with existing projection state
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		await store.UpsertAsync("order-1",
 			new OrderSummary { Total = 50m, EventCount = 1 },
 			CancellationToken.None);
@@ -814,7 +764,7 @@ public sealed class ProjectionBuilderShould
 	public async Task InlineApplyWithContextHandlerPassesLiveContext()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();

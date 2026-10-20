@@ -1,7 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Text;
+
 using Azure.Messaging.ServiceBus;
+
+using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Transport.Azure;
+
+using Microsoft.Extensions.Logging.Abstractions;
 using Azure.Messaging.ServiceBus.Administration;
 
 using Tests.Shared.Fixtures;
@@ -92,100 +99,24 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 	public async Task CompleteMessage_RemovesFromQueue()
 	{
 		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
-
-		// Arrange
-		await using var sender = _fixture.Client.CreateSender(TestQueueName);
-		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
-
-		var message = new ServiceBusMessage("complete test")
-		{
-			MessageId = Guid.NewGuid().ToString(),
-		};
-		await sender.SendMessageAsync(message).ConfigureAwait(false);
-
-		// Act - receive and complete
-		var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-		received.ShouldNotBeNull();
-		await receiver.CompleteMessageAsync(received).ConfigureAwait(false);
-
-		// Assert - queue should be empty now
-		var afterComplete = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-		afterComplete.ShouldBeNull();
+		await VerifySettlementAsync("acknowledge", noOp: false).ConfigureAwait(false);
+		await VerifySettlementAsync("acknowledge", noOp: true).ConfigureAwait(false);
 	}
 
 	[Fact]
 	public async Task AbandonMessage_MakesMessageReappear()
 	{
 		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
-
-		// Arrange
-		await using var sender = _fixture.Client.CreateSender(TestQueueName);
-		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
-
-		var message = new ServiceBusMessage("abandon test")
-		{
-			MessageId = Guid.NewGuid().ToString(),
-		};
-		await sender.SendMessageAsync(message).ConfigureAwait(false);
-
-		// Act - receive and abandon
-		var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-		received.ShouldNotBeNull();
-		received.MessageId.ShouldBe(message.MessageId);
-		await receiver.AbandonMessageAsync(received).ConfigureAwait(false);
-
-		// Assert - message should be available again
-		var redelivered = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-		redelivered.ShouldNotBeNull();
-		redelivered.MessageId.ShouldBe(message.MessageId);
-		redelivered.DeliveryCount.ShouldBeGreaterThan(1);
-
-		await receiver.CompleteMessageAsync(redelivered).ConfigureAwait(false);
+		await VerifySettlementAsync("requeue", noOp: false).ConfigureAwait(false);
+		await VerifySettlementAsync("requeue", noOp: true).ConfigureAwait(false);
 	}
 
 	[Fact]
 	public async Task DeadLetterMessage_MovesToDlq()
 	{
 		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
-
-		// Arrange
-		await using var sender = _fixture.Client.CreateSender(TestQueueName);
-		await using var receiver = _fixture.Client.CreateReceiver(TestQueueName);
-
-		var message = new ServiceBusMessage("dead-letter test")
-		{
-			MessageId = Guid.NewGuid().ToString(),
-		};
-		await sender.SendMessageAsync(message).ConfigureAwait(false);
-
-		// Act - receive and dead-letter
-		var received = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-		received.ShouldNotBeNull();
-		await receiver.DeadLetterMessageAsync(received, "TestReason", "Testing dead-letter flow").ConfigureAwait(false);
-
-		// Assert - message should be in the dead-letter sub-queue
-		var dlqPath = $"{TestQueueName}/$deadletterqueue";
-		await using var dlqReceiver = _fixture.Client.CreateReceiver(dlqPath);
-
-		var dlqMessage = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-		dlqMessage.ShouldNotBeNull();
-		dlqMessage.MessageId.ShouldBe(message.MessageId);
-		dlqMessage.DeadLetterReason.ShouldBe("TestReason");
-		dlqMessage.DeadLetterErrorDescription.ShouldBe("Testing dead-letter flow");
-
-		// bd-lruj48: the DLQ assertions above are the load-bearing checks and have already passed. The
-		// completion below is non-load-bearing cleanup; under emulator load the DLQ message lock can expire
-		// between receive and complete, surfacing MessageLockLost. That is an emulator lock-timing artifact,
-		// NOT a code regression — a lost lock simply leaves the (already-verified) DLQ message for the
-		// container's disposal. Swallow ONLY MessageLockLost so the flake cannot fail an already-proven test.
-		try
-		{
-			await dlqReceiver.CompleteMessageAsync(dlqMessage).ConfigureAwait(false);
-		}
-		catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessageLockLost)
-		{
-			// Emulator lock-timing only; the dead-letter assertions have already been verified.
-		}
+		await VerifySettlementAsync("reject", noOp: false).ConfigureAwait(false);
+		await VerifySettlementAsync("reject", noOp: true).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -257,5 +188,130 @@ public sealed class AzureServiceBusTransportReceiverIntegrationShould : IAsyncLi
 		received.ApplicationProperties["priority"].ShouldBe(5);
 
 		await receiver.CompleteMessageAsync(received).ConfigureAwait(false);
+	}
+
+	private async Task VerifySettlementAsync(string action, bool noOp)
+	{
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+		var targetId = $"settlement-{Guid.NewGuid():N}";
+		var body = $"body-{targetId}";
+		const string RejectionReason = "integration rejection";
+		await using var sender = _fixture.Client.CreateSender(TestQueueName);
+		await sender.SendMessageAsync(new ServiceBusMessage(body) { MessageId = targetId }, bounded.Token).ConfigureAwait(false);
+		await using var realReceiver = new ServiceBusTransportReceiver(
+			_fixture.Client.CreateReceiver(TestQueueName), TestQueueName, NullLogger<ServiceBusTransportReceiver>.Instance);
+		ITransportReceiver receiver = noOp ? new NoOpSettlementReceiver(realReceiver) : realReceiver;
+		var received = (await receiver.ReceiveAsync(1, bounded.Token).ConfigureAwait(false)).Single();
+		try
+		{
+			received.Id.ShouldBe(targetId);
+			Encoding.UTF8.GetString(received.Body.Span).ShouldBe(body);
+			var sequence = (long)received.ProviderData[TransportOrderingMetadata.AzureServiceBusSequenceKey];
+			await using var peek = _fixture.Client.CreateReceiver(TestQueueName);
+			var before = await peek.PeekMessageAsync(sequence, bounded.Token).ConfigureAwait(false);
+			before.ShouldNotBeNull();
+			before.MessageId.ShouldBe(targetId);
+			before.SequenceNumber.ShouldBe(sequence);
+			if (action == "acknowledge")
+				await receiver.AcknowledgeAsync(received, bounded.Token).ConfigureAwait(false);
+			else
+				await receiver.RejectAsync(received, RejectionReason, action == "requeue", bounded.Token).ConfigureAwait(false);
+
+			if (action == "requeue")
+			{
+				await using var probe = _fixture.Client.CreateReceiver(TestQueueName);
+				var redelivered = await probe.ReceiveMessageAsync(TimeSpan.FromSeconds(3), bounded.Token).ConfigureAwait(false);
+				if (noOp)
+				{
+					try
+					{
+						redelivered.ShouldBeNull("the no-op retains the target lock; receiving another message invalidates this isolated probe");
+					}
+					finally
+					{
+						if (redelivered is not null)
+							await probe.AbandonMessageAsync(redelivered, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+					}
+				}
+				else
+				{
+					redelivered.ShouldNotBeNull();
+					redelivered.MessageId.ShouldBe(targetId);
+					redelivered.Body.ToString().ShouldBe(body);
+					redelivered.DeliveryCount.ShouldBeGreaterThan(received.DeliveryCount);
+					await probe.CompleteMessageAsync(redelivered, bounded.Token).ConfigureAwait(false);
+				}
+			}
+			if (action == "reject")
+			{
+				// This serialized class owns receiver-test-queue; observed DLQ targets remain until fixture disposal.
+				await using var dlq = _fixture.Client.CreateReceiver(TestQueueName,
+					new ServiceBusReceiverOptions
+					{
+						SubQueue = SubQueue.DeadLetter,
+						ReceiveMode = ServiceBusReceiveMode.PeekLock,
+					});
+				if (noOp)
+				{
+					var deadLettered = await PeekTargetAsync(dlq, targetId, bounded.Token).ConfigureAwait(false);
+					deadLettered.ShouldBeNull();
+				}
+				else
+				{
+					// Each poll starts at zero so delayed target arrival cannot be missed by an advanced cursor.
+					var deadLettered = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitForValueAsync(
+						() => PeekTargetAsync(dlq, targetId, bounded.Token), TimeSpan.FromSeconds(5),
+						cancellationToken: bounded.Token).ConfigureAwait(false);
+					deadLettered.ShouldNotBeNull();
+					deadLettered.MessageId.ShouldBe(targetId);
+					deadLettered.Body.ToString().ShouldBe(body);
+					deadLettered.DeadLetterReason.ShouldBe("Rejected");
+					deadLettered.DeadLetterErrorDescription.ShouldBe(RejectionReason);
+				}
+			}
+
+			// A locked message was visible to this independent peek before settlement.
+			await using var afterProbe = _fixture.Client.CreateReceiver(TestQueueName);
+			var after = await afterProbe.PeekMessageAsync(sequence, bounded.Token).ConfigureAwait(false);
+			if (noOp)
+			{
+				after.ShouldNotBeNull();
+				after.MessageId.ShouldBe(targetId);
+				after.SequenceNumber.ShouldBe(sequence);
+				after.Body.ToString().ShouldBe(body);
+			}
+			else
+				(after?.SequenceNumber == sequence).ShouldBeFalse("the settled target must leave the source queue");
+		}
+		finally
+		{
+			if (noOp)
+				await realReceiver.AcknowledgeAsync(received, CancellationToken.None).ConfigureAwait(false);
+		}
+	}
+
+	private static async Task<ServiceBusReceivedMessage?> PeekTargetAsync(
+		ServiceBusReceiver receiver, string targetId, CancellationToken cancellationToken)
+	{
+		long cursor = 0;
+		while (true)
+		{
+			var page = await receiver.PeekMessagesAsync(100, cursor, cancellationToken).ConfigureAwait(false);
+			if (page.Count == 0)
+				return null;
+			var target = page.FirstOrDefault(message => message.MessageId == targetId);
+			if (target is not null)
+				return target;
+			var next = checked(page.Max(message => message.SequenceNumber) + 1);
+			if (next <= cursor)
+				throw new InvalidOperationException("The DLQ peek cursor did not advance.");
+			cursor = next;
+		}
+	}
+
+	private sealed class NoOpSettlementReceiver(ITransportReceiver inner) : DelegatingTransportReceiver(inner)
+	{
+		public override Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 }

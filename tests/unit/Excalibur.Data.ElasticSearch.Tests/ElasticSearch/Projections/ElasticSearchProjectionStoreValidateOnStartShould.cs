@@ -37,7 +37,7 @@ public sealed class ElasticSearchProjectionStoreValidateOnStartShould
 	}
 
 	[Fact]
-	public async Task FailFastAtHostStart_WhenProjectionOptionsInvalid()
+	public async Task FailFastAtHostStart_WhenElasticSearchProjectionManagementOptionsInvalid()
 	{
 		// Arrange — bad NodeUri; ValidateOnStart must surface it eagerly at host start, not at first store use.
 		var builder = Host.CreateApplicationBuilder();
@@ -52,7 +52,7 @@ public sealed class ElasticSearchProjectionStoreValidateOnStartShould
 	}
 
 	[Fact]
-	public async Task StartCleanly_WhenProjectionOptionsValid()
+	public async Task StartCleanly_WhenElasticSearchProjectionManagementOptionsValid()
 	{
 		// Arrange — valid config: the fail-fast test must not be vacuously passing.
 		var builder = Host.CreateApplicationBuilder();

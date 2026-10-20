@@ -204,6 +204,6 @@ static string MaskSSN(string ssn)
 ## Learn More
 
 - [ASP.NET Core DataProtection](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/)
-- [Excalibur.Security Package](../../../src/Dispatch/Excalibur.Security/)
+- [Excalibur.Security Package](../../../src/Excalibur/Excalibur.Security/)
 - [PCI DSS Requirements](https://www.pcisecuritystandards.org/)
 - [GDPR Encryption Guidelines](https://gdpr-info.eu/)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
+using System.Numerics;
 
 using Excalibur.Caching.Diagnostics;
 
@@ -21,6 +22,17 @@ public partial class RuleBasedAdaptiveTtlStrategy(
 {
 	private readonly ILogger<RuleBasedAdaptiveTtlStrategy> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly RuleBasedTtlOptions options = options ?? throw new ArgumentNullException(nameof(options));
+	private readonly int _maxTrackedKeys = ValidateCapacity(options);
+	private readonly Lock _admissionLock = new();
+	private readonly Queue<string> _admissionOrder = new();
+	private long _totalCalculations;
+	private long _ttlIncreases;
+	private long _ttlDecreases;
+	private long _boundaryHits;
+	private long _hits;
+	private long _misses;
+	private long _staleHits;
+	private long _responseTicks;
 
 	private readonly ConcurrentDictionary<string, SimpleKeyMetrics> keyMetrics =
 		new(StringComparer.Ordinal);
@@ -30,24 +42,46 @@ public partial class RuleBasedAdaptiveTtlStrategy(
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		var metrics = keyMetrics.GetOrAdd(context.Key, static _ => new SimpleKeyMetrics());
+		var metrics = GetOrCreateMetrics(context.Key);
 		var adjustedTtl = context.BaseTtl;
+		uint rules = 0;
+		var boundaryHit = false;
+		try
+		{
+			adjustedTtl = ApplyHitRateRule(context, metrics, adjustedTtl, ref rules);
+			adjustedTtl = ApplyAccessFrequencyRule(context, metrics, adjustedTtl, ref rules);
+			adjustedTtl = ApplyMissCostRule(context, metrics, adjustedTtl, ref rules);
+			adjustedTtl = ApplySystemLoadRule(context, metrics, adjustedTtl, ref rules);
+			adjustedTtl = ApplyTimeOfDayRule(context, metrics, adjustedTtl, ref rules);
+			adjustedTtl = ApplyContentSizeRule(context, metrics, adjustedTtl, ref rules);
+			adjustedTtl = ApplyBounds(adjustedTtl, ref boundaryHit);
 
-		adjustedTtl = ApplyHitRateRule(context, metrics, adjustedTtl);
-		adjustedTtl = ApplyAccessFrequencyRule(context, metrics, adjustedTtl);
-		adjustedTtl = ApplyMissCostRule(context, metrics, adjustedTtl);
-		adjustedTtl = ApplySystemLoadRule(context, metrics, adjustedTtl);
-		adjustedTtl = ApplyTimeOfDayRule(context, metrics, adjustedTtl);
-		adjustedTtl = ApplyContentSizeRule(context, metrics, adjustedTtl);
-		adjustedTtl = ApplyBounds(metrics, adjustedTtl);
+			Interlocked.Increment(ref _totalCalculations);
+		}
+		finally
+		{
+			// Preserve partial rule counts even when later TTL math throws. The
+			// legacy groups are rules 1-3 and 4-6, irrespective of multiplier sign.
+			if ((rules & 7) != 0)
+			{
+				Interlocked.Add(ref _ttlIncreases, BitOperations.PopCount(rules & 7));
+			}
+			if ((rules >> 3) != 0)
+			{
+				Interlocked.Add(ref _ttlDecreases, BitOperations.PopCount(rules >> 3));
+			}
+			if (boundaryHit)
+			{
+				Interlocked.Increment(ref _boundaryHits);
+			}
+		}
 
-		Interlocked.Increment(ref metrics._totalCalculations);
-		metrics.LastTtl = adjustedTtl;
-		metrics.LastCalculation = context.CurrentTime;
-
-		var rulesApplied =
-			$"R1={metrics.Rule1Applied > 0}, R2={metrics.Rule2Applied > 0}, R3={metrics.Rule3Applied > 0}, R4={metrics.Rule4Applied > 0}, R5={metrics.Rule5Applied > 0}, R6={metrics.Rule6Applied > 0}";
-		LogCalculatedTtl(context.Key, adjustedTtl, context.BaseTtl, rulesApplied);
+		if (_logger.IsEnabled(LogLevel.Debug))
+		{
+			var rulesApplied =
+				$"R1={metrics.Rule1Applied > 0}, R2={metrics.Rule2Applied > 0}, R3={metrics.Rule3Applied > 0}, R4={metrics.Rule4Applied > 0}, R5={metrics.Rule5Applied > 0}, R6={metrics.Rule6Applied > 0}";
+			LogCalculatedTtl(context.Key, adjustedTtl, context.BaseTtl, rulesApplied);
+		}
 
 		return adjustedTtl;
 	}
@@ -66,18 +100,20 @@ public partial class RuleBasedAdaptiveTtlStrategy(
 		if (feedback.IsHit)
 		{
 			Interlocked.Increment(ref metrics._hits);
+			Interlocked.Increment(ref _hits);
 			if (feedback.WasStale)
 			{
 				Interlocked.Increment(ref metrics._staleHits);
+				Interlocked.Increment(ref _staleHits);
 			}
 		}
 		else
 		{
 			Interlocked.Increment(ref metrics._misses);
+			Interlocked.Increment(ref _misses);
 		}
 
-		metrics.TotalResponseTime += feedback.ResponseTime;
-		metrics.LastUpdate = feedback.Timestamp;
+		Interlocked.Add(ref _responseTicks, feedback.ResponseTime.Ticks);
 
 		LogUpdatedMetrics(feedback.Key, metrics.Hits, metrics.Misses, metrics.StaleHits);
 	}
@@ -85,199 +121,192 @@ public partial class RuleBasedAdaptiveTtlStrategy(
 	/// <inheritdoc />
 	public AdaptiveTtlMetrics GetMetrics()
 	{
-		long totalCalculations = 0;
-		long ttlIncreases = 0;
-		long ttlDecreases = 0;
 		double totalHitRate = 0;
 		var keyCount = 0;
+		var snapshot = keyMetrics.Values;
 
-		foreach (var kvp in keyMetrics)
+		foreach (var metrics in snapshot)
 		{
-			var metrics = kvp.Value;
-			totalCalculations += metrics.TotalCalculations;
-
 			var total = metrics.Hits + metrics.Misses;
 			if (total > 0)
 			{
 				totalHitRate += (double)metrics.Hits / total;
 				keyCount++;
 			}
-
-			// Count increases/decreases based on rules applied
-			ttlIncreases += metrics.Rule1Applied + metrics.Rule2Applied + metrics.Rule3Applied;
-			ttlDecreases += metrics.Rule4Applied + metrics.Rule5Applied + metrics.Rule6Applied;
 		}
+		var totalCalculations = Interlocked.Read(ref _totalCalculations);
+		var hits = Interlocked.Read(ref _hits);
+		var requests = hits + Interlocked.Read(ref _misses);
 
 		return new AdaptiveTtlMetrics
 		{
 			TotalCalculations = totalCalculations,
-			TtlIncreases = ttlIncreases,
-			TtlDecreases = ttlDecreases,
+			TtlIncreases = Interlocked.Read(ref _ttlIncreases),
+			TtlDecreases = Interlocked.Read(ref _ttlDecreases),
 			AverageHitRate = keyCount > 0 ? totalHitRate / keyCount : 0,
 			AverageAdjustmentFactor = 1.0,
 			CustomMetrics =
 			{
 				// Add custom metrics
-				["TotalKeys"] = keyMetrics.Count,
-				["AverageResponseTimeMs"] = CalculateAverageResponseTime(),
-				["StaleHitRate"] = CalculateStaleHitRate(),
-				["BoundaryHitRate"] = CalculateBoundaryHitRate(),
+				["TotalKeys"] = snapshot.Count,
+				["AverageResponseTimeMs"] = requests > 0 ? TimeSpan.FromTicks(Interlocked.Read(ref _responseTicks)).TotalMilliseconds / requests : 0,
+				["StaleHitRate"] = hits > 0 ? (double)Interlocked.Read(ref _staleHits) / hits : 0,
+				["BoundaryHitRate"] = totalCalculations > 0 ? (double)Interlocked.Read(ref _boundaryHits) / totalCalculations : 0,
 			}, // Rule-based doesn't track this precisely
 		};
 	}
 
-	private TimeSpan ApplyHitRateRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplyHitRateRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl, ref uint rules)
 	{
 		if (context.HitRate > options.HitRate.HighHitRateThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule1Applied);
+			metrics.MarkRule(1);
+			rules |= 1;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.HitRate.HighHitRateMultiplier);
 		}
 
 		if (context.HitRate < options.HitRate.LowHitRateThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule1Applied);
+			metrics.MarkRule(1);
+			rules |= 1;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.HitRate.LowHitRateMultiplier);
 		}
 
 		return adjustedTtl;
 	}
 
-	private TimeSpan ApplyAccessFrequencyRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplyAccessFrequencyRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl, ref uint rules)
 	{
 		if (context.AccessFrequency > options.Frequency.HighFrequencyThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule2Applied);
+			metrics.MarkRule(2);
+			rules |= 2;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.Frequency.HighFrequencyMultiplier);
 		}
 
 		if (context.AccessFrequency < options.Frequency.LowFrequencyThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule2Applied);
+			metrics.MarkRule(2);
+			rules |= 2;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.Frequency.LowFrequencyMultiplier);
 		}
 
 		return adjustedTtl;
 	}
 
-	private TimeSpan ApplyMissCostRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplyMissCostRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl, ref uint rules)
 	{
 		if (context.MissCost > options.Load.ExpensiveMissThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule3Applied);
+			metrics.MarkRule(4);
+			rules |= 4;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.Load.ExpensiveMissMultiplier);
 		}
 
 		return adjustedTtl;
 	}
 
-	private TimeSpan ApplySystemLoadRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplySystemLoadRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl, ref uint rules)
 	{
 		if (context.SystemLoad > options.Thresholds.HighLoadThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule4Applied);
+			metrics.MarkRule(8);
+			rules |= 8;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.Load.HighLoadMultiplier);
 		}
 
 		if (context.SystemLoad < options.Thresholds.LowLoadThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule4Applied);
+			metrics.MarkRule(8);
+			rules |= 8;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.Load.LowLoadMultiplier);
 		}
 
 		return adjustedTtl;
 	}
 
-	private TimeSpan ApplyTimeOfDayRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplyTimeOfDayRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl, ref uint rules)
 	{
 		var hour = context.CurrentTime.Hour;
 
 		if (hour >= options.TimeOfDay.PeakHoursStart && hour <= options.TimeOfDay.PeakHoursEnd)
 		{
-			Interlocked.Increment(ref metrics._rule5Applied);
+			metrics.MarkRule(16);
+			rules |= 16;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.TimeOfDay.PeakHoursMultiplier);
 		}
 
 		if (hour < options.TimeOfDay.OffHoursStart || hour > options.TimeOfDay.OffHoursEnd)
 		{
-			Interlocked.Increment(ref metrics._rule5Applied);
+			metrics.MarkRule(16);
+			rules |= 16;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.TimeOfDay.OffHoursMultiplier);
 		}
 
 		return adjustedTtl;
 	}
 
-	private TimeSpan ApplyContentSizeRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplyContentSizeRule(AdaptiveTtlContext context, SimpleKeyMetrics metrics, TimeSpan adjustedTtl, ref uint rules)
 	{
 		if (context.ContentSize > options.Content.LargeContentThreshold)
 		{
-			Interlocked.Increment(ref metrics._rule6Applied);
+			metrics.MarkRule(32);
+			rules |= 32;
 			return TimeSpan.FromMilliseconds(adjustedTtl.TotalMilliseconds * options.Content.LargeContentMultiplier);
 		}
 
 		return adjustedTtl;
 	}
 
-	private TimeSpan ApplyBounds(SimpleKeyMetrics metrics, TimeSpan adjustedTtl)
+	private TimeSpan ApplyBounds(TimeSpan adjustedTtl, ref bool boundaryHit)
 	{
 		if (adjustedTtl < options.MinTtl)
 		{
-			Interlocked.Increment(ref metrics._boundaryHits);
+			boundaryHit = true;
 			return options.MinTtl;
 		}
 
 		if (adjustedTtl > options.MaxTtl)
 		{
-			Interlocked.Increment(ref metrics._boundaryHits);
+			boundaryHit = true;
 			return options.MaxTtl;
 		}
 
 		return adjustedTtl;
 	}
 
-	private double CalculateAverageResponseTime()
+	private SimpleKeyMetrics GetOrCreateMetrics(string key)
 	{
-		double totalTime = 0;
-		long totalRequests = 0;
-
-		foreach (var metrics in keyMetrics.Values)
+		if (keyMetrics.TryGetValue(key, out var existing))
 		{
-			if (metrics.Hits + metrics.Misses > 0)
+			return existing;
+		}
+
+		lock (_admissionLock)
+		{
+			if (keyMetrics.TryGetValue(key, out existing))
 			{
-				totalTime += metrics.TotalResponseTime.TotalMilliseconds;
-				totalRequests += metrics.Hits + metrics.Misses;
+				return existing;
 			}
-		}
 
-		return totalRequests > 0 ? totalTime / totalRequests : 0;
+			if (_admissionOrder.Count >= _maxTrackedKeys)
+			{
+				_ = keyMetrics.TryRemove(_admissionOrder.Dequeue(), out _);
+			}
+
+			var created = new SimpleKeyMetrics();
+			keyMetrics[key] = created;
+			_admissionOrder.Enqueue(key);
+			return created;
+		}
 	}
 
-	private double CalculateStaleHitRate()
+	private static int ValidateCapacity(RuleBasedTtlOptions options)
 	{
-		long totalHits = 0;
-		long staleHits = 0;
-
-		foreach (var metrics in keyMetrics.Values)
-		{
-			totalHits += metrics.Hits;
-			staleHits += metrics.StaleHits;
-		}
-
-		return totalHits > 0 ? (double)staleHits / totalHits : 0;
-	}
-
-	private double CalculateBoundaryHitRate()
-	{
-		long totalCalculations = 0;
-		long boundaryHits = 0;
-
-		foreach (var metrics in keyMetrics.Values)
-		{
-			totalCalculations += metrics.TotalCalculations;
-			boundaryHits += metrics.BoundaryHits;
-		}
-
-		return totalCalculations > 0 ? (double)boundaryHits / totalCalculations : 0;
+		ArgumentNullException.ThrowIfNull(options);
+		var capacity = options.MaxTrackedKeys;
+		ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1, nameof(options.MaxTrackedKeys));
+		return capacity;
 	}
 
 	// Source-generated logging methods
@@ -295,19 +324,10 @@ public partial class RuleBasedAdaptiveTtlStrategy(
 	private sealed class SimpleKeyMetrics
 	{
 		// Fields accessed via Interlocked — must be fields, not properties
-		public long _totalCalculations;
 		public long _hits;
 		public long _misses;
 		public long _staleHits;
-		public long _boundaryHits;
-		public long _rule1Applied;
-		public long _rule2Applied;
-		public long _rule3Applied;
-		public long _rule4Applied;
-		public long _rule5Applied;
-		public long _rule6Applied;
-
-		public long TotalCalculations => Interlocked.Read(ref _totalCalculations);
+		public int _rulesApplied;
 
 		public long Hits => Interlocked.Read(ref _hits);
 
@@ -315,26 +335,26 @@ public partial class RuleBasedAdaptiveTtlStrategy(
 
 		public long StaleHits => Interlocked.Read(ref _staleHits);
 
-		public TimeSpan TotalResponseTime { get; set; }
+		public int Rule1Applied => Volatile.Read(ref _rulesApplied) & 1;
 
-		public TimeSpan LastTtl { get; set; }
+		public int Rule2Applied => Volatile.Read(ref _rulesApplied) & 2;
 
-		public DateTimeOffset LastCalculation { get; set; }
+		public int Rule3Applied => Volatile.Read(ref _rulesApplied) & 4;
 
-		public DateTimeOffset LastUpdate { get; set; }
+		public int Rule4Applied => Volatile.Read(ref _rulesApplied) & 8;
 
-		public long BoundaryHits => Interlocked.Read(ref _boundaryHits);
+		public int Rule5Applied => Volatile.Read(ref _rulesApplied) & 16;
 
-		public long Rule1Applied => Interlocked.Read(ref _rule1Applied);
+		public int Rule6Applied => Volatile.Read(ref _rulesApplied) & 32;
 
-		public long Rule2Applied => Interlocked.Read(ref _rule2Applied);
-
-		public long Rule3Applied => Interlocked.Read(ref _rule3Applied);
-
-		public long Rule4Applied => Interlocked.Read(ref _rule4Applied);
-
-		public long Rule5Applied => Interlocked.Read(ref _rule5Applied);
-
-		public long Rule6Applied => Interlocked.Read(ref _rule6Applied);
+		public void MarkRule(int rule)
+		{
+			// Flags are cumulative for this admission, independently of per-call
+			// global rule counts. Preserve the flag even if subsequent TTL math fails.
+			if ((Volatile.Read(ref _rulesApplied) & rule) == 0)
+			{
+				_ = Interlocked.Or(ref _rulesApplied, rule);
+			}
+		}
 	}
 }

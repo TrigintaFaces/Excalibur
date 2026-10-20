@@ -144,8 +144,8 @@ message OrderCancelledEvent {
 
 ### Consider Alternatives
 
-- **MemoryPack**: Fastest, but .NET-only
-- **MessagePack**: Good cross-language support with better .NET performance
+- **MemoryPack**: Source-generated binary serialization for .NET
+- **MessagePack**: Cross-language binary serialization
 - **JSON**: Maximum compatibility, human-readable debugging
 
 ## Configuration Options

@@ -59,7 +59,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 		// bd-stlcgg (S841): the dead-letter bucket transitions via MarkDeadLetteredAsync (terminal), not MarkFailedAsync.
 		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
 				"dead-1",
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -156,7 +156,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			.MustNotHaveHappened();
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-open-during-execution",
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustNotHaveHappened();
 
@@ -202,7 +202,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			logger ?? NullLogger<OutboxProcessor>.Instance,
 
 			envelopeDeserializer: null,
-			deadLetterQueue: deadLetterQueue,
+			deadLetterQueue: deadLetterQueue ?? Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance);
 	}
 

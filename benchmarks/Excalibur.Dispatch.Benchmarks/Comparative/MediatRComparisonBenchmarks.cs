@@ -3,6 +3,7 @@
 
 using BenchmarkDotNet.Attributes;
 
+using Excalibur.Dispatch.Benchmarks.Infrastructure;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Configuration;
@@ -463,18 +464,7 @@ public class MediatRComparisonBenchmarks
 		TMessage message)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(dispatcher);
-		ArgumentNullException.ThrowIfNull(contextFactory);
-
-		var context = contextFactory.CreateContext();
-		var dispatchTask = dispatcher.DispatchAsync(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			contextFactory.Return(context);
-			return dispatchTask;
-		}
-
-		return AwaitAndReturnContextAsync(dispatchTask, contextFactory, context);
+		return FreshContextBenchmarkDispatch.DispatchAsync<TMessage>(dispatcher, contextFactory, message);
 	}
 
 	private static Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(
@@ -483,48 +473,7 @@ public class MediatRComparisonBenchmarks
 		TMessage message)
 		where TMessage : IDispatchAction<TResponse>
 	{
-		ArgumentNullException.ThrowIfNull(dispatcher);
-		ArgumentNullException.ThrowIfNull(contextFactory);
-
-		var context = contextFactory.CreateContext();
-		var dispatchTask = dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			contextFactory.Return(context);
-			return dispatchTask;
-		}
-
-		return AwaitAndReturnContextTypedAsync(dispatchTask, contextFactory, context);
-	}
-
-	private static async Task<IMessageResult<TResponse>> AwaitAndReturnContextTypedAsync<TResponse>(
-		Task<IMessageResult<TResponse>> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
-	}
-
-	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
-		Task<IMessageResult> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
+		return FreshContextBenchmarkDispatch.DispatchAsync<TMessage, TResponse>(dispatcher, contextFactory, message);
 	}
 
 	private static Task<IMessageResult> DispatchContextLessAsync<TMessage>(

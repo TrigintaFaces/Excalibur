@@ -1,4 +1,4 @@
-﻿# Excalibur.Outbox.Postgres
+# Excalibur.Outbox.Postgres
 
 Postgres implementation of the transactional outbox pattern for reliable message delivery.
 
@@ -53,6 +53,13 @@ Every statement is guarded with `IF NOT EXISTS`, so the script is safe to re-run
   from the shipped schema script.
 - `outbox_fence.scope_key` must keep its primary key — the fenced claim and fenced delete upsert
   with `ON CONFLICT (scope_key)`, which requires a matching unique constraint.
+
+## Dead-letter retirement
+
+Retirement records the absolute observed logical send count and preserves a greater
+persisted count. Administrative moves preserve the existing count because they perform
+no delivery. Marking a message sent deletes its outbox row, so later retirement cannot
+archive it. Reservation reloads retain both the retry count and last error.
 
 ## License
 

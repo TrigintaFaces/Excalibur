@@ -153,5 +153,6 @@ public sealed class InboxProcessorBackoffShould
 			new DispatchJsonSerializer(),
 			NullLogger<InboxProcessor>.Instance,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
+			deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			backoffCalculator: backoff);
 }

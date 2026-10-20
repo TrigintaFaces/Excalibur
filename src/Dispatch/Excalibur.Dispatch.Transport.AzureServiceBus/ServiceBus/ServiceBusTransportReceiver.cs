@@ -19,6 +19,10 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <remarks>
 /// Caches <see cref="ServiceBusReceivedMessage"/> instances for acknowledgment/rejection.
 /// The native message is stored via <c>"azure.lock_token"</c> in <see cref="TransportReceivedMessage.ProviderData"/>.
+/// Outstanding native receipts retain their message bodies and metadata until claimed for settlement
+/// or receiver disposal. The 10,000-receipt diagnostic threshold does not impose a hard memory or
+/// admission bound; callers must limit outstanding work. A received receipt is not discarded merely
+/// because this threshold was crossed.
 /// </remarks>
 internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 {
@@ -31,7 +35,7 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	private readonly IServiceBusReceiverSeam _receiver;
 	private readonly ILogger _logger;
 	private readonly int? _maxPayloadBytes;
-	private const int MaxCacheSize = 10_000;
+	private const int OutstandingReceiptWarningThreshold = 10_000;
 	private readonly ConcurrentDictionary<string, ServiceBusReceivedMessage> _messageCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
 
@@ -117,13 +121,11 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 					continue;
 				}
 
-				if (_messageCache.Count < MaxCacheSize)
+				// Retain the native settlement receipt before returning its envelope to the caller.
+				_ = _messageCache.TryAdd(sbMessage.LockToken, sbMessage);
+				if (_messageCache.Count > OutstandingReceiptWarningThreshold)
 				{
-					_ = _messageCache.TryAdd(sbMessage.LockToken, sbMessage);
-				}
-				else
-				{
-					LogCacheFull(Source, MaxCacheSize);
+					LogOutstandingReceiptWarning(Source, OutstandingReceiptWarningThreshold);
 				}
 
 				result.Add(received);
@@ -144,10 +146,9 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var lockToken = GetLockToken(message);
-
 		try
 		{
+			var lockToken = GetLockToken(message);
 			if (_messageCache.TryRemove(lockToken, out var sbMessage))
 			{
 				// Ack must complete even during shutdown to prevent redelivery;
@@ -163,14 +164,14 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 					$"Message with lock token '{lockToken}' not found in cache. It may have already been processed or the lock expired.");
 			}
 		}
-		catch (InvalidOperationException)
+		catch (TransportSettlementException)
 		{
 			throw;
 		}
 		catch (Exception ex)
 		{
 			LogAcknowledgeError(message.Id, Source, ex);
-			throw;
+			throw CreateSettlementException("acknowledge", message, ex);
 		}
 	}
 
@@ -179,10 +180,9 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var lockToken = GetLockToken(message);
-
 		try
 		{
+			var lockToken = GetLockToken(message);
 			if (_messageCache.TryRemove(lockToken, out var sbMessage))
 			{
 				// Reject must complete even during shutdown to prevent redelivery;
@@ -211,16 +211,25 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 					$"Message with lock token '{lockToken}' not found in cache.");
 			}
 		}
-		catch (InvalidOperationException)
+		catch (TransportSettlementException)
 		{
 			throw;
 		}
 		catch (Exception ex)
 		{
 			LogRejectError(message.Id, Source, ex);
-			throw;
+			throw CreateSettlementException("reject", message, ex);
 		}
 	}
+
+	private static TransportSettlementException CreateSettlementException(string operation, TransportReceivedMessage message, Exception cause) =>
+		new($"Failed to {operation} Azure Service Bus message '{message.Id}'.", cause)
+		{
+			TransportName = "AzureServiceBus",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			// Settlement claims remove the receipt before native I/O; this receipt cannot be retried.
+			Retryability = SettlementRetryability.Permanent,
+		};
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)
@@ -336,10 +345,10 @@ internal sealed partial class ServiceBusTransportReceiver : ITransportReceiver
 	private partial void LogDisposed(string source);
 
 	[LoggerMessage(AzureServiceBusEventId.TransportReceiverCacheFull, LogLevel.Warning,
-		"Service Bus transport receiver: message cache full ({MaxSize} entries) for {Source}. " +
-		"Messages received beyond this limit cannot be acknowledged/rejected. " +
-		"This indicates messages are not being settled.")]
-	private partial void LogCacheFull(string source, int maxSize);
+		"Service Bus transport receiver: outstanding receipt count exceeds the diagnostic threshold ({Threshold}) for {Source}. " +
+		"Native receipts remain available for settlement and retain message bodies and metadata. " +
+		"Limit outstanding work to control retained memory.")]
+	private partial void LogOutstandingReceiptWarning(string source, int threshold);
 
 	[LoggerMessage(AzureServiceBusEventId.TransportReceiverPayloadTooLarge, LogLevel.Warning,
 		"Service Bus transport receiver: rejected oversized payload ({PayloadBytes} bytes) from {Source}, dead-lettered before materialization.")]

@@ -13,12 +13,13 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// <remarks>
 /// <para>
 /// This is the activator to use when the application is published with Native AOT. It performs no expression
-/// compilation and reflects over no handler member: the handler comes from the service provider, and the message
-/// context is applied through <see cref="IMessageContextAware" />. The default activator registered by
-/// <c>AddDispatch</c> compiles expressions instead, and refuses to run when dynamic code is unavailable.
+/// compilation. Context binding prefers <see cref="IMessageContextAware" />, then a setter registered through
+/// <see cref="HandlerActivatorRegistry" />, then cached metadata for a writable context property preserved by
+/// the annotated handler type. <c>AddDispatch</c> selects this activator when dynamic code is unavailable.
 /// </para>
 /// <para>
-/// Register it before adding Dispatch, because Dispatch registers its default activator only if none is present:
+/// To select this activation strategy explicitly, including in a managed application, register it before
+/// adding Dispatch. Dispatch registers its runtime-selected default only if none is present:
 /// </para>
 /// <code>
 /// services.AddSingleton&lt;IHandlerActivator, AotHandlerActivator&gt;();
@@ -26,9 +27,11 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// </code>
 /// <para>
 /// Handlers activated this way must either be registered in the container or expose a public constructor whose
-/// parameters the container can supply, and must implement <see cref="IMessageContextAware" /> to receive the
-/// message context. Property-injected context is not available on this path, because discovering the property
-/// would require the reflection that Native AOT rules out.
+/// parameters the container can supply. Interface and registered setters avoid property discovery. The fallback
+/// matches <see cref="HandlerActivator" />: the first writable, non-indexed instance property whose type is exactly
+/// <see cref="IMessageContext" /> is selected from the requested type's public properties. This includes inherited
+/// public properties and private setters on public properties. Metadata is preserved by the activation contract;
+/// no runtime code generation is required. Registered setters remain observable after a fallback plan is cached.
 /// </para>
 /// </remarks>
 public sealed class AotHandlerActivator : IHandlerActivator

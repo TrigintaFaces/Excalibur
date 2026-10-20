@@ -100,7 +100,7 @@ public sealed class OutboxDrainUntenantedRowScopeShould
 			A.Fake<IServiceProvider>(),
 			NullLogger<OutboxProcessor>.Instance,
 			envelopeDeserializer: null,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		processor.Init("drain-untenanted-scope-test");
 
@@ -176,10 +176,10 @@ public sealed class OutboxDrainUntenantedRowScopeShould
 		/// fixture implements it: an unresolvable message type is poison and reaches this path before the
 		/// retry ceiling. Observed like the other marks, since it is a store write under the same scope.
 		/// </summary>
-		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 		{
 			Observe();
-			return ValueTask.CompletedTask;
+			return ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 		}
 
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)

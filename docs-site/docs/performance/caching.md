@@ -24,15 +24,18 @@ Excalibur.Dispatch.Caching integrates caching directly into the dispatch pipelin
 | `Excalibur.Dispatch.Caching` | Pipeline caching middleware, `ICacheable<T>`, `ICacheInvalidationService`, attribute-based caching (backed by `HybridCache`) |
 | `Excalibur.Caching` | Adaptive TTL strategies, CQRS projection cache invalidation |
 
+For adaptive TTL's bounded access history, clock semantics and scoped measured
+results, see [Adaptive TTL access history](./adaptive-ttl.md).
+
 ## Cache Modes
 
 Excalibur.Dispatch supports three caching modes out of the box:
 
 | Mode | Backend | Use Case |
 |------|---------|----------|
-| `Memory` | `IMemoryCache` (in-process) | Single-instance apps, fastest performance, not shared across servers |
+| `Memory` | `IMemoryCache` (in-process) | Single-instance apps, in-process entries, not shared across servers |
 | `Distributed` | `IDistributedCache` (Redis, SQL, etc.) | Multi-instance deployments, shared across servers, network latency cost |
-| `Hybrid` | Memory L1 + Distributed L2 | Best of both: local speed with shared consistency via `Microsoft.Extensions.Caching.Hybrid` |
+| `Hybrid` | Memory L1 + Distributed L2 | Local L1 with shared L2 through `Microsoft.Extensions.Caching.Hybrid` |
 
 ## Setup
 

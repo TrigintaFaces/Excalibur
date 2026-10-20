@@ -330,7 +330,7 @@ dotnet build
 
 ## Related Documentation
 
-- [Getting Started](../docs-site/docs/getting-started.md) - New project setup
+- [Getting Started](../docs-site/docs/getting-started/index.md) - New project setup
 - [Migration Guide](MIGRATION.md) - Dispatch to Excalibur migration
 - [Source Generators](../docs-site/docs/source-generators/getting-started.md) - Using `[AutoRegister]`
 

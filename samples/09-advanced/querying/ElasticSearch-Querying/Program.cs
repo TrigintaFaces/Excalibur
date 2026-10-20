@@ -39,10 +39,12 @@ var settings = new ElasticsearchClientSettings(new Uri(nodeUri))
     .DefaultIndex("products-querying");
 builder.Services.AddSingleton(new ElasticsearchClient(settings));
 
-// Register repository
-builder.Services.AddSingleton<ProductRepository>();
+// Register repository. One call covers the concrete type, both framework interfaces, and index
+// initialization, all against one instance. Pass a ServiceLifetime to register it scoped instead.
+builder.Services.AddElasticRepository<Product, ProductRepository>();
+
+// The repository's own interface, which this sample declares over the two framework ones.
 builder.Services.AddSingleton<IProductRepository>(sp => sp.GetRequiredService<ProductRepository>());
-builder.Services.AddSingleton<IInitializeElasticIndex>(sp => sp.GetRequiredService<ProductRepository>());
 
 using var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();

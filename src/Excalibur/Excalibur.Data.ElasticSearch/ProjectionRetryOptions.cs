@@ -5,31 +5,31 @@
 namespace Excalibur.Data.ElasticSearch;
 
 /// <summary>
-/// Configures retry policies specific to projection operations.
+/// Configures bounded retries for create-only projection error-record persistence.
 /// </summary>
 public sealed class ProjectionRetryOptions
 {
 	/// <summary>
-	/// Gets a value indicating whether retry is enabled for projection operations.
+	/// Gets a value indicating whether retry is enabled for projection error-record persistence.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether retry is enabled for projection operations.
+	/// A value indicating whether retry is enabled for projection error-record persistence.
 	/// </value>
 	public bool Enabled { get; init; } = true;
 
 	/// <summary>
-	/// Gets the maximum retry attempts for index operations.
+	/// Gets the maximum total attempts, including the initial create, for a single error record.
 	/// </summary>
 	/// <value>
-	/// The maximum retry attempts for index operations.
+	/// The maximum total attempts, including the initial create, for a single error record.
 	/// </value>
 	public int MaxIndexAttempts { get; init; } = 3;
 
 	/// <summary>
-	/// Gets the maximum retry attempts for bulk operations.
+	/// Gets the maximum total attempts, including the initial request, for bulk error records.
 	/// </summary>
 	/// <value>
-	/// The maximum retry attempts for bulk operations.
+	/// The maximum total attempts, including the initial request, for bulk error records.
 	/// </value>
 	public int MaxBulkAttempts { get; init; } = 2;
 
@@ -58,7 +58,7 @@ public sealed class ProjectionRetryOptions
 	public bool UseExponentialBackoff { get; init; } = true;
 
 	/// <summary>
-	/// Gets the jitter factor for retry delays.
+	/// Gets the fractional jitter magnitude from 0 to 1; delays vary by plus or minus this fraction and are capped by MaxDelay.
 	/// </summary>
 	/// <value>
 	/// The jitter factor for retry delays.

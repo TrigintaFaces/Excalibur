@@ -556,7 +556,7 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 
 	/// <summary>
 	/// Verifies that a request recorded as awaiting key destruction round-trips, is found by a status-filtered
-	/// listing (which is how the completion pass finds it), is NOT offered for execution again, and cannot be
+	/// listing, is NOT offered for execution again, and cannot be
 	/// cancelled.
 	/// </summary>
 	/// <remarks>
@@ -600,7 +600,7 @@ public abstract class ErasureStoreConformanceTestKit : ConformanceTestKit
 		if (!listed.Any(r => r.RequestId == request.RequestId))
 		{
 			throw new TestFixtureAssertionException(
-				"A status-filtered listing for AwaitingKeyDestruction must return the request; this is how it is revisited.");
+				"Ordinary tenant-scoped listing must preserve the recorded awaiting status.");
 		}
 
 		var scheduled = await queryStore.GetScheduledRequestsAsync(100, CancellationToken.None).ConfigureAwait(false);

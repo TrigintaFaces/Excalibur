@@ -224,20 +224,30 @@ try {
     $timeoutDriver = Join-Path $root 'timeout-control.ps1'
     @'
 param($Repo,$Source,$Context,$Results)
+# The scope is READ from the context, never restated here. invoke-required-tests.ps1 refuses a composed
+# scope that differs from the context's, before it runs or plans anything, so a second copy of this filter
+# is a latent outage rather than a duplication: when the composer gained its credential-exclusion term and
+# this copy did not, the refusal left no plan to read, this control died on the missing file instead of on
+# the scope, and the shard skipped every integration test it exists to run.
+$filter = (Get-Content -LiteralPath $Context -Raw | ConvertFrom-Json).filter
+if ([string]::IsNullOrWhiteSpace($filter)) { throw 'Context carries no filter to compose against.' }
 & (Join-Path $Repo 'eng/build.ps1') -Test -NoRestore -NoBuild -Project $Source `
-    -TestFilter 'Category=Integration|Category=EndToEnd' -MaxCpuCount 1 -BlameTimeout 5s `
+    -TestFilter $filter -MaxCpuCount 1 -BlameTimeout 5s `
     -TestSessionTimeout 5000 -RequiredTestContext $Context -ResultsDirectory $Results -ResultsPrefix timeout
 '@ | Set-Content $timeoutDriver
     & $shell -NoProfile -File $timeoutDriver -Repo $repo -Source $source `
         -Context (Join-Path $passing 'nightly-integration-fixture.run.context.json') -Results $timeoutDirectory *> (Join-Path $root 'execution-timeout.log')
     if ($LASTEXITCODE -eq 0) { throw 'Timed-out execution reported success.' }
+    # BEFORE the plan read, because a non-zero exit is satisfied by any failure -- including one that
+    # never reached the runner. Reading the plan first turns every such failure into 'Cannot find path',
+    # which names neither the cause nor this control.
+    if ((Get-Content (Join-Path $root 'execution-timeout.log') -Raw) -notmatch 'test run timeout of 5000 milliseconds exceeded') {
+        throw 'Execution failed without exercising the required VSTest timeout.'
+    }
     $timeoutPlan = Get-Content (Join-Path $timeoutDirectory 'timeout.required/plan.json') -Raw | ConvertFrom-Json
     $firstTimeout = Get-Content (Join-Path $timeoutDirectory ('timeout.required/' + $timeoutPlan.invocations[0].receipt)) -Raw | ConvertFrom-Json
     $secondTimeout = Get-Content (Join-Path $timeoutDirectory ('timeout.required/' + $timeoutPlan.invocations[1].receipt)) -Raw | ConvertFrom-Json
     if ($firstTimeout.exitCode -ne 0 -or $secondTimeout.exitCode -eq 0) { throw 'Execution timeout did not preserve both raw runner outcomes.' }
-    if ((Get-Content (Join-Path $root 'execution-timeout.log') -Raw) -notmatch 'test run timeout of 5000 milliseconds exceeded') {
-        throw 'Execution failed without exercising the required VSTest timeout.'
-    }
     $count++
     Write-Host 'PASS: execution-timeout-after-passing-assembly'
     Write-Host "PASS: $count nightly integration evidence controls. Evidence: $root"

@@ -136,7 +136,7 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 		await StageAsync("m-terminal", tenantId: "contoso");
 
 		using var store = CreateStore();
-		await store.MarkDeadLetteredAsync("m-terminal", "poison message", Ct);
+		await store.MarkDeadLetteredAsync("m-terminal", "poison message", 0, Ct);
 
 		(await StoredTenantOfAsync("m-terminal")).ShouldBe(
 			"contoso",
@@ -258,11 +258,23 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 		_ = await request.ResolveAsync(connection);
 	}
 
-	private async Task<DeadLetterRecord> ReadBackAsync(string messageId)
+	[Fact]
+	public async Task PreserveTheExclusivePositiveAttemptThreshold()
+	{
+		RequireDocker();
+		await ShippedPostgresOutboxSchema.CreateFreshAsync(ConnectionString, Ct);
+		await ExecuteAsync("INSERT INTO public.outbox_dead_letters (message_id, tenant_id, message_type, message_body, occurred_on, attempts) VALUES ('at-boundary', '__untenanted__', 'T', decode('01', 'hex'), CURRENT_TIMESTAMP, 2)");
+		await ExecuteAsync("INSERT INTO public.outbox_dead_letters (message_id, tenant_id, message_type, message_body, occurred_on, attempts) VALUES ('above-boundary', '__untenanted__', 'T', decode('01', 'hex'), CURRENT_TIMESTAMP, 3)");
+		var record = (await ReadRecordsAsync(2)).ShouldHaveSingleItem();
+		record.MessageId.ShouldBe("above-boundary");
+		record.Attempts.ShouldBe(3);
+	}
+
+	private async Task<List<DeadLetterRecord>> ReadRecordsAsync(int threshold)
 	{
 		var request = new GetDeadLetterMessages(
 			deadLetterTableName: "public.outbox_dead_letters",
-			maxRetries: 0,
+			maxRetries: threshold,
 			olderThan: null,
 			batchSize: 50,
 			offset: 0,
@@ -271,11 +283,18 @@ public sealed class PostgresDeadLetterTenantProvenanceShould(PostgresOutboxStore
 
 		await using var connection = new NpgsqlConnection(ConnectionString);
 		await connection.OpenAsync(Ct);
-		var records = await request.ResolveAsync(connection);
+		return (await request.ResolveAsync(connection)).ToList();
+	}
 
-		return records.ShouldHaveSingleItem(
+	private async Task<DeadLetterRecord> ReadBackAsync(string messageId)
+	{
+		var records = await ReadRecordsAsync(-1);
+		var record = records.ShouldHaveSingleItem(
 			$"the read-back must return the dead-lettered message '{messageId}'; an empty result would make "
 			+ "every assertion below vacuously true");
+		record.MessageId.ShouldBe(messageId);
+		record.Attempts.ShouldBe(0, "administrative relocation performs no delivery attempt");
+		return record;
 	}
 
 	private void RequireDocker() =>

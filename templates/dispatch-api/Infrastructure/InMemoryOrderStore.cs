@@ -13,6 +13,9 @@ public sealed class InMemoryOrderStore
 {
     private readonly ConcurrentDictionary<Guid, OrderData> _orders = new();
 
+    /// <summary>Gets the number of stored orders in this demonstration.</summary>
+    public int Count => _orders.Count;
+
     /// <summary>
     /// Saves an order to the in-memory store.
     /// </summary>

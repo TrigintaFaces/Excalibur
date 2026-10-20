@@ -357,6 +357,7 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 
 		var status = new ErasureStatus
 		{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = SubjectHash,
 			IdType = DataSubjectIdType.UserId,

@@ -49,7 +49,7 @@ public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 	public void Constructor_ThrowsOnNullClient()
 	{
 		// Arrange
-		var options = Options.Create(new ProjectionOptions { IndexPrefix = "test" });
+		var options = Options.Create(new ElasticSearchProjectionManagementOptions { IndexPrefix = "test" });
 		var logger = A.Fake<ILogger<EventualConsistencyTracker>>();
 
 		// Act & Assert
@@ -78,7 +78,7 @@ public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 		// S799: real unconnected ElasticsearchClient per ADR-142 §D7.
 		var client = new ElasticsearchClient(
 			new ElasticsearchClientSettings(new Uri("http://localhost:9200")));
-		var options = Options.Create(new ProjectionOptions { IndexPrefix = "test" });
+		var options = Options.Create(new ElasticSearchProjectionManagementOptions { IndexPrefix = "test" });
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -90,7 +90,7 @@ public sealed class EventualConsistencyTrackerDisposeShould : UnitTestBase
 		// S799: real unconnected ElasticsearchClient per ADR-142 §D7.
 		var client = new ElasticsearchClient(
 			new ElasticsearchClientSettings(new Uri("http://localhost:9200")));
-		var options = Options.Create(new ProjectionOptions
+		var options = Options.Create(new ElasticSearchProjectionManagementOptions
 		{
 			IndexPrefix = "test",
 			ConsistencyTracking = new ConsistencyTrackingOptions

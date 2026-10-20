@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
-
 using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch;
@@ -11,7 +9,7 @@ using Excalibur.Dispatch.Delivery.Handlers;
 namespace Excalibur.Dispatch.Benchmarks.Diagnostics;
 
 /// <summary>
-/// Measures handler invoker hot-path cost between precompiled cache hits and runtime fallback.
+/// Measures synthetic registered-invoker hits and warmed runtime fallback in an isolated managed process.
 /// </summary>
 [MemoryDiagnoser]
 [Config(typeof(DiagnosticsBenchmarkConfig))]
@@ -26,8 +24,8 @@ public class HandlerInvokerPathBenchmarks
 	[GlobalSetup]
 	public async Task GlobalSetup()
 	{
-		ResetHandlerInvokerCaches();
-		ConfigureSyntheticPrecompiledEntry();
+		EnsureMutableCaches();
+		HandlerInvokerRegistry.RegisterInvoker<PrecompiledPathHandler, PrecompiledPathMessage, object?>(SyntheticInvoke);
 
 		_invoker = new HandlerInvoker();
 		_precompiledHandler = new PrecompiledPathHandler();
@@ -37,12 +35,24 @@ public class HandlerInvokerPathBenchmarks
 
 		// Warm runtime fallback delegate compilation so benchmark reflects steady-state path cost.
 		_ = await _invoker.InvokeAsync(_runtimeHandler, _runtimeMessage, CancellationToken.None).ConfigureAwait(false);
+		EnsureMutableCaches();
 	}
 
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
-		ResetHandlerInvokerCaches();
+		try
+		{
+			EnsureMutableCaches();
+		}
+		finally
+		{
+			_invoker = null!;
+			_precompiledHandler = null!;
+			_precompiledMessage = null!;
+			_runtimeHandler = null!;
+			_runtimeMessage = null!;
+		}
 	}
 
 	[Benchmark(Baseline = true, Description = "HandlerInvoker: precompiled cache-hit")]
@@ -57,51 +67,23 @@ public class HandlerInvokerPathBenchmarks
 		return _invoker.InvokeAsync(_runtimeHandler, _runtimeMessage, CancellationToken.None);
 	}
 
-	private static void ConfigureSyntheticPrecompiledEntry()
+	internal static (Type Handler, Type Message) RegisteredPair => (typeof(PrecompiledPathHandler), typeof(PrecompiledPathMessage));
+	internal static (Type Handler, Type Message) RuntimePair => (typeof(RuntimePathHandler), typeof(RuntimePathMessage));
+	internal bool HoldsFixtureState => _invoker is not null || _precompiledHandler is not null ||
+		_precompiledMessage is not null || _runtimeHandler is not null || _runtimeMessage is not null;
+
+	internal static void VerifyFallbackGuard() =>
+		_ = new PrecompiledPathHandler().HandleAsync(new PrecompiledPathMessage(7), CancellationToken.None);
+
+	private static void EnsureMutableCaches()
 	{
-		var invokerType = typeof(HandlerInvoker);
-		var invokeDelegateType = invokerType.GetNestedType("PrecompiledInvokerDelegate", BindingFlags.NonPublic)
-			?? throw new InvalidOperationException("Unable to resolve PrecompiledInvokerDelegate.");
-		var cachedInvokerType = invokerType.GetNestedType("CachedPrecompiledInvoker", BindingFlags.NonPublic)
-			?? throw new InvalidOperationException("Unable to resolve CachedPrecompiledInvoker.");
-
-		var invokeMethod = typeof(HandlerInvokerPathBenchmarks).GetMethod(
-			nameof(SyntheticInvoke),
-			BindingFlags.Static | BindingFlags.NonPublic)
-			?? throw new InvalidOperationException("Unable to resolve synthetic invoke method.");
-
-		var invokeDelegate = Delegate.CreateDelegate(invokeDelegateType, invokeMethod);
-		var cachedInvoker = Activator.CreateInstance(
-			cachedInvokerType,
-			BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-			binder: null,
-			args: [invokeDelegate],
-			culture: null)
-			?? throw new InvalidOperationException("Unable to create cached precompiled invoker entry.");
-
-		var cacheField = invokerType.GetField("_precompiledInvokerCache", BindingFlags.Static | BindingFlags.NonPublic)
-			?? throw new InvalidOperationException("Unable to resolve precompiled invoker cache field.");
-		var precompiledCache = cacheField.GetValue(null)
-			?? throw new InvalidOperationException("Unable to access precompiled invoker cache.");
-
-		_ = precompiledCache.GetType().GetMethod("Clear", BindingFlags.Instance | BindingFlags.Public)
-			?.Invoke(precompiledCache, null);
-
-		var tryAddMethod = precompiledCache.GetType().GetMethod("TryAdd", BindingFlags.Instance | BindingFlags.Public)
-			?? throw new InvalidOperationException("Unable to resolve precompiled invoker cache TryAdd.");
-		var cacheKey = (typeof(PrecompiledPathHandler), typeof(PrecompiledPathMessage));
-		_ = tryAddMethod.Invoke(precompiledCache, [cacheKey, cachedInvoker]);
+		if (HandlerInvokerRegistry.IsCacheFrozen || HandlerInvoker.IsCacheFrozen)
+		{
+			throw new InvalidOperationException("Run this fixture in a fresh process with mutable invoker caches and no concurrent cache mutation.");
+		}
 	}
 
-	private static void ResetHandlerInvokerCaches()
-	{
-		_ = typeof(HandlerInvoker).GetMethod(
-			"ClearCache",
-			BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
-			?.Invoke(null, null);
-	}
-
-	private static Task<object?> SyntheticInvoke(object handler, IDispatchMessage message, CancellationToken cancellationToken)
+	private static Task<object?> SyntheticInvoke(PrecompiledPathHandler handler, PrecompiledPathMessage message, CancellationToken cancellationToken)
 	{
 		_ = handler;
 		_ = message;
@@ -139,9 +121,7 @@ public class HandlerInvokerPathBenchmarks
 	{
 		public Task<int> HandleAsync(PrecompiledPathMessage message, CancellationToken cancellationToken)
 		{
-			_ = message.Value;
-			_ = cancellationToken;
-			return Task.FromResult(1);
+			throw new InvalidOperationException("The synthetic registered-invoker benchmark unexpectedly used runtime fallback.");
 		}
 	}
 

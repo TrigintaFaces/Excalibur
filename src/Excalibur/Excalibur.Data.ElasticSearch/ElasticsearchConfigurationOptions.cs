@@ -78,5 +78,5 @@ public sealed class ElasticsearchConfigurationOptions
 	/// Gets the configuration for projection management.
 	/// </summary>
 	/// <value> The projection settings for error handling, rebuilding, and consistency tracking. </value>
-	public ProjectionOptions Projections { get; init; } = new();
+	public ElasticSearchProjectionManagementOptions Projections { get; init; } = new();
 }

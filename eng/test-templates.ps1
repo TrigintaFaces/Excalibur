@@ -7,8 +7,8 @@
 
 .DESCRIPTION
     Covers the template acceptance criteria:
-    - CI step installs templates from local source (dotnet new install)
-    - CI step runs dotnet new for each template with default options and verifies structure
+    - Packs this tree and installs the artifact in a fresh custom template hive
+    - Compiles every finite manifest parameter combination outside the repository
     - CI step runs dotnet new dispatch-api with each --transport option
     - CI step runs dotnet new excalibur-ddd with each --database option
     - CI step runs dotnet new with --include-tests and verifies test project exists
@@ -42,6 +42,10 @@ $script:TestCount = 0
 $script:PassCount = 0
 $script:FailCount = 0
 $script:Failures = @()
+$PSNativeCommandUseErrorActionPreference = $false
+. (Join-Path $PSScriptRoot 'package-composition.functions.ps1')
+$TemplateHiveArguments = @()
+$TemplateVariants = @()
 
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not (Test-Path "$RepoRoot/templates")) {
@@ -61,6 +65,31 @@ if (-not (Test-Path "$RepoRoot/templates")) {
 
 $TemplatesDir = Join-Path $RepoRoot "templates"
 $TestOutputDir = Join-Path $RepoRoot "artifacts" "template-tests"
+$runId = [Guid]::NewGuid().ToString('N')
+$TestOutputDir = Join-Path $TestOutputDir $runId
+$TemplateEvidenceDir = Join-Path $RepoRoot "artifacts/template-evidence/$runId"
+[void][IO.Directory]::CreateDirectory($TemplateEvidenceDir)
+$TemplateHive = Join-Path ([IO.Path]::GetTempPath()) "xlb-template-hive-$runId"
+$TemplateHiveArguments = @('--debug:custom-hive', $TemplateHive)
+$originalNugetPackages = $env:NUGET_PACKAGES
+$env:NUGET_PACKAGES = Join-Path $TemplateEvidenceDir 'package-cache'
+$script:TemplateCandidateSha = (git -C $RepoRoot rev-parse HEAD | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Cannot establish template candidate HEAD.' }
+$script:RuntimeSourceIdentity = Get-CompositionSourceIdentity $RepoRoot
+$script:RuntimeSourceIdentity | ConvertTo-Json -Depth 6 |
+    Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'runtime-source-identity.json') -Encoding utf8
+$script:CandidatePackageHashes = @{}
+if ($LocalFeed) {
+    foreach ($package in @(Get-ChildItem -LiteralPath $LocalFeed -Filter '*.nupkg' -File)) {
+        $script:CandidatePackageHashes[$package.Name.ToLowerInvariant()] = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash
+    }
+    $script:CandidatePackageHashes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'candidate-package-hashes.json') -Encoding utf8
+}
+$inputPaths = @(git -C $RepoRoot ls-files --cached --others --exclude-standard -- templates eng/test-templates.ps1 eng/test-templates.test.ps1 | Sort-Object -Unique)
+if ($LASTEXITCODE -ne 0) { throw 'Cannot enumerate template candidate inputs.' }
+$script:TemplateInputHashes = @($inputPaths | ForEach-Object { @{path=$_; sha256=(Get-FileHash -LiteralPath (Join-Path $RepoRoot $_) -Algorithm SHA256).Hash} })
+$script:TemplateInputHashes |
+    ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'source-inputs.json') -Encoding utf8
 
 # Template definitions with their options
 $Templates = @(
@@ -168,36 +197,121 @@ function Write-TestResult {
     }
 }
 
-function Test-TemplateInstallation {
-    Write-Host "`n=== Template Installation ===" -ForegroundColor Cyan
-
-    foreach ($template in $Templates) {
-        $shortName = $template.ShortName
-        $templatePath = $template.TemplatePath
-
-        # Uninstall first (ignore errors)
-        dotnet new uninstall $templatePath 2>$null | Out-Null
-
-        $output = (dotnet new install $templatePath --force 2>&1) | Out-String
-        $installed = [bool]($output -match "Success.*installed")
-
-        Write-TestResult "Install $shortName from local source" $installed $output
+function Get-TemplateVariants {
+    param($Definitions)
+    $rows = [Collections.Generic.List[object]]::new()
+    foreach ($definition in $Definitions) {
+        $manifest = Get-Content -LiteralPath (Join-Path $definition.TemplatePath '.template.config/template.json') -Raw | ConvertFrom-Json
+        $combinations = @(@{})
+        foreach ($symbol in $manifest.symbols.PSObject.Properties) {
+            if ($symbol.Value.type -ne 'parameter') { continue }
+            $values = switch ($symbol.Value.datatype) {
+                'choice' { @($symbol.Value.choices | ForEach-Object choice) }
+                'bool' { @('false', 'true') }
+                default { throw "Unsupported finite template parameter: $($manifest.shortName)/$($symbol.Name)" }
+            }
+            if (-not $values.Count) { throw "Empty template parameter: $($symbol.Name)" }
+            $next = [Collections.Generic.List[object]]::new()
+            foreach ($combination in $combinations) {
+                foreach ($value in $values) {
+                    $copy = @{}; foreach ($key in $combination.Keys) { $copy[$key] = $combination[$key] }
+                    $copy[$symbol.Name] = [string]$value; $next.Add($copy)
+                }
+            }
+            $combinations = @($next.ToArray())
+        }
+        foreach ($combination in $combinations) {
+            $arguments = @(); foreach ($key in @($combination.Keys | Sort-Object)) { $arguments += @("--$key", $combination[$key]) }
+            $rows.Add([pscustomobject]@{ ShortName = $manifest.shortName; Parameters = $combination; Arguments = $arguments })
+        }
     }
-
-    # Derived from $Templates -- the one list this suite iterates -- so a template added
-    # there cannot be silently absent from this check. The hand-written list this
-    # replaced enumerated seven of the eight and omitted dispatch-minimal-api, so that
-    # template could have vanished from 'dotnet new list' with this check still green.
-    # One result per template, so a failure names which one is missing rather than
-    # collapsing all of them into a single boolean.
-    $listOutput = dotnet new list 2>&1 | Out-String
-    foreach ($template in $Templates) {
-        $shortName = $template.ShortName
-        $isListed = $listOutput -match [regex]::Escape($shortName)
-        Write-TestResult "  $shortName visible in 'dotnet new list'" $isListed
-    }
+    return $rows.ToArray()
 }
 
+function Save-TemplateNativeReceipt {
+    param([string]$Directory, [string]$Stage, [string[]]$Arguments, [int]$NativeExit, [string]$Output)
+    [void][IO.Directory]::CreateDirectory($Directory)
+    $Output | Set-Content -LiteralPath (Join-Path $Directory "$Stage.log") -Encoding utf8
+    @{ stage=$Stage; arguments=$Arguments; exitCode=$NativeExit; candidateSha=$script:TemplateCandidateSha;
+       templatePackageHash=$script:TemplatePackageHash; sourceFingerprint=$script:RuntimeSourceIdentity.sha256;
+       mode=$(if ($LocalFeed) {'candidate'} else {'published-feed'}); producerProvenance='external-P06-manifest-required-for-current-source-pack-claim' } |
+        ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Directory "$Stage.receipt.json") -Encoding utf8
+}
+
+function Assert-TemplatePackageConsumption {
+    param([string]$Project, [string]$Directory)
+    $assetsPath = Join-Path (Split-Path $Project) 'obj/project.assets.json'
+    $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json
+    $consumed = @()
+    foreach ($library in $assets.libraries.PSObject.Properties) {
+        if ($library.Value.type -ne 'package' -or $library.Name -notlike 'Excalibur.*/*') { continue }
+        $parts = $library.Name.Split('/'); $id=$parts[0]; $version=$parts[1]
+        $package = $null
+        foreach ($folder in $assets.packageFolders.PSObject.Properties.Name) {
+            $path = Join-Path (Join-Path $folder $library.Value.path) ("$id.$version.nupkg".ToLowerInvariant())
+            if (Test-Path -LiteralPath $path) { $package = $path; break }
+        }
+        if (-not $package) { throw "Cannot hash consumed package $($library.Name)" }
+        $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
+        if ($LocalFeed) {
+            if ($version -ne $LocalFeedVersion) { throw "Wrong candidate version: $($library.Name)" }
+            $expectedName = "$id.$version.nupkg".ToLowerInvariant()
+            if (-not $script:CandidatePackageHashes.ContainsKey($expectedName) -or $script:CandidatePackageHashes[$expectedName] -ne $hash) {
+                throw "Consumed package differs from local candidate: $($library.Name)"
+            }
+        }
+        $consumed += @{id=$id; version=$version; sha256=$hash; path=$package}
+    }
+    if ($LocalFeed -and -not $consumed.Count) { throw 'Candidate consumer restored no Excalibur packages.' }
+    $consumed | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Directory 'packages.json') -Encoding utf8
+}
+
+function Test-TemplateInstallation {
+    Write-Host "`n=== Fresh template artifact installation ===" -ForegroundColor Cyan
+    $packDirectory = Join-Path $TemplateEvidenceDir 'template-pack'
+    [void][IO.Directory]::CreateDirectory($packDirectory)
+    $packArgs = @('pack', (Join-Path $TemplatesDir 'Excalibur.Dispatch.Templates.csproj'), '-c', 'Release', '-o', $packDirectory, '--nologo')
+    $output = dotnet @packArgs 2>&1 | Out-String
+    $nativeExit = $LASTEXITCODE
+    Save-TemplateNativeReceipt $packDirectory 'pack' $packArgs $nativeExit $output
+    if ($nativeExit -ne 0) { throw "Template pack failed: native exit $nativeExit. See $packDirectory" }
+    $packages = @(Get-ChildItem -LiteralPath $packDirectory -Filter '*.nupkg')
+    if ($packages.Count -ne 1) { throw 'Expected exactly one freshly packed template artifact.' }
+    $script:TemplatePackageHash = (Get-FileHash -LiteralPath $packages[0].FullName -Algorithm SHA256).Hash
+    $archive = [IO.Compression.ZipFile]::OpenRead($packages[0].FullName)
+    try {
+        $specs = @($archive.Entries | Where-Object FullName -match '^[^/]+\.nuspec$')
+        if ($specs.Count -ne 1) { throw 'Template artifact must contain exactly one root nuspec.' }
+        $reader = [IO.StreamReader]::new($specs[0].Open())
+        try { [xml]$spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        if (-not $spec.SelectSingleNode("//*[local-name()='packageType' and @name='Template']")) { throw 'Packed artifact is not a Template package.' }
+        if (@($archive.Entries | Where-Object FullName -match '^(lib|ref)/.*\.dll$').Count) { throw 'Template artifact unexpectedly contains runtime assemblies.' }
+        $manifests = @($archive.Entries | Where-Object FullName -like '*/.template.config/template.json')
+        if ($manifests.Count -ne $Templates.Count) { throw 'Packed template manifest roster differs from declared templates.' }
+        foreach ($template in $Templates) {
+            $entry = @($manifests | Where-Object FullName -like "*/$($template.ShortName)/.template.config/template.json")
+            if ($entry.Count -ne 1) { throw "Missing/duplicate packed manifest for $($template.ShortName)" }
+            $reader = [IO.StreamReader]::new($entry[0].Open())
+            try { $packed = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            $source = Get-Content -LiteralPath (Join-Path $template.TemplatePath '.template.config/template.json') -Raw
+            if ($packed -cne $source) { throw "Packed manifest differs from candidate: $($template.ShortName)" }
+        }
+    } finally { $archive.Dispose() }
+    $script:TemplateVariants = @(Get-TemplateVariants $Templates)
+    $script:TemplateVariants | ConvertTo-Json -Depth 8 |
+        Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'variant-plan.json') -Encoding utf8
+    $installArgs = @('new', 'install', $packages[0].FullName) + $TemplateHiveArguments
+    $output = dotnet @installArgs 2>&1 | Out-String
+    $nativeExit = $LASTEXITCODE
+    Save-TemplateNativeReceipt $packDirectory 'install' $installArgs $nativeExit $output
+    if ($nativeExit -ne 0) { throw "Template artifact install failed: native exit $nativeExit" }
+    $listOutput = dotnet new list @TemplateHiveArguments 2>&1 | Out-String
+    $nativeExit = $LASTEXITCODE
+    if ($nativeExit -ne 0) { throw "Template listing failed: native exit $nativeExit" }
+    foreach ($template in $Templates) {
+        Write-TestResult "$($template.ShortName) visible after artifact installation" ($listOutput -match [regex]::Escape($template.ShortName)) $listOutput
+    }
+}
 function Test-DefaultInstantiation {
     Write-Host "`n=== Default Options Instantiation ===" -ForegroundColor Cyan
 
@@ -208,7 +322,7 @@ function Test-DefaultInstantiation {
 
         if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-        $output = dotnet new $shortName -n $projectName -o $outputDir 2>&1 | Out-String
+        $output = dotnet new $shortName -n $projectName -o $outputDir @TemplateHiveArguments 2>&1 | Out-String
         $created = $output -match "was created successfully"
 
         Write-TestResult "Instantiate $shortName with defaults" $created $output
@@ -260,7 +374,7 @@ function Test-TransportOptions {
 
             if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-            $output = dotnet new $shortName -n $projectName -o $outputDir --Transport $transport 2>&1 | Out-String
+            $output = dotnet new $shortName -n $projectName -o $outputDir --Transport $transport @TemplateHiveArguments 2>&1 | Out-String
             $created = $output -match "was created successfully"
 
             Write-TestResult "Instantiate $shortName --Transport $transport" $created $output
@@ -334,7 +448,7 @@ function Test-DatabaseOptions {
 
             if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-            $output = dotnet new $shortName -n $projectName -o $outputDir --Database $database 2>&1 | Out-String
+            $output = dotnet new $shortName -n $projectName -o $outputDir --Database $database @TemplateHiveArguments 2>&1 | Out-String
             $created = $output -match "was created successfully"
 
             Write-TestResult "Instantiate $shortName --Database $database" $created $output
@@ -381,7 +495,7 @@ function Test-IncludeTestsOption {
 
         if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-        $output = dotnet new $shortName -n $projectName -o $outputDir --IncludeTests true 2>&1 | Out-String
+        $output = dotnet new $shortName -n $projectName -o $outputDir --IncludeTests true @TemplateHiveArguments 2>&1 | Out-String
         $created = $output -match "was created successfully"
 
         Write-TestResult "Instantiate $shortName --IncludeTests" $created $output
@@ -438,7 +552,7 @@ function Test-IncludeDockerOption {
 
         if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-        $output = dotnet new $shortName -n $projectName -o $outputDir --IncludeDocker true 2>&1 | Out-String
+        $output = dotnet new $shortName -n $projectName -o $outputDir --IncludeDocker true @TemplateHiveArguments 2>&1 | Out-String
         $created = $output -match "was created successfully"
 
         Write-TestResult "Instantiate $shortName --IncludeDocker" $created $output
@@ -464,7 +578,7 @@ function Test-FrameworkOption {
 
     if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-    $output = dotnet new dispatch-api -n $projectName -o $outputDir --Framework $framework 2>&1 | Out-String
+    $output = dotnet new dispatch-api -n $projectName -o $outputDir --Framework $framework @TemplateHiveArguments 2>&1 | Out-String
     $created = $output -match "was created successfully"
 
     Write-TestResult "Instantiate dispatch-api --Framework $framework" $created $output
@@ -482,11 +596,7 @@ function Test-FrameworkOption {
 function Test-TemplatePack {
     Write-Host "`n=== Template Pack ===" -ForegroundColor Cyan
 
-    $packOutput = Join-Path $RepoRoot "artifacts" "template-pack"
-    if (Test-Path $packOutput) { Remove-Item -Recurse -Force $packOutput }
-
-    # Template pack requires special handling - use dotnet pack with --no-build is not available
-    # Instead verify the .csproj is valid for packing
+    # Artifact packing/install has already executed; retain these source-shape checks as diagnostics.
     $csprojPath = Join-Path $TemplatesDir "Excalibur.Dispatch.Templates.csproj"
     $csprojExists = Test-Path $csprojPath
     Write-TestResult "Templates .csproj exists" $csprojExists
@@ -521,7 +631,7 @@ function Test-NameSubstitution {
 
     if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-    $output = dotnet new dispatch-api -n $customName -o $outputDir 2>&1 | Out-String
+    $output = dotnet new dispatch-api -n $customName -o $outputDir @TemplateHiveArguments 2>&1 | Out-String
     $created = $output -match "was created successfully"
 
     Write-TestResult "Instantiate dispatch-api -n $customName" $created $output
@@ -563,7 +673,7 @@ function Test-CqrsCombinations {
 
         if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-        $output = dotnet new excalibur-cqrs -n $projectName -o $outputDir --Transport $transport --Database $database 2>&1 | Out-String
+        $output = dotnet new excalibur-cqrs -n $projectName -o $outputDir --Transport $transport --Database $database @TemplateHiveArguments 2>&1 | Out-String
         $created = $output -match "was created successfully"
 
         Write-TestResult "Instantiate excalibur-cqrs --Transport $transport --Database $database" $created $output
@@ -595,7 +705,7 @@ function Test-DockerFrameworkTags {
 
         if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-        $output = dotnet new $shortName -n $projectName -o $outputDir --Framework $framework --IncludeDocker true 2>&1 | Out-String
+        $output = dotnet new $shortName -n $projectName -o $outputDir --Framework $framework --IncludeDocker true @TemplateHiveArguments 2>&1 | Out-String
         $created = $output -match "was created successfully"
 
         Write-TestResult "Instantiate $shortName --Framework $framework --IncludeDocker" $created $output
@@ -640,7 +750,7 @@ function Test-PatternMatchingInDdd {
 
     if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
 
-    dotnet new excalibur-ddd -n $projectName -o $outputDir 2>&1 | Out-Null
+    dotnet new excalibur-ddd -n $projectName -o $outputDir @TemplateHiveArguments 2>&1 | Out-Null
 
     $orderFile = Join-Path $outputDir "Domain" "Aggregates" "Order.cs"
     if (Test-Path $orderFile) {
@@ -664,24 +774,58 @@ function Test-PatternMatchingInDdd {
 }
 
 function Invoke-Cleanup {
-    Write-Host "`n=== Cleanup ===" -ForegroundColor Cyan
-
-    # Uninstall templates
-    foreach ($template in $Templates) {
-        dotnet new uninstall $template.TemplatePath 2>$null | Out-Null
-    }
-
-    if (-not $NoCleanUp) {
-        if (Test-Path $TestOutputDir) {
-            Remove-Item -Recurse -Force $TestOutputDir
-            Write-Host "  Cleaned up test output directory" -ForegroundColor Gray
+    # The only installed templates belong to this run's custom hive. Never uninstall user templates.
+    try {
+        $afterSha = (git -C $RepoRoot rev-parse HEAD | Out-String).Trim()
+        $headExit = $LASTEXITCODE
+        if ($headExit -ne 0 -or $afterSha -ne $script:TemplateCandidateSha) {
+            Write-TestResult 'Candidate HEAD remained unchanged' $false $afterSha
         }
+        $afterInputs = @(git -C $RepoRoot ls-files --cached --others --exclude-standard -- templates eng/test-templates.ps1 eng/test-templates.test.ps1 | Sort-Object -Unique)
+        $inputsExit = $LASTEXITCODE
+        if ($inputsExit -ne 0 -or ($afterInputs -join '|') -cne (($script:TemplateInputHashes.path) -join '|')) {
+            Write-TestResult 'Template input roster remained unchanged' $false 'Template input paths changed.'
+        }
+        foreach ($input in $script:TemplateInputHashes) {
+            $path = Join-Path $RepoRoot $input.path
+            if (-not (Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $input.sha256) {
+                Write-TestResult 'Template input remained unchanged' $false $input.path
+            }
+        }
+        if ((Get-CompositionSourceIdentity $RepoRoot).sha256 -ne $script:RuntimeSourceIdentity.sha256) {
+            Write-TestResult 'Candidate source remained unchanged' $false 'Runtime/build inputs changed during template verification.'
+        }
+        if ($LocalFeed) {
+            foreach ($name in $script:CandidatePackageHashes.Keys) {
+                $path = Join-Path $LocalFeed $name
+                if (-not (Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $script:CandidatePackageHashes[$name]) {
+                    Write-TestResult 'Candidate package remained unchanged' $false $name
+                }
+            }
+        }
+        if (-not $NoCleanUp -and $script:FailCount -eq 0) {
+            Remove-TemplateTemporaryDirectory $TemplateHive
+            $expectedParent = [IO.Path]::GetFullPath((Join-Path $RepoRoot 'artifacts')) + [IO.Path]::DirectorySeparatorChar
+            $resolved = [IO.Path]::GetFullPath($TestOutputDir)
+            if (-not $resolved.StartsWith($expectedParent, [StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $resolved).Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe structural output cleanup path.' }
+            Assert-TemplateCleanupTree $resolved
+            Remove-Item -LiteralPath $resolved -Recurse -Force
+        } else { Write-Host "Template outputs/hive preserved: $TestOutputDir; $TemplateHive" }
+    } catch {
+        Write-TestResult 'Template final validation/cleanup' $false $_.Exception.ToString()
+    } finally {
+        $env:NUGET_PACKAGES = $originalNugetPackages
+        $finalStatus = if ($script:TemplateRunCompleted -and $script:FailCount -eq 0 -and $TemplateVariants.Count -gt 0 -and $script:CompletedTemplateVariants -eq $TemplateVariants.Count) {'passed'} else {'failed-or-incomplete'}
+        $finalReceipt = @{candidateSha=$script:TemplateCandidateSha; sourceFingerprint=$script:RuntimeSourceIdentity.sha256;
+            templatePackageHash=$script:TemplatePackageHash; plannedVariants=$TemplateVariants.Count;
+            completedVariants=$script:CompletedTemplateVariants; failures=$script:FailCount;
+            runCompleted=$script:TemplateRunCompleted; status=$finalStatus;
+            mode=$(if ($LocalFeed) {'candidate'} else {'published-feed'}); producerProvenance='external-P06-manifest-required-for-current-source-pack-claim'}
+        $finalReceipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'matrix.receipt.json') -Encoding utf8
+        $finalReceipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'gate.receipt.json') -Encoding utf8
     }
-    else {
-        Write-Host "  Test output preserved at: $TestOutputDir" -ForegroundColor Gray
-    }
+    Write-Host "Native receipts and variant plan retained at $TemplateEvidenceDir"
 }
-
 # A template default is a PROMISE about which build a consumer gets from `dotnet new`. The build check
 # above proves the default RESOLVES; it cannot prove the default is still the RIGHT one, because a
 # prerelease-pinned default keeps resolving and keeps building long after a stable release exists. That
@@ -759,85 +903,227 @@ function Test-TemplateDefaultsTrackTheFeed {
         }
     }
 }
-function Test-ScaffoldBuilds {
-    Write-Host "`n=== Scaffold Restore + Build (against the feed a consumer uses) ===" -ForegroundColor Cyan
-
-    # THIS IS THE CHECK WHOSE ABSENCE MADE EVERYTHING ELSE MEANINGLESS. The rest of
-    # this suite verifies STRUCTURE: files exist, package references are present as
-    # TEXT, sourceName was substituted. None of that compiles anything, so a version
-    # range resolving to nothing, a renamed package, or an API break all pass. This
-    # suite once reported 396 passed while every scaffold was unrestorable, and later
-    # while all eight scaffolds failed to compile against the published packages.
-    #
-    # BUILT OUTSIDE THE REPOSITORY, DELIBERATELY. The other tests scaffold into
-    # artifacts/ under the repo root, where Directory.Build.props applies -- repo-wide
-    # analyzers, warning levels and properties that no consumer has. A build that
-    # passes under those is not evidence a consumer's build passes, and could just as
-    # easily fail on rules a consumer never sees. A temp directory outside the tree is
-    # the only place this measures what a consumer actually gets.
-    #
-    # dotnet build restores implicitly, so an unresolvable version range fails here
-    # too -- restore and compile are both covered by the one check.
-    $buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("xlb-tmpl-" + [Guid]::NewGuid().ToString("N").Substring(0,8))
-    New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
-    Write-Host "  Build sandbox: $buildRoot" -ForegroundColor Gray
-
-    $usingLocalFeed = -not [string]::IsNullOrWhiteSpace($LocalFeed)
-    if ($usingLocalFeed) {
-        if ([string]::IsNullOrWhiteSpace($LocalFeedVersion)) {
-            throw "-LocalFeed requires -LocalFeedVersion: without an exact version the templates' 10.0.0-* range can resolve to a published package and this check silently measures the feed instead of the tree."
-        }
-        if (-not (Test-Path $LocalFeed)) {
-            throw "-LocalFeed path does not exist: $LocalFeed"
-        }
-        # nuget.org is KEPT deliberately -- the scaffolds pull third-party dependencies (Dapper, the
-        # cloud SDKs) that exist nowhere else, so clearing every source would fail for reasons that
-        # have nothing to do with our packages. The local feed is added alongside it, and the exact
-        # pinned version is what guarantees OUR packages come from the local one.
-        $feedFull = (Resolve-Path $LocalFeed).Path
-        @"
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <add key="local-pack" value="$feedFull" />
-  </packageSources>
-</configuration>
-"@ | Set-Content -Path (Join-Path $buildRoot "nuget.config") -Encoding UTF8
-        Write-Host "  Local feed:    $feedFull (version $LocalFeedVersion)" -ForegroundColor Gray
+function Assert-TemplateDatabaseSelection {
+    param([string]$OutputDirectory, [object]$Variant)
+    $concern = switch ($Variant.ShortName) {
+        'excalibur-ddd' { 'EventSourcing' }
+        'excalibur-cqrs' { 'EventSourcing' }
+        'excalibur-saga' { 'Saga' }
+        'excalibur-outbox' { 'Outbox' }
+        default { return $null }
     }
-
+    if (-not $Variant.Parameters.ContainsKey('Database')) { throw 'Database variant has no selected Database parameter.' }
+    $database = $Variant.Parameters['Database']
+    if ($database -notin @('sqlserver','postgresql','inmemory')) { throw "Unknown database selection: $database" }
+    $configurationText = Get-Content -LiteralPath (Join-Path $OutputDirectory 'appsettings.json') -Raw
+    $json = [System.Text.Json.JsonDocument]::Parse($configurationText, [System.Text.Json.JsonDocumentOptions]::new())
     try {
-        foreach ($template in $Templates) {
-            $shortName = $template.ShortName
-            $projectName = "Build_${shortName}" -replace '-', '_'
-            $outputDir = Join-Path $buildRoot $projectName
+        if ($configurationText -match '//#(if|elseif|endif)') { throw 'Unprocessed configuration template directive.' }
+        $connections = $json.RootElement.GetProperty('ConnectionStrings')
+        if ($connections.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) { throw 'ConnectionStrings must be an object.' }
+        $entries = @($connections.EnumerateObject())
+        $storeName = switch ($concern) { 'EventSourcing' { 'EventStore' } 'Saga' { 'SagaStore' } 'Outbox' { 'OutboxStore' } }
+        if ($database -eq 'inmemory') {
+            if ($entries.Count -ne 0) { throw 'In-memory variant emitted a database connection string.' }
+        } else {
+            if ($entries.Count -ne 1 -or $entries[0].Name -cne $storeName) { throw "Expected only the $storeName connection string." }
+            $connection = $entries[0].Value.GetString()
+            $expectedPrefix = if ($database -eq 'postgresql') { 'Host=localhost;Database=' } else { 'Server=localhost;Database=' }
+            if ([string]::IsNullOrWhiteSpace($connection) -or -not $connection.StartsWith($expectedPrefix, [StringComparison]::Ordinal)) {
+                throw "Connection string does not select $database."
+            }
+            if ($database -eq 'postgresql' -and ($connection -notmatch ';Username=postgres;' -or $connection -notmatch ';Password=CHANGE_ME$')) {
+                throw 'PostgreSQL starter connection must include its documented placeholder credentials.'
+            }
+        }
+    } finally { $json.Dispose() }
+    $projects = @(Get-ChildItem -LiteralPath $OutputDirectory -Filter '*.csproj' -File)
+    if ($projects.Count -ne 1) { throw 'Expected exactly one root scaffold project.' }
+    [xml]$project = Get-Content -LiteralPath $projects[0].FullName -Raw
+    $suffix = switch ($database) { 'sqlserver' { 'SqlServer' } 'postgresql' { 'Postgres' } 'inmemory' { 'InMemory' } }
+    $expectedPackage = if ($concern -eq 'Saga' -and $database -eq 'inmemory') { 'Excalibur.Saga' } else { "Excalibur.$concern.$suffix" }
+    $packages = @($project.SelectNodes("//*[local-name()='PackageReference']") | ForEach-Object { $_.GetAttribute('Include') })
+    if (@($packages | Where-Object { $_ -ceq $expectedPackage }).Count -ne 1) { throw "Missing or duplicated selected provider package $expectedPackage." }
+    $providerPackages = @($packages | Where-Object { $_ -match ('^Excalibur\.' + $concern + '\.(SqlServer|Postgres|InMemory)$') })
+    if (@($providerPackages | Where-Object { $_ -cne $expectedPackage }).Count -ne 0) { throw 'Scaffold also references an unselected database provider.' }
+    $program = Get-Content -LiteralPath (Join-Path $OutputDirectory 'Program.cs') -Raw
+    # Mask comments and ordinary/verbatim string literals while retaining offsets. This observer is
+    # scoped to the current scaffold sources; invocation-looking prose is not an executing provider.
+    $nonCode = '@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|//[^\r\n]*|/\*[\s\S]*?\*/'
+    $code = [regex]::Replace($program, $nonCode, { param($match) ' ' * $match.Length })
+    $method = switch ($database) { 'sqlserver' { 'UseSqlServer' } 'postgresql' { 'UsePostgres' } 'inmemory' { if ($concern -eq 'Saga') { 'WithInMemoryStore' } else { 'UseInMemory' } } }
+    if ($code -notmatch ('\.' + $method + '\s*\(')) { throw "Scaffold does not invoke the selected $method provider." }
+    foreach ($other in @('UseSqlServer','UsePostgres','UseInMemory','WithInMemoryStore') | Where-Object { $_ -ne $method }) {
+        if ($code -match ('\.' + $other + '\s*\(')) { throw "Scaffold also invokes the unselected $other provider." }
+    }
+    if ($database -ne 'inmemory') {
+        $namedCalls = @([regex]::Matches($code, '\.ConnectionStringName\s*\('))
+        if ($namedCalls.Count -ne 1 -or $program.Substring($namedCalls[0].Index) -notmatch
+            ('^\.ConnectionStringName\s*\(\s*"' + [regex]::Escape($storeName) + '"\s*\)')) {
+            throw "Selected provider does not use the $storeName named connection."
+        }
+    }
+    return [pscustomobject]@{family=$Variant.ShortName; database=$database; providerPackage=$expectedPackage; providerMethod=$method;
+        scope='emitted provider, package and configuration selection'; status='passed'}
+}
 
-            $newOut = dotnet new $shortName -n $projectName -o $outputDir 2>&1 | Out-String
-            if ($newOut -notmatch "was created successfully") {
-                Write-TestResult "$shortName scaffolds for the build check" $false $newOut
+function Test-ScaffoldBuilds {
+    Write-Host "`n=== Manifest variant restore/build/test ===" -ForegroundColor Cyan
+    if (-not $TemplateVariants.Count) { throw 'No installed template variant roster.' }
+    $script:CompletedTemplateVariants = 0
+    $usingLocalFeed = -not [string]::IsNullOrWhiteSpace($LocalFeed)
+    if ($usingLocalFeed -and ([string]::IsNullOrWhiteSpace($LocalFeedVersion) -or -not (Test-Path -LiteralPath $LocalFeed))) {
+        throw '-LocalFeed requires an existing feed and exact -LocalFeedVersion.'
+    }
+    $buildRoot = Join-Path ([IO.Path]::GetTempPath()) ('xlb-tmpl-' + [Guid]::NewGuid().ToString('N'))
+    $script:LastScaffoldRoot = $buildRoot
+    [void][IO.Directory]::CreateDirectory($buildRoot)
+    $sourceXml = '<add key="nuget.org" value="https://api.nuget.org/v3/index.json" />'
+    if ($usingLocalFeed) { $sourceXml = '<add key="candidate" value="' + [Security.SecurityElement]::Escape((Resolve-Path -LiteralPath $LocalFeed).Path) + '" />' + $sourceXml }
+    ('<configuration><packageSources><clear />' + $sourceXml + '</packageSources></configuration>') |
+        Set-Content -LiteralPath (Join-Path $buildRoot 'nuget.config') -Encoding utf8
+    try {
+        $index = 0
+        foreach ($variant in $TemplateVariants) {
+            $variantFailuresBefore = $script:FailCount
+            $index++
+            $identity = '{0:D4}-{1}' -f $index, $variant.ShortName
+            $projectName = 'Consumer_' + $index
+            $outputDir = Join-Path $buildRoot $identity
+            $evidence = Join-Path $TemplateEvidenceDir $identity
+            $newArgs = @('new', $variant.ShortName, '-n', $projectName, '-o', $outputDir) + @($variant.Arguments) + $TemplateHiveArguments
+            $newOut = dotnet @newArgs 2>&1 | Out-String
+            $newExit = $LASTEXITCODE
+            Save-TemplateNativeReceipt $evidence 'new' $newArgs $newExit $newOut
+            if ($newExit -ne 0 -or $newOut -notmatch 'was created successfully') {
+                Write-TestResult "$identity scaffold" $false "Native exit ${newExit}: $newOut"
                 continue
             }
-
-            $buildArgs = @($outputDir, '-c', 'Release', '--nologo')
-            if ($usingLocalFeed) {
-                $buildArgs += "-p:ExcaliburDispatchVersion=$LocalFeedVersion"
+            try {
+                $databaseSelection = Assert-TemplateDatabaseSelection $outputDir $variant
+                if ($null -ne $databaseSelection) {
+                    $databaseSelection | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'database-selection.receipt.json') -Encoding utf8
+                }
+            } catch {
+                Write-TestResult "$identity database selection" $false $_.Exception.Message
+                continue
             }
-            $buildOut = dotnet build @buildArgs 2>&1 | Out-String
-            $errorLines = @($buildOut -split "`r?`n" | Where-Object { $_ -match "error [A-Z]+\d+" } | Select-Object -Unique)
-            $built = ($errorLines.Count -eq 0)
-            $detail = if ($built) { "" } else { (($errorLines | Select-Object -First 3) -join " | ") }
-
-            $against = if ($usingLocalFeed) { "against this tree (local pack $LocalFeedVersion)" } else { "against the published feed" }
-            Write-TestResult "$shortName scaffold builds $against" $built $detail
+            $projects = @(Get-ChildItem -LiteralPath $outputDir -Recurse -Filter '*.csproj' -File |
+                Where-Object { $_.FullName -notmatch '[/\\](bin|obj)[/\\]' } | Sort-Object FullName)
+            if (-not $projects.Count) { Write-TestResult "$identity generated projects" $false 'No project generated.'; continue }
+            $projectIndex = 0
+            $testProjectCount = 0
+            foreach ($project in $projects) {
+                $projectIndex++
+                $projectEvidence = Join-Path $evidence ('project-' + $projectIndex)
+                $versionArgs = @(); if ($usingLocalFeed) { $versionArgs = @("-p:ExcaliburDispatchVersion=$LocalFeedVersion") }
+                $restoreArgs = @('restore', $project.FullName, '--configfile', (Join-Path $buildRoot 'nuget.config')) + $versionArgs
+                $restoreOut = dotnet @restoreArgs 2>&1 | Out-String
+                $restoreExit = $LASTEXITCODE
+                Save-TemplateNativeReceipt $projectEvidence 'restore' $restoreArgs $restoreExit $restoreOut
+                if ($restoreExit -ne 0) { Write-TestResult "$identity/$projectIndex restore" $false "Native exit ${restoreExit}: $restoreOut"; continue }
+                try { Assert-TemplatePackageConsumption $project.FullName $projectEvidence }
+                catch { Write-TestResult "$identity/$projectIndex package identity" $false $_.Exception.Message; continue }
+                $buildArgs = @('build', $project.FullName, '-c', 'Release', '--no-restore', '--nologo') + $versionArgs
+                $buildOut = dotnet @buildArgs 2>&1 | Out-String
+                $buildExit = $LASTEXITCODE
+                Save-TemplateNativeReceipt $projectEvidence 'build' $buildArgs $buildExit $buildOut
+                $errorLines = @($buildOut -split "`r?`n" | Where-Object { $_ -match 'error [A-Z]+\d+' } | Select-Object -Unique)
+                $built = ($buildExit -eq 0 -and $errorLines.Count -eq 0)
+                $diagnostics = if ($errorLines.Count) { $errorLines } else { @($buildOut -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) }
+                if (-not $built) { Write-TestResult "$identity/$projectIndex build" $false ("Native exit ${buildExit}: " + (($diagnostics | Select-Object -First 3) -join ' | ')); continue }
+                [xml]$projectXml = Get-Content -LiteralPath $project.FullName -Raw
+                # Bounded to the current frozen manifests: explicit test SDK or xunit.v3 executable projects.
+                $isTest = @($projectXml.SelectNodes("//*[local-name()='IsTestProject' and text()='true'] | //*[local-name()='PackageReference' and @Include='Microsoft.NET.Test.Sdk']")).Count -gt 0
+                $isXunitExecutable = @($projectXml.SelectNodes("//*[local-name()='PackageReference' and @Include='xunit.v3']")).Count -gt 0 -and @($projectXml.SelectNodes("//*[local-name()='OutputType' and text()='Exe']")).Count -gt 0
+                $isTest = $isTest -or $isXunitExecutable
+                @{project=$project.FullName; isTest=$isTest; classification='current-manifest-XML'; xunitV3Executable=$isXunitExecutable} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $projectEvidence 'test-classification.json') -Encoding utf8
+                if ($isTest) {
+                    $testProjectCount++
+                    $testArgs = @('test', $project.FullName, '-c', 'Release', '--no-build', '--no-restore', '--logger', 'trx;LogFilePrefix=template', '--results-directory', $projectEvidence, '--blame-hang-timeout', '2m', '--', 'RunConfiguration.TestSessionTimeout=120000')
+                    $testOut = dotnet @testArgs 2>&1 | Out-String
+                    $testExit = $LASTEXITCODE
+                    Save-TemplateNativeReceipt $projectEvidence 'test' $testArgs $testExit $testOut
+                    if ($testExit -ne 0) { Write-TestResult "$identity/$projectIndex test" $false "Native exit ${testExit}: $testOut"; continue }
+                    $results = @(Get-ChildItem -LiteralPath $projectEvidence -Filter '*.trx')
+                    if (-not $results.Count) { Write-TestResult "$identity/$projectIndex test evidence" $false 'No raw TRX produced.'; continue }
+                    try { foreach ($result in $results) { Assert-TemplateTrx $result.FullName } }
+                    catch { Write-TestResult "$identity/$projectIndex test evidence" $false $_.Exception.Message; continue }
+                }
+                Write-TestResult "$identity/$projectIndex restore/build$(if ($isTest) {'/test'})" $true
+            }
+            if ($variant.Parameters.ContainsKey('IncludeTests')) {
+                $expectsTests = $variant.Parameters['IncludeTests'] -eq 'true'
+                if ($expectsTests -ne ($testProjectCount -gt 0)) {
+                    Write-TestResult "$identity generated test selection" $false "IncludeTests=$expectsTests but executable test projects=$testProjectCount"
+                }
+            }
+            @{identity=$identity; parameters=$variant.Parameters; projects=@($projects.FullName);
+              status=$(if ($script:FailCount -eq $variantFailuresBefore) {'passed'} else {'failed'})} |
+                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $evidence 'variant.receipt.json') -Encoding utf8
+            if (-not $NoCleanUp -and $script:FailCount -eq $variantFailuresBefore) {
+                Remove-TemplateTemporaryDirectory $outputDir
+            }
+            $script:CompletedTemplateVariants++
         }
+    } finally {
+        @{candidateSha=$script:TemplateCandidateSha; templatePackageHash=$script:TemplatePackageHash;
+          plannedVariants=$TemplateVariants.Count; completedVariants=$script:CompletedTemplateVariants;
+          sourceFingerprint=$script:RuntimeSourceIdentity.sha256;
+          status='pendingFinalValidation';
+          mode=$(if ($LocalFeed) {'candidate'} else {'published-feed'}); producerProvenance='external-P06-manifest-required-for-current-source-pack-claim'} |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'matrix.receipt.json') -Encoding utf8
+        if (-not $NoCleanUp -and $script:FailCount -eq 0) {
+            Remove-TemplateTemporaryDirectory $buildRoot
+        } else { Write-Host "Scaffold evidence preserved at $buildRoot" }
     }
-    finally {
-        if (Test-Path $buildRoot) {
-            Remove-Item -Recurse -Force $buildRoot -ErrorAction SilentlyContinue
+}
+
+function Assert-TemplateTrx {
+    param([string]$Path)
+    [xml]$trx = Get-Content -LiteralPath $Path -Raw
+    $summaries = @($trx.SelectNodes("//*[local-name()='ResultSummary']"))
+    $rows = @($trx.SelectNodes("//*[local-name()='UnitTestResult']"))
+    if ($summaries.Count -ne 1 -or $summaries[0].outcome -ne 'Completed') { throw 'Missing or unsuccessful TRX summary.' }
+    $counters = @($summaries[0].SelectNodes("*[local-name()='Counters']"))
+    if ($counters.Count -ne 1) { throw 'Missing TRX counters.' }
+    $counter = $counters[0]
+    $total = 0L
+    if (-not [long]::TryParse($counter.GetAttribute('total'), [ref]$total) -or $total -le 0) { throw 'Invalid TRX total.' }
+    foreach ($name in @('executed','passed')) {
+        $count = 0L
+        if (-not [long]::TryParse($counter.GetAttribute($name), [ref]$count) -or $count -ne $total) { throw "Incomplete TRX $name counter." }
+    }
+    foreach ($name in @('failed','error','timeout','aborted','inconclusive','passedButRunAborted','notRunnable','notExecuted','disconnected','warning','completed','inProgress','pending')) {
+        $count = 0L
+        if (-not [long]::TryParse($counter.GetAttribute($name), [ref]$count) -or $count -ne 0) { throw "Missing or nonzero TRX $name counter." }
+    }
+    if ($rows.Count -ne $total -or @($rows | Where-Object {$_.outcome -ne 'Passed'}).Count) { throw 'TRX rows do not match successful counters.' }
+}
+
+function Assert-TemplateCleanupTree {
+    param([string]$Path)
+    # Inspect one level at a time, rejecting links before descending into them.
+    $pending = [Collections.Generic.Stack[string]]::new()
+    $pending.Push($Path)
+    while ($pending.Count) {
+        $directory = $pending.Pop()
+        foreach ($entry in Get-ChildItem -LiteralPath $directory -Force) {
+            if ($entry.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) { throw "Unsafe nested cleanup reparse point: $($entry.FullName)" }
+            if ($entry.PSIsContainer) { $pending.Push($entry.FullName) }
         }
     }
 }
 
+function Remove-TemplateTemporaryDirectory {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $parent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $resolved = [IO.Path]::GetFullPath($Path)
+    if (-not $resolved.StartsWith($parent, [StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $resolved).Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe template temporary cleanup path.' }
+    Assert-TemplateCleanupTree $resolved
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+}
 # ============================================================
 # Main Execution
 # ============================================================
@@ -855,6 +1141,7 @@ if (-not (Test-Path $TestOutputDir)) {
     New-Item -ItemType Directory -Path $TestOutputDir -Force | Out-Null
 }
 
+$script:TemplateRunCompleted = $false
 try {
     Test-TemplateInstallation
     Test-DefaultInstantiation
@@ -870,6 +1157,10 @@ try {
     Test-CqrsCombinations
     Test-DockerFrameworkTags
     Test-PatternMatchingInDdd
+    $script:TemplateRunCompleted = $true
+}
+catch {
+    Write-TestResult 'Template gate execution' $false $_.Exception.ToString()
 }
 finally {
     Invoke-Cleanup

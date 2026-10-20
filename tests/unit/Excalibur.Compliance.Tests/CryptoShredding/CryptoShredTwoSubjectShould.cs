@@ -49,8 +49,8 @@ public sealed class CryptoShredTwoSubjectShould
         var envelopeB = await fieldEncryptor.EncryptAsync("subject-B", RetentionScope.NotInAnAggregate, subjectBData, CancellationToken.None);
 
         // Sanity: both round-trip before any erasure (proves the fixtures are real, non-vacuous).
-        (await fieldEncryptor.DecryptAsync(envelopeA, CancellationToken.None)).ShouldBe(subjectAData);
-        (await fieldEncryptor.DecryptAsync(envelopeB, CancellationToken.None)).ShouldBe(subjectBData);
+        (await fieldEncryptor.DecryptAsync(envelopeA, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None)).ShouldBe(subjectAData);
+        (await fieldEncryptor.DecryptAsync(envelopeB, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None)).ShouldBe(subjectBData);
 
         // Crypto-shred subject A: destroy A's key (all versions), idempotent.
         await ShredSubjectAsync(
@@ -64,9 +64,9 @@ public sealed class CryptoShredTwoSubjectShould
         // LOAD-BEARING: A's PII is now unrecoverable (degrade-open tombstone = null), while B's PII is
         // untouched. A shared/purpose-key scheme would either leave A decryptable (no per-subject key)
         // or break B too (shared key) -> RED. Only genuine per-subject shredding is GREEN.
-        (await fieldEncryptor.DecryptAsync(envelopeA, CancellationToken.None))
+        (await fieldEncryptor.DecryptAsync(envelopeA, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None))
             .ShouldBeNull("destroying subject A's key must render only A's ciphertext unrecoverable");
-        (await fieldEncryptor.DecryptAsync(envelopeB, CancellationToken.None))
+        (await fieldEncryptor.DecryptAsync(envelopeB, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None))
             .ShouldBe(subjectBData, "subject B's PII must remain decryptable after A is shredded");
     }
 
@@ -101,7 +101,7 @@ public sealed class CryptoShredTwoSubjectShould
             Tenant,
             "subject-C"));
 
-        (await fieldEncryptor.DecryptAsync(envelope, CancellationToken.None)).ShouldBeNull();
+        (await fieldEncryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None)).ShouldBeNull();
     }
 
     // Destroys a subject exactly as the erasure service does: the subject-id hash IS the key handle
@@ -152,7 +152,7 @@ public sealed class CryptoShredTwoSubjectShould
             "subject-R", RetentionScope.NotInAnAggregate, earlier, CancellationToken.None);
 
         // Non-vacuity: it round-trips before anything is destroyed, so a later null cannot be a broken fixture.
-        (await fieldEncryptor.DecryptAsync(earlierEnvelope, CancellationToken.None)).ShouldBe(earlier);
+        (await fieldEncryptor.DecryptAsync(earlierEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None)).ShouldBe(earlier);
 
         await ShredSubjectAsync(
             keyAdmin,
@@ -175,14 +175,14 @@ public sealed class CryptoShredTwoSubjectShould
 
         // LOAD-BEARING. A live key now sits at this handle, so a handle-scoped detector would report the
         // subject as never erased. The earlier record must still be a tombstone.
-        (await fieldEncryptor.DecryptAsync(earlierEnvelope, CancellationToken.None))
+        (await fieldEncryptor.DecryptAsync(earlierEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None))
             .ShouldBeNull(
                 "an earlier record of an erased subject must still load as a tombstone after a later write "
                 + "re-mints their key. Throwing here destroys the documented degrade-open guarantee "
                 + "permanently for every earlier record of that subject.");
 
         // LIVENESS. The tombstone above must not come from a stack that has simply stopped decrypting.
-        (await fieldEncryptor.DecryptAsync(laterEnvelope, CancellationToken.None))
+        (await fieldEncryptor.DecryptAsync(laterEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None))
             .ShouldBe(
                 "personal-data-written-after"u8.ToArray(),
                 "data written under the re-minted key must still decrypt, or the arm above is satisfied by a "

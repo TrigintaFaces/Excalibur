@@ -68,13 +68,11 @@ services.AddDispatch(dispatch => dispatch.AddDiscoveredHandlers());
 services.AddGeneratedServices();
 ```
 
-### 4. Register the AOT Handler Activator
+### 4. Handler Activation and Context Binding
 
-Generated direct dispatch resolves discovered handlers straight from the container, so most
-messages never reach a handler activator at all. Anything the generator did not cover falls back
-to `IHandlerActivator`, and the activator Dispatch registers by default compiles expressions —
-which Native AOT does not allow, so it throws rather than guessing. Register `AotHandlerActivator`
-to close that fallback:
+`AddDispatch` selects `AotHandlerActivator` when the runtime does not support dynamic code.
+It respects an existing activator registration. To select the same container-based strategy
+explicitly, including when testing in a managed process, register it before `AddDispatch`:
 
 ```csharp
 using Excalibur.Dispatch.Delivery.Handlers;
@@ -87,16 +85,56 @@ services.AddGeneratedServices();
 ```
 
 `AotHandlerActivator` resolves the handler from the service provider, falling back to constructor
-injection when the handler is not registered, and applies the message context through the
-`IMessageContextAware` interface. It reflects over no handler member and compiles no expression.
+injection when the handler is not registered. Context binding uses this precedence:
 
-Two consequences for handlers reached through this path:
+1. `IMessageContextAware.SetContext`, including explicit and inherited implementations.
+2. A typed setter registered through `HandlerActivatorRegistry`, normally by generated code.
+3. A cached property plan for the requested handler type's first writable instance property
+   whose type is exactly `IMessageContext`. Static properties, indexers, read-only properties
+   and properties of other types are excluded. Inherited public properties and private setters
+   on public properties retain the same eligibility as the expression activator.
 
-- A handler receives the message context only if it implements `IMessageContextAware`. Context
-  applied by property injection is not available, because discovering the property needs the
-  reflection Native AOT rules out.
-- A handler must be registered in the container, or expose a public constructor whose parameters
-  the container can supply.
+Prefer the interface or a registered setter for frequently activated handlers. The property
+fallback uses metadata preserved by the `IHandlerActivator` type annotation; it does not compile
+expressions or generate code at runtime. Native AOT permits analyzable reflection with the
+required preservation annotations; it does not impose a blanket reflection ban.
+See [Microsoft's AOT library guidance](https://devblogs.microsoft.com/dotnet/creating-aot-compatible-libraries/).
+
+A later registered setter takes precedence in direct `AotHandlerActivator` calls even when a
+property or empty fallback plan is already cached. Cached dispatcher plans do not yet preserve
+that late-registration behavior; register setters during composition until that gap is repaired.
+A setter exception propagates to the caller; activation does not return an
+incompletely configured handler. Reflection's invocation wrapper is removed to preserve the
+original setter exception. Handlers still need container registration or a public constructor
+whose dependencies the container can supply.
+
+For repeatable native verification of these binding paths, publish and run the
+`tests/harnesses/HandlerActivationAotProbe` project. Its executable requires
+`RuntimeFeature.IsDynamicCodeSupported == false` and checks actual context identities, including
+private setters, inherited properties, registry precedence and concurrent transient activation.
+Its full-dispatch check selects the native default activator and uses typed handler registration.
+The typed registration helpers preserve constructors and context properties through the DI
+descriptor boundary. For manual composition, use the helper matching the handler shape:
+
+```csharp
+services.AddActionHandler<CreateOrder, CreateOrderHandler>();
+services.AddActionHandler<GetOrder, OrderDto, GetOrderHandler>();
+services.AddEventHandler<OrderCreated, OrderCreatedHandler>();
+services.AddDocumentHandler<Invoice, InvoiceHandler>();
+```
+
+These helpers register the concrete handler and its interface. Dispatch resolves the concrete
+registration; an existing concrete registration remains authoritative. Interface and concrete
+resolutions are independent DI registrations, even for scoped or singleton lifetimes. The helpers
+may be called before or after `AddDispatch`, before building the provider. For NativeAOT invocation,
+also use source-generated invokers or explicitly register closed pairs through
+`HandlerInvokerRegistry.RegisterInvoker`; preserving activation metadata does not generate invokers.
+
+Ordinary `AddTransient<IActionHandler<T>, THandler>()` descriptors alone do not guarantee preservation of context
+properties under trimming. The failed ordinary-descriptor native check and the low-level annotated
+`IHandlerRegistry.Register` control are retained. The current probe exercises all four typed helper
+shapes through full dispatch without generated context setters or an extra registry call. These
+checks establish functional behavior, not NativeAOT performance.
 
 ### 5. Publish
 
@@ -242,6 +280,13 @@ For AOT, JSON serialization requires `JsonSerializerContext` instead of runtime 
 
 The `DiscoveredMessageTypeMetadata` generated class provides the compile-time type registry that these contexts use.
 
+SQL Server outbox header reads use package-generated metadata for the persisted JSON dictionary.
+Non-null header values reload as `JsonElement`; null values remain null, and header keys remain case-sensitive.
+This reader has been verified with JSON reflection disabled in a native executable and through a fresh-store
+round trip against SQL Server. That verification covers header decoding; publish and execute your application's
+database and payload serialization paths separately. Generated dictionary metadata does not supply metadata
+for arbitrary runtime objects written into headers or message payloads.
+
 ### Consumer JSON Context
 
 For your own DTOs, create a `JsonSerializerContext`:
@@ -275,6 +320,40 @@ Register it:
 ```csharp
 services.AddSingleton(AppJsonSerializerContext.Default.Options);
 ```
+
+### Direct JSON serializers
+
+`AotJsonSerializer` and `CompositeAotJsonSerializer` expose byte-array and span
+APIs backed by explicit source-generated metadata. Both byte-array APIs can be
+called from a NativeAOT application without dynamic-code or trimming-warning
+suppression. Register every payload type in the supplied context; missing metadata
+produces `NotSupportedException` rather than reflection fallback.
+
+```csharp
+using var serializer = new AotJsonSerializer(AppJsonSerializerContext.Default);
+byte[] json = serializer.Serialize(order);
+OrderDto restored = serializer.Deserialize<OrderDto>(json);
+```
+
+Both deserialization overloads consume one complete JSON document. Trailing
+whitespace is accepted; a second value or malformed suffix is rejected. Parsing
+uses the selected context's options, including `AllowTrailingCommas`,
+`ReadCommentHandling` and `MaxDepth`. Composite serialization selects the first
+supporting context and keeps its options after cache warmup. A parsing or converter
+failure does not retry a later, more permissive context.
+
+This corrects earlier behavior that ignored context reader options and could
+accept the first value while ignoring a suffix. Custom converters now follow the
+standard System.Text.Json span-reader position and validation order. Conversion
+can invoke a converter, constructor or setter before later malformed input fails;
+deserialization does not roll those side effects back. JSON `null` that produces
+a null result still raises `InvalidOperationException`.
+
+The runnable `tests/harnesses/AotJsonContractProbe` sample publishes and executes
+both serializers with reflection-based JSON disabled under NativeAOT. It covers
+byte-array/span round trips, writer parity, complete-input checks, context
+selection, configured parsing, selected depth cases and a custom converter. These
+are functional checks, separate from managed or native performance measurements.
 
 ---
 
@@ -464,7 +543,7 @@ If you see trimming warnings:
 
 A message reached the default expression-compiling activator in a build where dynamic code is
 unavailable. Register `AotHandlerActivator` before `AddDispatch`, as shown in
-[Register the AOT Handler Activator](#4-register-the-aot-handler-activator). If the handler should
+[Handler Activation and Context Binding](#4-handler-activation-and-context-binding). If the handler should
 have been covered by generated dispatch instead, check that it is discovered — see
 [Handlers Not Discovered](#handlers-not-discovered).
 
@@ -480,7 +559,7 @@ The `ResultFactoryRegistry` is generated from `IDispatchAction<T>` and `IActionH
 
 ## Related Documentation
 
-- [AOT Compatibility Matrix](./aot-compatibility.md) - Per-package AOT status for all 173 packages
+- [AOT Compatibility Matrix](./aot-compatibility.md) - Per-package AOT status for all 194 packages
 - [Source Generators](./source-generators.md) - Full generator reference
 - [Viewing Generated Code](./viewing-generated-code.md) - Inspect generated output
 - [Deployment](./deployment.md) - Deployment patterns

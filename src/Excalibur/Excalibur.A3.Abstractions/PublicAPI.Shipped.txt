@@ -228,3 +228,32 @@ const Excalibur.A3.Authorization.ActivityGroupCatalogue.MaxNameLength = 128 -> i
 static Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.ValidateAsEstateReplacement(Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, string! grantType) -> void
 static Excalibur.A3.Authorization.ActivityGroupGrantSnapshot.ValidateAsUserReplacement(Excalibur.A3.Authorization.ActivityGroupGrantSnapshot! snapshot, string! userId, string! grantType) -> void
 static Excalibur.A3.Authorization.AuthorizationPolicyExtensions.IsAuthorized(this Excalibur.A3.Authorization.IAuthorizationPolicy! policy, string! activityName) -> bool
+Excalibur.A3.Authorization.GrantRevocationScope
+Excalibur.A3.Authorization.GrantRevocationRequest
+Excalibur.A3.Authorization.GrantRevocationResult
+Excalibur.A3.Authorization.UserGrantSnapshot
+Excalibur.A3.Authorization.IAtomicGrantRevocationStore
+Excalibur.A3.Authorization.GrantRevocationScope.TenantId.get -> string?
+static Excalibur.A3.Authorization.GrantRevocationScope.AllTenants.get -> Excalibur.A3.Authorization.GrantRevocationScope!
+static Excalibur.A3.Authorization.GrantRevocationScope.ForTenant(string! tenantId) -> Excalibur.A3.Authorization.GrantRevocationScope!
+Excalibur.A3.Authorization.GrantRevocationRequest.GrantRevocationRequest(System.Guid operationId, string! userId, Excalibur.A3.Authorization.GrantRevocationScope! scope, string! revokedBy) -> void
+Excalibur.A3.Authorization.GrantRevocationRequest.OperationId.get -> System.Guid
+Excalibur.A3.Authorization.GrantRevocationRequest.UserId.get -> string!
+Excalibur.A3.Authorization.GrantRevocationRequest.Scope.get -> Excalibur.A3.Authorization.GrantRevocationScope!
+Excalibur.A3.Authorization.GrantRevocationRequest.RevokedBy.get -> string!
+Excalibur.A3.Authorization.GrantRevocationResult.GrantRevocationResult(System.Guid OperationId, long Revision, int RevokedCount) -> void
+Excalibur.A3.Authorization.GrantRevocationResult.OperationId.get -> System.Guid
+Excalibur.A3.Authorization.GrantRevocationResult.OperationId.init -> void
+Excalibur.A3.Authorization.GrantRevocationResult.Revision.get -> long
+Excalibur.A3.Authorization.GrantRevocationResult.Revision.init -> void
+Excalibur.A3.Authorization.GrantRevocationResult.RevokedCount.get -> int
+Excalibur.A3.Authorization.GrantRevocationResult.RevokedCount.init -> void
+Excalibur.A3.Authorization.UserGrantSnapshot.UserGrantSnapshot(string! userId, long revision, System.Collections.Generic.IEnumerable<Excalibur.A3.Authorization.Grant!>! grants) -> void
+Excalibur.A3.Authorization.UserGrantSnapshot.UserId.get -> string!
+Excalibur.A3.Authorization.UserGrantSnapshot.Revision.get -> long
+Excalibur.A3.Authorization.UserGrantSnapshot.Grants.get -> System.Collections.Generic.IReadOnlyList<Excalibur.A3.Authorization.Grant!>!
+Excalibur.A3.Authorization.IAtomicGrantRevocationStore.RevokeAllAsync(Excalibur.A3.Authorization.GrantRevocationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.GrantRevocationResult!>!
+Excalibur.A3.Authorization.IAtomicGrantRevocationStore.ReadUserRevisionAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.A3.Authorization.IAtomicGrantRevocationStore.ReadUserSnapshotAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.UserGrantSnapshot!>!
+Excalibur.A3.Authorization.GrantRevocationScope.GrantRevocationScope(string? tenantId, bool isAllTenants = false) -> void
+Excalibur.A3.Authorization.GrantRevocationScope.IsAllTenants.get -> bool

@@ -3,12 +3,11 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 using Amazon.DynamoDBStreams;
 using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DocumentModel;
 
 using Excalibur.Data.CloudNative;
 
@@ -41,6 +40,7 @@ TDocument>
 	private readonly string _sortKeyAttribute;
 	private readonly IChangeFeedOptions _options;
 	private readonly ILogger _logger;
+	private readonly DynamoDbStreamDocumentReader<TDocument> _documentReader;
 	// Guards _cts so a stop/start cycle can atomically retire the canceled source and install a fresh one
 	// StopAsync cancels _cts, and a subsequent StartAsync must recreate it or every new
 	// ReadChangesAsync would link a permanently-canceled token and yield-break immediately.
@@ -49,7 +49,8 @@ TDocument>
 	// The position reached in EACH shard. A stream has many shards with independent sequence spaces, so a
 	// single scalar cannot describe where this subscription is; the whole map is what the opaque
 	// continuation token carries.
-	private readonly Dictionary<string, string> _shardPositions = new(StringComparer.Ordinal);
+	private Dictionary<string, string> _shardPositions = new(StringComparer.Ordinal);
+	private int _activeEnumerator;
 	private CancellationTokenSource _cts = new();
 
 	private string? _streamArn;
@@ -79,6 +80,30 @@ TDocument>
 		string sortKeyAttribute,
 		IChangeFeedOptions options,
 		ILogger logger)
+		: this(client, streamsClient, tableName, partitionKeyAttribute, sortKeyAttribute, options, logger, null)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a subscription with authoritative consumer JSON metadata for stream documents.
+	/// </summary>
+	/// <param name="client">The document client.</param>
+	/// <param name="streamsClient">The Streams client.</param>
+	/// <param name="tableName">The table name.</param>
+	/// <param name="partitionKeyAttribute">The partition key attribute name.</param>
+	/// <param name="sortKeyAttribute">The sort key attribute name.</param>
+	/// <param name="options">The change-feed options.</param>
+	/// <param name="logger">The logger.</param>
+	/// <param name="documentTypeInfoResolver">Consumer-generated document metadata. Missing metadata never falls back to reflection.</param>
+	public DynamoDbStreamsSubscription(
+		IAmazonDynamoDB client,
+		IAmazonDynamoDBStreams streamsClient,
+		string tableName,
+		string partitionKeyAttribute,
+		string sortKeyAttribute,
+		IChangeFeedOptions options,
+		ILogger logger,
+		IJsonTypeInfoResolver? documentTypeInfoResolver)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(partitionKeyAttribute);
 		ArgumentException.ThrowIfNullOrWhiteSpace(sortKeyAttribute);
@@ -90,6 +115,7 @@ TDocument>
 		_sortKeyAttribute = sortKeyAttribute;
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_documentReader = new DynamoDbStreamDocumentReader<TDocument>(documentTypeInfoResolver);
 
 		SubscriptionId = $"streams-{tableName}-{Guid.NewGuid():N}";
 	}
@@ -169,141 +195,160 @@ TDocument>
 			throw new InvalidOperationException("Subscription not started. Call StartAsync first.");
 		}
 
-		CancellationTokenSource currentCts;
-		lock (_ctsLock)
+		if (Interlocked.CompareExchange(ref _activeEnumerator, 1, 0) != 0)
 		{
-			currentCts = _cts;
+			throw new InvalidOperationException("Only one active change-feed enumeration is allowed per subscription.");
 		}
 
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, currentCts.Token);
-		var linkedToken = linkedCts.Token;
-
-		var shardIterators = new Dictionary<string, string>(StringComparer.Ordinal);
-		var retiredShards = new HashSet<string>(StringComparer.Ordinal);
-		var firstDiscovery = true;
-
-		long sequenceNumber = 0;
-
-		// The enumeration lives as long as the subscription does, and is deliberately NOT bounded by the
-		// shard set that happened to exist when it began. Shards close -- that is how DynamoDB retires a
-		// shard and opens its successors -- so a set enumerated once drains to empty in the ordinary
-		// course of events. Ending the enumeration there returns a normal completion to the consumer's
-		// await-foreach: no exception, no log, IsActive still true, and a change feed that has silently
-		// stopped. A subscription created before its first shard exists has the same shape from the start.
-		while (_isActive && !linkedToken.IsCancellationRequested)
+		try
 		{
-			try
+			CancellationTokenSource currentCts;
+			lock (_ctsLock)
 			{
-				await DiscoverShardsAsync(shardIterators, retiredShards, firstDiscovery, linkedToken)
-					.ConfigureAwait(false);
-			}
-			catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-			{
-				yield break;
+				currentCts = _cts;
 			}
 
-			firstDiscovery = false;
+			using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, currentCts.Token);
+			var linkedToken = linkedCts.Token;
 
-			foreach (var shardId in shardIterators.Keys.ToList())
+			var shardIterators = new Dictionary<string, string>(StringComparer.Ordinal);
+			var retiredShards = new HashSet<string>(StringComparer.Ordinal);
+			var firstDiscovery = true;
+
+			long sequenceNumber = 0;
+
+			// The enumeration lives as long as the subscription does, and is deliberately NOT bounded by the
+			// shard set that happened to exist when it began. Shards close -- that is how DynamoDB retires a
+			// shard and opens its successors -- so a set enumerated once drains to empty in the ordinary
+			// course of events. Ending the enumeration there returns a normal completion to the consumer's
+			// await-foreach: no exception, no log, IsActive still true, and a change feed that has silently
+			// stopped. A subscription created before its first shard exists has the same shape from the start.
+			while (_isActive && !linkedToken.IsCancellationRequested)
 			{
-				var iterator = shardIterators[shardId];
-				if (string.IsNullOrEmpty(iterator))
-				{
-					_ = shardIterators.Remove(shardId);
-					continue;
-				}
-
-				GetRecordsResponse? recordsResponse = null;
 				try
 				{
-					var recordsRequest = new GetRecordsRequest { ShardIterator = iterator, Limit = _options.MaxBatchSize };
-
-					recordsResponse = await _streamsClient.GetRecordsAsync(recordsRequest, linkedToken)
+					await DiscoverShardsAsync(shardIterators, retiredShards, firstDiscovery, linkedToken)
 						.ConfigureAwait(false);
 				}
 				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
 				{
 					yield break;
 				}
-				catch (ExpiredIteratorException)
-				{
-					// Shard iterator expired, remove and continue
-					_ = shardIterators.Remove(shardId);
-					continue;
-				}
 
-				// Update iterator for next call
-				if (!string.IsNullOrEmpty(recordsResponse.NextShardIterator))
-				{
-					shardIterators[shardId] = recordsResponse.NextShardIterator;
-				}
-				else
-				{
-					// A null next-iterator is how DynamoDB reports that this shard is CLOSED and fully
-					// read. Record it so the re-discovery above does not reopen it every poll and
-					// redeliver the whole shard; the successors carry on from here.
-					_ = shardIterators.Remove(shardId);
-					_ = retiredShards.Add(shardId);
-				}
+				firstDiscovery = false;
 
-				if (recordsResponse.Records.Count == 0)
+				foreach (var shardId in shardIterators.Keys.ToList())
 				{
-					continue;
-				}
-
-				LogReceivedBatch(SubscriptionId, recordsResponse.Records.Count);
-
-				// Record the position PER SHARD. Assigning one shard's sequence number to a stream-wide
-				// scalar is last-writer-wins across shards: whichever shard was polled last overwrites the
-				// others, and resuming from it replays or skips every other shard's tail.
-				var lastSequenceNumber = recordsResponse.Records[^1].Dynamodb?.SequenceNumber;
-				if (!string.IsNullOrEmpty(lastSequenceNumber))
-				{
-					_shardPositions[shardId] = lastSequenceNumber;
-					CurrentContinuationToken = DynamoDbStreamsContinuationToken.Encode(_shardPositions);
-				}
-
-				foreach (var record in recordsResponse.Records)
-				{
-					var eventType = MapEventType(record.EventName);
-					TDocument? document = null;
-
-					// Get document from NewImage or OldImage depending on event type
-					var image = record.Dynamodb?.NewImage ?? record.Dynamodb?.OldImage;
-					if (image != null)
+					var iterator = shardIterators[shardId];
+					if (string.IsNullOrEmpty(iterator))
 					{
-#pragma warning disable IL2026, IL3050
-						document = DeserializeDocument(image);
-#pragma warning restore IL2026, IL3050
+						_ = shardIterators.Remove(shardId);
+						continue;
 					}
 
-					var documentId = GetDocumentIdFromRecord(record);
-					var partitionKey = GetPartitionKeyFromRecord(record);
+					GetRecordsResponse? recordsResponse = null;
+					try
+					{
+						var recordsRequest = new GetRecordsRequest { ShardIterator = iterator, Limit = _options.MaxBatchSize };
 
-					yield return new DynamoDbStreamEvent<TDocument>(
-						eventType,
-						document,
-						documentId,
-						partitionKey,
-						record.Dynamodb?.ApproximateCreationDateTime ?? DateTimeOffset.UtcNow,
-						record.Dynamodb?.SequenceNumber ?? string.Empty,
-						sequenceNumber++);
+						recordsResponse = await _streamsClient.GetRecordsAsync(recordsRequest, linkedToken)
+							.ConfigureAwait(false);
+					}
+					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+					{
+						yield break;
+					}
+					catch (ExpiredIteratorException)
+					{
+						// Shard iterator expired, remove and continue
+						_ = shardIterators.Remove(shardId);
+						continue;
+					}
+
+					// Update iterator for next call
+					if (!string.IsNullOrEmpty(recordsResponse.NextShardIterator))
+					{
+						shardIterators[shardId] = recordsResponse.NextShardIterator;
+					}
+					else
+					{
+						// A null next-iterator is how DynamoDB reports that this shard is CLOSED and fully
+						// read. Record it so the re-discovery above does not reopen it every poll and
+						// redeliver the whole shard; the successors carry on from here.
+						_ = shardIterators.Remove(shardId);
+						_ = retiredShards.Add(shardId);
+					}
+
+					if (recordsResponse.Records.Count == 0)
+					{
+						continue;
+					}
+
+					LogReceivedBatch(SubscriptionId, recordsResponse.Records.Count);
+
+					foreach (var record in recordsResponse.Records)
+					{
+						linkedToken.ThrowIfCancellationRequested();
+						var eventType = MapEventType(record.EventName);
+						TDocument? document = null;
+
+						// Get document from NewImage or OldImage depending on event type
+						var image = record.Dynamodb?.NewImage ?? record.Dynamodb?.OldImage;
+						if (image != null)
+						{
+							document = _documentReader.Deserialize(image);
+						}
+
+						var documentId = GetDocumentIdFromRecord(record);
+						var partitionKey = GetPartitionKeyFromRecord(record);
+						var recordPosition = record.Dynamodb?.SequenceNumber;
+						if (string.IsNullOrWhiteSpace(recordPosition))
+						{
+							throw new InvalidOperationException("A stream record must contain a sequence number before it can be offered to the consumer.");
+						}
+
+						var candidate = new Dictionary<string, string>(_shardPositions, StringComparer.Ordinal)
+						{
+							[shardId] = recordPosition,
+						};
+						var continuationToken = DynamoDbStreamsContinuationToken.Encode(candidate)
+							?? throw new InvalidOperationException("A stream record must produce a continuation token.");
+
+						var offeredEvent = new DynamoDbStreamEvent<TDocument>(
+							eventType,
+							document,
+							documentId,
+							partitionKey,
+							record.Dynamodb?.ApproximateCreationDateTime ?? DateTimeOffset.UtcNow,
+							continuationToken,
+							sequenceNumber++);
+						linkedToken.ThrowIfCancellationRequested();
+						// This is the last offered read position, not a processing acknowledgement.
+						// All fallible conversion/construction/encoding precedes publication and yield.
+						_shardPositions = candidate;
+						CurrentContinuationToken = continuationToken;
+						yield return offeredEvent;
+					}
+				}
+
+				// Wait before polling again. This is NOT conditioned on holding an open shard: with no shard
+				// the loop is waiting for one to appear, and skipping the delay would spin.
+				if (_isActive && !linkedToken.IsCancellationRequested)
+				{
+					try
+					{
+						await Task.Delay(_options.PollingInterval, linkedToken).ConfigureAwait(false);
+					}
+					catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
+					{
+						yield break;
+					}
 				}
 			}
-
-			// Wait before polling again. This is NOT conditioned on holding an open shard: with no shard
-			// the loop is waiting for one to appear, and skipping the delay would spin.
-			if (_isActive && !linkedToken.IsCancellationRequested)
-			{
-				try
-				{
-					await Task.Delay(_options.PollingInterval, linkedToken).ConfigureAwait(false);
-				}
-				catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-				{
-					yield break;
-				}
-			}
+		}
+		finally
+		{
+			Volatile.Write(ref _activeEnumerator, 0);
 		}
 	}
 
@@ -375,6 +420,14 @@ TDocument>
 			// at the position the consumer configured.
 			var iteratorRequest = required
 				? BuildInitialIteratorRequest(shard.ShardId, resumePositions)
+				: _shardPositions.TryGetValue(shard.ShardId, out var offeredPosition)
+				? new GetShardIteratorRequest
+				{
+					StreamArn = _streamArn,
+					ShardId = shard.ShardId,
+					ShardIteratorType = ShardIteratorType.AFTER_SEQUENCE_NUMBER,
+					SequenceNumber = offeredPosition,
+				}
 				: new GetShardIteratorRequest
 				{
 					StreamArn = _streamArn,
@@ -477,22 +530,6 @@ TDocument>
 			"REMOVE" => ChangeFeedEventType.Deleted,
 			_ => ChangeFeedEventType.Updated
 		};
-	}
-
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-	private static TDocument? DeserializeDocument(
-		Dictionary<string, AttributeValue> item)
-	{
-		var converted = DynamoDbAttributeValueConverter.ToAttributeValueMap(item);
-		if (converted is null)
-		{
-			return null;
-		}
-
-		var doc = Document.FromAttributeMap(converted);
-		var json = doc.ToJson();
-		return JsonSerializer.Deserialize<TDocument>(json);
 	}
 
 	/// <summary>
@@ -657,13 +694,15 @@ TDocument>
 	/// </remarks>
 	private IReadOnlyDictionary<string, string>? ResolveResumePositions(HashSet<string> liveShardIds)
 	{
-		if (_options.StartPosition != ChangeFeedStartPosition.FromContinuationToken
-			|| string.IsNullOrEmpty(_options.ContinuationToken))
+		if (_shardPositions.Count == 0 && (_options.StartPosition != ChangeFeedStartPosition.FromContinuationToken
+			|| string.IsNullOrEmpty(_options.ContinuationToken)))
 		{
 			return null;
 		}
 
-		var positions = DynamoDbStreamsContinuationToken.Decode(_options.ContinuationToken);
+		var positions = _shardPositions.Count > 0
+			? _shardPositions
+			: DynamoDbStreamsContinuationToken.Decode(_options.ContinuationToken!);
 
 		var missing = positions.Keys.Where(shardId => !liveShardIds.Contains(shardId)).ToList();
 		if (missing.Count > 0)
@@ -676,7 +715,9 @@ TDocument>
 				+ "neither is chosen for you. Start a new subscription from an explicit position once you have decided which is correct.");
 		}
 
-		return positions;
+		// Preserve every validated shard position when subsequent records advance only one shard.
+		_shardPositions = new Dictionary<string, string>(positions, StringComparer.Ordinal);
+		return _shardPositions;
 	}
 }
 

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// Benchmarks for resilience patterns (circuit breaker, retry, bulkhead).
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class ResilienceBenchmarks
 {
 	private TestCircuitBreaker _closedCircuitBreaker = null!;

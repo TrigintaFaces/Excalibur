@@ -378,7 +378,7 @@ def parse_tables(text: str, where: str) -> dict[str, Table]:
             if not head:
                 continue
             word = head.group(0).strip("[]\"`").upper()
-            if word in _CONSTRAINT_HEADS:
+            if head.group(0)[0] not in '["`' and word in _CONSTRAINT_HEADS:
                 table.constraints.add(normalise(item))
                 continue
             table.columns[table_key(head.group(0)).upper()] = normalise(item)
@@ -397,12 +397,14 @@ def resolve(key: str, defaults: "Defaults", fields: dict[str, str], setvars: "di
 
     None becomes a REFUSE at the call site and never a guess.
     """
-    if "$(" in key and setvars:
+    if "$(" in key:
         for hole in re.findall(r"[$][(]([^)]+)[)]", key):
-            value = setvars.get(hole.strip())
+            value = (setvars or {}).get(hole.strip())
             if value is None:
-                break
+                return None
             key = key.replace("$(" + hole + ")", value)
+        if "$(" in key:
+            return None
     if "{" not in key:
         return key
     resolved = key
@@ -631,6 +633,33 @@ class Finding:
         self.detail = detail
 
 
+def constraint_signature(text: str) -> str:
+    """Compare only insignificant head spacing; preserve the stored diagnostic spelling.
+
+    The first unquoted opening parenthesis ends the constraint head. Nothing in the body is
+    rewritten. This is not a SQL lexer: the inherited normalise() representation still folds case
+    and collapses whitespace, including quoted content, before this comparison is reached.
+    """
+    closing: str | None = None
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if closing is not None:
+            if char == closing:
+                if index + 1 < len(text) and text[index + 1] == closing:
+                    index += 2
+                    continue
+                closing = None
+        elif char in '["`':
+            closing = ']' if char == '[' else char
+        elif char == '(':
+            return text[:index].rstrip() + text[index:]
+        elif char == "'" or char in ');':
+            return text  # unsafe/non-head prefix: do not invent equivalence
+        index += 1
+    return text
+
+
 def deltas(old: Table, new: Table) -> list[tuple[str, str]]:
     """(kind, name) pairs an existing database would NOT pick up by re-running the CREATE."""
     out: list[tuple[str, str]] = []
@@ -639,7 +668,10 @@ def deltas(old: Table, new: Table) -> list[tuple[str, str]]:
             out.append(("column-added", column))
         elif old.columns[column] != definition:
             out.append(("column-altered", column))
-    for constraint in sorted(new.constraints - old.constraints):
+    old_constraints = {constraint_signature(item) for item in old.constraints}
+    for constraint in sorted(new.constraints):
+        if constraint_signature(constraint) in old_constraints:
+            continue
         out.append(("constraint-added", constraint))
     return out
 
@@ -683,24 +715,51 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
             declared[resolved.upper()] = match.group("why").strip()
 
     findings: list[Finding] = []
-    for raw_table, new_table in sorted(new_tables.items()):
-        if raw_table not in old_tables:
-            continue  # new table -- nothing to migrate from
-        changes = deltas(old_tables[raw_table], new_table)
+
+    def identity_refusal(raw_table: str) -> Refuse:
+        return Refuse(
+            f"{path}: cannot establish correspondence for table identity {raw_table!r}; migration coverage is unknown",
+            f"unresolvable table identity {raw_table!r}",
+        )
+
+    def same_shape(left: Table, right: Table) -> bool:
+        return left.columns == right.columns and {
+            constraint_signature(item) for item in left.constraints
+        } == {constraint_signature(item) for item in right.constraints}
+
+    def resolved_tables(tables: dict[str, Table], content: str) -> dict[str, tuple[str, Table]]:
+        resolved_side: dict[str, tuple[str, Table]] = {}
+        for raw, shape in sorted(tables.items()):
+            identity = resolve(raw, defaults, field_types(content), sqlcmd_vars(content))
+            if identity is None:
+                # Unchanged placeholders are a documented coverage limitation, not evidence of a
+                # migration defect. A meaningful change or changed spelling cannot use this escape.
+                other = new_tables if tables is old_tables else old_tables
+                if raw in other and not deltas(old_tables[raw], new_tables[raw]):
+                    continue
+                if old_tables:
+                    raise identity_refusal(raw)
+                continue  # a genuinely new artifact/table population has no prior schema
+            identity = table_key(identity)
+            key = identity.upper()
+            if key in resolved_side and not same_shape(shape, resolved_side[key][1]):
+                raise Refuse(
+                    f"{path}: conflicting definitions resolve to table {identity!r}; no alias can overwrite another",
+                    f"conflicting table identity {identity!r}",
+                )
+            resolved_side.setdefault(key, (identity, shape))
+        return resolved_side
+
+    # Resolve both sides before matching. SQLCMD spellings can change while naming the same table;
+    # matching raw text first would incorrectly treat the narrowed schema as a brand-new table.
+    old_resolved = resolved_tables(old_tables, before)
+    new_resolved = resolved_tables(new_tables, after)
+    for table, (resolved, new_table) in sorted(new_resolved.items()):
+        if table not in old_resolved:
+            continue
+        changes = deltas(old_resolved[table][1], new_table)
         if not changes:
             continue
-        resolved = resolve(raw_table, defaults, fields, setvars)
-        if resolved is not None:
-            # A composed property expands to `schema.table`; the schema is dropped for the same
-            # reason it is dropped in table_key -- a migration routinely qualifies differently.
-            resolved = table_key(resolved)
-        if resolved is None:
-            raise Refuse(
-                f"{path}: table identity {raw_table!r} has an interpolation this checker cannot "
-                f"resolve to a name, so migration coverage for it cannot be evaluated",
-                f"unresolvable table identity {raw_table!r}",
-            )
-        table = resolved.upper()
         if table in declared:
             continue
         window = alters.get(table, "")
@@ -1306,8 +1365,77 @@ def self_test() -> int:
     cs = "src/Example.Package/Store.cs"
     verify = "src/Example.Package/Verifier.cs"
 
+    def tenant_tables(parameterized: bool, narrowed: bool) -> str:
+        names = ("Inbox", "Outbox", "Schedules")
+        declarations = "".join(f':setvar {name}Table "{name}"\n' for name in names) if parameterized else ""
+        return declarations + "\n".join(
+            f"CREATE TABLE [{'$(' + name + 'Table)' if parameterized else name}] "
+            f"(Id INT NOT NULL PRIMARY KEY, TenantId VARCHAR(255) {'NOT NULL' if narrowed else 'NULL'});"
+            for name in names
+        )
+
+    tenant_migration = "\n".join(
+        f"ALTER TABLE [{name}] ALTER COLUMN TenantId VARCHAR(255) NOT NULL;"
+        for name in ("Inbox", "Outbox", "Schedules")
+    )
+    tight_before = "CREATE TABLE example_table (Id INT NOT NULL, TenantId INT NOT NULL, CHECK(Id > 0), UNIQUE(Id));"
+    tight_after = tight_before.replace("UNIQUE(Id)", "UNIQUE(Id, TenantId)")
+    ambiguous_before = 'CREATE TABLE [{TableName}] (Id INT NOT NULL, TenantId INT NULL);'
+    ambiguous_after = ambiguous_before.replace("TenantId INT NULL", "TenantId INT NOT NULL")
+    ambiguous_defaults = '''
+public class InboxOptions { public string TableName { get; set; } = "Inbox"; }
+public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
+'''
+    unresolved = "CREATE TABLE [{table}] (Id INT NOT NULL, TenantId INT NULL);"
+    aliases = ':setvar First "Widgets"\n:setvar Second "Widgets"\n'
+    widget = "CREATE TABLE [Widgets] (Id INT NOT NULL, TenantId INT NULL);"
+    equivalent_aliases = aliases + widget.replace("[Widgets]", "[$(First)]") + widget.replace("[Widgets]", "[$(Second)]")
+    conflicting_aliases = aliases + widget + widget.replace("[Widgets]", "[$(Second)]").replace("TenantId INT NULL", "TenantId INT NOT NULL")
+    quoted_constraint = 'CREATE TABLE example_table ([A B] INT NOT NULL, [AB] INT NOT NULL, UNIQUE([A B]));'
+    literal_constraint = "CREATE TABLE example_table (Id INT NOT NULL, CHECK('a b' = 'a b'));"
+
     # (label, v1, v2, baseline entries, expected exit, commit v2?)
     arms: list[tuple[str, dict[str, str], dict[str, str], set[str], int, bool]] = [
+        ("LIVENESS tight to spaced UNIQUE and CHECK is cosmetic",
+         {sql: tight_before}, {sql: tight_before.replace("CHECK(", "CHECK (").replace("UNIQUE(", "UNIQUE (")}, set(), 0, True),
+        ("LIVENESS spaced to tight UNIQUE and CHECK is cosmetic",
+         {sql: tight_before.replace("CHECK(", "CHECK (").replace("UNIQUE(", "UNIQUE (")}, {sql: tight_before}, set(), 0, True),
+        ("LIVENESS quoted identifier content survives cosmetic spacing",
+         {sql: quoted_constraint}, {sql: quoted_constraint.replace("UNIQUE(", "UNIQUE (")}, set(), 0, True),
+        ("SAFETY   distinct quoted identifiers must not normalize together",
+         {sql: quoted_constraint}, {sql: quoted_constraint.replace("UNIQUE([A B])", "UNIQUE([AB])")}, set(), 1, True),
+        ("LIVENESS literal content survives cosmetic constraint spacing",
+         {sql: literal_constraint}, {sql: literal_constraint.replace("CHECK(", "CHECK (")}, set(), 0, True),
+        ("SAFETY   literal whitespace changes remain meaningful",
+         {sql: literal_constraint}, {sql: literal_constraint.replace("'a b'", "'ab'", 1)}, set(), 1, True),
+        ("LIVENESS an unchanged unresolved placeholder remains allowed",
+         {sql: unresolved}, {sql: "-- unchanged runtime schema\n" + unresolved}, set(), 0, True),
+        ("LIVENESS constraint removal keeps the existing delta policy",
+         {sql: unresolved.replace(");", ", UNIQUE(Id));")}, {sql: unresolved}, set(), 0, True),
+        ("REFUSE   meaningful narrowing of an unresolved placeholder",
+         {sql: unresolved}, {sql: unresolved.replace("TenantId INT NULL", "TenantId INT NOT NULL")}, set(), 2, True),
+        ("REFUSE   changed unresolved spelling cannot hide narrowing",
+         {sql: unresolved}, {sql: unresolved.replace("{table}", "{otherTable}").replace("TenantId INT NULL", "TenantId INT NOT NULL")}, set(), 2, True),
+        ("LIVENESS equivalent duplicate aliases may coalesce",
+         {sql: widget}, {sql: equivalent_aliases}, set(), 0, True),
+        ("LIVENESS duplicate aliases with cosmetic head spacing coalesce",
+         {sql: widget.replace(");", ", UNIQUE(Id));")},
+         {sql: aliases + widget.replace("[Widgets]", "[$(First)]").replace(");", ", UNIQUE(Id));")
+          + widget.replace("[Widgets]", "[$(Second)]").replace(");", ", UNIQUE (Id));")}, set(), 0, True),
+        ("REFUSE   conflicting aliases cannot overwrite an unchanged pair",
+         {sql: widget}, {sql: conflicting_aliases}, set(), 2, True),
+        ("REFUSE   conflicting prior aliases cannot be silently overwritten",
+         {sql: conflicting_aliases}, {sql: widget}, set(), 2, True),
+        ("SAFETY   tight UNIQUE narrowing without migration is detected",
+         {sql: tight_before}, {sql: tight_after}, set(), 1, True),
+        ("LIVENESS tight CHECK and UNIQUE with migration remain supported",
+         {sql: tight_before}, {sql: tight_after, migration: "ALTER TABLE example_table ADD UNIQUE(Id, TenantId);"}, set(), 0, True),
+        ("REFUSE   a missing SQLCMD table identity cannot be guessed",
+         {sql: tenant_tables(False, False)},
+         {sql: tenant_tables(True, True).replace(':setvar InboxTable "Inbox"\n', '')}, set(), 2, True),
+        ("REFUSE   an ambiguous interpolated table identity cannot be guessed",
+         {sql: ambiguous_before, cs: ambiguous_defaults},
+         {sql: ambiguous_after, cs: ambiguous_defaults}, set(), 2, True),
         ("SAFETY   in-place column add with no ALTER is detected",
          {sql: _V1_SQL}, {sql: _V2_SQL_ADDS_COLUMN}, set(), 1, True),
         ("SAFETY   the same defect in C#-authored DDL is detected",
@@ -1383,6 +1511,36 @@ def self_test() -> int:
 
     print("self-test: proving this gate can report FAIL, PASS and REFUSE")
     failures = 0
+    # Escaped delimiters and a parenthesis inside a quoted name must not end the head scan.
+    for head in ('CONSTRAINT [a]](b] UNIQUE', 'CONSTRAINT "a""(b" UNIQUE', 'CONSTRAINT `a``(b` UNIQUE'):
+        tight = head + "(Id)"
+        spaced = head + " (Id)"
+        if constraint_signature(tight) != constraint_signature(spaced) or constraint_signature(tight) != tight:
+            print(f"  FAIL  escaped quoted head comparison: {head}")
+            failures += 1
+        else:
+            print(f"  ok    LIVENESS escaped quoted head retains content: {head}")
+    # Quoting makes these identifiers columns, even when their names are SQL constraint keywords.
+    quoted = parse_tables('CREATE TABLE quoted_names ([Key] INT NOT NULL, "CHECK" INT NULL, Id INT NOT NULL, CHECK(Id > 0), UNIQUE(Id));', sql)["quoted_names"]
+    if set(quoted.columns) == {"KEY", "CHECK", "ID"} and len(quoted.constraints) == 2:
+        print("  ok    LIVENESS quoted keyword columns and tight constraints retain their distinct roles")
+    else:
+        print(f"  FAIL  quoted keyword columns: columns={sorted(quoted.columns)}, constraints={sorted(quoted.constraints)}")
+        failures += 1
+    for direction, before, after in (
+        ("literal to SQLCMD", tenant_tables(False, False), tenant_tables(True, True)),
+        ("SQLCMD to literal", tenant_tables(True, False), tenant_tables(False, True)),
+    ):
+        arms.extend([
+            (f"SAFETY   {direction}: all three tenant narrowings need migration",
+             {sql: before}, {sql: after}, set(), 1, True),
+            (f"SAFETY   {direction}: deleted migration leaves all three tenant narrowings",
+             {sql: before, migration: tenant_migration}, {sql: after}, set(), 1, True),
+            (f"LIVENESS {direction}: present migration covers all three narrowings",
+             {sql: before}, {sql: after, migration: tenant_migration}, set(), 0, True),
+            (f"LIVENESS {direction}: unchanged schema parameterization is allowed",
+             {sql: before}, {sql: tenant_tables(direction == "literal to SQLCMD", False)}, set(), 0, True),
+        ])
     tmp = tempfile.mkdtemp()
     saved = {k: os.environ.get(k) for k in ("DDL_MIGRATION_REPO", "DDL_MIGRATION_BASELINE")}
     try:
@@ -1401,11 +1559,15 @@ def self_test() -> int:
             os.environ["DDL_MIGRATION_BASELINE"] = fixture_baseline
             sink = io.StringIO()
             got = scan(out=sink, err=sink)
-            if got == want:
+            required = {f"Example.Package:{name}:TENANTID" for name in ("Inbox", "Outbox", "Schedules")} if "all three tenant narrowings" in label else set()
+            missing = {key for key in required if key not in sink.getvalue()}
+            if got == want and not missing:
                 print(f"  ok    {label:<58} exit {got}")
             else:
                 print(f"  FAIL  {label:<58} exit {got} (expected {want})")
                 print("        " + sink.getvalue().replace("\n", "\n        ")[:1400])
+                if missing:
+                    print(f"        missing independent table findings: {sorted(missing)}")
                 failures += 1
     finally:
         for key, value in saved.items():
@@ -1423,11 +1585,25 @@ def self_test() -> int:
     saved2 = {k: os.environ.get(k) for k in ("DDL_MIGRATION_REPO", "DDL_MIGRATION_BASELINE")}
     try:
         explicit = [
+            ("LIVENESS --base tight to spaced constraints is cosmetic",
+             {sql: tight_before}, {sql: tight_before.replace("CHECK(", "CHECK (").replace("UNIQUE(", "UNIQUE (")}, 0),
+            ("LIVENESS --base spaced to tight constraints is cosmetic",
+             {sql: tight_before.replace("CHECK(", "CHECK (").replace("UNIQUE(", "UNIQUE (")}, {sql: tight_before}, 0),
             ("SAFETY   --base delta: column add with no ALTER is detected",
              {sql: _V1_SQL}, {sql: _V2_SQL_ADDS_COLUMN}, 1),
             ("LIVENESS --base delta: the same add WITH its migration is allowed",
              {sql: _V1_SQL}, {sql: _V2_SQL_ADDS_COLUMN, migration: _MIGRATION_SQL}, 0),
         ]
+        for direction, before, after in (
+            ("literal to SQLCMD", tenant_tables(False, False), tenant_tables(True, True)),
+            ("SQLCMD to literal", tenant_tables(True, False), tenant_tables(False, True)),
+        ):
+            explicit.extend([
+                (f"SAFETY   --base {direction}: all three tenant narrowings need migration", {sql: before}, {sql: after}, 1),
+                (f"SAFETY   --base {direction}: deleted migration leaves all three tenant narrowings", {sql: before, migration: tenant_migration}, {sql: after}, 1),
+                (f"LIVENESS --base {direction}: present migration covers narrowing", {sql: before}, {sql: after, migration: tenant_migration}, 0),
+                (f"LIVENESS --base {direction}: unchanged parameterization", {sql: before}, {sql: tenant_tables(direction == "literal to SQLCMD", False)}, 0),
+            ])
         for label, v1, v2, want in explicit:
             root, anchor = _fixture_repo(tmp2, v1, v2)
             fixture_baseline = os.path.join(tmp2, "fixture.baseline.txt")
@@ -1437,11 +1613,15 @@ def self_test() -> int:
             os.environ["DDL_MIGRATION_BASELINE"] = fixture_baseline
             sink = io.StringIO()
             got = scan(out=sink, err=sink, base=anchor, head="HEAD")
-            if got == want:
+            required = {f"Example.Package:{name}:TENANTID" for name in ("Inbox", "Outbox", "Schedules")} if "all three tenant narrowings" in label else set()
+            missing = {key for key in required if key not in sink.getvalue()}
+            if got == want and not missing:
                 print(f"  ok    {label:<58} exit {got}")
             else:
                 print(f"  FAIL  {label:<58} exit {got} (expected {want})")
                 print("        " + sink.getvalue().replace("\n", "\n        ")[:1400])
+                if missing:
+                    print(f"        missing independent table findings: {sorted(missing)}")
                 failures += 1
     finally:
         for key, value in saved2.items():

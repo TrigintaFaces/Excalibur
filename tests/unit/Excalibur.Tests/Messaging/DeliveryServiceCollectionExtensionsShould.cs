@@ -281,8 +281,8 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 	{
 		// bd-stlcgg (S841): shipped stores implement IDeadLetterableOutboxStore; the AddOutbox presence guard
 		// (OutboxDeadLetterCapabilityValidator) fails fast at startup when the store lacks it.
-		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken = default)
-			=> default;
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken = default)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken = default)
 			=> default;
@@ -314,8 +314,8 @@ public sealed class DeliveryServiceCollectionExtensionsShould
 
 	private sealed class AnotherTestOutboxStore : IOutboxStore, IDeadLetterableOutboxStore
 	{
-		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken = default)
-			=> default;
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken = default)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken = default)
 			=> default;

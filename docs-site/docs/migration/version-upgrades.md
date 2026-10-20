@@ -40,6 +40,31 @@ Each Excalibur package single-targets one .NET major. There is no multi-targetin
 - **No guaranteed upgrade path** between pre-release builds -- consult release notes before upgrading
 - **Feedback is welcome** -- your input directly shapes the stable API surface
 
+## SQL schema script paths in earlier alpha packages
+
+Earlier packages in the following ranges contain SQL schema entries at `scripts//<name>.sql`, with two
+slashes, rather than the documented `scripts/<name>.sql`. Tooling that expects the documented path can
+miss the files, and strict package readers can reject the malformed entry. The schema scripts are
+needed to provision the tables the providers use.
+
+| Package | Measured affected versions | Corrected version verified |
+| --- | --- | --- |
+| `Excalibur.AuditLogging.SqlServer` | `10.0.0-alpha.4` through `10.0.0-alpha.14` | `10.0.0-alpha.15` |
+| `Excalibur.Cdc.SqlServer` | `10.0.0-alpha.6` through `10.0.0-alpha.14` | `10.0.0-alpha.15` |
+| `Excalibur.Data.SqlServer` | `10.0.0-alpha.9` through `10.0.0-alpha.14` | `10.0.0-alpha.15` |
+| `Excalibur.Compliance.Postgres` | `10.0.0-alpha.9` through `10.0.0-alpha.14` | `10.0.0-alpha.15` |
+| `Excalibur.Outbox.Postgres` | `10.0.0-alpha.9` through `10.0.0-alpha.14` | `10.0.0-alpha.15` |
+
+**Remedy:** upgrade to `10.0.0-alpha.15` or a later fixed release, then obtain the scripts from the
+corrected package and follow that provider's schema setup instructions. Do not rely on ZIP path
+normalization or edit a published package as an upgrade strategy. Upgrading the package does not itself
+apply its SQL scripts to an existing database.
+
+These ranges were established by inspecting every published 10.x package from `10.0.0-alpha.4` through
+`10.0.0-alpha.15` for each package above. Earlier 10.x versions outside the listed ranges contained no SQL
+entries. Selected first and last 3.x packages also contained no SQL entries; intervening 3.x versions
+were not assessed. This inspection verifies package entry names, not successful database provisioning.
+
 ## Support Lifecycle
 
 ### How long a line is supported

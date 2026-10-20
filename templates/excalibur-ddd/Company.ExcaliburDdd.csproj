@@ -25,6 +25,13 @@
     <!--#if (UsePostgreSql) -->
     <PackageReference Include="Excalibur.EventSourcing.Postgres" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
+    <!--#if (UseInMemoryDatabase) -->
+    <PackageReference Include="Excalibur.EventSourcing.InMemory" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Company.ExcaliburDdd.Tests/**/*.cs" />
   </ItemGroup>
 
 </Project>

@@ -53,6 +53,10 @@ internal sealed class KafkaPartitionProgress
 {
 	private readonly ConcurrentDictionary<TopicPartition, PartitionState> _partitions = new();
 
+	/// <summary>Serializes synchronous consumer operations for this shared consumer composition.</summary>
+	/// <remarks>Acquire before partition gates; never hold across awaited handler or poison work.</remarks>
+	public Lock OperationGate { get; } = new();
+
 	/// <summary>
 	/// Gets the number of offsets that have been dispatched and not yet settled, across all partitions.
 	/// </summary>
@@ -267,14 +271,23 @@ internal sealed class KafkaPartitionProgress
 	/// <see langword="false"/> when there is nothing to commit: earlier work is still owed, the position is
 	/// already committed, or the generation is stale.
 	/// </returns>
-	public bool TrySettle(TopicPartition partition, long offset, long generation, out long commitOffset)
+	public bool TrySettle(TopicPartition partition, long offset, long generation, out long commitOffset) =>
+		SettleTerminal(partition, offset, generation, out commitOffset) == KafkaTerminalSettlementOutcome.CommitRequired;
+
+	/// <summary>Checks ownership and records terminal progress together under the partition gate.</summary>
+	/// <param name="partition">The partition containing the delivery.</param>
+	/// <param name="offset">The terminal delivery offset.</param>
+	/// <param name="generation">The delivery's assignment generation.</param>
+	/// <param name="commitOffset">The absolute commit position when a commit is required.</param>
+	/// <returns>The ownership and commit decision from the same state transition.</returns>
+	public KafkaTerminalSettlementOutcome SettleTerminal(TopicPartition partition, long offset, long generation, out long commitOffset)
 	{
 		ArgumentNullException.ThrowIfNull(partition);
 		commitOffset = 0;
 
 		if (!_partitions.TryGetValue(partition, out var state))
 		{
-			return false;
+			return KafkaTerminalSettlementOutcome.StaleGeneration;
 		}
 
 		lock (state.Gate)
@@ -284,7 +297,7 @@ internal sealed class KafkaPartitionProgress
 			// performed before the handover.
 			if (generation != state.Generation)
 			{
-				return false;
+				return KafkaTerminalSettlementOutcome.StaleGeneration;
 			}
 
 			_ = state.Dispatched.Remove(offset);
@@ -292,7 +305,7 @@ internal sealed class KafkaPartitionProgress
 
 			if (state.Position() is not { } position)
 			{
-				return false;
+				return KafkaTerminalSettlementOutcome.AcceptedWithoutCommit;
 			}
 
 			// Emit a commit only for a position strictly ahead of what the broker already holds. Before the
@@ -304,11 +317,11 @@ internal sealed class KafkaPartitionProgress
 			var reference = state.Committed ?? state.Floor;
 			if (reference is { } lastKnown && position <= lastKnown)
 			{
-				return false;
+				return KafkaTerminalSettlementOutcome.AcceptedWithoutCommit;
 			}
 
 			commitOffset = position;
-			return true;
+			return KafkaTerminalSettlementOutcome.CommitRequired;
 		}
 	}
 
@@ -557,4 +570,15 @@ internal sealed class KafkaPartitionProgress
 			ReseekIssued = false;
 		}
 	}
+}
+
+/// <summary>The atomic ownership and commit decision for a terminal delivery.</summary>
+internal enum KafkaTerminalSettlementOutcome
+{
+	/// <summary>The delivery belongs to an ended assignment.</summary>
+	StaleGeneration,
+	/// <summary>The terminal delivery was accepted without advancing the commit position.</summary>
+	AcceptedWithoutCommit,
+	/// <summary>The terminal delivery requires an absolute position commit.</summary>
+	CommitRequired,
 }

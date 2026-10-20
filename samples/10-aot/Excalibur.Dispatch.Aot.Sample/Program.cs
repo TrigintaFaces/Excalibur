@@ -34,6 +34,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Excalibur.EventSourcing.InMemory;
 
+if (args.Contains("--crypto-shred-smoke", StringComparer.Ordinal))
+{
+    await Excalibur.Dispatch.Aot.Sample.CryptoShredSmoke.RunAsync();
+    return;
+}
+
 if (args.Contains("--quartz-sql-smoke", StringComparer.Ordinal))
 {
     await Excalibur.Dispatch.Aot.Sample.QuartzSqlSmoke.RunAsync();
@@ -404,12 +410,9 @@ Console.WriteLine();
 // of Soc2Options (including the nested SystemDescription and ControlDefinition
 // report-content types) via AddSoc2ComplianceWithBuiltInValidators(IConfiguration), and the
 // reflection-free Soc2ReportExporter (JSON/CSV/XML/text; PDF is opt-in via
-// Excalibur.Compliance.Pdf). NOTE: under a full Native AOT publish, the
-// configuration binding below currently loses SystemDescription's values
-// silently, because the reflection-based ConfigurationBinder.Bind() this
-// overload uses is not trim-safe for this nested record graph. This demo
-// intentionally prints whatever actually got bound rather than asserting it,
-// so the gap stays visible instead of being asserted away.
+// Excalibur.Compliance.Pdf). The demo checks representative typed configuration
+// values before exporting, so a binding regression fails the native smoke test
+// instead of printing missing values and exiting successfully.
 // ============================================================================
 
 await RunComplianceDemoAsync().ConfigureAwait(false);
@@ -443,6 +446,17 @@ static async Task RunComplianceDemoAsync()
 
 	await using var complianceProvider = complianceServices.BuildServiceProvider();
 	var soc2Options = complianceProvider.GetRequiredService<IOptions<Soc2Options>>().Value;
+	var system = soc2Options.SystemDescription;
+	if (system is null ||
+		!string.Equals(system.Name, "Aot Sample System", StringComparison.Ordinal) ||
+		!string.Equals(system.Description, "Demonstrates AOT-safe SOC 2 configuration binding.", StringComparison.Ordinal) ||
+		!(system.Services ?? []).SequenceEqual(["Order processing"], StringComparer.Ordinal) ||
+		!(system.Infrastructure ?? []).SequenceEqual(["Kubernetes"], StringComparer.Ordinal) ||
+		!(system.DataTypes ?? []).SequenceEqual(["Order records"], StringComparer.Ordinal))
+	{
+		throw new InvalidOperationException("AOT sample SOC 2 configuration values were not preserved.");
+	}
+
 	Console.WriteLine($"Bound system name: {soc2Options.SystemDescription?.Name}");
 	Console.WriteLine($"Bound services:    {string.Join(", ", soc2Options.SystemDescription?.Services ?? [])}");
 

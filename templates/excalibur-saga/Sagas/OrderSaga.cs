@@ -79,7 +79,8 @@ public sealed partial class OrderSaga(
 
         // Schedule a payment timeout — if payment is not confirmed within 5 minutes, fail the saga
         State.TimeoutId = await RequestTimeoutAsync<PaymentTimedOut>(
-            TimeSpan.FromMinutes(5), cancellationToken).ConfigureAwait(false);
+            TimeSpan.FromMinutes(5), new PaymentTimedOut { SagaId = State.SagaId.ToString() },
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandlePaymentCollectedAsync(PaymentCollected payment, CancellationToken cancellationToken)
@@ -129,4 +130,8 @@ public sealed partial class OrderSaga(
 /// <summary>
 /// Timeout message dispatched when payment confirmation is not received within the deadline.
 /// </summary>
-public sealed class PaymentTimedOut;
+public sealed class PaymentTimedOut : ISagaEvent
+{
+    public string SagaId { get; init; } = string.Empty;
+    public string? StepId => "PaymentTimeout";
+}

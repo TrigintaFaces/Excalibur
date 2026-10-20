@@ -59,7 +59,9 @@ public static class ScopedDistributedCacheServiceCollectionExtensions
 		services.TryAddKeyedSingleton<IDistributedCache>(
 			DistributedCacheServiceKeys.ApplicationScoped,
 			(provider, _) => new ScopedDistributedCache(
-				provider.GetRequiredService<IDistributedCache>(),
+				provider.GetService<IDistributedCache>() ?? throw new InvalidOperationException(
+					"AddApplicationScopedDistributedCache requires an unkeyed base IDistributedCache. " +
+					"Register services.AddDistributedMemoryCache() or services.AddStackExchangeRedisCache(...) before resolving the scoped cache."),
 				provider.GetRequiredService<IOptions<CacheKeyScopeOptions>>().Value.Scope));
 
 		return services;

@@ -261,14 +261,13 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetKeyAsync_ReturnsMetadata_AndUsesCache()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var cache = new MemoryCache(new MemoryCacheOptions());
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			cache,
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var key = CreateKey("dispatch-order-key", "v1", KeyType.RsaHsm, "orders", EncryptionAlgorithm.Aes256Gcm);
 		A.CallTo(() => keyClient.GetKeyAsync("dispatch-order-key", A<string?>._, A<CancellationToken>._))
@@ -288,13 +287,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetKeyVersionAsync_ReturnsMetadata_WhenRequestedVersionExists()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var versionProps = KeyModelFactory.KeyProperties(
 			id: new Uri("https://unit-tests.vault.azure.net/keys/dispatch-orders/version-7"),
@@ -324,13 +322,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetKeyVersionAsync_ReturnsNull_WhenRequestedVersionDoesNotExist()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var versionProps = KeyModelFactory.KeyProperties(
 			id: new Uri("https://unit-tests.vault.azure.net/keys/dispatch-orders/version-1"),
@@ -353,13 +350,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetKeyAsync_ReturnsNull_WhenKeyNotFound()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		A.CallTo(() => keyClient.GetKeyAsync("dispatch-orders", A<string?>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "missing"));
@@ -372,13 +368,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetKeyVersionAsync_ReturnsNull_WhenKeyNotFound()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		A.CallTo(() => keyClient.GetPropertiesOfKeyVersionsAsync("dispatch-orders", A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "missing"));
@@ -391,13 +386,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task ListKeysAsync_FiltersByPrefixStatusAndPurpose()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var prefixedProps = new KeyProperties("dispatch-orders");
 		var nonPrefixedProps = new KeyProperties("external-payments");
@@ -423,13 +417,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task ListKeysAsync_SkipsKeys_WhenDetailsLookupReturnsNotFound()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		A.CallTo(() => keyClient.GetPropertiesOfKeysAsync(A<CancellationToken>._))
 			.Returns(CreateAsyncPageable(new KeyProperties("dispatch-orders")));
@@ -444,13 +437,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetActiveKeyAsync_ReturnsMostRecentlyCreatedNonExpiredKey()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var oldKey = CreateKey(
 			"dispatch-orders-old",
@@ -485,13 +477,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetActiveKeyAsync_ReturnsNull_WhenOnlyExpiredKeysExist()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var expired = CreateKey(
 			"dispatch-orders-expired",
@@ -515,13 +506,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetActiveKeyAsync_UsesCache_ForSamePurpose()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var key = CreateKey(
 			"dispatch-orders",
@@ -549,13 +539,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task RotateKeyAsync_ReturnsFailure_WhenAzureReturnsRequestFailedException()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		A.CallTo(() => keyClient.GetKeyAsync("dispatch-orders", A<string?>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(500, "rotate-fail"));
@@ -574,13 +563,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task RotateKeyAsync_RotatesExistingKey_WhenKeyAlreadyExists()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var existing = CreateKey("dispatch-orders", "v1", KeyType.RsaHsm, "orders", EncryptionAlgorithm.Aes256Gcm);
 		var rotated = CreateKey("dispatch-orders", "v2", KeyType.RsaHsm, "orders", EncryptionAlgorithm.Aes256Gcm);
@@ -607,13 +595,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task RotateKeyAsync_CreatesNewKey_WhenKeyDoesNotExist()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var created = CreateKey("dispatch-orders", "v1", KeyType.RsaHsm, "orders", EncryptionAlgorithm.Aes256Gcm);
 		CreateRsaKeyOptions? capturedOptions = null;
@@ -643,13 +630,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task SuspendKeyAsync_ReturnsFalse_WhenKeyIsNotFound()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		A.CallTo(() => keyClient.GetKeyAsync("dispatch-orders", A<string?>._, A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "missing"));
@@ -661,13 +647,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task SuspendKeyAsync_ReturnsTrue_WhenKeyExists()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var key = CreateKey("dispatch-orders", "v1", KeyType.RsaHsm, "orders", EncryptionAlgorithm.Aes256Gcm);
 		KeyProperties? updated = null;
@@ -693,13 +678,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task DeleteKeyAsync_ReturnsFalse_WhenKeyIsNotFound()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		A.CallTo(() => keyClient.StartDeleteKeyAsync("dispatch-orders", A<CancellationToken>._))
 			.Throws(new RequestFailedException(404, "missing"));
@@ -716,15 +700,14 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task DeleteKeyAsync_ReturnsTrue_WhenDeletionCompletes()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
-
-		var operation = A.Fake<DeleteKeyOperation>();
+		var operation = A.Fake<global::Azure.Security.KeyVault.Keys.DeleteKeyOperation>();
 		var deletedKey = KeyModelFactory.DeletedKey(
 			KeyModelFactory.KeyProperties(
 				id: new Uri("https://unit-tests.vault.azure.net/keys/dispatch-orders/version-1"),
@@ -775,13 +758,12 @@ public sealed class AzureKeyVaultProviderShould
 	[Fact]
 	public async Task GetCryptographyClientAsync_ReturnsCachedClient_ForSameKeyId()
 	{
+		var keyClient = CreateFakeKeyClient();
 		using var sut = new AzureKeyVaultProvider(
 			Microsoft.Extensions.Options.Options.Create(CreateValidOptions()),
 			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
-
-		var keyClient = CreateFakeKeyClient();
-		SetPrivateField(sut, "_keyClient", keyClient);
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 
 		var key = CreateKey("dispatch-orders", "v1", KeyType.RsaHsm, "orders", EncryptionAlgorithm.Aes256Gcm);
 		A.CallTo(() => keyClient.GetKeyAsync("dispatch-orders", A<string?>._, A<CancellationToken>._))
@@ -804,7 +786,7 @@ public sealed class AzureKeyVaultProviderShould
 
 	private static KeyClient CreateFakeKeyClient()
 	{
-		return A.Fake<KeyClient>(options => options.WithArgumentsForConstructor(() =>
+		return A.Fake<global::Azure.Security.KeyVault.Keys.KeyClient>(options => options.WithArgumentsForConstructor(() =>
 			new KeyClient(new Uri("https://unit-tests.vault.azure.net/"), new global::Azure.Identity.DefaultAzureCredential())));
 	}
 
@@ -899,10 +881,4 @@ public sealed class AzureKeyVaultProviderShould
 		return key;
 	}
 
-	private static void SetPrivateField<T>(object instance, string fieldName, T value)
-	{
-		var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(instance, value);
-	}
 }

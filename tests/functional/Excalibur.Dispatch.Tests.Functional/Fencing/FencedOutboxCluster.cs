@@ -345,7 +345,7 @@ internal sealed class RecordingMessageBusAdapter : IMessageBusAdapter
 }
 
 /// <summary>A message staged into the outbox by the fencing arms.</summary>
-internal sealed class WidgetShipped
+internal sealed class WidgetShipped : IDispatchMessage
 {
     /// <summary>Gets or sets the widget identifier.</summary>
     public string WidgetId { get; set; } = string.Empty;

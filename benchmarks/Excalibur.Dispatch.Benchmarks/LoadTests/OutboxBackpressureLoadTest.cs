@@ -5,6 +5,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Benchmarks.Patterns;
 
 using Excalibur.Outbox.SqlServer;
 
@@ -54,7 +55,7 @@ public class OutboxBackpressureLoadTest
 		await _sqlContainer.StartAsync().ConfigureAwait(false);
 		_connectionString = _sqlContainer.GetConnectionString();
 
-		await CreateOutboxTablesAsync().ConfigureAwait(false);
+		await SqlServerBenchmarkSchema.CreateOutboxAsync(_sqlContainer).ConfigureAwait(false);
 
 		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerOutboxOptions
 		{
@@ -167,59 +168,5 @@ public class OutboxBackpressureLoadTest
 				["CorrelationId"] = Guid.NewGuid().ToString(),
 				["ProducerId"] = Environment.CurrentManagedThreadId.ToString(),
 			});
-	}
-
-	private async Task CreateOutboxTablesAsync()
-	{
-		const string createTableSql = """
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OutboxMessages' AND schema_id = SCHEMA_ID('dbo'))
-			BEGIN
-				CREATE TABLE [dbo].[OutboxMessages] (
-					[Id] NVARCHAR(200) NOT NULL PRIMARY KEY,
-					[MessageType] NVARCHAR(500) NOT NULL,
-					[Payload] VARBINARY(MAX) NOT NULL,
-					[Destination] NVARCHAR(500) NOT NULL,
-					[Headers] NVARCHAR(MAX) NULL,
-					[CreatedAt] DATETIMEOFFSET NOT NULL,
-					[SentAt] DATETIMEOFFSET NULL,
-					[FailedAt] DATETIMEOFFSET NULL,
-					[ErrorMessage] NVARCHAR(MAX) NULL,
-					[RetryCount] INT NOT NULL DEFAULT 0,
-					[NextRetryAt] DATETIMEOFFSET NULL,
-					[TenantId] NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL DEFAULT '__untenanted__',
-					[Status] INT NOT NULL DEFAULT 0,
-					[ScheduledAt] DATETIMEOFFSET NULL,
-					[AggregateId] NVARCHAR(200) NULL,
-					[AggregateType] NVARCHAR(500) NULL,
-					[CorrelationId] NVARCHAR(200) NULL,
-					INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
-					INDEX IX_OutboxMessages_ScheduledAt (ScheduledAt) WHERE ScheduledAt IS NOT NULL
-				);
-			END;
-
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OutboxMessageTransports' AND schema_id = SCHEMA_ID('dbo'))
-			BEGIN
-				CREATE TABLE [dbo].[OutboxMessageTransports] (
-					[Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-					[MessageId] NVARCHAR(200) NOT NULL,
-					[TransportName] NVARCHAR(200) NOT NULL,
-					[Status] INT NOT NULL DEFAULT 0,
-					[SentAt] DATETIMEOFFSET NULL,
-					[FailedAt] DATETIMEOFFSET NULL,
-					[ErrorMessage] NVARCHAR(MAX) NULL,
-					[RetryCount] INT NOT NULL DEFAULT 0,
-					[NextRetryAt] DATETIMEOFFSET NULL,
-					CONSTRAINT FK_OutboxMessageTransports_Message FOREIGN KEY (MessageId) REFERENCES [dbo].[OutboxMessages](Id),
-					INDEX IX_OutboxMessageTransports_MessageId (MessageId),
-					INDEX IX_OutboxMessageTransports_Status (Status)
-				);
-			END;
-			""";
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync().ConfigureAwait(false);
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 	}
 }

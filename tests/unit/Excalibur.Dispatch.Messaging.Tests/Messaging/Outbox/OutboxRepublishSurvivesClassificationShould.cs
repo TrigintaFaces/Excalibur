@@ -49,7 +49,7 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 	public OutboxRepublishSurvivesClassificationShould()
 	{
 		_outboxStore = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>()).WithHonestCapabilities();
-		_serializer = A.Fake<IPayloadSerializer>();
+		_serializer = OutboxFakeCapabilityExtensions.CreateRegisteredSerializer();
 		_messageBus = A.Fake<IMessageBusAdapter>();
 		_serviceProvider = A.Fake<IServiceProvider>();
 		_logger = A.Fake<ILogger<MessageBusOutboxPublisher>>();
@@ -73,13 +73,13 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 	[Fact]
 	public async Task DeliverARepublishedMessageToTheTransportBus()
 	{
-		var staged = new OutboundMessage("TestMessage", new byte[] { 7, 7, 7 }, "orders-queue");
+		var staged = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, new byte[] { 7, 7, 7 }, "orders-queue");
 
 		_ = A.CallTo(() => _outboxStore.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { staged });
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
-			.Returns(A.Fake<IMessageResult>());
+			.Returns(MessageResult.Success());
 
 		var result = await _publisher.PublishPendingMessagesAsync(CancellationToken.None);
 
@@ -112,7 +112,7 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 	public async Task HandTheStagedPayloadToTheBusUnaltered()
 	{
 		var payload = new byte[] { 4, 2 };
-		var staged = new OutboundMessage("TestMessage", payload, "orders-queue");
+		var staged = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, payload, "orders-queue");
 
 		IDispatchMessage? delivered = null;
 
@@ -121,7 +121,7 @@ public sealed class OutboxRepublishSurvivesClassificationShould
 
 		_ = A.CallTo(() => _messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes((IDispatchMessage m, IMessageContext _, CancellationToken _) => delivered = m)
-			.Returns(A.Fake<IMessageResult>());
+			.Returns(MessageResult.Success());
 
 		_ = await _publisher.PublishPendingMessagesAsync(CancellationToken.None);
 

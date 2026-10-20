@@ -1267,3 +1267,22 @@ virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.CleanupAsync() 
 virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.CrashMidStep_ResumesFromLastCompletedStep_ExactlyOnce() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.DelayedRestart_ResumesAndCompletesExactlyOnce() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.DuplicateDelivery_AppliesEachActivityExactlyOnce() -> System.Threading.Tasks.Task!
+Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit
+Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.ScheduleExecutionStoreConformanceTestKit() -> void
+override abstract Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.IScheduleExecutionStore!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.StoreInputRemainsDetached() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.ReturnedSnapshotsRemainDetached() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.SimultaneousAdmissionHasOneWinner() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.AdministrativeChangesInvalidateOldAuthority() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.ProgressAndReleaseRespectCurrentAuthority() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionStoreConformanceTestKit.CanceledOperationsLeaveAuthorityUnchanged() -> System.Threading.Tasks.Task!
+Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit
+Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.ScheduleExecutionLeaseRenewalConformanceTestKit() -> void
+override abstract Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.CreateStore() -> Excalibur.Dispatch.Delivery.IScheduleExecutionLeaseRenewal!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.WaitForLeaseTimeAsync(System.TimeSpan duration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.RenewalExtendsCurrentOwnership() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.ExpiredAuthorityCannotRenewOrProgress() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.ReleasedAndForeignAuthorityCannotRenewSuccessor() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.AdministrativeMutationInvalidatesRenewal() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.RenewalPreservesProgressOnceIncludingAfterCommit() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.ScheduleExecutionLeaseRenewalConformanceTestKit.CanceledRenewalLeavesOwnershipUnchanged() -> System.Threading.Tasks.Task!

@@ -937,42 +937,31 @@ builder.Services.AddDispatch(dispatch =>
     dispatch.UseMiddleware<TransactionMiddleware>();    // Last
 });
 ```
-## Performance Comparison
+## Performance
 
-The figures below are from the WarmPath comparison epoch of 2026-09-05:
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`
+Excalibur's measured dispatch overhead, and the conditions behind each figure, are published in
+[Benchmark Results](../performance/competitor-comparison.md). We do not publish tables ranking
+Excalibur against MediatR: a microbenchmark comparison is only meaningful when both sides are
+configured by someone with no stake in the result, and we cannot offer that about somebody else's
+library.
 
-Run details:
-- BenchmarkDotNet 0.15.8 on .NET 10.0.11 / SDK 10.0.400, i9-14900K
-- Job `warmpath-inproc`, `InProcessEmitToolchain`
-- Ratios within each report are apples-to-apples; individual Mean values are not comparable across
-  the BenchmarkDotNet 0.15.4 → 0.15.8 boundary that sits below the April 2026 epoch.
-- Latency varied about 4% run to run on the Dispatch arms and about 8.6% on MediatR's. Do not read a
-  ratio inside that band as a finding. Allocation was byte-identical between runs.
+If that comparison matters to your decision, the fixtures are in
+`benchmarks/Excalibur.Dispatch.Benchmarks`. Run them against your own handlers, on your own
+hardware, and trust that result over any published table.
 
-| Scenario | MediatR | Excalibur | Relative Result |
-|----------|---------|-------------------|-----------------|
-| Single command handler | 42.78 ns / 152 B | 60.04 ns / 96 B | MediatR ~1.40x faster; **Dispatch allocates 1.58x less** |
-| Single command, context-less 2-arg overload | 42.78 ns / 152 B | 67.52 ns / 96 B | MediatR ~1.58x faster; **Dispatch allocates 1.58x less** |
-| Notification to 3 handlers | 95.01 ns / 616 B | 134.99 ns / 96 B | MediatR ~1.42x faster; **Dispatch allocates 6.4x less** |
-| 10 concurrent commands | 541.74 ns / 1,856 B | 596.06 ns / 1,360 B | Within variance (~1.10x); **Dispatch allocates 1.36x less** |
-| 100 concurrent commands | 5,146.08 ns / 17,064 B | 5,584.43 ns / 12,160 B | Within variance (~1.09x); **Dispatch allocates 1.40x less** |
-| Three-middleware pipeline | 124.87 ns / 680 B | 71.68 ns / 240 B | **Dispatch 1.74x faster**; allocates 2.83x less |
+### What changes about the dispatch path
 
-No query row appears above on purpose. MediatR's own query figure moved about 21% between epochs,
-consistently across every run of the current one and for reasons unrelated to this framework, so the
-ratio would be meaningless in either direction. Dispatch's own query figures from the same run are
-63.67 ns / 192 B for a query with a return value and 69.87 ns / 288 B through the context-less 2-arg
-overload.
+Dispatch has one entry point: `DispatchAsync(...)`, with full middleware and context semantics.
+Underneath it, a local fast path is selected automatically when the message can stay in-process and
+no middleware applies to its type, and the full pipeline is used when it cannot. There is nothing to
+opt into and nothing to cast to.
 
-The allocation column is a floor rather than a fixed cost. A dispatch publishes an ambient message
-context so a nested dispatch inherits causation, correlation, tenant and user rather than starting a
-fresh root; that costs one `ExecutionContext` copy-on-write of the whole async-local value map. 72 of
-the 96 bytes is that copy when nothing else is live, and it grows with how many `AsyncLocal` values
-your own application keeps live — roughly 160 B with one other, roughly 992 B with fifteen. The
-framework itself declares two.
+See [Migrating off IDirectLocalDispatcher](../performance/ultra-local-dispatch.md) if you were using
+the explicit `ValueTask` API this replaced.
 
-Routing-first replacement path (Dispatch local + transport-ready branch selection):
+A pre-routed message carries a routing decision, so it takes a different path from direct local
+dispatch. These figures preserve the September 2026 epoch; later routing
+observations have separate scope and do not replace this comparison:
 
 | Dispatch routing-first scenario | Mean | Allocated |
 |---------------------------------|------|-----------|
@@ -983,21 +972,9 @@ Routing-first replacement path (Dispatch local + transport-ready branch selectio
 | Pre-routed remote event (Kafka) | 169.71 ns | 304 B |
 | Pre-routed remote event (RabbitMQ) | 169.79 ns | 304 B |
 
-Dispatch has one entry point: `DispatchAsync(...)`, with full middleware and context semantics.
-Underneath it, a local fast path is selected automatically when the message can stay in-process and
-no middleware applies to its type, and the full pipeline is used when it cannot. There is nothing to
-opt into and nothing to cast to.
+What the general dispatch path buys you: transport-aware routing, the middleware and context
+semantics described above, and event-sourcing and outbox integration in the same programming model.
 
-See [Migrating off IDirectLocalDispatcher](../performance/ultra-local-dispatch.md) if you were using
-the explicit `ValueTask` API this replaced.
-
-**Conclusion:** on this epoch the answer splits, and the half that goes against us belongs first.
-MediatR is a few nanoseconds ahead on a bare single command (42.78 ns against 60.04 ns) and clearly
-ahead on notification fan-out (95.01 ns against 134.99 ns, allocating 6.4x more to get there). The
-two concurrency tiers are inside run-to-run variance. Dispatch allocates less on every scenario
-measured, leads by 1.74x once three middleware are in the pipeline — the shape most applications
-actually run — and adds transport-aware routing, richer middleware and context semantics, and
-event-sourcing/outbox integration in the same programming model.
 
 ## Migration Checklist
 

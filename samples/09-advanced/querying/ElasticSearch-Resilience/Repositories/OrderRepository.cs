@@ -16,9 +16,6 @@ public class OrderRepository : ElasticRepositoryBase<Order>, IOrderRepository
     {
     }
 
-    public override Task InitializeAsync(CancellationToken cancellationToken)
-        => InitializeIndexAsync(cancellationToken);
-
     public override async Task InitializeIndexAsync(CancellationToken cancellationToken)
     {
         var request = new CreateIndexRequest("orders-resilience")

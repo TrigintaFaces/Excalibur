@@ -29,7 +29,7 @@ namespace Excalibur.Compliance.Postgres.Erasure;
 /// </list>
 /// </remarks>
 public sealed partial class PostgresErasureStore
-	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureSchemaValidator,
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureBackgroundQueryStore, IErasureSchemaValidator,
 		IKeyDestructionLedger, IDisposable
 {
 	private readonly PostgresErasureStoreOptions _options;
@@ -141,6 +141,8 @@ public sealed partial class PostgresErasureStore
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(request);
+		var tenant = AmbientScope;
+		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
@@ -156,7 +158,7 @@ public sealed partial class PostgresErasureStore
 		// The ambient term is authoritative on the write. Stamping the request's own TenantId would let a
 		// caller file a request into another tenant's partition — and, because every scoped read matches on
 		// the ambient term, that row would then be readable only by the tenant it was planted on.
-		var tenant = AmbientScope;
+
 
 		await using var connection = new NpgsqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -169,8 +171,7 @@ public sealed partial class PostgresErasureStore
 			request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
-			TenantId = KeyedTenantPartition.FromStoredValue(
-				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
+			TenantId = owner,
 			Scope = (int)request.Scope,
 			LegalBasisV2 = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -719,6 +720,31 @@ public sealed partial class PostgresErasureStore
 	}
 
 	/// <inheritdoc />
+	public async Task<IReadOnlyList<ErasureStatus>> GetAwaitingKeyDestructionRequestsAsync(
+		int pageNumber, int pageSize, CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		var sql = $@"
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
+				   external_reference, requested_by, requested_at, scheduled_execution_at,
+				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
+				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
+			FROM {_options.FullRequestsTableName}
+			WHERE status = @Status
+			ORDER BY requested_at, request_id
+			LIMIT @PageSize OFFSET @Offset";
+		await using var connection = new NpgsqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		var rows = await connection.QueryAsync<ErasureRequestRow>(new CommandDefinition(sql,
+			new { Status = (int)ErasureRequestStatus.AwaitingKeyDestruction, PageSize = pageSize, Offset = ((long)pageNumber - 1) * pageSize },
+			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		return rows.Select(row => row.ToStatus()).ToList();
+	}
+
+	/// <inheritdoc />
 	public async Task<IReadOnlyList<ErasureStatus>> ListRequestsAsync(
 		ErasureRequestStatus? status,
 		string? tenantId,
@@ -987,7 +1013,7 @@ public sealed partial class PostgresErasureStore
 			return this;
 		}
 
-		if (serviceType == typeof(IErasureQueryStore))
+		if (serviceType == typeof(IErasureQueryStore) || serviceType == typeof(IErasureBackgroundQueryStore))
 		{
 			return this;
 		}

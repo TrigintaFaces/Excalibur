@@ -38,6 +38,7 @@ internal sealed class DefaultMessageFailureClassifier : IMessageFailureClassifie
 
         return ex switch
         {
+            DispatchDeliveryUncertainException => MessageFailureKind.Uncertain,
             // cancellation is never poison and never dead-lettered — consumers honour the
             // cancellation token before this is reached. Classify transient so it is never routed
             // to the DLQ if it ever does surface here (TaskCanceledException derives from this).

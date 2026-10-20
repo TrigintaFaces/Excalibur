@@ -72,7 +72,7 @@ public sealed class SubjectFieldCryptorTruncatedEnvelopeFailsClosedShould
 		var threw = false;
 		try
 		{
-			await cryptor.DecryptFieldsAsync(record, CancellationToken.None).ConfigureAwait(false);
+			await cryptor.DecryptFieldsAsync(record, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).ConfigureAwait(false);
 		}
 		catch (Exception)
 		{
@@ -113,8 +113,8 @@ public sealed class SubjectFieldCryptorTruncatedEnvelopeFailsClosedShould
 					Iv = [],
 				});
 
-		A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<CancellationToken>._))
-			.ReturnsLazily((EncryptedData envelope, CancellationToken _) => envelope.Ciphertext);
+		A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((EncryptedData envelope, string _, CancellationToken _) => envelope.Ciphertext);
 #pragma warning restore CA2012
 
 		return encryptor;

@@ -24,6 +24,12 @@ public static class CryptoShreddingServiceCollectionExtensions
     /// </summary>
     /// <remarks>
     /// <para>
+    /// Default crypto-shredding registrations retain these collaborators in singleton services. Replacement
+    /// implementations retained by that default graph must support concurrent calls and lifetime-compatible
+    /// dependencies. Existing registrations are preserved; scoped replacements are not promoted or made
+    /// singleton-safe by this registration.
+    /// </para>
+    /// <para>
     /// Requires the key-management subsystem (<see cref="IKeyManagementProvider"/> +
     /// <see cref="IKeyManagementAdmin"/>) to be registered, by the consumer's compliance-encryption setup.
     /// </para>

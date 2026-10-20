@@ -746,7 +746,7 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			EventType = eventTypeName,
 			Version = version,
 			Timestamp = evt.OccurredAt,
-#pragma warning disable IL2026, IL3050
+#pragma warning disable IL2026, IL3050 // When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.
 			EventData = _payloadWriter.SerializeEvent(evt, aggregateId, aggregateType),
 			Metadata = evt.Metadata != null ? _payloadWriter.SerializeMetadata(evt.Metadata) : null
 #pragma warning restore IL2026, IL3050
@@ -819,8 +819,18 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			ETag = doc.ETag
 		};
 
-	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
-		new(
+	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent)
+	{
+		var parts = global::Excalibur.Dispatch.SegmentedKey.Split(cloudEvent.PartitionKeyValue, 4);
+		if (!string.Equals(parts[0], "t", StringComparison.Ordinal)
+			|| string.IsNullOrWhiteSpace(parts[1])
+			|| !string.Equals(parts[2], cloudEvent.AggregateType, StringComparison.Ordinal)
+			|| !string.Equals(parts[3], cloudEvent.AggregateId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("Stored event partition ownership does not match its stream.");
+		}
+
+		return new StoredEvent(
 			cloudEvent.EventId,
 			cloudEvent.AggregateId,
 			cloudEvent.AggregateType,
@@ -828,7 +838,11 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudN
 			cloudEvent.EventData,
 			cloudEvent.Metadata,
 			cloudEvent.Version,
-			cloudEvent.Timestamp);
+			cloudEvent.Timestamp)
+		{
+			TenantId = parts[1],
+		};
+	}
 
 	/// <summary>
 	/// Refuses when the events container still holds a document written under the untenanted key shape of an

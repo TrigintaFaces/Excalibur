@@ -32,12 +32,11 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
     <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'"></ItemGroup>
   <!-- CI mode: PackageReference for Excalibur packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.EventSourcing.Abstractions" VersionOverride="$(ExcaliburPackageVersion)" />

@@ -1,0 +1,84 @@
+# Transport receiver conformance coverage baseline.
+#
+# One exact owningProject|namespace::OuterType|ArmName identity per entry. Blank/comment lines are
+# ignored. This is a shrink-only historical debt list: an entry here records that the suite NEVER CALLS
+# that arm, so the arm cannot fail for that transport and its green says nothing about it.
+#
+# AN ENTRY IS NOT ACCEPTED COVERAGE. Read it as a work item: either the arm is meaningful for that
+# transport and nobody wrote the call, or it is genuinely inapplicable and no one has yet said so in
+# writing. Both are open; the list does not distinguish them, and it deliberately cannot, because a
+# self-declared "inapplicable" is the regress this guard exists to stop.
+#
+# Measured when the guard landed: of the eight transports with a settlement suite, RabbitMQ called all
+# six settlement arms and Pulsar called one of six.
+#
+# THE SUBSTRATE QUESTION, recorded rather than answered. TransportReceiverConformanceTests is a library
+# of callable helpers, not a suite that drives its own arms, which is why hand-picking is possible at
+# all. Making the kit drive its arms would delete this baseline and this guard together. That is a
+# larger change than the gap it closes, and it is tracked as Excalibur_Dispatch-h49vjl rather than
+# attempted here.
+#
+# WHAT THESE ENTRIES COST, so nobody reads the list as bookkeeping. The settlement semantics in
+# src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/ARCHITECTURE.md carry a nine-row per-transport
+# table asserting each transport's redelivery and retryability axes. Its Evidence section lists only
+# reconnection tests and names no settlement arm. So the rows below are the arms that would substantiate
+# that table, for the transports that never run them.
+
+# InMemoryTransportReceiverConformanceShould -- 6 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Testing.Tests/Transport/InMemoryTransportReceiverConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::InMemoryTransportReceiverConformanceShould|VerifyCompetingSettlements
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::InMemoryTransportReceiverConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::InMemoryTransportReceiverConformanceShould|VerifyRepeatedSettlement
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::InMemoryTransportReceiverConformanceShould|VerifySettlementBatchRetry
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::InMemoryTransportReceiverConformanceShould|VerifySettlementCancellation
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::InMemoryTransportReceiverConformanceShould|VerifySettlementRefusal
+
+# TransportReceiverConformanceEffectsShould -- 6 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Testing.Tests/Transport/TransportReceiverConformanceEffectsShould.cs
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::TransportReceiverConformanceEffectsShould|VerifyCompetingSettlements
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::TransportReceiverConformanceEffectsShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::TransportReceiverConformanceEffectsShould|VerifyRepeatedSettlement
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::TransportReceiverConformanceEffectsShould|VerifySettlementBatchRetry
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::TransportReceiverConformanceEffectsShould|VerifySettlementCancellation
+tests/unit/Excalibur.Dispatch.Testing.Tests/Excalibur.Dispatch.Testing.Tests.csproj|Excalibur.Dispatch.Testing.Tests.Transport::TransportReceiverConformanceEffectsShould|VerifySettlementRefusal
+
+# SqsReceiverSettlementConformanceShould -- 2 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/AwsSqs/Sqs/SqsReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs::SqsReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs::SqsReceiverSettlementConformanceShould|VerifySettlementRefusal
+
+# ServiceBusReceiverSettlementConformanceShould -- 4 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/AzureServiceBus/ServiceBus/ServiceBusReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus::ServiceBusReceiverSettlementConformanceShould|VerifyCompetingSettlements
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus::ServiceBusReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus::ServiceBusReceiverSettlementConformanceShould|VerifyRepeatedSettlement
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.AzureServiceBus.ServiceBus::ServiceBusReceiverSettlementConformanceShould|VerifySettlementRefusal
+
+# PubSubReceiverSettlementConformanceShould -- 2 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/GooglePubSub/PubSubReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.GooglePubSub::PubSubReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.GooglePubSub::PubSubReceiverSettlementConformanceShould|VerifySettlementRefusal
+
+# GrpcReceiverSettlementConformanceShould -- 2 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/Grpc/GrpcReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Grpc::GrpcReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Grpc::GrpcReceiverSettlementConformanceShould|VerifySettlementRefusal
+
+# IbmMqReceiverSettlementConformanceShould -- 2 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/IbmMq/IbmMqReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.IbmMq::IbmMqReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.IbmMq::IbmMqReceiverSettlementConformanceShould|VerifySettlementRefusal
+
+# MqttReceiverSettlementConformanceShould -- 4 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/Mqtt/MqttReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Mqtt::MqttReceiverSettlementConformanceShould|VerifyCompetingSettlements
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Mqtt::MqttReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Mqtt::MqttReceiverSettlementConformanceShould|VerifyRepeatedSettlement
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Mqtt::MqttReceiverSettlementConformanceShould|VerifySettlementCancellation
+
+# PulsarReceiverSettlementConformanceShould -- 5 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/Pulsar/PulsarReceiverSettlementConformanceShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Pulsar::PulsarReceiverSettlementConformanceShould|VerifyCompetingSettlements
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Pulsar::PulsarReceiverSettlementConformanceShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Pulsar::PulsarReceiverSettlementConformanceShould|VerifyRepeatedSettlement
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Pulsar::PulsarReceiverSettlementConformanceShould|VerifySettlementCancellation
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.Pulsar::PulsarReceiverSettlementConformanceShould|VerifySettlementRefusal
+
+# RabbitMqReceiverConformanceEffectsShould -- 6 of 6 settlement arms never called; source: tests/unit/Excalibur.Dispatch.Transport.Tests/RabbitMQ/RabbitMqReceiverConformanceEffectsShould.cs
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.RabbitMQ::RabbitMqReceiverConformanceEffectsShould|VerifyCompetingSettlements
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.RabbitMQ::RabbitMqReceiverConformanceEffectsShould|VerifyNativeSettlementFailure
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.RabbitMQ::RabbitMqReceiverConformanceEffectsShould|VerifyRepeatedSettlement
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.RabbitMQ::RabbitMqReceiverConformanceEffectsShould|VerifySettlementBatchRetry
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.RabbitMQ::RabbitMqReceiverConformanceEffectsShould|VerifySettlementCancellation
+tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj|Excalibur.Dispatch.Transport.Tests.RabbitMQ::RabbitMqReceiverConformanceEffectsShould|VerifySettlementRefusal

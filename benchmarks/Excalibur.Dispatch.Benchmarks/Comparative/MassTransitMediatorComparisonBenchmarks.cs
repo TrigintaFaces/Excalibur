@@ -3,6 +3,7 @@
 
 using BenchmarkDotNet.Attributes;
 
+using Excalibur.Dispatch.Benchmarks.Infrastructure;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
@@ -362,33 +363,7 @@ public class MassTransitMediatorComparisonBenchmarks
 	private Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(_dispatcher);
-		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
-
-		var context = _dispatchContextFactory.CreateContext();
-		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			_dispatchContextFactory.Return(context);
-			return dispatchTask;
-		}
-
-		return AwaitAndReturnContextAsync(dispatchTask, _dispatchContextFactory, context);
-	}
-
-	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
-		Task<IMessageResult> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
+		return FreshContextBenchmarkDispatch.DispatchAsync<TMessage>(_dispatcher, _dispatchContextFactory, message);
 	}
 
 	// Deliberately NOT async, and neither are the single-call benchmark methods that use it. An async
@@ -400,34 +375,9 @@ public class MassTransitMediatorComparisonBenchmarks
 	private Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
 		where TMessage : IDispatchAction<TResponse>
 	{
-		ArgumentNullException.ThrowIfNull(_dispatcher);
-		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
-
-		var context = _dispatchContextFactory.CreateContext();
-		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			_dispatchContextFactory.Return(context);
-			return dispatchTask;
-		}
-
-		return AwaitAndReturnTypedContextAsync(dispatchTask, _dispatchContextFactory, context);
+		return FreshContextBenchmarkDispatch.DispatchAsync<TMessage, TResponse>(_dispatcher, _dispatchContextFactory, message);
 	}
 
-	private static async Task<IMessageResult<TResponse>> AwaitAndReturnTypedContextAsync<TResponse>(
-		Task<IMessageResult<TResponse>> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
-	}
 }
 
 #pragma warning disable SA1402 // File may only contain a single type

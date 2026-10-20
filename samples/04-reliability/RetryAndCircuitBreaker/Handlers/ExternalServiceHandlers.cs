@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Resilience.Polly;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 using RetryAndCircuitBreaker.Messages;
 using RetryAndCircuitBreaker.Services;
@@ -17,6 +20,7 @@ namespace RetryAndCircuitBreaker.Handlers;
 public sealed class ProcessPaymentHandler : IActionHandler<ProcessPaymentCommand>
 {
 	private readonly FlakyPaymentService _paymentService;
+	private readonly IRetryPolicy _retry;
 	private readonly ILogger<ProcessPaymentHandler> _logger;
 
 	/// <summary>
@@ -24,9 +28,11 @@ public sealed class ProcessPaymentHandler : IActionHandler<ProcessPaymentCommand
 	/// </summary>
 	public ProcessPaymentHandler(
 		FlakyPaymentService paymentService,
+		[FromKeyedServices("payment-retry")] IRetryPolicy retry,
 		ILogger<ProcessPaymentHandler> logger)
 	{
 		_paymentService = paymentService;
+		_retry = retry;
 		_logger = logger;
 	}
 
@@ -38,9 +44,8 @@ public sealed class ProcessPaymentHandler : IActionHandler<ProcessPaymentCommand
 			message.PaymentId,
 			message.Amount);
 
-		var transactionId = await _paymentService.ProcessPaymentAsync(
-			message.PaymentId,
-			message.Amount,
+		var transactionId = await _retry.ExecuteAsync(
+			token => _paymentService.ProcessPaymentAsync(message.PaymentId, message.Amount, token),
 			cancellationToken).ConfigureAwait(false);
 
 		_logger.LogInformation(
@@ -57,6 +62,7 @@ public sealed class ProcessPaymentHandler : IActionHandler<ProcessPaymentCommand
 public sealed class CheckInventoryHandler : IActionHandler<CheckInventoryCommand>
 {
 	private readonly UnreliableInventoryService _inventoryService;
+	private readonly ICircuitBreakerPolicy _circuitBreaker;
 	private readonly ILogger<CheckInventoryHandler> _logger;
 
 	/// <summary>
@@ -64,9 +70,11 @@ public sealed class CheckInventoryHandler : IActionHandler<CheckInventoryCommand
 	/// </summary>
 	public CheckInventoryHandler(
 		UnreliableInventoryService inventoryService,
+		[FromKeyedServices("inventory-circuit")] ICircuitBreakerPolicy circuitBreaker,
 		ILogger<CheckInventoryHandler> logger)
 	{
 		_inventoryService = inventoryService;
+		_circuitBreaker = circuitBreaker;
 		_logger = logger;
 	}
 
@@ -78,9 +86,8 @@ public sealed class CheckInventoryHandler : IActionHandler<CheckInventoryCommand
 			message.ProductSku,
 			message.RequestedQuantity);
 
-		var (available, quantity) = await _inventoryService.CheckInventoryAsync(
-			message.ProductSku,
-			message.RequestedQuantity,
+		var (available, quantity) = await _circuitBreaker.ExecuteAsync(
+			token => _inventoryService.CheckInventoryAsync(message.ProductSku, message.RequestedQuantity, token),
 			cancellationToken).ConfigureAwait(false);
 
 		_logger.LogInformation(
@@ -98,6 +105,7 @@ public sealed class CheckInventoryHandler : IActionHandler<CheckInventoryCommand
 public sealed class SendNotificationHandler : IActionHandler<SendNotificationCommand>
 {
 	private readonly SlowNotificationService _notificationService;
+	private readonly IBulkheadPolicy _bulkhead;
 	private readonly ILogger<SendNotificationHandler> _logger;
 
 	/// <summary>
@@ -105,9 +113,11 @@ public sealed class SendNotificationHandler : IActionHandler<SendNotificationCom
 	/// </summary>
 	public SendNotificationHandler(
 		SlowNotificationService notificationService,
+		[FromKeyedServices("notification-bulkhead")] IBulkheadPolicy bulkhead,
 		ILogger<SendNotificationHandler> logger)
 	{
 		_notificationService = notificationService;
+		_bulkhead = bulkhead;
 		_logger = logger;
 	}
 
@@ -119,10 +129,9 @@ public sealed class SendNotificationHandler : IActionHandler<SendNotificationCom
 			message.NotificationType,
 			message.Recipient);
 
-		_ = await _notificationService.SendNotificationAsync(
-			message.NotificationType,
-			message.Recipient,
-			message.Message,
+		_ = await _bulkhead.ExecuteAsync(
+			token => _notificationService.SendNotificationAsync(
+				message.NotificationType, message.Recipient, message.Message, token),
 			cancellationToken).ConfigureAwait(false);
 
 		_logger.LogInformation(

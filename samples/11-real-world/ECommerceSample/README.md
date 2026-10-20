@@ -75,6 +75,14 @@ dotnet run -- --trace  # also exports OpenTelemetry spans and metrics to the con
   so the store can redeliver it; swallowing the exception loses the message.
 - **Put what the worker needs in the payload.** The schedule identifier is an
   opaque handle. Everything the inventory check needs travels in the message body.
+- **Distinguish store operations from scheduler admission.** This sample's custom
+  inventory worker demonstrates the `IScheduleStore` lifecycle. The framework
+  scheduler additionally uses `IScheduleExecutionStore` for atomic occurrence
+  admission and fenced progress when the configured store supports it. A custom
+  worker must use that capability to prevent stale completion after cancellation
+  or replacement; a read followed by an administrative write does not provide it.
+  Provider authors can start from `ScheduleExecutionStoreConformanceTestKit` and
+  wire all inherited and execution arms. Its controls do not prove durable restart.
 - **A health probe should not claim.** Reading the outbox with
   `GetUnsentMessagesAsync` leases the batch it returns, so a probe using it to
   "verify staging" takes real undelivered messages away from the drain.

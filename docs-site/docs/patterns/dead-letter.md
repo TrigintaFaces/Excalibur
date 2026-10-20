@@ -298,6 +298,21 @@ The shipped `IDeadLetterQueue` implementation resolves its tenant-facing operati
 **Verify before you rely on it.** This describes the shipped SQL Server implementation. A custom `IDeadLetterQueue` you write is scoped only insofar as you scope it, and the interface's own contract documentation is being brought in line with this behaviour — treat your own implementation's isolation as your responsibility to test.
 :::
 
+:::note SQL Server replay requires a configured callback
+
+Supply `replayHandler` when constructing `SqlServerDeadLetterQueue` to enable replay. Storage
+registration alone does not automatically wire a dispatcher. Without a callback, an existing entry
+cannot be marked replayed; the operation throws. JSON-null payloads, malformed JSON and callback
+failures also leave its replay flags unchanged. Batch replay propagates these failures.
+
+The callback receives deserialized JSON, typically a `JsonElement`, rather than automatic restoration
+of the original CLR message type. Restore the expected type and complete the intended operation before
+returning. If dispatch returns an unsuccessful result, throw rather than reporting callback completion.
+An absent or tenant-inaccessible entry still returns `false`. Replay runs under the stored tenant and
+restores the caller's context afterward.
+
+:::
+
 :::note `ReplayBatchAsync` tells you when the batch was cut short
 
 The result reports three things, and the third is the one to branch on:

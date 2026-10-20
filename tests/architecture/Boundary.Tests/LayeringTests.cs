@@ -14,7 +14,7 @@ namespace Boundary.Tests;
 /// namespace membership. ADR-075 dropped <c>.Abstractions</c> from namespaces, so a namespace-based guard
 /// on <c>"Excalibur.Dispatch"</c> now over-captures the Abstractions project (which ships under that
 /// namespace) and every <c>Excalibur.Dispatch.*</c> package. Assembly identity is immune to that. The
-/// module initializer force-loads the full framework set, so an empty target set means drift, not a pass —
+/// assembly fixture force-loads the full framework set, so an empty target set means drift, not a pass —
 /// each guard asserts its set is non-empty (<c>ShouldNotBeEmpty</c>/<c>ShouldNotBeNull</c>).
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -76,7 +76,7 @@ public sealed class LayeringTests
             .ToArray();
 
         abstractionAssemblies.ShouldNotBeEmpty(
-            "No Excalibur *.Abstractions assemblies are loaded — the module initializer force-loads the full " +
+            "No Excalibur *.Abstractions assemblies are loaded — the assembly fixture force-loads the full " +
             "framework set, so an empty set means drift, not a pass.");
 
         var violations = new List<string>();
@@ -119,7 +119,7 @@ public sealed class LayeringTests
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch");
 
         _ = core.ShouldNotBeNull(
-            "The Excalibur.Dispatch core assembly is not loaded — the module initializer force-loads it, so " +
+            "The Excalibur.Dispatch core assembly is not loaded — the assembly fixture force-loads it, so " +
             "its absence means drift, not a pass.");
 
         var violations = core.GetReferencedAssemblies()

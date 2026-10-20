@@ -7,6 +7,9 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Azure SDK Dependencies -->
     <PackageReference Include="Azure.Storage.Blobs" />
     <!-- Microsoft Extensions -->

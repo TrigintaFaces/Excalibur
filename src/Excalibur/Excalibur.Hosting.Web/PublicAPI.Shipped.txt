@@ -25,3 +25,5 @@ static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseETa
 static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseExcaliburWebHost(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 static Microsoft.AspNetCore.Builder.ExcaliburWebHostApplicationExtensions.UseTenantIdMiddleware(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 static Microsoft.Extensions.DependencyInjection.ExcaliburWebServiceCollectionExtensions.AddGlobalExceptionHandler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Hosting.Web.Diagnostics.ProblemDetailsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+override Excalibur.Hosting.Web.Diagnostics.GlobalExceptionHandler.GetValidationErrors(System.Exception! exception) -> System.Collections.Generic.IDictionary<string!, string![]!>?
+override Excalibur.Hosting.Web.Diagnostics.GlobalExceptionHandler.FormatDiagnosticStack(System.Exception! exception) -> string!

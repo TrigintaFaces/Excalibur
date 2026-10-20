@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -187,7 +188,7 @@ public sealed class SubjectFieldCryptor
     /// <param name="recordType">The record type to inspect.</param>
     /// <returns>
     /// <see langword="true"/> when the type declares at least one encryptable personal-data field; otherwise
-    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync(object, string?, CancellationToken)"/> and <see cref="DecryptFieldsAsync(object, CancellationToken)"/>
+    /// <see langword="false"/>, meaning <see cref="EncryptFieldsAsync(object, string?, CancellationToken)"/> and <see cref="DecryptFieldsAsync(object, string, CancellationToken)"/>
     /// would both leave a record of this type untouched.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="recordType"/> is null.</exception>
@@ -210,16 +211,20 @@ public sealed class SubjectFieldCryptor
     /// been destroyed decrypts to <see langword="null"/> (a tombstone), leaving the rest of the record intact.
     /// </summary>
     /// <param name="record">The record whose personal-data fields are decrypted in place.</param>
+    /// <param name="expectedTenantId">
+    /// The authorized owner from trusted record metadata. A missing owner is permitted only when
+    /// no encrypted personal-data field is encountered; envelope metadata is never an ownership source.
+    /// </param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    public ValueTask DecryptFieldsAsync(object record, CancellationToken cancellationToken)
+    public ValueTask DecryptFieldsAsync(object record, string? expectedTenantId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
 
-        return DecryptFieldsAsync(record, GetPlanForInstance(record), cancellationToken);
+        return DecryptFieldsAsync(record, GetPlanForInstance(record), expectedTenantId, cancellationToken);
     }
 
     /// <summary>Decrypts the fields a supplied plan names. See the plan-taking encrypt overload.</summary>
-    internal async ValueTask DecryptFieldsAsync(object record, TypeFieldPlan plan, CancellationToken cancellationToken)
+    internal async ValueTask DecryptFieldsAsync(object record, TypeFieldPlan plan, string? expectedTenantId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(plan);
@@ -236,8 +241,13 @@ public sealed class SubjectFieldCryptor
                 continue;
             }
 
+            if (string.IsNullOrWhiteSpace(expectedTenantId))
+            {
+                throw new CryptographicException("A resolved owning tenant is required to decrypt personal data.");
+            }
+
             var envelope = DeserializeEnvelope(enveloped);
-            var plaintext = await _fieldEncryptor.DecryptAsync(envelope, cancellationToken).ConfigureAwait(false);
+            var plaintext = await _fieldEncryptor.DecryptAsync(envelope, expectedTenantId, cancellationToken).ConfigureAwait(false);
             WriteFieldBytes(property, record, plaintext);
         }
     }

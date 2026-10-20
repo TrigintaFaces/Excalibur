@@ -17,7 +17,7 @@ public sealed class OpenSearchProjectionStoreOptions
 	/// <summary>
 	/// Gets or sets the OpenSearch node URI for single-node configuration.
 	/// </summary>
-	public string NodeUri { get; set; } = "https://localhost:9200";
+	public string NodeUri { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the index name prefix. Default: "projections".
@@ -65,10 +65,29 @@ public sealed class OpenSearchProjectionStoreOptions
 	public bool EnableDebugMode { get; set; }
 
 	/// <summary>
+	/// Whether the registration supplies the client itself, so no node address is read from here.
+	/// </summary>
+	/// <remarks>
+	/// Set by the client-factory registration, which KNOWS it hands the store a client. Without it the
+	/// required-node check refuses a correct registration: the node address is a fallback used only by
+	/// the paths that build a client, not a requirement of a path that is given one. Internal and not
+	/// settable from configuration on purpose -- it records how the store was registered, which is not a
+	/// consumer setting and must not be bindable.
+	/// </remarks>
+	internal bool ClientSuppliedByRegistration { get; set; }
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	public void Validate()
 	{
+		// A supplied client makes the node address dead, so neither requiring nor parsing one is
+		// meaningful. The checks below are all about the node address; nothing else is skipped.
+		if (ClientSuppliedByRegistration)
+		{
+			return;
+		}
+
 		if (NodeUris is { Count: > 0 })
 		{
 			foreach (var uri in NodeUris)
@@ -84,7 +103,10 @@ public sealed class OpenSearchProjectionStoreOptions
 		{
 			if (string.IsNullOrWhiteSpace(NodeUri))
 			{
-				throw new InvalidOperationException("NodeUri is required when NodeUris is not set.");
+				throw new InvalidOperationException(
+					"No OpenSearch node is configured for this projection store. Set NodeUris to the "
+					+ "cluster's node addresses, or NodeUri to a single node. There is no default: a "
+					+ "cluster nobody configured is refused rather than silently addressed locally.");
 			}
 
 			if (!Uri.TryCreate(NodeUri, UriKind.Absolute, out _))

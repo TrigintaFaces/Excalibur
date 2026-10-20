@@ -52,17 +52,17 @@ public sealed class OutboxBaggageRestoreShould
 		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, A.Fake<IServiceProvider>(),
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("TestMessage", [1], "queue-1", BaggageHeaders(StagedBaggage));
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1", BaggageHeaders(StagedBaggage));
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { message });
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes((IDispatchMessage _, IMessageContext c, CancellationToken _) => publishedContext = c)
-			.Returns(A.Fake<IMessageResult>());
+			.Returns(MessageResult.Success());
 
 		// Act
 		await publisher.PublishPendingMessagesAsync(CancellationToken.None);
@@ -98,10 +98,10 @@ public sealed class OutboxBaggageRestoreShould
 		transportRegistry.RegisterTransport("kafka", adapter, "Kafka", TransportLocality.Remote);
 
 		var publisher = new MessageBusOutboxPublisher(
-			multiStoreBase, A.Fake<IPayloadSerializer>(), transportRegistry, A.Fake<IServiceProvider>(),
+			multiStoreBase, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), transportRegistry, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("OrderCreated", [1, 2, 3], "orders-default", BaggageHeaders(StagedBaggage));
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1, 2, 3], "orders-default", BaggageHeaders(StagedBaggage));
 		var transport = new OutboundMessageTransport(message.Id, "kafka") { Destination = "orders-topic" };
 		A.CallTo(() => multiStoreAdmin.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
 			.Returns(new[] { (message, transport) });
@@ -127,17 +127,17 @@ public sealed class OutboxBaggageRestoreShould
 		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, A.Fake<IServiceProvider>(),
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("TestMessage", [1], "queue-1", BaggageHeaders("noequals,=emptykey,good=value"));
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1", BaggageHeaders("noequals,=emptykey,good=value"));
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { message });
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes((IDispatchMessage _, IMessageContext c, CancellationToken _) => publishedContext = c)
-			.Returns(A.Fake<IMessageResult>());
+			.Returns(MessageResult.Success());
 
 		// Act
 		var result = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
@@ -157,17 +157,17 @@ public sealed class OutboxBaggageRestoreShould
 		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, A.Fake<IServiceProvider>(),
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("TestMessage", [1], "queue-1");
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1");
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { message });
 
 		IMessageContext? publishedContext = null;
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes((IDispatchMessage _, IMessageContext c, CancellationToken _) => publishedContext = c)
-			.Returns(A.Fake<IMessageResult>());
+			.Returns(MessageResult.Success());
 
 		// Act
 		await publisher.PublishPendingMessagesAsync(CancellationToken.None);

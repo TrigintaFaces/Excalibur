@@ -14,7 +14,7 @@ namespace Excalibur.Tests.Testing.Conformance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// InMemoryScheduleStore uses an instance-level ConcurrentDictionary, so no special
+/// InMemoryScheduleStore uses an instance-level lock and detached rows, so no special
 /// static state isolation is required (unlike InMemoryLeaderElection).
 /// </para>
 /// <para>
@@ -25,10 +25,10 @@ namespace Excalibur.Tests.Testing.Conformance;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Pattern", "STORE")]
-public sealed class InMemoryScheduleStoreConformanceTests : ScheduleStoreConformanceTestKit
+public sealed class InMemoryScheduleStoreConformanceTests : ScheduleExecutionStoreConformanceTestKit
 {
 	/// <inheritdoc />
-	protected override IScheduleStore CreateStore() =>
+	protected override IScheduleExecutionStore CreateStore() =>
 		new InMemoryScheduleStore();
 
 	#region Store Tests
@@ -110,4 +110,22 @@ public sealed class InMemoryScheduleStoreConformanceTests : ScheduleStoreConform
 	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
 
 	#endregion
+
+	[Fact]
+	public override Task StoreInputRemainsDetached() => base.StoreInputRemainsDetached();
+
+	[Fact]
+	public override Task ReturnedSnapshotsRemainDetached() => base.ReturnedSnapshotsRemainDetached();
+
+	[Fact]
+	public override Task SimultaneousAdmissionHasOneWinner() => base.SimultaneousAdmissionHasOneWinner();
+
+	[Fact]
+	public override Task AdministrativeChangesInvalidateOldAuthority() => base.AdministrativeChangesInvalidateOldAuthority();
+
+	[Fact]
+	public override Task ProgressAndReleaseRespectCurrentAuthority() => base.ProgressAndReleaseRespectCurrentAuthority();
+
+	[Fact]
+	public override Task CanceledOperationsLeaveAuthorityUnchanged() => base.CanceledOperationsLeaveAuthorityUnchanged();
 }

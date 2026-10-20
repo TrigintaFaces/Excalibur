@@ -46,7 +46,7 @@ public sealed class KafkaSubscriberHandlerCancellationShould
 		var log = new List<KafkaConsumeResult> { Record(10), Record(11) };
 		var cursor = 0;
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() =>
 			{
 				if (cursor < log.Count)
@@ -100,7 +100,7 @@ public sealed class KafkaSubscriberHandlerCancellationShould
 		using var cts = new CancellationTokenSource();
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var delivered = 0;
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() => Record(10 + delivered));
 
 		var progress = new KafkaPartitionProgress();

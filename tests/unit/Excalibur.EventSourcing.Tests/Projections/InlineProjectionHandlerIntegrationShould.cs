@@ -45,7 +45,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task ResolveHandlerFromDiThroughFullPipeline()
 	{
 		// Arrange -- full DI pipeline with WhenHandledBy handler
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -80,7 +80,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task MixLambdaAndDiHandlersThroughPipeline()
 	{
 		// Arrange -- When<T> lambda + WhenHandledBy in same projection
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -124,7 +124,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task ApplyOverrideProjectionIdThroughPipeline()
 	{
 		// Arrange -- handler sets OverrideProjectionId
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -161,7 +161,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task PropagateHandlerExceptionWithPropagatePolicy()
 	{
 		// Arrange -- NotificationFailurePolicy.Propagate throws on handler error (D2)
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -196,7 +196,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task LogAndContinueOnHandlerExceptionWithLogAndContinuePolicy()
 	{
 		// Arrange -- NotificationFailurePolicy.LogAndContinue suppresses handler errors
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -230,7 +230,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task PassCorrectContextToHandler()
 	{
 		// Arrange -- verify handler receives correct aggregate metadata
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -266,7 +266,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task CreateNewProjectionWhenNoneExists()
 	{
 		// Arrange -- empty store, handler should get a new TProjection()
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -299,7 +299,7 @@ public sealed class InlineProjectionHandlerIntegrationShould
 	public async Task MergeWithExistingProjectionState()
 	{
 		// Arrange -- pre-seed store
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		await store.UpsertAsync("order-1",
 			new OrderSummary { Total = 100m, EventCount = 2 },
 			CancellationToken.None);

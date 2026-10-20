@@ -284,7 +284,7 @@ public sealed class EncryptingEventStoreDecorator : IsolatingEventStoreDecorator
 
 		var domainEvent = _eventSerializer.DeserializeEvent(stored.EventData, eventType);
 
-		await _subjectFieldCryptor.DecryptFieldsAsync(domainEvent, cancellationToken).ConfigureAwait(false);
+		await _subjectFieldCryptor.DecryptFieldsAsync(domainEvent, stored.TenantId, cancellationToken).ConfigureAwait(false);
 
 		var reserialized = _eventSerializer.SerializeEvent(domainEvent);
 		return stored with { EventData = reserialized };

@@ -127,27 +127,31 @@ public interface ITransportReceiver : IAsyncDisposable
 
 ### Settlement: acknowledge and reject
 
-`AcknowledgeAsync` and `RejectAsync` are how you tell the broker what became of a message. Returning
-normally means the broker accepted the settlement; it is not a best-effort call whose outcome you have to
-infer from a later redelivery.
+`AcknowledgeAsync` and `RejectAsync` request a settlement for a received message. Normal return means the
+provider completed the supported requested operation without reporting failure or refusal through its
+available response. Confirmation depends on the transport; completion does not guarantee durable broker
+acceptance or prevent future redelivery.
 
-When a settlement does not happen, the transport raises `TransportSettlementException`. Read
-`RedeliveryExpectation` on it to decide what to do — `Expected` means the broker still owns the message and
+When settlement fails or its outcome is uncertain, converted receivers raise `TransportSettlementException`. Read
+`RedeliveryExpectation` on it to decide what to do — `Expected` means the message is expected to arrive again and
 your handler's work may run again, so handlers must be idempotent. Treat `Unspecified` the same way: it
 means the transport could not determine the outcome, and assuming the work returns is the safe direction.
 
 `requeue` states the outcome you require rather than a hint: `true` asks the broker to deliver the message
-again, `false` asks it not to.
+again, `false` asks it not to. An implementation must throw on a known failure, explicit refusal, or
+unsupported requested disposition; it must not silently substitute a different operation.
 
 :::caution This contract is newly stated and not every transport meets it yet
-IBM MQ reports settlement failures as `TransportSettlementException` today. Several other receivers still
-let their broker client's own exception escape, and a settlement that times out surfaces as an
-`OperationCanceledException`. Until each transport is converted, portable code that must not fault should
-catch `InvalidOperationException` — the base of `TransportSettlementException` — and treat an unrecognised
-exception from a settlement call as an outcome it cannot confirm: assume the message may be redelivered.
+Catch `TransportSettlementException` where conversion is implemented. Unconverted receivers may expose
+native exceptions; catching its base, `InvalidOperationException`, alone does not catch arbitrary broker
+SDK failures. Treat other settlement failures as unknown outcomes. Handle caller-owned cancellation
+according to each transport's token behavior; an internal timeout does not establish caller cancellation
+or broker acceptance.
 
-MQTT and IBM MQ do not yet honour `requeue: false`; both currently cause redelivery. If you dead-letter a
-poison message on those transports, make the dead-letter write idempotent — see
+IBM MQ supports rejection without requeue through a configured backout queue and throws when that
+required destination is unavailable. MQTT's rejection behavior depends on its protocol and delivery QoS;
+see [MQTT settlement](./mqtt.md). If a dead-letter write succeeds before rejection fails, make that write
+idempotent — see
 [dead-letter queues](../patterns/dead-letter.md#a-rejection-that-fails-after-the-dead-letter-write).
 :::
 
@@ -326,9 +330,13 @@ var sbSender = sender.GetService(typeof(ServiceBusSender))
 
 ## Transport Selection Guide
 
+These are architectural selection considerations, not measured framework capacity
+guarantees. Evaluate brokers with the actual payloads, durability, topology and load;
+transport message microbenchmarks do not establish sustained broker throughput.
+
 | Requirement | Recommended Transport |
 |-------------|----------------------|
-| High throughput (>100k msg/sec) | Kafka |
+| Partitioned log workloads requiring throughput evaluation | Evaluate Kafka with the actual workload |
 | Complex routing patterns | RabbitMQ |
 | Azure-native integration | Azure Service Bus |
 | AWS-native integration | AWS SQS |

@@ -89,7 +89,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -128,7 +128,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -211,7 +211,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -246,7 +246,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -293,7 +293,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -337,7 +337,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
@@ -413,7 +413,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			logger ?? NullLogger<InboxProcessor>.Instance,
 
 			envelopeDeserializer: null,
-			deadLetterQueue: deadLetterQueue,
+			deadLetterQueue: deadLetterQueue ?? Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator);
 	}

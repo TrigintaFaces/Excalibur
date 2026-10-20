@@ -241,7 +241,7 @@ public sealed class InboxProcessorFinalizeKeyShould
 				new DispatchJsonSerializer(),
 				NullLogger<InboxProcessor>.Instance,
 				deduplicationStore: deduplicationStore,
-				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 			processor.Init("dispatcher-finalize-key");
 

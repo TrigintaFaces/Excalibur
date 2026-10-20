@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
-using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Diagnostics;
@@ -11,6 +10,7 @@ using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Scheduling;
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -29,6 +29,7 @@ internal sealed partial class ScheduledMessageService(
 	IOptions<SchedulerOptions> options,
 	IOptions<CronScheduleOptions> cronOptions,
 	ILogger<ScheduledMessageService> logger,
+	IServiceScopeFactory scopeFactory,
 	ITimePolicy? timePolicy = null,
 	ITimeoutMonitor? timeoutMonitor = null,
 	TimeProvider? timeProvider = null) : BackgroundService
@@ -42,25 +43,6 @@ internal sealed partial class ScheduledMessageService(
 	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
-	public override async Task StopAsync(CancellationToken cancellationToken)
-	{
-		await base.StopAsync(cancellationToken).ConfigureAwait(false);
-
-		if (scheduleStore is IAsyncDisposable asyncDisposable)
-		{
-			await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-		}
-	}
-
-	/// <inheritdoc />
-	[UnconditionalSuppressMessage(
-			"Trimming",
-			"IL2026:Members annotated with RequiresUnreferencedCodeAttribute may break with trimming",
-			Justification = "Scheduled message processing relies on runtime type resolution and serializer configuration.")]
-	[UnconditionalSuppressMessage(
-			"AOT",
-			"IL3050:RequiresDynamicCode",
-			Justification = "Scheduled message processing uses runtime deserialization; AOT users should opt out of scheduling features.")]
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		LogServiceStarted();
@@ -78,8 +60,13 @@ internal sealed partial class ScheduledMessageService(
 			{
 				// Apply timeout to schedule retrieval when ITimePolicy is available
 				using var retrievalCts = CreateTimeoutToken(TimeoutOperationType.Database, stoppingToken);
-				var schedules = await scheduleStore.GetAllAsync(retrievalCts.Token).ConfigureAwait(false);
-				foreach (var item in schedules)
+				var executionStore = scheduleStore as IScheduleExecutionStore;
+				var schedules = executionStore is not null
+					? (await executionStore.GetExecutionSnapshotsAsync(retrievalCts.Token).ConfigureAwait(false))
+						.Select(static snapshot => (Item: snapshot.Message, snapshot.Generation))
+					: (await scheduleStore.GetAllAsync(retrievalCts.Token).ConfigureAwait(false))
+						.Select(static item => (Item: (IScheduledMessage)ScheduleExecutionSnapshot.Copy(item), Generation: Guid.Empty));
+				foreach (var (item, generation) in schedules)
 				{
 					if (!item.Enabled || item.NextExecutionUtc is null || item.NextExecutionUtc > _timeProvider.GetUtcNow())
 					{
@@ -87,56 +74,16 @@ internal sealed partial class ScheduledMessageService(
 					}
 
 					hadWork = true;
-
-					// One schedule row must never be able to stop the others. A row whose type no longer exists, whose body no
-					// longer deserializes, or whose handler throws is the expected steady state for a durable scheduler -- rows
-					// outlive the code that created them. Letting that escape the loop aborts the scan before
-					// UpdateNextExecutionTimeAsync runs, so the same row is still due on the next poll and every later row is
-					// starved permanently, for every message and tenant, with no path back.
 					try
 					{
-						// Check for missed executions
-						if (ShouldHandleMissedExecution(item))
-						{
-							await HandleMissedExecutionsAsync(item, stoppingToken).ConfigureAwait(false);
-						}
-
-						// Process the current execution with optional timeout.
-						//
-						// CA2000 is suppressed here, and only here, as a measured false positive: the token
-						// source below IS disposed on every path by the `using var` (the compiler emits the
-						// try/finally), exactly as the sibling `retrievalCts` above is -- which the analyzer
-						// does not flag. What changed is that the callee now owns a disposable of its own
-						// (the tenant scope), and that costs CA2000's interprocedural dataflow enough
-						// precision to report this call site conservatively. Four alternative shapes were
-						// built and measured against it -- `using var` at the callee's top, an explicit
-						// try/finally in the callee, the scope pushed one call deeper, and a `using` block --
-						// and all four reproduce it; so does rewriting this statement into the explicit
-						// try/finally with a null-out that the diagnostic's own message recommends. There is
-						// no code shape that satisfies the rule, so the alternative to suppressing is
-						// dropping a tenant-correctness fix for an analyzer artifact.
-#pragma warning disable CA2000 // Dispose objects before losing scope
-						using var processCts = CreateTimeoutToken(TimeoutOperationType.Handler, stoppingToken);
-#pragma warning restore CA2000
-						await ProcessScheduledMessageAsync(item, processCts.Token).ConfigureAwait(false);
-
-						// Calculate next execution time
-						await UpdateNextExecutionTimeAsync(item, stoppingToken).ConfigureAwait(false);
+						await ProcessScheduleAsync(executionStore, item, generation, stoppingToken).ConfigureAwait(false);
 					}
-					catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-					{
-						throw;
-					}
+					catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
 					catch (Exception ex)
 					{
+						// One row cannot starve the remaining inventory. Authority/storage failures
+						// never fall back to a second administrative write.
 						LogErrorProcessingMessages(ex);
-
-						// A row that failed must still ADVANCE. Without this it stays due, so it is
-						// re-processed and re-logged on every poll for the life of the process: unbounded
-						// log volume and wasted work from a row that can never succeed. Durable rows
-						// outliving the code that created them is the expected steady state for a
-						// scheduler, so this is reachable in normal operation, not an exceptional path.
-						await AdvanceOrDisableAsync(item, stoppingToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -166,98 +113,169 @@ internal sealed partial class ScheduledMessageService(
 				_schedulerOptions.PollingJitterRatio);
 			if (!hadWork && scheduleSignal is not null)
 			{
-				await scheduleSignal.WaitForChangeAsync(delay, stoppingToken).ConfigureAwait(false);
+				using var wait = new TimeoutTokenScope(delay, _timeProvider, stoppingToken);
+				try
+				{
+					// Cancel the actual signal read at the provider deadline; never leave an orphaned read.
+					await scheduleSignal.WaitForChangeAsync(Timeout.InfiniteTimeSpan, wait.Token).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested && wait.Token.IsCancellationRequested)
+				{
+					// The polling deadline is a normal wake-up; host cancellation still propagates.
+				}
 			}
 			else
 			{
-				await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+				await Task.Delay(delay, _timeProvider, stoppingToken).ConfigureAwait(false);
 			}
 		}
 
 		LogServiceStopped();
 	}
 
-	private bool ShouldHandleMissedExecution(IScheduledMessage item)
+	private async Task ProcessScheduleAsync(IScheduleExecutionStore? executionStore,
+		IScheduledMessage item, Guid generation, CancellationToken stoppingToken)
 	{
+		var pollNow = _timeProvider.GetUtcNow();
+		var recurring = !string.IsNullOrWhiteSpace(item.CronExpression) || item.Interval is not null;
+		var tolerance = _schedulerOptions.PollInterval > _cronOptions.ExecutionToleranceWindow
+			? _schedulerOptions.PollInterval : _cronOptions.ExecutionToleranceWindow;
+		var missed = recurring && item.NextExecutionUtc < pollNow.Subtract(tolerance);
 		var behavior = item.MissedExecutionBehavior ?? _cronOptions.MissedExecutionBehavior;
-		return behavior != MissedExecutionBehavior.SkipMissed &&
-			   item is { LastExecutionUtc: not null, NextExecutionUtc: not null } &&
-			   item.NextExecutionUtc.Value < _timeProvider.GetUtcNow().Subtract(_schedulerOptions.PollInterval);
-	}
+		if (missed && !Enum.IsDefined(behavior)) { LogUnknownBehavior(behavior, item.Id); }
+		var replayAll = missed && behavior == MissedExecutionBehavior.ExecuteAllMissed;
+		var skip = missed && (behavior == MissedExecutionBehavior.SkipMissed
+			|| (replayAll && _cronOptions.MaxMissedExecutions == 0));
+		var limit = replayAll && !skip ? _cronOptions.MaxMissedExecutions : 1;
 
-	[RequiresUnreferencedCode("Uses dynamic type loading")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Delivery.ScheduledMessageService.ProcessScheduledMessageAsync(IScheduledMessage, CancellationToken)")]
-	private async Task HandleMissedExecutionsAsync(IScheduledMessage item, CancellationToken cancellationToken)
-	{
-		var behavior = item.MissedExecutionBehavior ?? _cronOptions.MissedExecutionBehavior;
-
-		if (behavior == MissedExecutionBehavior.DisableSchedule)
+		var catchUpAttempts = 0;
+		var renewalStore = executionStore as IScheduleExecutionLeaseRenewal;
+		var leaseDuration = renewalStore is not null ? ScheduleExecutionRenewal.ValidateDuration(renewalStore) : TimeSpan.Zero;
+		try
 		{
-			LogDisablingSchedule(item.Id);
-			item.Enabled = false;
-			await scheduleStore.StoreAsync(item, cancellationToken).ConfigureAwait(false);
-			return;
-		}
-
-		if (!string.IsNullOrWhiteSpace(item.CronExpression) && item.LastExecutionUtc.HasValue)
-		{
-			var timeZone = GetTimeZone(item.TimeZoneId);
-			var cronExpr = cronScheduler.Parse(item.CronExpression, timeZone);
-
-			if (cronScheduler is CronScheduler scheduler)
+			for (var attempt = 0; attempt < limit && item.Enabled && item.NextExecutionUtc is { } occurrence
+				&& occurrence <= pollNow; attempt++)
 			{
-				switch (behavior)
+				var acquisitionStarted = _timeProvider.GetTimestamp();
+				var lease = executionStore is not null
+					? await executionStore.TryAcquireExecutionAsync(item.Id, generation, occurrence, stoppingToken).ConfigureAwait(false)
+					: null;
+				if (executionStore is not null && lease is null) { return; }
+				var occurrenceToken = stoppingToken;
+				var committed = false;
+				var released = executionStore is null;
+				var continueReplay = true;
+				AsyncServiceScope? occurrenceScope = null;
+				try
 				{
-					case MissedExecutionBehavior.ExecuteLatestMissed:
+					// The admitted occurrence owns its dependencies through dispatch and fenced settlement.
+					// Catch-up iterations deliberately create distinct scopes; none captures host-root services.
+					occurrenceScope = scopeFactory.CreateAsyncScope();
+					await using var renewal = renewalStore is not null && lease is not null
+						? new ScheduleExecutionRenewal(renewalStore, lease, leaseDuration, acquisitionStarted,
+							_timeProvider, LogErrorProcessingMessages, stoppingToken) : null;
+					occurrenceToken = renewal?.Token ?? stoppingToken;
+					occurrenceToken.ThrowIfCancellationRequested();
+					renewal?.ThrowIfOwnershipLost();
+					if (missed && behavior == MissedExecutionBehavior.DisableSchedule)
+					{
+						item.Enabled = false;
+						LogDisablingSchedule(item.Id);
+					}
+					else
+					{
+						if (!skip)
 						{
-							var missedExecutionCount = 0;
-							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, _timeProvider.GetUtcNow()))
+							try
 							{
-								missedExecutionCount++;
+								catchUpAttempts++;
+								continueReplay = await ProcessScheduledMessageWithTimeoutAsync(item, occurrenceScope.Value.ServiceProvider, occurrenceToken).ConfigureAwait(false);
 							}
-
-							if (missedExecutionCount > 0)
-							{
-								LogFoundMissedExecutions(missedExecutionCount, item.Id);
-								await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
-							}
-
-							break;
+							catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
+							catch (Exception) when (occurrenceToken.IsCancellationRequested) { return; }
+							catch (Exception ex) { continueReplay = false; LogErrorProcessingMessages(ex); }
 						}
-
-					case MissedExecutionBehavior.ExecuteAllMissed:
+						occurrenceToken.ThrowIfCancellationRequested();
+						renewal?.ThrowIfOwnershipLost();
+						try
 						{
-							var missedExecutionCount = 0;
-							foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, _timeProvider.GetUtcNow()))
+							// Replay follows the persisted occurrence. Ordinary/coalesced schedules retain
+							// completion-based timing and cannot generate an invented historical admission.
+							var from = replayAll && !skip && continueReplay ? occurrence : _timeProvider.GetUtcNow();
+							if (!string.IsNullOrWhiteSpace(item.CronExpression))
 							{
-								missedExecutionCount++;
-								await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
+								var timeZone = GetTimeZone(item.TimeZoneId);
+								item.NextExecutionUtc = cronScheduler.Parse(item.CronExpression, timeZone).GetNextOccurrenceUtc(from);
+								if (_cronOptions.EnableDetailedLogging) { LogNextExecutionCalculated(item.Id, item.NextExecutionUtc, timeZone.Id); }
 							}
-
-							if (missedExecutionCount > 0)
+							else if (item.Interval is { } interval) { item.NextExecutionUtc = from.Add(interval); }
+							else { item.Enabled = false; }
+							if (item.Enabled && (item.NextExecutionUtc is null || item.NextExecutionUtc <= occurrence))
 							{
-								LogFoundMissedExecutions(missedExecutionCount, item.Id);
+								throw new InvalidOperationException("The schedule did not produce a later occurrence.");
 							}
-
-							break;
 						}
-
-					case MissedExecutionBehavior.SkipMissed:
-					case MissedExecutionBehavior.DisableSchedule:
-						break;
-
-					default:
-						// Unknown behavior, skip missed executions
-						LogUnknownBehavior(behavior, item.Id);
-						break;
+						catch (Exception ex)
+						{
+							item.Enabled = false;
+							LogScheduleDisabledAfterFailure(item.Id, ex);
+						}
+					}
+					occurrenceToken.ThrowIfCancellationRequested();
+					renewal?.ThrowIfOwnershipLost();
+					if (executionStore is not null)
+					{
+						committed = await executionStore.TryUpdateProgressAsync(lease!,
+							new ScheduleExecutionResult(item.LastExecutionUtc, item.NextExecutionUtc, !item.Enabled), occurrenceToken).ConfigureAwait(false);
+					}
+					else
+					{
+						await scheduleStore.StoreAsync(item, stoppingToken).ConfigureAwait(false);
+						committed = true;
+					}
 				}
+				finally
+				{
+					try
+					{
+						// Shutdown must release ownership without advancing the retained due occurrence.
+						// This deadline is independent of the stopped host and the scheduler's test clock.
+						if (executionStore is not null && lease is not null)
+						{
+							using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+							try
+							{
+								released = await executionStore.ReleaseExecutionAsync(lease, cleanup.Token)
+									.WaitAsync(cleanup.Token).ConfigureAwait(false);
+							}
+							catch (Exception ex) { LogErrorProcessingMessages(ex); }
+						}
+					}
+					finally
+					{
+						if (occurrenceScope is { } ownedScope)
+						{
+							await ownedScope.DisposeAsync().ConfigureAwait(false);
+						}
+					}
+				}
+				if (!committed || !released || !continueReplay || occurrenceToken.IsCancellationRequested) { return; }
 			}
 		}
+		finally
+		{
+			if (missed) { LogFoundMissedExecutions(catchUpAttempts, item.Id); }
+		}
 	}
 
-	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution")]
-	[RequiresDynamicCode("Calls DispatchJsonSerializer.DeserializeAsync(String, Type)")]
-	private async Task ProcessScheduledMessageAsync(IScheduledMessage item, CancellationToken cancellationToken)
+	private async Task<bool> ProcessScheduledMessageWithTimeoutAsync(IScheduledMessage item, IServiceProvider scopedProvider, CancellationToken cancellationToken)
+	{
+		// Current and catch-up executions each own their timeout through completion of dispatch.
+		using var processCts = CreateTimeoutToken(TimeoutOperationType.Handler, cancellationToken);
+		return await ProcessScheduledMessageAsync(item, scopedProvider, processCts.Token).ConfigureAwait(false);
+	}
+
+	private async Task<bool> ProcessScheduledMessageAsync(IScheduledMessage item, IServiceProvider scopedProvider, CancellationToken cancellationToken)
 	{
 		// Establish the schedule's tenant as ambient for the whole dispatch, at the point of use. Stamping
 		// the identity feature alone is not enough: it is read from the message context, whereas every
@@ -277,17 +295,17 @@ internal sealed partial class ScheduledMessageService(
 		if (!MessageTypeRegistry.TryGetType(item.MessageName, out var type))
 		{
 			LogUnknownMessageType(item.MessageName);
-			return;
+			return false;
 		}
 
 		var message = await serializer.DeserializeAsync(item.MessageBody, type).ConfigureAwait(false);
 		if (message is null)
 		{
 			LogDeserializationFailed(item.Id);
-			return;
+			return false;
 		}
 
-		var context = DispatchContextInitializer.CreateDefaultContext();
+		var context = DispatchContextInitializer.CreateDefaultContext(scopedProvider);
 		context.CorrelationId = item.CorrelationId;
 
 		var identityFeature = context.GetOrCreateIdentityFeature();
@@ -301,91 +319,40 @@ internal sealed partial class ScheduledMessageService(
 			context.Items["ScheduleTimeZone"] = item.TimeZoneId;
 		}
 
+		IMessageResult? result;
 		switch (message)
 		{
 			case IDispatchAction action:
-				_ = await dispatcher.DispatchAsync(action, context, cancellationToken).ConfigureAwait(false);
+				result = await dispatcher.DispatchAsync(action, context, cancellationToken).ConfigureAwait(false);
 				break;
 
 			case IDispatchEvent evt:
-				_ = await dispatcher.DispatchAsync(evt, context, cancellationToken).ConfigureAwait(false);
+				result = await dispatcher.DispatchAsync(evt, context, cancellationToken).ConfigureAwait(false);
+				break;
+
+			case IDispatchMessage dispatchMessage:
+				result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
 				break;
 
 			default:
 				LogUnsupportedMessageType(message.GetType().Name);
-				break;
+				return false;
+		}
+
+		// A handler may swallow cancellation and return success. The processing deadline
+		// still owns this attempt, so never record success after its token has expired.
+		cancellationToken.ThrowIfCancellationRequested();
+		if (result is null || !result.Succeeded)
+		{
+			// Returned failures follow the same per-row policy as thrown failures. A cancelled
+			// dispatch token retains host-shutdown and handler-deadline ownership at the caller.
+			throw new InvalidOperationException(result?.ErrorMessage ?? result?.ProblemDetails?.Detail
+				?? "Scheduled message dispatch did not succeed.");
 		}
 
 		// Update last execution time
 		item.LastExecutionUtc = _timeProvider.GetUtcNow();
-	}
-
-	/// <summary>
-	/// Moves a failed row off the current poll: to its next scheduled occurrence if the schedule can be
-	/// advanced, otherwise disabled so it stops being due at all.
-	/// </summary>
-	/// <remarks>
-	/// The give-up is logged ONCE, at the point the row is disabled. A row whose schedule cannot be
-	/// computed (an unparseable cron, for instance) would otherwise remain due forever and re-log on
-	/// every poll, which is the volume this exists to bound.
-	/// </remarks>
-	private async Task AdvanceOrDisableAsync(IScheduledMessage item, CancellationToken cancellationToken)
-	{
-		try
-		{
-			await UpdateNextExecutionTimeAsync(item, cancellationToken).ConfigureAwait(false);
-			return;
-		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (Exception ex)
-		{
-			LogScheduleDisabledAfterFailure(item.Id, ex);
-		}
-
-		try
-		{
-			item.Enabled = false;
-			await scheduleStore.StoreAsync(item, cancellationToken).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (Exception ex)
-		{
-			// The store itself is unavailable. Nothing further can be done from here; the row stays due
-			// and the next poll will try again, which is correct while the store is down.
-			LogErrorProcessingMessages(ex);
-		}
-	}
-
-	private async Task UpdateNextExecutionTimeAsync(IScheduledMessage item, CancellationToken cancellationToken)
-	{
-		if (!string.IsNullOrWhiteSpace(item.CronExpression))
-		{
-			var timeZone = GetTimeZone(item.TimeZoneId);
-			var cronExpr = cronScheduler.Parse(item.CronExpression, timeZone);
-			item.NextExecutionUtc = cronExpr.GetNextOccurrenceUtc(_timeProvider.GetUtcNow());
-
-			if (_cronOptions.EnableDetailedLogging)
-			{
-				LogNextExecutionCalculated(item.Id, item.NextExecutionUtc, timeZone.Id);
-			}
-		}
-		else if (item.Interval is not null)
-		{
-			item.NextExecutionUtc = _timeProvider.GetUtcNow().Add(item.Interval.Value);
-		}
-		else
-		{
-			// One-time schedule - disable after execution
-			item.Enabled = false;
-		}
-
-		await scheduleStore.StoreAsync(item, cancellationToken).ConfigureAwait(false);
+		return true;
 	}
 
 	private TimeZoneInfo GetTimeZone(string? timeZoneId)
@@ -410,17 +377,46 @@ internal sealed partial class ScheduledMessageService(
 	/// Creates a timeout-aware cancellation token when <see cref="ITimePolicy"/> is registered.
 	/// When no time policy is available, returns a token linked only to the parent.
 	/// </summary>
-	private CancellationTokenSource CreateTimeoutToken(TimeoutOperationType operationType, CancellationToken parentToken)
+	private TimeoutTokenScope CreateTimeoutToken(TimeoutOperationType operationType, CancellationToken parentToken)
 	{
-		if (timePolicy is null || !timePolicy.ShouldApplyTimeout(operationType, null))
+		var timeout = timePolicy is not null && timePolicy.ShouldApplyTimeout(operationType, null)
+			? timePolicy.GetTimeoutFor(operationType)
+			: Timeout.InfiniteTimeSpan;
+		return new TimeoutTokenScope(timeout, _timeProvider, parentToken);
+	}
+
+	private sealed class TimeoutTokenScope : IDisposable
+	{
+		private readonly CancellationTokenSource? _deadline;
+		private readonly CancellationTokenSource _linked;
+
+		public TimeoutTokenScope(TimeSpan timeout, TimeProvider clock, CancellationToken parentToken)
 		{
-			return CancellationTokenSource.CreateLinkedTokenSource(parentToken);
+			if (timeout == Timeout.InfiniteTimeSpan)
+			{
+				_linked = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
+				return;
+			}
+
+			_deadline = new CancellationTokenSource(timeout, clock);
+			try
+			{
+				_linked = CancellationTokenSource.CreateLinkedTokenSource(parentToken, _deadline.Token);
+			}
+			catch
+			{
+				_deadline.Dispose();
+				throw;
+			}
 		}
 
-		var timeout = timePolicy.GetTimeoutFor(operationType);
-		var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
-		cts.CancelAfter(timeout);
-		return cts;
+		public CancellationToken Token => _linked.Token;
+
+		public void Dispose()
+		{
+			_linked.Dispose();
+			_deadline?.Dispose();
+		}
 	}
 
 	// Source-generated logging methods
@@ -453,7 +449,7 @@ internal sealed partial class ScheduledMessageService(
 	private partial void LogDisablingSchedule(Guid messageId);
 
 	[LoggerMessage(DeliveryEventId.ScheduledMissedExecutions, LogLevel.Warning,
-		"Found {Count} missed executions for schedule {MessageId}")]
+		"Attempted {Count} catch-up executions for schedule {MessageId} in this poll")]
 	private partial void LogFoundMissedExecutions(int count, Guid messageId);
 
 	[LoggerMessage(DeliveryEventId.ScheduledUnknownBehavior, LogLevel.Warning,

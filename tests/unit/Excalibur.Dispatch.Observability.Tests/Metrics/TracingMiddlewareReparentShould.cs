@@ -180,8 +180,12 @@ public sealed class TracingMiddlewareReparentShould : IDisposable
 		A.CallTo(() => messageBus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Invokes((IDispatchMessage _, IMessageContext c, CancellationToken _) => publishContext = c)
 			.Returns(SuccessResult());
+		var serializer = A.Fake<IPayloadSerializer>();
+		Excalibur.Dispatch.Delivery.Registry.MessageTypeRegistry.RegisterType<TraceEvent>();
+		stored.MessageType = typeof(TraceEvent).AssemblyQualifiedName!;
+		A.CallTo(() => serializer.DeserializeObject(stored.Payload, typeof(TraceEvent))).Returns(new TraceEvent());
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, A.Fake<IServiceProvider>(),
+			store, serializer, messageBus, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
 		// (2) 5l0da9: publishing restores the traceparent onto the rebuilt publish context.
@@ -262,6 +266,8 @@ public sealed class TracingMiddlewareReparentShould : IDisposable
 		activity.Start();
 		return activity;
 	}
+
+	private sealed class TraceEvent : IDispatchEvent;
 
 	private Activity FindActivityByMessageId(string messageId)
 	{

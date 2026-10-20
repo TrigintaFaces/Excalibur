@@ -175,16 +175,62 @@ The heartbeat is **opt-in** so the default consumer behaviour is unchanged. Choo
 | `VisibilityTimeout` | `TimeSpan` | 60 seconds | Visibility window requested on each extension (SQS allows 0 seconds to 12 hours). |
 | `MaxExtension` | `TimeSpan` | 10 minutes | Maximum cumulative time the heartbeat keeps a single message in-flight. |
 
-### Client Retries and Request Timeout
+### Send Retry Budget and Deadline
 
-You can also tune the underlying SQS client:
+Configure the foreground send budget through the transport builder:
 
 ```csharp
-sqs.UseMaxRetryAttempts(5)                       // maps to AmazonSQSConfig.MaxErrorRetry (0 disables SDK retries)
-   .UseRequestTimeout(TimeSpan.FromSeconds(30)); // maps to AmazonSQSConfig.Timeout
+sqs.UseMaxRetryAttempts(5)                       // five retries after the initial foreground send
+   .UseRequestTimeout(TimeSpan.FromSeconds(30)); // total send deadline, including retry delays
 ```
 
-When these are not set, the AWS SDK defaults apply.
+The defaults are three retries and a thirty-second deadline. Zero retries allows one
+foreground send. The framework creates a separate SQS send client with both
+`MaxErrorRetry` and `MaxStaleConnectionRetries` set to zero, then uses a cached Polly
+policy with backoff and Polly's built-in jitter for established transient foreground
+failures. A registered message failure classifier can veto those retries. Unknown SDK
+errors propagate without a local retry. The receive client's SDK retry and timeout
+settings remain separately configured. The deadline wraps the whole send execution,
+including backoff; caller cancellation is not treated as a retryable failure.
+Cancellation and the Polly timeout are cooperative: an injected client must honor
+the cancellation token. They cannot terminate a custom implementation that ignores it.
+
+When the dispatch pipeline or persisted outbox already owns retries for the exact
+message and context, the SQS bus performs one SDK send operation per outer attempt.
+It retains the send deadline and does not add foreground retries. The outer owner's
+configuration determines that operation's overall attempt ceiling. Nested dispatches
+with another message or context retain their own retry policy.
+
+Custom clients registered with `AddKeyedSingleton<IAmazonSQS>(transportName, ...)`
+override that named transport's client. Registering an unkeyed client does not override
+a named client. For sends inside a framework-owned retry budget, custom clients must
+expose configuration with **both SDK retry settings at zero**. Missing or unreadable
+configuration, or either retry setting being nonzero, produces a permanent
+`ConfigurationException` before a request is sent. The framework does not mutate or
+dispose a borrowed client itself. A consumer-owned singleton instance must be disposed
+by its owner; DI-created clients retain their DI lifetime. Named registrations must
+be resolved by their transport key; returning the same disposable from an additional
+unkeyed DI factory would capture it for disposal a second time.
+
+Named transports register their SDK client by key rather than creating an unkeyed
+disposable alias. Resolve it with
+`provider.GetRequiredKeyedService<IAmazonSQS>(transportName)`; publish through the
+configured remote bus routing. For a separate `AddSqsChannelAdapter` entry point,
+register its unkeyed SDK client explicitly or use `AddAwsMessageBus`. The complete
+SQS channel infrastructure supplies its own client. An unkeyed client registration
+continues to have its own lifetime and does not override a named transport.
+
+Outside an owned retry scope, an injected client with SDK retries enabled keeps those
+SDK retries and receives no additional Polly retry layer. Its SDK operation still has
+the total send deadline. Arbitrary injected implementations can perform hidden work
+that their configuration does not reveal; these settings cannot certify their physical
+request count. Transport send attempts also do not prove broker acceptance or
+exactly-once effects after an ambiguous response. Keep handlers idempotent.
+
+AWS documents that stale-connection retries have a separate budget from
+`MaxErrorRetry`, which is why disabling only one setting is insufficient. See the
+[AWS SDK client configuration reference](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/Runtime/TClientConfig.html)
+and [Polly timeout semantics](https://www.pollydocs.org/strategies/timeout.html).
 
 ## Queue Types
 
@@ -260,6 +306,75 @@ services.AddAwsSnsTransport(sns =>
        .EnableRawMessageDelivery();
 });
 ```
+
+### SNS Retry Ownership and Named Clients
+
+Each named SNS transport has its own management client, message bus and topic-encryption
+configuration. Framework-created sends use a separate client with both SDK retry settings at
+zero. The cached Polly pipeline applies the named `MaxRetryAttempts`, `RequestTimeout` and
+`RetryPolicy` settings to foreground sends; connection retry and timeout settings remain on the
+management client. Resolving a bus does not overwrite the configured foreground options.
+
+An existing framework retry owner controls publication of the same message and context. SNS
+propagates the failure without adding a foreground retry loop. Custom clients used by that owner
+must expose readable configuration with `MaxErrorRetry` and `MaxStaleConnectionRetries` both zero;
+otherwise publication refuses before making an SDK request. Outside that scope, a borrowed client
+with SDK retries enabled retains its SDK policy and receives no additional Polly retry layer.
+The send deadline includes retries and delays, and caller cancellation is not retried.
+
+Framework registrations own their private send clients. An externally supplied SDK client remains
+borrowed and is not disposed by the message bus. Resolve a custom named SNS client with its transport
+name so that publication and topic management use the intended endpoint:
+`provider.GetRequiredKeyedService<IAmazonSimpleNotificationService>(transportName)`.
+Named transport registration does not create an unkeyed disposable alias for that client.
+
+Framework retry counters describe logical retries, excluding the initial attempt. To observe SDK
+operation attempts, configure AWS SDK telemetry before creating the clients and collect
+`client.call.attempts`. These counters describe different layers; do not sum them as if each represented
+an additional network request. See [AWS SDK telemetry configuration](https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/observability.html)
+and [SDK metric definitions](https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/observability-metrics.html).
+
+## EventBridge Ingestion Acknowledgements
+
+The EventBridge message bus checks every `PutEvents` result. HTTP 200 alone is not
+success: the single result must contain an event ID, no error fields, and a zero
+failed-entry count. Rejected, incomplete or contradictory responses do not complete
+a persisted outbox message.
+
+`InternalFailure` and `ThrottlingException` propagate to the existing retry owner.
+The bus adds no foreground retry loop. `MalformedDetail` is a poison failure;
+known authorization, account and argument failures are permanent configuration
+failures. Unknown errors and malformed acknowledgements leave ingestion uncertain.
+These outcomes surface `DispatchDeliveryUncertainException`, classified as
+`MessageFailureKind.Uncertain`. The default retry policy retries them within its configured
+budget. Explicit retry exclusions still apply. Uncertainty means that acceptance was not
+established; replay can therefore produce duplicates, so consumers must be idempotent.
+Mixed fanout results preserve uncertainty even when another destination has a permanent failure.
+
+Configure a readable dead-letter queue for recoverable retention. When that queue is unavailable,
+the polling outbox records the observed attempt count and pending disposition before reclaiming
+the row. Recovery retries disposition without sending the exhausted message again. A failed or
+ambiguous bookkeeping write can still permit redelivery; this is an at-least-once contract.
+SDK connection retries remain the client's responsibility; these entry-result checks do not
+certify its physical request budget.
+
+Native action, event and document detail is a JSON object containing the serialized
+bytes, including their format marker:
+
+```json
+{"payload":"BASE64_SERIALIZED_BYTES"}
+```
+
+Target consumers decode `payload` from base64 before using the matching pluggable
+deserializer. This repairs the previous bare-base64 detail, which was not a valid
+EventBridge JSON object. CloudEvents retain their separate configured encoding.
+
+An event ID acknowledges API ingestion; it does not prove downstream rule matching
+or deduplication. AWS documents that a nonexistent bus can return HTTP 200 while
+dropping an event without reporting failed entries. Provision the intended bus and
+rules, and keep consumers idempotent: a lost response after ingestion can cause a
+durable retry to publish again. See the [PutEvents response contract](https://docs.aws.amazon.com/eventbridge/latest/APIReference/API_PutEvents.html)
+and [AWS failure handling guidance](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevents.html).
 
 ## CloudEvents Configuration
 
@@ -433,11 +548,13 @@ public class OrderFunction
 
 | Feature | Standard | FIFO |
 |---------|----------|------|
-| Throughput | Unlimited | 3,000 msg/sec (batch), 300 msg/sec (individual) |
+| Throughput | Very high; service quotas and configuration apply | Without high-throughput mode: 300 transactions/sec per partition per API action, or 3,000 messages/sec with batches of 10; high-throughput quotas vary by Region |
 | Ordering | Best-effort | Guaranteed |
 | Delivery | At-least-once | Exactly-once |
 | Deduplication | Manual | Built-in (5-minute window) |
 | Pricing | Lower | Higher |
+
+These are AWS service characteristics, not measured framework throughput. See [Amazon SQS message quotas](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html) for mode, batching, and regional limits.
 
 ## Next Steps
 

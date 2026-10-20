@@ -14,6 +14,8 @@
 // Test endpoints with curl or your preferred HTTP client.
 // ============================================================================
 
+#pragma warning disable CA1506 // A sample composition root intentionally wires the demonstrated HTTP and messaging features together.
+
 using Excalibur.Dispatch;
 
 using GettingStarted.Messages;
@@ -28,10 +30,8 @@ builder.Services.AddDispatch(typeof(Program).Assembly);
 // See: docs-site/docs/source-generators/getting-started.md
 builder.Services.AddSingleton<GettingStarted.Handlers.IOrderStore, GettingStarted.Handlers.OrderStore>();
 
-// Unhandled exceptions become a generic RFC 9457 Problem Details 500; the exception message is
-// not written to the response. (Excalibur.Hosting.Web's AddGlobalExceptionHandler() adds status-code
-// mapping for framework exceptions, such as 404 for ResourceNotFoundException.)
-builder.Services.AddProblemDetails();
+// Framework status mapping and production-safe problem details from the Dispatch web integration.
+builder.Services.AddDispatchExceptionHandler();
 
 var app = builder.Build();
 

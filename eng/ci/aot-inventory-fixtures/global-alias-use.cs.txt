@@ -1,0 +1,6 @@
+namespace AliasFixture;
+public class Consumer
+{
+    [ReflectionWarning("global alias declared in a separate source file")]
+    public void Call() { }
+}

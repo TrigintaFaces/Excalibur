@@ -1,74 +1,123 @@
-#
 # Conformance suite wiring baseline.
 #
-# One non-comment line per entry: a repository-relative path, forward slashes. Lines starting with #
-# and blank lines are ignored. Inline comments are NOT supported: the whole trimmed line is the
-# identity, so rationale lives on the # lines above each group.
+# One exact owning-project|namespace::ContainingType`arity+Leaf`arity identity per entry.
+# Namespace/type and nested-type separators are distinct. Blank/comment lines are ignored.
+# Source paths below are diagnostics only; another type in that file receives no exemption.
+# Admission and shrink compare full identities. This remains a shrink-only historical debt list.
 #
-# An entry is a test file declaring a type that derives a *ConformanceTestKit and never invokes
-# ConformanceSuite_ShouldWireEveryArm. Such a suite runs only the arms someone remembered to wrap,
-# and an arm nobody wrapped is indistinguishable in the results from an arm that passed.
+# Migration for Excalibur_Dispatch-3h2vlw individually reviewed 52 types in the 36 existing paths.
+# No newly discovered current failure was added. Original source hashes and declared kit bases are
+# preserved in artifacts/arb-tests/3h2vlw-historical-baseline-inventory-20261015.json.
 #
-# ConformanceSuiteWiresEveryArmShould fails if a NEW one appears that is not listed here, and fails
-# if a listed one starts wiring the guard (remove it) or stops deriving a kit (remove it). The list
-# is a one-directional ratchet: it may shrink, never grow.
+# GROUP 1 -- historical MinimalWiring family; tracked debt, not accepted coverage.
 #
-# THE ENTRIES ARE NOT ONE POPULATION. Do not "fix" them as a batch -- the second group is exempt by
-# design and adding a guard there would break the non-vacuity proofs it exists to provide.
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddAuditBridgeMinimalWiringConformanceTests.cs:39; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddAuditBridgeMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCdcBridgeMinimalWiringConformanceTests.cs:45; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddCdcBridgeMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCdcProcessorUseSqlServerMinimalWiringConformanceTests.cs:41; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddCdcProcessorUseSqlServerMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCronTimerTransportMinimalWiringConformanceTests.cs:40; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddCronTimerTransportMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddDataProcessingBridgeMinimalWiringConformanceTests.cs:39; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddDataProcessingBridgeMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddDispatchBridgeMinimalWiringConformanceTests.cs:30; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddDispatchBridgeMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddElasticSearchProjectionsBridgeMinimalWiringConformanceTests.cs:59; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddElasticSearchProjectionsBridgeMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddEventBindingsMinimalWiringConformanceTests.cs:44; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddEventBindingsMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddEventSourcingMinimalWiringConformanceTests.cs:50; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddEventSourcingMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAuditMinimalWiringConformanceTests.cs:76; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddExcaliburAuditMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAwsLambdaServerlessMinimalWiringConformanceTests.cs:28; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddExcaliburAwsLambdaServerlessMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAzureFunctionsServerlessMinimalWiringConformanceTests.cs:41; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddExcaliburAzureFunctionsServerlessMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburGoogleCloudFunctionsServerlessMinimalWiringConformanceTests.cs:28; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddExcaliburGoogleCloudFunctionsServerlessMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddGdprErasureMinimalWiringConformanceTests.cs:31; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddGdprErasureMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddJobsMinimalWiringConformanceTests.cs:57; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddJobsMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddLeaderElectionMinimalWiringConformanceTests.cs:49; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddLeaderElectionMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddOutboxMinimalWiringConformanceTests.cs:47; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddOutboxMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddProjectionCachingMinimalWiringConformanceTests.cs:56; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::AddProjectionCachingMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/EnableTenantShardingMinimalWiringConformanceTests.cs:42; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::EnableTenantShardingMinimalWiringConformanceTests
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/ExcaliburContextFamilyMinimalWiringConformanceTests.cs:46; base: MinimalWiringConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.MinimalWiring::ExcaliburContextFamilyMinimalWiringConformanceTests
 #
-
+# GROUP 2 -- historical kit probes and deliberately partial suites; preserve their mutation purpose.
 #
-# GROUP 1 -- MinimalWiring family. Already tracked as its own work item; the count matches that
-# item's own enumeration exactly. Listed here so this guard does not re-report them, NOT because
-# they are acceptable.
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/AuditStoreTenantArmsBindShould.cs:92; base: AuditStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::AuditStoreTenantArmsBindShould+ArmProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/CloudNativePendingReadPropagationShould.cs:111; base: CloudNativeOutboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::CloudNativePendingReadPropagationShould
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/CloudNativePendingReadPropagationShould.cs:177; base: CloudNativeOutboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::CloudNativePendingReadBeyondTheBudgetShould
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceKitCleanupIsInvokedShould.cs:102; base: InboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ConformanceKitCleanupIsInvokedShould+CountingInboxProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceTestKitHelperMethodsShould.cs:325; base: InboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ConformanceTestKitHelperMethodsShould+TestableInboxStoreKit
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceTestKitHelperMethodsShould.cs:343; base: OutboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ConformanceTestKitHelperMethodsShould+TestableOutboxStoreKit
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceTestKitHelperMethodsShould.cs:362; base: EventStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ConformanceTestKitHelperMethodsShould+TestableEventStoreKit
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:132; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverDeficientOnUnsupportedValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:137; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverEffectiveOnUnsupportedValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:142; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverNotVerifiedOnUnsupportedValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:162; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverFabricatingValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:167; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverHonestValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:172; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverAccusingValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs:177; base: ControlValidatorConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::ControlValidatorConformanceKitLivenessShould+KitOverExceptionReportingValidator
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedDeadLetterStoreConformanceShould.cs:193; base: DeadLetterStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::DecoratedDeadLetterStoreConformanceShould+DecoratedSuite
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedDeadLetterStoreConformanceShould.cs:204; base: DeadLetterStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::DecoratedDeadLetterStoreConformanceShould+WrappedSuite
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedOutboxStoreConformanceShould.cs:65; base: OutboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::DecoratedOutboxStoreConformanceShould
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreTenantArmsBindShould.cs:268; base: EventStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::EventStoreTenantArmsBindShould+ContextHijackingProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreTenantArmsBindShould.cs:322; base: EventStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::EventStoreTenantArmsBindShould+ArmProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/FencingHighWaterSurvivesTwoKitRunsShould.cs:144; base: OutboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::OneKitRun
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreConcurrencyArmBindsShould.cs:171; base: InboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::InboxStoreConcurrencyArmBindsShould+ArmProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreLeaseArmsBindShould.cs:269; base: InboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::InboxStoreLeaseArmsBindShould+ArmProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreTenantArmsBindShould.cs:222; base: InboxStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::InboxStoreTenantArmsBindShould+ArmProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs:126; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::PersistenceKitOptionalCapabilityShould+HonestDocumentStoreKit
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs:137; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::PersistenceKitOptionalCapabilityShould+KitDeclaringTransactionsOverTheHonestDocumentStore
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs:147; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::PersistenceKitOptionalCapabilityShould+DecliningKit
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs:157; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::PersistenceKitOptionalCapabilityShould+LyingKit
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs:165; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::PersistenceKitOptionalCapabilityShould+DeclaringKitOverACapableProvider
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs:176; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Testing.Conformance.Tests.Testing.Conformance::PersistenceKitOptionalCapabilityShould+DeclaringKitOverADecliningProvider
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceProviderNameArmsBindShould.cs:231; base: PersistenceProviderConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::PersistenceProviderNameArmsBindShould+ArmProbe
+# source: tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/SagaStoreTenantArmsBindShould.cs:186; base: SagaStoreConformanceTestKit
+tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj|Excalibur.Tests.Testing.Conformance::SagaStoreTenantArmsBindShould+ArmProbe
 #
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddAuditBridgeMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCdcBridgeMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCdcProcessorUseSqlServerMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddCronTimerTransportMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddDataProcessingBridgeMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddDispatchBridgeMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddElasticSearchProjectionsBridgeMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddEventBindingsMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddEventSourcingMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAuditMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAwsLambdaServerlessMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburAzureFunctionsServerlessMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddExcaliburGoogleCloudFunctionsServerlessMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddGdprErasureMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddJobsMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddLeaderElectionMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddOutboxMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/AddProjectionCachingMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/EnableTenantShardingMinimalWiringConformanceTests.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/MinimalWiring/ExcaliburContextFamilyMinimalWiringConformanceTests.cs
-
+# GROUP 3 -- historical real Redis provider miss; identity migration does not repair its wiring.
 #
-# GROUP 2 -- kit PROBES. These derive a kit in order to test the kit itself: several deliberately
-# omit an arm so that a guard has something to catch. A completeness guard on a probe would assert
-# the probe is complete, which is the opposite of its purpose. Exempt by design -- but the exemption
-# is recorded here rather than assumed, so a reader can tell "deliberately unguarded" from
-# "forgotten", which was the whole defect.
-#
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/AuditStoreTenantArmsBindShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/CloudNativePendingReadPropagationShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceKitCleanupIsInvokedShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ConformanceTestKitHelperMethodsShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ControlValidatorConformanceKitLivenessShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedDeadLetterStoreConformanceShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/DecoratedOutboxStoreConformanceShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreTenantArmsBindShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/FencingHighWaterSurvivesTwoKitRunsShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreConcurrencyArmBindsShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreLeaseArmsBindShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/InboxStoreTenantArmsBindShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceKitOptionalCapabilityShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/PersistenceProviderNameArmsBindShould.cs
-tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/SagaStoreTenantArmsBindShould.cs
-
-#
-# GROUP 3 -- a real provider suite. The only entry here that is a plain provider conformance suite
-# rather than a probe or a tracked family. Probable genuine miss; needs reading before it is either
-# guarded or exempted. Do not close the parent work item while this line is still present.
-#
-tests/integration/Excalibur.Integration.Tests/EventSourcing/Redis/RedisEventStoreTenancyConformanceShould.cs
+# source: tests/integration/Excalibur.Integration.Tests/EventSourcing/Redis/RedisEventStoreTenancyConformanceShould.cs:46; base: EventStoreConformanceTestKit
+tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj|Excalibur.Integration.Tests.EventSourcing.Redis::RedisEventStoreTenancyConformanceShould

@@ -98,23 +98,31 @@ public static class DatadogServiceCollectionExtensions
 		// Transient-fault retry (formerly hand-rolled in the exporter) is delegated to the standard
 		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience), which retries the same
 		// transient responses (408/429/5xx + HttpRequestException/timeout) the exporter used to classify.
-		// The pipeline owns timeouts, so the HttpClient timeout is left infinite — the handler's per-attempt
-		// and total-request timeouts bound each call instead.
-		var httpClientBuilder = services.AddHttpClient<DatadogAuditExporter>(static (_, client) =>
+		// HttpClient buffers the response body after the resilience handler returns. Its timeout must
+		// cover that phase too, using the same total budget as the handler rather than another retry layer.
+		var httpClientBuilder = services.AddHttpClient<DatadogAuditExporter>();
+		var resilienceBuilder = httpClientBuilder.AddStandardResilienceHandler();
+		// Register this after AddStandardResilienceHandler, which resets the client timeout to infinite.
+		_ = httpClientBuilder.ConfigureHttpClient(static (provider, client) =>
 		{
-			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+			var retry = provider.GetRequiredService<IOptions<DatadogExporterOptions>>().Value.Retry;
+			client.Timeout = retry.Timeout * (retry.MaxRetryAttempts + 1);
 		});
-
-		_ = httpClientBuilder.AddStandardResilienceHandler();
 
 		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
 		// retry options, so config-bound overrides flow through the DI options system.
-		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+		_ = services.AddOptions<HttpStandardResilienceOptions>(resilienceBuilder.PipelineName)
 			.Configure<IOptions<DatadogExporterOptions>>(static (resilience, exporterOptions) =>
 			{
 				var retry = exporterOptions.Value.Retry;
 
-				resilience.Retry.MaxRetryAttempts = retry.MaxRetryAttempts;
+				// Polly requires a positive retry count. Zero disables its retry predicate while keeping
+				// the standard timeout, breaker, and rate-limiter strategies available.
+				resilience.Retry.MaxRetryAttempts = retry.MaxRetryAttempts == 0 ? 1 : retry.MaxRetryAttempts;
+				if (retry.MaxRetryAttempts == 0)
+				{
+					resilience.Retry.ShouldHandle = static _ => ValueTask.FromResult(false);
+				}
 				resilience.Retry.Delay = retry.RetryBaseDelay;
 				resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
 

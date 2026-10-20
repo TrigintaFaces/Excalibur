@@ -13,25 +13,41 @@ dotnet add package Excalibur.Outbox
 - `IOutboxStore` - Outbox message persistence abstraction
 - `OutboxOptions` - Configuration for outbox behavior
 - TypeForwarders for backward compatibility with existing code
-- AOT-compatible with full Native AOT support
+- Framework-owned claims, attempt budgets, backoff scheduling and dead-letter transitions
 
 ## Usage
 
 ```csharp
-// Register outbox services
-services.AddExcalibur(x => x.AddOutbox(options =>
-{
-    options.BatchSize = 100;
-    options.MaxRetries = 3;
-}));
+services.AddDispatch(dispatch => dispatch.UseOutbox());
+services.AddExcalibur(x => x.AddOutbox(outbox => outbox
+    .UseSqlServer(sql => sql.ConnectionString(connectionString))
+    .WithProcessing(processing => processing
+        .BatchSize(100)
+        .MaxRetryCount(3)
+        .RetryDelay(TimeSpan.FromSeconds(10)))
+    .EnableBackgroundProcessing()));
 ```
 
 ## Transactional Outbox Pattern
 
-The outbox pattern ensures reliable message delivery by:
-1. Storing messages in the same transaction as business data
-2. Publishing messages asynchronously via a background processor
-3. Handling retries and dead-letter scenarios
+Handlers explicitly buffer events through `IOutboxWriter`. The middleware stages them after successful
+handling, and the opt-in hosted processor claims and delivers eligible messages. Register handlers and
+the selected transport as appropriate for your application. A shared business-data transaction requires
+the corresponding transaction integration; buffering alone does not make business writes atomic.
+
+`BatchSize` sets producer and consumer batch defaults. `MaxRetryCount` excludes the initial attempt:
+three retries means four total attempts; zero means one. `RetryDelay` supplies the default fixed backoff
+calculator for this processor. Backoff-capable stores retain the later of that schedule and their failure
+floor. A consumer-supplied `IBackoffCalculator`, including the Polly adapter, takes precedence.
+
+Explicit `Configure`/`PostConfigure` callbacks for delivery and background options override builder
+defaults regardless of registration order. Inspect those resolved options for effective diagnostics.
+For `int.MaxValue` retries, the initial attempt makes the default total unrepresentable; configure a
+positive `OutboxDeliveryOptions.MaxAttempts` total explicitly or choose fewer retries. Delivery options
+are validated when consumed, so a custom publisher can own an independent policy.
+
+Runtime payload serialization may require source-generated serializer configuration for trimming or
+Native AOT. The local runtime controls do not certify every provider under Native AOT.
 
 ## Related Packages
 

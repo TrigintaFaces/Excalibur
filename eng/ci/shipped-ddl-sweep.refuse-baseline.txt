@@ -20,9 +20,9 @@
 # against 2 declared each." That remains true of the fence tables; the set is no longer empty.
 #
 # ERASURE DESTROYED-KEY RECORD -- both spellings. The TABLE is fine and that was checked rather than
-# assumed: its shipped DDL declares exactly RequestId/KeyHandle/DestroyedAt with the composite primary
-# key, in both the provisioning script and the migration document, and those are precisely the three
-# columns the write path uses.
+# assumed: the current provisioning scripts, migration document, and INSERTs name the same five
+# columns: KeyGeneration, RequestId, KeyHandle, DestroyedAt, and RecordedBy (with snake_case names
+# in PostgreSQL). The ledger key is (KeyHandle, KeyGeneration), not the earlier request/handle pair.
 #
 # WHAT THE SWEEP CANNOT DO IS SCOPE IT. The write path lives in a store class that writes SEVERAL
 # compliance tables and JOINS the request table to the destroyed-key table, so the column extractor

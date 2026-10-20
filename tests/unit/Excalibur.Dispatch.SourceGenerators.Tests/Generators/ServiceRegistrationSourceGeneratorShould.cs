@@ -15,10 +15,8 @@ namespace Excalibur.Dispatch.SourceGenerators.Tests;
 /// Sprint 426 T426.6: Unit tests for AutoRegister attribute and generator.
 /// </para>
 /// <para>
-/// Note: The source generator project has pre-existing build errors in other generator files
-/// (HandlerActivationGenerator, CachePolicySourceGenerator, HandlerInvocationGenerator).
-/// These tests validate expected behavior patterns without instantiating the generator directly.
-/// Direct generator compilation tests require fixing those pre-existing errors first (separate Beads issue).
+/// These tests simulate registration patterns with manually configured services and check attribute
+/// defaults. They do not invoke the generator or inspect generated source.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]

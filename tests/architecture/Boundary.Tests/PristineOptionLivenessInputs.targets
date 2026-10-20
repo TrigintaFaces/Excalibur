@@ -1,0 +1,34 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project -->
+<!-- SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0 -->
+<Project>
+  <!-- Import in Boundary.Tests.csproj. Inputs are ResolveAssemblyReferences originals, never test-output copies. -->
+  <Target Name="CapturePristineOptionLivenessInputs" BeforeTargets="CoreCompile" DependsOnTargets="ResolveReferences"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(IsCrossTargetingBuild)' != 'true'">
+    <Error Condition="'$(TargetFramework)' == ''" Text="Pristine option liveness capture requires a concrete TargetFramework." />
+    <PropertyGroup>
+      <_PristineTargetRoot>$([System.IO.Path]::GetFullPath('$(TargetDir)'))</_PristineTargetRoot>
+      <_PristineDir>$([System.IO.Path]::GetFullPath('$(_PristineTargetRoot)/option-liveness-pristine/$(Configuration)/$(TargetFramework)'))$([System.IO.Path]::DirectorySeparatorChar)</_PristineDir>
+      <_PristineRequiredRoot>$([System.IO.Path]::Combine('$(_PristineTargetRoot)', 'option-liveness-pristine'))$([System.IO.Path]::DirectorySeparatorChar)</_PristineRequiredRoot>
+      <_PristineManifest>$(_PristineDir)manifest.tsv</_PristineManifest>
+      <_PristineMetadata>$(IntermediateOutputPath)PristineOptionLivenessMetadata.g.cs</_PristineMetadata>
+    </PropertyGroup>
+    <Error Condition="!$([System.String]::Copy('$(_PristineDir)').StartsWith('$(_PristineRequiredRoot)'))" Text="Pristine deletion target must remain below the normalized TargetDir/option-liveness-pristine root." />
+    <ItemGroup>
+      <_PristineOriginal Include="@(ReferenceCopyLocalPaths)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Excalibur')) and !$([System.String]::Copy('%(Filename)').Contains('SourceGenerators')) and '%(Extension)' == '.dll'" />
+    </ItemGroup>
+    <Error Condition="'@(_PristineOriginal)' == ''" Text="Pristine framework runtime input closure is empty." />
+    <ItemGroup><_PristineNames Include="@(_PristineOriginal->'%(Filename)%(Extension)')" /></ItemGroup>
+    <RemoveDuplicates Inputs="@(_PristineNames)"><Output TaskParameter="Filtered" ItemName="_PristineUniqueNames" /></RemoveDuplicates>
+    <Error Condition="'@(_PristineNames->Count())' != '@(_PristineUniqueNames->Count())'" Text="Pristine framework originals have duplicated destination names." />
+    <RemoveDir Directories="$(_PristineDir)" />
+    <MakeDir Directories="$(_PristineDir)" />
+    <Copy SourceFiles="@(_PristineOriginal)" DestinationFolder="$(_PristineDir)" UseHardlinksIfPossible="false" UseSymboliclinksIfPossible="false" />
+    <GetFileHash Files="@(_PristineOriginal->'$(_PristineDir)%(Filename)%(Extension)')" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_PristineHashed" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(_PristineManifest)" Lines="configuration&#x9;$(Configuration);tfm&#x9;$(TargetFramework);@(_PristineHashed->'%(Filename)%(Extension)&#x9;%(FileHash)')" Overwrite="true" Encoding="UTF-8" />
+    <GetFileHash Files="$(_PristineManifest)" Algorithm="SHA256"><Output TaskParameter="Hash" PropertyName="_PristineManifestHash" /></GetFileHash>
+    <WriteLinesToFile File="$(_PristineMetadata)" Lines="[assembly: System.Reflection.AssemblyMetadata(&quot;PristineOptionLiveness&quot;, &quot;$(Configuration)|$(TargetFramework)|$(_PristineManifestHash)&quot;)]" Overwrite="true" WriteOnlyWhenDifferent="true" Encoding="UTF-8" />
+    <ItemGroup><Compile Include="$(_PristineMetadata)" /></ItemGroup>
+  </Target>
+</Project>

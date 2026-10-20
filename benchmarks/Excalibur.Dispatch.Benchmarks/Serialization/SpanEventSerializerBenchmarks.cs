@@ -25,10 +25,15 @@ namespace Excalibur.Dispatch.Benchmarks.Serialization;
 /// - SystemTextJsonSerializer replaces JsonEventSerializer (ISerializer interface).
 /// - MemoryPackSerializer replaces MemoryPackPluggableSerializer (ISerializer interface).
 ///
-/// Performance Targets (from Sprint 408 design):
+/// Historical design targets (Sprint 408; not verified performance results):
 /// - Allocation per event: ~2-5 KB (JSON) vs 0 KB (MemoryPack with pooled buffers)
 /// - Serialization time: 2-5x faster than JSON
 /// - Deserialization time: 2-5x faster than JSON
+///
+/// The repaired fixture generates a MemoryPack contract for every event member and uses a
+/// member formatter for its string/null metadata values. It does not measure general object
+/// metadata support. Timed IBufferWriter methods allocate their own ArrayBufferWriter;
+/// the separately rented fixture buffer does not make those operations allocation-free.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -80,7 +85,11 @@ public class SpanEventSerializerBenchmarks
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
-		ArrayPool<byte>.Shared.Return(_pooledBuffer);
+		if (_pooledBuffer is { } buffer)
+		{
+			_pooledBuffer = null!;
+			ArrayPool<byte>.Shared.Return(buffer);
+		}
 	}
 
 	#region JSON vs MemoryPack Comparison Benchmarks
@@ -166,7 +175,7 @@ public class SpanEventSerializerBenchmarks
 	#region Buffer Pooling Allocation Benchmarks
 
 	/// <summary>
-	/// Benchmark: Serialize with IBufferWriter (zero-alloc primary path) using MemoryPack.
+	/// Benchmark: Serialize with a newly allocated IBufferWriter using MemoryPack.
 	/// </summary>
 	[Benchmark(Description = "MemoryPack Serialize Small (IBufferWriter)")]
 	public int MemPackSerializeSmallBufferWriter()
@@ -177,7 +186,7 @@ public class SpanEventSerializerBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize large event with IBufferWriter (zero-alloc primary path) using MemoryPack.
+	/// Benchmark: Serialize a large event with a newly allocated IBufferWriter using MemoryPack.
 	/// </summary>
 	[Benchmark(Description = "MemoryPack Serialize Large (IBufferWriter)")]
 	public int MemPackSerializeLargeBufferWriter()
@@ -210,7 +219,7 @@ public class SpanEventSerializerBenchmarks
 
 	/// <summary>
 	/// Benchmark: Event replay scenario with MemoryPack (100 events).
-	/// Simulates replaying aggregate from event store with zero-alloc deserialization.
+	/// Deserializes an event 100 times; does not perform event-store I/O.
 	/// </summary>
 	[Benchmark(Description = "MemoryPack Event Replay (100 events)")]
 	public int MemPackEventReplay100()

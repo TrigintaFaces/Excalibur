@@ -156,8 +156,6 @@
 1	src/Excalibur/Excalibur.A3.Governance/SeparationOfDuties/SoDGovernanceBuilderExtensions.cs	IL2026
 1	src/Excalibur/Excalibur.A3.Governance/SeparationOfDuties/SoDGovernanceBuilderExtensions.cs	IL3050
 1	src/Excalibur/Excalibur.A3/Audit/ActivityAudit.cs	IL3050
-2	src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs	IL2026
-2	src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs	IL3050
 2	src/Excalibur/Excalibur.AuditLogging.Aws/AwsAuditServiceCollectionExtensions.cs	IL2026
 2	src/Excalibur/Excalibur.AuditLogging.Aws/AwsAuditServiceCollectionExtensions.cs	IL3050
 2	src/Excalibur/Excalibur.AuditLogging.Datadog/DatadogServiceCollectionExtensions.cs	IL2026
@@ -220,13 +218,12 @@
 1	src/Excalibur/Excalibur.Data.DataProcessing/DataProcessorRegistry.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/Caching/DaxCacheServiceCollectionExtensions.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/Caching/DaxCacheServiceCollectionExtensions.cs	IL3050
-2	src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs	IL2026
-2	src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs	IL3050
+1	src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs	IL2095
 3	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbRepositoryBase.cs	IL2026
 3	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbRepositoryBase.cs	IL3050
-1	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamsSubscription.cs	IL2026
-1	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamsSubscription.cs	IL3050
+# Reviewed replacement capability: subscription reflection deserialization -> reader's guarded optional reflection resolver (7ul69s, Thompson/Liskov 2026-10-13).
+1	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamDocumentReader.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStoreExtensions.cs	IL2091
 2	src/Excalibur/Excalibur.Data.DynamoDb/Snapshots/DynamoDbSnapshotStore.cs	IL2026
@@ -445,8 +442,6 @@
 2	src/Excalibur/Excalibur.Outbox.CosmosDb/DependencyInjection/OutboxBuilderCosmosDbExtensions.cs	IL3050
 2	src/Excalibur/Excalibur.Outbox.DynamoDb/DependencyInjection/OutboxBuilderDynamoDbExtensions.cs	IL2026
 2	src/Excalibur/Excalibur.Outbox.DynamoDb/DependencyInjection/OutboxBuilderDynamoDbExtensions.cs	IL3050
-3	src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs	IL2026
-3	src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs	IL3050
 2	src/Excalibur/Excalibur.Outbox.ElasticSearch/OutboxBuilderElasticsearchExtensions.cs	IL2026
 2	src/Excalibur/Excalibur.Outbox.ElasticSearch/OutboxBuilderElasticsearchExtensions.cs	IL3050
 2	src/Excalibur/Excalibur.Outbox.Firestore/DependencyInjection/OutboxBuilderFirestoreExtensions.cs	IL2026
@@ -469,8 +464,8 @@
 1	src/Excalibur/Excalibur.Outbox.SqlServer/OutboxBuilderSqlServerExtensions.cs	IL3050
 2	src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs	IL2026
 2	src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerDeadLetterQueue.cs	IL3050
-4	src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs	IL2026
-4	src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs	IL3050
+3	src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs	IL2026
+3	src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs	IL3050
 1	src/Excalibur/Excalibur.Outbox/DependencyInjection/PartitionedOutboxBuilderExtensions.cs	IL2026
 1	src/Excalibur/Excalibur.Outbox/DependencyInjection/PartitionedOutboxBuilderExtensions.cs	IL3050
 1	src/Excalibur/Excalibur.Outbox/Inbox/InboxProcessor.cs	IL2026

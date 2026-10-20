@@ -4,7 +4,7 @@ This sample demonstrates **MemoryPack serialization** with the Excalibur framewo
 
 ## What This Sample Shows
 
-1. **Zero-Allocation Serialization** - Fastest .NET binary serializer
+1. **Binary Serialization** - Source-generated MemoryPack serialization
 2. **Source Generation** - No runtime reflection, full AOT support
 3. **Immutable Types** - Constructor-based deserialization with `[MemoryPackConstructor]`
 4. **NativeAOT Compatible** - Full trimming and AOT deployment support
@@ -50,10 +50,10 @@ public partial class OrderCompletedEvent : IDispatchEvent
 }
 ```
 
-### Zero-Allocation Deserialization
+### Span-Based Deserialization
 
 ```csharp
-// ReadOnlySpan-based deserialization - no heap allocations
+// Span-based input; materializing the event can allocate
 ReadOnlySpan<byte> span = serializedBytes;
 var evt = MemoryPackSerializer.Deserialize<OrderPlacedEvent>(span);
 ```
@@ -66,6 +66,11 @@ dotnet run
 ```
 
 ## Expected Output
+
+The sample's legacy "Zero-Allocation Deserialization Demo" label below is a demo
+title, not an allocation measurement. Span-based input does not guarantee that
+materializing an event object allocates nothing. Payload sizes in this illustrative
+output are not a general size comparison.
 
 ```
 Starting MemoryPack Serialization Sample...
@@ -97,15 +102,20 @@ Immutable event with [MemoryPackConstructor]:
 
 | Scenario | Recommendation |
 |----------|----------------|
-| Maximum throughput | MemoryPack (10-100x faster than JSON) |
-| .NET-to-.NET communication | MemoryPack (optimal) |
+| Throughput-sensitive .NET workloads | Compare MemoryPack with the alternatives using your payloads |
+| .NET-to-.NET communication | MemoryPack is an available binary-format option |
 | NativeAOT deployment | MemoryPack (full support) |
-| Memory-constrained | MemoryPack (zero allocations) |
+| Memory-constrained | Measure complete serialization/deserialization allocations |
 | Cross-language systems | Use MessagePack or Protobuf instead |
 | Human-readable debugging | Use JSON instead |
 | Schema contracts | Use Protobuf instead |
 
 ## Performance Comparison
+
+The following table is retained from the earlier sample documentation. Its payload,
+API, runtime and measurement provenance have not been verified; these values are
+not current benchmark results and must not be used to rank serializers. The units
+and payload-size columns also do not establish a matched 1 KB workload.
 
 | Serializer | Serialize (ns/1KB) | Deserialize (ns/1KB) | Size (bytes) |
 |------------|--------------------|--------------------- |--------------|
@@ -115,11 +125,13 @@ Immutable event with [MemoryPackConstructor]:
 | MessagePack+LZ4 | 4,500 | 4,000 | 85 |
 | **MemoryPack** | **150** | **120** | **86** |
 
-MemoryPack is **100x faster** than JSON and produces the smallest payloads.
+See the [October framework envelope verification report](../../../docs/performance/memorypack-2026-10-16.md)
+for scoped observations, allocations and preserved failures. It does not measure
+this sample or establish a general speed or payload-size ranking.
 
 ## Source Generation Requirements
 
-MemoryPack uses C# source generators for maximum performance:
+MemoryPack uses C# source generators for serialization:
 
 1. **`[MemoryPackable]` attribute** - Mark types for serialization
 2. **`partial` keyword** - Required for source generator output

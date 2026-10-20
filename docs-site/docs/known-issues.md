@@ -319,16 +319,15 @@ versions by reading the shipped assembly inside each package; the eight between 
 derivation being present at both ends with no fix in between. **What that establishes is that the affected
 key derivation ships in those packages — not a behavioural assessment of any individual build.**
 
-**Is there a fixed version?** **No — not in any published version.** The fix exists in our source and has
-not been released, so there is nothing you can upgrade to today, and the mitigation above is the whole of
-the remedy available to you now. This entry will name the release that carries the fix when one ships.
+**Is there a fixed version?** **A fixed published version has not been verified by this assessment.**
+The version assessment above covers `10.0.0-alpha.4` through `10.0.0-alpha.13`.
+Later versions, including the published [alpha.14 and alpha.15 packages](https://www.nuget.org/packages/Excalibur.Compliance/10.0.0-alpha.15),
+have not been verified here for this behavior: do not infer that they are fixed or affected from this entry.
+Current source uses tenant-qualified keys, but source verification does not establish the behavior of a
+published package. The mitigation above applies to implementations with the shared-key defect; this entry
+will identify a fixed release when its package behavior is verified.
 
-**What the fix will require of you, so it is not a surprise.** The corrected key name includes the tenant,
-which means **every key name changes**. Personal data encrypted before that upgrade stays readable — each
-stored field records the key that protects it, and that record is unchanged — but an erasure performed
-*after* the upgrade targets the new name and will **not** destroy the key holding data written before it.
-So treat the upgrade as a cutover: either re-encrypt existing personal data under the new identity, or
-complete any outstanding erasures before upgrading. The release notes will carry the migration step.
+**Current-source compatibility.** Current source uses tenant-qualified key identities and requires an independently trusted owning tenant when decrypting an encrypted field. This is a breaking contract; compatibility with legacy ownerless envelopes or the earlier shared-key derivation is not established. Do not assume an upgrade preserves access to existing encrypted data or erases data written under an earlier key identity. No automatic migration is provided.
 
 ---
 

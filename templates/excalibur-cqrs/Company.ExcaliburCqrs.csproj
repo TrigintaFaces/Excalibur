@@ -25,6 +25,9 @@
     <!--#if (UsePostgreSql) -->
     <PackageReference Include="Excalibur.EventSourcing.Postgres" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
+    <!--#if (UseInMemoryDatabase) -->
+    <PackageReference Include="Excalibur.EventSourcing.InMemory" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
     <!--#if (UseKafka) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
@@ -40,6 +43,10 @@
     <!--#if (UseGooglePubSub) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Company.ExcaliburCqrs.Tests/**/*.cs" />
   </ItemGroup>
 
 </Project>

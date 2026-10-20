@@ -43,10 +43,10 @@ public sealed class OutboxContextPropagationShould
 		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, A.Fake<IServiceProvider>(),
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("OrderCreated", [1], "queue-1")
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1")
 		{
 			CorrelationId = Corr,
 			CausationId = Cause,
@@ -90,10 +90,10 @@ public sealed class OutboxContextPropagationShould
 		transportRegistry.RegisterTransport("kafka", adapter, "Kafka", TransportLocality.Remote);
 
 		var publisher = new MessageBusOutboxPublisher(
-			multiStoreBase, A.Fake<IPayloadSerializer>(), transportRegistry, A.Fake<IServiceProvider>(),
+			multiStoreBase, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), transportRegistry, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("OrderCreated", [1, 2, 3], "orders-default")
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1, 2, 3], "orders-default")
 		{
 			CorrelationId = Corr,
 			CausationId = Cause,
@@ -119,10 +119,10 @@ public sealed class OutboxContextPropagationShould
 		var store = A.Fake<IOutboxStore>(o => o.Implements<IOutboxStoreAdmin>());
 		var messageBus = A.Fake<IMessageBusAdapter>();
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, A.Fake<IServiceProvider>(),
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("OrderCreated", [1], "queue-1") { CorrelationId = Corr };
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1], "queue-1") { CorrelationId = Corr };
 		A.CallTo(() => store.GetUnsentMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(new List<OutboundMessage> { message });
 

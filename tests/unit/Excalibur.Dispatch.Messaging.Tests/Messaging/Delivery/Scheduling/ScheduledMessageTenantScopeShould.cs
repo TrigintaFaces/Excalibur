@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Options.Scheduling;
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using MessageResult = Excalibur.Dispatch.MessageResult;
@@ -22,8 +23,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Messaging)]
-public sealed class ScheduledMessageTenantScopeShould
+[Trait("Pattern", "Regression")]
+public sealed class ScheduledMessageTenantScopeShould : IDisposable
 {
+	private readonly ServiceProvider _scopeProvider = new ServiceCollection().BuildServiceProvider();
+
+	public void Dispose() => _scopeProvider.Dispose();
 	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
 	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
 	private static readonly TimeSpan ObservationTimeout =
@@ -37,6 +42,7 @@ public sealed class ScheduledMessageTenantScopeShould
 		MessageTypeRegistry.RegisterType<TenantScopedTestAction>();
 		var schedule = CreateDueSchedule("tenant-a");
 		var store = new AmbientRecordingScheduleStore(schedule);
+		using var serializer = new DispatchJsonSerializer();
 
 		string? ambientDuringDispatch = null;
 		var dispatched = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -50,7 +56,7 @@ public sealed class ScheduledMessageTenantScopeShould
 			.Returns(MessageResult.Success());
 
 		using var pollerAmbient = TenantContextHolder.BeginScope("poller-ambient-tenant");
-		using var sut = CreateService(store, dispatcher);
+		using var sut = CreateService(store, dispatcher, serializer);
 
 		// Act
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -73,6 +79,10 @@ public sealed class ScheduledMessageTenantScopeShould
 		// bookkeeping write, nor onto the next schedule in the batch.
 		store.AmbientDuringStore.ShouldBe("poller-ambient-tenant");
 		TenantContextHolder.Current.ShouldBe("poller-ambient-tenant");
+		var storedSchedule = store.StoredSchedule.ShouldNotBeNull();
+		storedSchedule.LastExecutionUtc.ShouldNotBeNull();
+		storedSchedule.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		schedule.LastExecutionUtc.ShouldBeNull("legacy inventory is detached before processing");
 	}
 
 	private static async Task<bool> WaitAsync(Task<bool> signal)
@@ -87,15 +97,16 @@ public sealed class ScheduledMessageTenantScopeShould
 		}
 	}
 
-	private static ScheduledMessageService CreateService(IScheduleStore store, IDispatcher dispatcher) =>
+	private ScheduledMessageService CreateService(IScheduleStore store, IDispatcher dispatcher, DispatchJsonSerializer serializer) =>
 		new(
 			store,
 			dispatcher,
-			new DispatchJsonSerializer(),
+			serializer,
 			A.Fake<ICronScheduler>(),
 			MsOptions.Create(new SchedulerOptions { PollInterval = TimeSpan.FromMilliseconds(20) }),
 			MsOptions.Create(new CronScheduleOptions()),
-			NullLogger<ScheduledMessageService>.Instance);
+			NullLogger<ScheduledMessageService>.Instance,
+			_scopeProvider.GetRequiredService<IServiceScopeFactory>());
 
 	private static ScheduledMessage CreateDueSchedule(string tenantId) =>
 		new()
@@ -111,6 +122,7 @@ public sealed class ScheduledMessageTenantScopeShould
 			UserId = "user-1",
 			// Comfortably in the past so a runner clock that jitters backwards cannot make it not-due.
 			NextExecutionUtc = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromMinutes(1)),
+			MissedExecutionBehavior = MissedExecutionBehavior.ExecuteLatestMissed,
 		};
 
 	/// <summary>
@@ -126,6 +138,7 @@ public sealed class ScheduledMessageTenantScopeShould
 		public Task<bool> StoreObserved => StoreObservedSource.Task;
 
 		public string? AmbientDuringStore { get; private set; }
+		public IScheduledMessage? StoredSchedule { get; private set; }
 
 		public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken cancellationToken)
 		{
@@ -141,6 +154,7 @@ public sealed class ScheduledMessageTenantScopeShould
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			AmbientDuringStore = TenantContextHolder.Current;
+			StoredSchedule = ScheduleExecutionSnapshot.Copy(message);
 			_ = StoreObservedSource.TrySetResult(true);
 			return Task.CompletedTask;
 		}

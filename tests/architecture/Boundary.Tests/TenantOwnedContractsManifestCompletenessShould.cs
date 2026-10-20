@@ -172,6 +172,11 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
             "has read a source. Not tenant-owned domain rows.",
 
         // --- Excalibur.Compliance (erasure/legal-hold facets, inventory, audit, consent) ----------------
+        ["IErasureBackgroundQueryStore"] =
+            "Trusted-background discovery facet of manifested IErasureStore, on the same instance through " +
+            "GetService. Awaiting-key-destruction discovery spans tenants and returns recorded ownership " +
+            "for per-request processing. Not a distinct store or authorization boundary; an ambient " +
+            "tenant discriminator here would stall background completion.",
         ["IErasureQueryStore"] =
             "Segregated query facet of the manifested IErasureStore, implemented on the same store instance " +
             "and reached through GetService: its tenant-facing read applies the same ambient tenant " +

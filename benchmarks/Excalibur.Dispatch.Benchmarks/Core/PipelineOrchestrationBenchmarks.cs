@@ -40,7 +40,14 @@ public class PipelineOrchestrationBenchmarks
 		var services = new ServiceCollection();
 
 		// Add core Dispatch services
-		_ = services.AddBenchmarkDispatch();
+		_ = services.AddBenchmarkDispatch(builder =>
+		{
+			_ = builder.UseMiddleware<ContextMiddleware>();
+			_ = builder.UseMiddleware<PassthroughMiddleware1>();
+			_ = builder.UseMiddleware<PassthroughMiddleware2>();
+			_ = builder.UseMiddleware<PassthroughMiddleware3>();
+			_ = builder.UseMiddleware<PassthroughMiddleware4>();
+		});
 
 		// Register handlers for different message types
 		_ = services.AddTransient<IActionHandler<TestAction>, TestActionHandler>();
@@ -52,19 +59,27 @@ public class PipelineOrchestrationBenchmarks
 		// Register context-aware handler
 		_ = services.AddTransient<IActionHandler<ContextAwareAction>, ContextAwareActionHandler>();
 
-		// Register middleware for complex scenario
-		_ = services.AddMiddleware<ContextMiddleware>();
-		_ = services.AddMiddleware<PassthroughMiddleware1>();
-		_ = services.AddMiddleware<PassthroughMiddleware2>();
-		_ = services.AddMiddleware<PassthroughMiddleware3>();
-		_ = services.AddMiddleware<PassthroughMiddleware4>();
-
 		_serviceProvider = services.BuildServiceProvider();
 		_dispatcher = _serviceProvider.GetRequiredService<IDispatcher>();
 
 		// Create context via factory (IMessageContext is per-request, not DI-registered)
 		_contextFactory = _serviceProvider.GetRequiredService<IMessageContextFactory>();
 		_context = _contextFactory.CreateContext();
+
+		// Reject detached context middleware before reporting a pipeline measurement.
+		_context.Items.Remove("TraceId");
+		_context.Items.Remove("Timestamp");
+		var started = DateTimeOffset.UtcNow;
+		var result = FullQueryPipeline().GetAwaiter().GetResult();
+		var finished = DateTimeOffset.UtcNow;
+		if (!result.Succeeded || result.ReturnValue != "Result-123"
+			|| !_context.Items.TryGetValue("TraceId", out var trace) || trace is not string traceText
+			|| !Guid.TryParse(traceText, out var traceId) || traceId == Guid.Empty
+			|| !_context.Items.TryGetValue("Timestamp", out var timestamp) || timestamp is not DateTimeOffset time
+			|| time < started || time > finished)
+		{
+			throw new InvalidOperationException("Orchestration benchmark did not execute its query and context middleware.");
+		}
 	}
 
 	/// <summary>
@@ -110,7 +125,7 @@ public class PipelineOrchestrationBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Pipeline with context propagation (middleware sets context, handler reads it).
+	/// Benchmark: Middleware writes context metadata; the handler reads the action's RequestId.
 	/// </summary>
 	[Benchmark]
 	public async Task<IMessageResult> PipelineWithContextPropagation()

@@ -43,4 +43,11 @@ public enum MessageFailureKind
     /// block the pipeline.
     /// </summary>
     Poison = 2,
+
+    /// <summary>
+    /// Delivery acceptance is unestablished: the operation may have taken effect. The default
+    /// bounded retry policy permits replay, which requires idempotent consumers; this classification
+    /// is not proof of rejection or non-delivery.
+    /// </summary>
+    Uncertain = 3,
 }

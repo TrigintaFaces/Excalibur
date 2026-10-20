@@ -599,6 +599,7 @@
           "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Excalibur.Outbox": "[1.0.0, )",
+          "Microsoft.Extensions.Configuration.Binder": "[10.0.10, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.10, )",
           "Microsoft.Extensions.Options": "[10.0.10, )",

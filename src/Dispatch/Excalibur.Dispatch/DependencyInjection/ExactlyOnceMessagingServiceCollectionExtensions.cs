@@ -64,9 +64,8 @@ public static class ExactlyOnceMessagingServiceCollectionExtensions
 
 		// Tie the dedup TTL to the inbox message TTL unless explicitly overridden, so a message can never be
 		// re-admitted by the inbox after its dedup record has expired (which would defeat suppression).
-		// Reuse the SAME OptionsBuilder (one builder per options type) so the PostConfigure shares the
-		// Validate + ValidateOnStart chain below — a second AddOptions<T>() here registers an unvalidated
-		// configuration path the ValidateOnStart guard flags.
+		// Keep related configuration together on this builder. Startup validation is keyed by options
+		// type and name within the service collection, so separate builders for the same profile also compose.
 		_ = builder
 			.PostConfigure<IOptions<InboxOptions>>(static (exactlyOnce, inbox) =>
 			{

@@ -99,11 +99,8 @@ public static class SplunkServiceCollectionExtensions
 
 		// Transient-fault retry (formerly hand-rolled in the exporter) is delegated to the standard
 		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience); the pipeline owns
-		// timeouts, so the HttpClient timeout is left infinite.
-		var httpClientBuilder = services.AddHttpClient<SplunkAuditExporter>(static (_, client) =>
-			{
-				client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
-			})
+		// per-attempt timeouts; the client also bounds response-body buffering.
+		var httpClientBuilder = services.AddHttpClient<SplunkAuditExporter>()
 			.ConfigurePrimaryHttpMessageHandler(static sp =>
 			{
 				var options = sp.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
@@ -119,16 +116,28 @@ public static class SplunkServiceCollectionExtensions
 				return handler;
 			});
 
-		_ = httpClientBuilder.AddStandardResilienceHandler();
+		var resilienceBuilder = httpClientBuilder.AddStandardResilienceHandler();
+		// The standard handler resets HttpClient.Timeout to infinite. Restore a total deadline afterward
+		// so response-body buffering is also bounded, without adding another retry layer.
+		_ = httpClientBuilder.ConfigureHttpClient(static (provider, client) =>
+		{
+			var options = provider.GetRequiredService<IOptions<SplunkExporterOptions>>().Value.Batch;
+			client.Timeout = options.RequestTimeout * (options.MaxRetryAttempts + 1);
+		});
 
-		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
+		// Configure the standard resilience pipeline (keyed by its returned pipeline name) from the exporter's
 		// batch retry options, so config-bound overrides flow through the DI options system.
-		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+		_ = services.AddOptions<HttpStandardResilienceOptions>(resilienceBuilder.PipelineName)
 			.Configure<IOptions<SplunkExporterOptions>>(static (resilience, exporterOptions) =>
 			{
 				var batch = exporterOptions.Value.Batch;
 
-				resilience.Retry.MaxRetryAttempts = batch.MaxRetryAttempts;
+				resilience.Retry.MaxRetryAttempts = batch.MaxRetryAttempts == 0 ? 1 : batch.MaxRetryAttempts;
+				if (batch.MaxRetryAttempts == 0)
+				{
+					// Keep timeout and circuit-breaker protection while executing without retries.
+					resilience.Retry.ShouldHandle = static _ => ValueTask.FromResult(false);
+				}
 				resilience.Retry.Delay = batch.RetryBaseDelay;
 				resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
 

@@ -13,6 +13,11 @@ namespace Excalibur.Dispatch;
 /// allowing cleaner code with Map, Bind, and Match patterns instead of verbose null checking.
 /// </para>
 /// <para>
+/// Map preserves the dispatch metadata while transforming the value. A short-circuited Map or Bind
+/// preserves the original error, validation, authorization and disposition. A successful Bind returns
+/// the next operation's result, including that operation's metadata.
+/// </para>
+/// <para>
 /// Example usage:
 /// <code>
 /// var result = await dispatcher
@@ -49,10 +54,10 @@ public static class MessageResultExtensions
 
 		if (!result.Succeeded || result.ReturnValue is null)
 		{
-			return MessageResult.Failed<TOut>(result.ErrorMessage, result.ProblemDetails);
+			return CopyResult<TOut>(result, succeeded: false);
 		}
 
-		return MessageResult.Success(mapper(result.ReturnValue));
+		return CopyResult(result, succeeded: true, mapper(result.ReturnValue));
 	}
 
 	/// <summary>
@@ -78,11 +83,11 @@ public static class MessageResultExtensions
 
 		if (!result.Succeeded || result.ReturnValue is null)
 		{
-			return MessageResult.Failed<TOut>(result.ErrorMessage, result.ProblemDetails);
+			return CopyResult<TOut>(result, succeeded: false);
 		}
 
 		var mapped = await mapper(result.ReturnValue).ConfigureAwait(false);
-		return MessageResult.Success(mapped);
+		return CopyResult(result, succeeded: true, mapped);
 	}
 
 	/// <summary>
@@ -133,7 +138,7 @@ public static class MessageResultExtensions
 
 		if (!result.Succeeded || result.ReturnValue is null)
 		{
-			return MessageResult.Failed<TOut>(result.ErrorMessage, result.ProblemDetails);
+			return CopyResult<TOut>(result, succeeded: false);
 		}
 
 		return binder(result.ReturnValue);
@@ -162,7 +167,7 @@ public static class MessageResultExtensions
 
 		if (!result.Succeeded || result.ReturnValue is null)
 		{
-			return MessageResult.Failed<TOut>(result.ErrorMessage, result.ProblemDetails);
+			return CopyResult<TOut>(result, succeeded: false);
 		}
 
 		return await binder(result.ReturnValue).ConfigureAwait(false);
@@ -447,4 +452,14 @@ public static class MessageResultExtensions
 		var result = await resultTask.ConfigureAwait(false);
 		return result.GetValueOrThrow();
 	}
+
+	private static BasicMessageResult<T> CopyResult<T>(IMessageResult source, bool succeeded, T? value = default) =>
+		new(
+			succeeded: succeeded,
+			value: value,
+			errorMessage: source.ErrorMessage,
+			disposition: source.Disposition,
+			validationResult: source.ValidationResult,
+			authorizationResult: source.AuthorizationResult,
+			problemDetails: source.ProblemDetails);
 }

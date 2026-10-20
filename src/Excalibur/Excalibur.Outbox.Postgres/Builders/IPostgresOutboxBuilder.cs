@@ -123,6 +123,7 @@ public interface IPostgresOutboxBuilder
 	/// Sets a pre-configured <see cref="Npgsql.NpgsqlDataSource"/> directly.
 	/// </summary>
 	/// <param name="dataSource">The Npgsql data source.</param>
+	/// <remarks>The source is borrowed and remains owned by the caller.</remarks>
 	/// <returns>The builder for fluent chaining.</returns>
 	IPostgresOutboxBuilder DataSource(Npgsql.NpgsqlDataSource dataSource);
 
@@ -133,6 +134,10 @@ public interface IPostgresOutboxBuilder
 	/// A factory receiving <see cref="IServiceProvider"/> and returning an <see cref="Npgsql.NpgsqlDataSource"/>.
 	/// </param>
 	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// The factory must create a source exclusively for this outbox registration. The container owns and
+	/// disposes that source. Use <see cref="DataSource"/> to borrow a source shared with other services.
+	/// </remarks>
 	IPostgresOutboxBuilder DataSourceFactory(Func<IServiceProvider, Npgsql.NpgsqlDataSource> dataSourceFactory);
 
 }

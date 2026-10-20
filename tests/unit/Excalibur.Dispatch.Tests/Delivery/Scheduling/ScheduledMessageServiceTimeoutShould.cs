@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Serialization;
 
 using FakeItEasy;
 
+using Microsoft.Extensions.Time.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,13 +22,17 @@ namespace Excalibur.Dispatch.Tests.Delivery.Scheduling;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
-public sealed class ScheduledMessageServiceTimeoutShould
+public sealed class ScheduledMessageServiceTimeoutShould : IDisposable
 {
-	private static ScheduledMessageService CreateService(
+	private readonly ServiceProvider _scopeProvider = new ServiceCollection().BuildServiceProvider();
+	public void Dispose() => _scopeProvider.Dispose();
+
+	private ScheduledMessageService CreateService(
 		IScheduleStore? store = null,
 		ITimePolicy? timePolicy = null,
 		ITimeoutMonitor? timeoutMonitor = null,
-		ILogger<ScheduledMessageService>? logger = null)
+		ILogger<ScheduledMessageService>? logger = null,
+		TimeProvider? timeProvider = null)
 	{
 		return new ScheduledMessageService(
 			store ?? A.Fake<IScheduleStore>(),
@@ -41,8 +46,9 @@ public sealed class ScheduledMessageServiceTimeoutShould
 			}),
 			Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions()),
 			logger ?? NullLogger<ScheduledMessageService>.Instance,
+			_scopeProvider.GetRequiredService<IServiceScopeFactory>(),
 			timePolicy,
-			timeoutMonitor);
+			timeoutMonitor, timeProvider);
 	}
 
 	/// <summary>
@@ -299,4 +305,215 @@ public sealed class ScheduledMessageServiceTimeoutShould
 		// callCount>1 that a single non-throwing poll could satisfy).
 		callCount.ShouldBeGreaterThan(1);
 	}
+	[Fact]
+	public async Task PollOnlyWhenTheInjectedClockReachesTheInterval()
+	{
+		var clock = new ObservedClock();
+		var store = A.Fake<IScheduleStore>();
+		var secondPoll = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var calls = 0;
+		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (Interlocked.Increment(ref calls) == 2) secondPoll.TrySetResult();
+				return Task.FromResult<IEnumerable<IScheduledMessage>>([]);
+			});
+		using var service = CreateService(store: store, timeProvider: clock);
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			await clock.TimerCreated.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			clock.Advance(TimeSpan.FromMilliseconds(49));
+			Volatile.Read(ref calls).ShouldBe(1);
+			clock.Advance(TimeSpan.FromMilliseconds(1));
+			await secondPoll.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			Volatile.Read(ref calls).ShouldBe(2);
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+		}
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task CancelRetrievalByDeadlineOrCaller(bool cancelCaller)
+	{
+		var clock = new FakeTimeProvider();
+		var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var store = A.Fake<IScheduleStore>();
+		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
+			.ReturnsLazily((CancellationToken token) => RetrieveAsync(token));
+		using var caller = new CancellationTokenSource();
+		using var service = CreateService(store: store,
+			timePolicy: CreateConfigurableTimePolicy(true, TimeSpan.FromSeconds(1)), timeProvider: clock);
+		await service.StartAsync(caller.Token);
+		try
+		{
+			var token = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			clock.Advance(TimeSpan.FromMilliseconds(999));
+			token.IsCancellationRequested.ShouldBeFalse();
+			if (cancelCaller) caller.Cancel();
+			else clock.Advance(TimeSpan.FromMilliseconds(1));
+			await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			token.IsCancellationRequested.ShouldBeTrue();
+		}
+		finally
+		{
+			await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+		}
+
+		async Task<IEnumerable<IScheduledMessage>> RetrieveAsync(CancellationToken token)
+		{
+			entered.TrySetResult(token);
+			try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
+			catch (OperationCanceledException) when (token.IsCancellationRequested)
+			{
+				canceled.TrySetResult();
+				throw;
+			}
+			return [];
+		}
+	}
+
+	[Fact]
+	public async Task TreatZeroDeadlineAsAlreadyExpired()
+	{
+		var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var store = A.Fake<IScheduleStore>();
+		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
+			.ReturnsLazily((CancellationToken token) =>
+			{
+				entered.TrySetResult(token);
+				return Task.FromResult<IEnumerable<IScheduledMessage>>([]);
+			});
+		using var service = CreateService(store: store,
+			timePolicy: CreateConfigurableTimePolicy(true, TimeSpan.Zero), timeProvider: new FakeTimeProvider());
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			(await entered.Task.WaitAsync(TimeSpan.FromSeconds(10))).IsCancellationRequested.ShouldBeTrue();
+		}
+		finally { await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)); }
+	}
+
+	[Fact]
+	public async Task CancelTheActualSignalReadThenDeliverAFreshSignalToTheNextWait()
+	{
+		var clock = new FakeTimeProvider();
+		var actual = new InMemoryScheduleStore();
+		var store = A.Fake<IScheduleStore>(options => options.Implements<IScheduleStoreSignal>());
+		var waits = new System.Collections.Concurrent.ConcurrentQueue<TaskCompletionSource>();
+		var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var second = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var third = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		waits.Enqueue(first); waits.Enqueue(second); waits.Enqueue(third);
+		var polls = 0;
+		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._)).ReturnsLazily(() =>
+		{
+			Interlocked.Increment(ref polls);
+			return Task.FromResult<IEnumerable<IScheduledMessage>>([]);
+		});
+		A.CallTo(() => ((IScheduleStoreSignal)store).WaitForChangeAsync(A<TimeSpan>._, A<CancellationToken>._))
+			.ReturnsLazily((TimeSpan timeout, CancellationToken token) =>
+			{
+				timeout.ShouldBe(Timeout.InfiniteTimeSpan);
+				var pending = actual.WaitForChangeAsync(timeout, token);
+				if (waits.TryDequeue(out var entered)) entered.TrySetResult();
+				return pending;
+			});
+		using var service = CreateService(store: store, timeProvider: clock);
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			await first.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			clock.Advance(TimeSpan.FromMilliseconds(49));
+			Volatile.Read(ref polls).ShouldBe(1);
+			clock.Advance(TimeSpan.FromMilliseconds(1));
+			await second.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			Volatile.Read(ref polls).ShouldBe(2);
+			await actual.StoreAsync(new ScheduledMessage { Id = Guid.NewGuid() }, CancellationToken.None);
+			await third.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			Volatile.Read(ref polls).ShouldBe(3);
+		}
+		finally { await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)); }
+	}
+
+	[Fact]
+	public async Task KeepAnActiveInfinitePolicyLinkedOnlyToTheCaller()
+	{
+		var clock = new FakeTimeProvider();
+		var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var store = A.Fake<IScheduleStore>();
+		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
+			.ReturnsLazily((CancellationToken token) => RetrieveAsync(token));
+		using var caller = new CancellationTokenSource();
+		using var service = CreateService(store: store,
+			timePolicy: CreateConfigurableTimePolicy(true, Timeout.InfiniteTimeSpan), timeProvider: clock);
+		await service.StartAsync(caller.Token);
+		try
+		{
+			var token = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			clock.Advance(TimeSpan.FromDays(1));
+			token.IsCancellationRequested.ShouldBeFalse();
+			caller.Cancel();
+			token.IsCancellationRequested.ShouldBeTrue();
+		}
+		finally { await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)); }
+
+		async Task<IEnumerable<IScheduledMessage>> RetrieveAsync(CancellationToken token)
+		{
+			entered.TrySetResult(token);
+			await Task.Delay(Timeout.InfiniteTimeSpan, token);
+			return [];
+		}
+	}
+
+	[Fact]
+	public async Task DisposeSuccessfulRetrievalDeadlineBeforeTheNextPoll()
+	{
+		var clock = new ObservedClock();
+		var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var store = A.Fake<IScheduleStore>();
+		A.CallTo(() => store.GetAllAsync(A<CancellationToken>._))
+			.ReturnsLazily((CancellationToken token) =>
+			{
+				entered.TrySetResult(token);
+				return Task.FromResult<IEnumerable<IScheduledMessage>>([]);
+			});
+		using var service = CreateService(store: store,
+			timePolicy: CreateConfigurableTimePolicy(true, TimeSpan.FromSeconds(1)), timeProvider: clock);
+		await service.StartAsync(CancellationToken.None);
+		try
+		{
+			var completedToken = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			// The polling timer is created only after the completed retrieval scope has been disposed.
+			await clock.PollTimerCreated.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			completedToken.IsCancellationRequested.ShouldBeFalse();
+			clock.Advance(TimeSpan.FromSeconds(2));
+			completedToken.IsCancellationRequested.ShouldBeFalse("the disposed deadline must not cancel a completed operation later");
+		}
+		finally { await service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)); }
+	}
+
+	private sealed class ObservedClock : TimeProvider
+	{
+		private readonly FakeTimeProvider _clock = new();
+		public TaskCompletionSource TimerCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public TaskCompletionSource PollTimerCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public override DateTimeOffset GetUtcNow() => _clock.GetUtcNow();
+		public override long GetTimestamp() => _clock.GetTimestamp();
+		public override long TimestampFrequency => _clock.TimestampFrequency;
+		public void Advance(TimeSpan elapsed) => _clock.Advance(elapsed);
+		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+		{
+			var timer = _clock.CreateTimer(callback, state, dueTime, period);
+			TimerCreated.TrySetResult();
+			if (dueTime == TimeSpan.FromMilliseconds(50)) PollTimerCreated.TrySetResult();
+			return timer;
+		}
+	}
+
 }

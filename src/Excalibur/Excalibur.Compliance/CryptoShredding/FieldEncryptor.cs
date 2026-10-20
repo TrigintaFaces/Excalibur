@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Security.Cryptography;
+
 using Excalibur.Compliance.Encryption;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Dispatch;
@@ -106,9 +108,16 @@ internal sealed class FieldEncryptor : IFieldEncryptor
         // THE TENANT IS RESOLVED HERE AND PASSED EXPLICITLY, which is the division of labour the derivation
         // requires. This is the write path, so its authoritative tenant IS the ambient one — and the
         // erasure's is the tenant its own request recorded, which is why the derivation refuses to read
-        // ambient state on anyone's behalf. Absent (single-tenant) collapses onto one identity through the
-        // single rule both callers share.
-        var tenant = SubjectKeyHandle.OwningTenant(_tenantContext.TenantId);
+        // ambient state on anyone's behalf. The framework's single-tenant context already carries its
+        // resolved default identity; an unresolved multi-tenant context must never become that identity.
+        var tenantId = _tenantContext.TenantId;
+        if (!_tenantContext.HasTenant || string.IsNullOrWhiteSpace(tenantId))
+        {
+            throw new InvalidOperationException(
+                "A resolved tenant context is required before creating a subject encryption key.");
+        }
+
+        var tenant = SubjectKeyHandle.OwningTenant(tenantId);
 
         var subjectKey = await _keyManager
             .GetOrCreateKeyAsync(tenant, subjectId, retentionScope, cancellationToken)
@@ -137,9 +146,22 @@ internal sealed class FieldEncryptor : IFieldEncryptor
     }
 
     /// <inheritdoc/>
-    public async ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, CancellationToken cancellationToken)
+    public async ValueTask<byte[]?> DecryptAsync(
+        EncryptedData envelope,
+        string expectedTenantId,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+
+        // Ownership comes from the authorized request or stored record, never from the
+        // ciphertext being presented. Check before consulting even the destruction ledger:
+        // an erased envelope from another tenant must not become a lawful tombstone here.
+        if (string.IsNullOrWhiteSpace(expectedTenantId)
+            || string.IsNullOrWhiteSpace(envelope.TenantId)
+            || !string.Equals(expectedTenantId, envelope.TenantId, StringComparison.Ordinal))
+        {
+            throw new CryptographicException("The field envelope does not belong to the expected tenant.");
+        }
 
         // A null provider means no registered provider supports this envelope's algorithm — a configuration
         // fault, NOT an erasure. Throwing is mandatory: returning a tombstone here would silently null out live,
@@ -185,19 +207,15 @@ internal sealed class FieldEncryptor : IFieldEncryptor
             };
         }
 
-        // EVERY FIELD IS REBUILT FROM THE ENVELOPE, INCLUDING THE TENANT, and the tenant is the one that
-        // must not come from ambient state. The associated data has to be byte-identical to what the write
-        // bound, and a legitimate read happens from places with no ambient tenant at all -- a projection
-        // rebuild, an erasure verification, a background replay. Binding the reader's ambient tenant would
-        // fail the authentication tag on correct data read from the wrong place, which presents as
-        // corruption. The stored value is self-authenticating: a forged tenant on the envelope changes the
-        // associated data and the tag then rejects it.
+        // Preserve the envelope's material identity. The independently supplied owner was
+        // checked above and supplies the authenticated tenant. Background replay passes
+        // stored ownership explicitly and therefore needs no ambient tenant context.
         var context = new EncryptionContext
         {
             KeyId = envelope.KeyId,
             KeyVersion = envelope.KeyVersion,
             KeyGeneration = envelope.KeyGeneration,
-            TenantId = envelope.TenantId
+            TenantId = expectedTenantId
         };
 
         // ASKED BEFORE DECRYPTING, not after it fails, because the failure this has to catch is not a

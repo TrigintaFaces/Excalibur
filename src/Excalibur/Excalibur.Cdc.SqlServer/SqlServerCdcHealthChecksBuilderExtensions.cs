@@ -8,6 +8,7 @@ using Excalibur.Cdc.SqlServer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -37,9 +38,7 @@ public static class SqlServerCdcHealthChecksBuilderExtensions
 		if (configure is not null)
 		{
 			_ = builder.Services.AddOptions<CdcHealthCheckOptions>()
-				.Configure(configure)
-				.ValidateOnStart();
-			builder.Services.AddCdcHealthCheckOptionsValidation();
+				.Configure(configure);
 		}
 
 		return builder.AddCdcHealthCheckCore(name, failureStatus, tags);
@@ -67,9 +66,7 @@ public static class SqlServerCdcHealthChecksBuilderExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = builder.Services.AddOptions<CdcHealthCheckOptions>()
-			.Bind(configuration)
-			.ValidateOnStart();
-			builder.Services.AddCdcHealthCheckOptionsValidation();
+			.Bind(configuration);
 
 		return builder.AddCdcHealthCheckCore(name, failureStatus, tags);
 	}
@@ -80,6 +77,12 @@ public static class SqlServerCdcHealthChecksBuilderExtensions
 		HealthStatus? failureStatus,
 		IEnumerable<string>? tags)
 	{
+		// Options validation is resolved for the exact type requested by the health check. The base
+		// validators supply the shared rules; the adapter applies them without copying their invariants.
+		builder.Services.AddCdcHealthCheckOptionsValidation();
+		builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<CdcHealthCheckOptions>, CdcHealthCheckOptionsValidator>());
+		_ = builder.Services.AddOptions<CdcHealthCheckOptions>().ValidateOnStart();
 		builder.Services.TryAddSingleton<CdcHealthState>();
 
 		return builder.Add(new HealthCheckRegistration(

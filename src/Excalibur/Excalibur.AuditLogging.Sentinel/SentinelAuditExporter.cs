@@ -76,7 +76,7 @@ public sealed partial class SentinelAuditExporter : IAuditLogExporter
 				payload,
 				SentinelAuditJsonContext.Default.SentinelAuditPayloadArray);
 
-			var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+			using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -174,7 +174,7 @@ public sealed partial class SentinelAuditExporter : IAuditLogExporter
 					}
 				}
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
 				LogAuditExportBatchChunkError(ex);
 
@@ -216,7 +216,7 @@ public sealed partial class SentinelAuditExporter : IAuditLogExporter
 				SentinelAuditJsonContext.Default.SentinelHealthPayloadArray);
 
 			using var request = CreateRequest(json);
-			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+			using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			var isHealthy = response.IsSuccessStatusCode;
 			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
@@ -296,7 +296,7 @@ public sealed partial class SentinelAuditExporter : IAuditLogExporter
 			payloads,
 			SentinelAuditJsonContext.Default.SentinelAuditPayloadArray);
 
-		var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+		using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -314,7 +314,8 @@ public sealed partial class SentinelAuditExporter : IAuditLogExporter
 		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
 		// resilience pipeline attached to the typed HttpClient in DI (SentinelServiceCollectionExtensions),
 		// the same seam the Datadog/Elasticsearch/OpenSearch/Splunk audit exporters already use. The
-		// buffered request content is replayable, so the pipeline can safely re-send across attempts.
+		// buffered request content is replayable. Ambiguous server acceptance can still cause duplicate logs on retry;
+		// replayability does not provide idempotency.
 		using var request = CreateRequest(json);
 		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}

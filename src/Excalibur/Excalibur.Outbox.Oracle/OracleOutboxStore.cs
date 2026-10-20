@@ -652,6 +652,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 					// has never been tried. The retry ceiling is compared against this value, so an
 					// unrestored count is a message that can never dead-letter and retries for ever.
 					RetryCount = msg.Attempts,
+					LastError = msg.LastError,
 
 					// The CLAIM IDENTITY the reservation just stamped. The statement already selected
 					// dispatcher_id back, and this mapping dropped it -- so every message Oracle handed the
@@ -819,12 +820,14 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	/// </remarks>
 	/// <param name="messageId"> Unique identifier of the message to dead-letter. </param>
 	/// <param name="reason"> Human-readable reason the message was dead-lettered. </param>
+	/// <param name="attemptCount">Absolute observed send count; the archive preserves the greater stored count.</param>
 	/// <param name="cancellationToken"> Cancellation token for the operation. </param>
 	/// <returns> A value task representing the asynchronous operation. </returns>
-	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 
 		_logger.LogWarning("Dead-lettering outbox message {MessageId}: {Reason}", messageId, reason);
 
@@ -834,12 +837,19 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 			var req = new MarkMessageDeadLetteredRequest(
 				messageId,
 				reason,
+				attemptCount,
 				_options.QualifiedOutboxTableName,
 				_options.QualifiedDeadLetterTableName,
 				DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken);
 
-			_ = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+			// This provider MOVES the row: the dead-letter insert and the outbox delete are one statement,
+			// so a completed dead-letter leaves no row behind. 'Already terminal' and 'no such row' are the
+			// same observable here, so the weaker of the two is the only honest report.
+			var updated = await _db.Connection.ResolveAsync(req).ConfigureAwait(false);
+			return updated > 0
+				? OutboxCompletionOutcome.Applied
+				: OutboxCompletionOutcome.MessageNotFound;
 		}
 		finally
 		{
@@ -931,11 +941,13 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 
 		// Refused before the block, for the reason above, and it matters more here: on this member an
 		// accepted stale token MOVES the row out of the outbox table, which is not recoverable by retrying.
@@ -944,6 +956,7 @@ public sealed partial class OracleOutboxStore : IOutboxStore, IFencedOutboxStore
 		var request = new Requests.FencedMarkMessageDeadLettered(
 			messageId,
 			reason,
+			attemptCount,
 			fencingToken,
 			_options.QualifiedOutboxTableName,
 			_options.QualifiedDeadLetterTableName,

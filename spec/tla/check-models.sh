@@ -36,7 +36,22 @@ if [ -z "$JAVA" ] || [ ! -x "$JAVA" ] || [ -z "$JAR" ] || [ ! -f "$JAR" ]; then
     exit 2
 fi
 
-TLC() { "$JAVA" -XX:+UseParallelGC -cp "$JAR" tlc2.TLC -deadlock "$@" 2>&1; }
+ARTIFACT_ROOT="${TLA_RUN_ARTIFACTS:-${TMPDIR:-/tmp}}"
+if [ ! -d "$ARTIFACT_ROOT" ]; then
+    echo "REFUSE: TLC artifact root is not an existing directory: '$ARTIFACT_ROOT'."
+    exit 2
+fi
+
+TLC() {
+    local metadir rc
+    metadir="$(mktemp -d "$ARTIFACT_ROOT/tlc-arm.XXXXXX")" || return 2
+    # TLC's default directory uses second-resolution timestamps. Independent fast arms can
+    # otherwise collide and fail before checking an invariant. Retain each invocation's evidence.
+    "$JAVA" -XX:+UseParallelGC -cp "$JAR" tlc2.TLC -deadlock -metadir "$metadir" "$@" 2>&1
+    rc=$?
+    printf 'TLC artifacts retained: %s\n' "$metadir" >&2
+    return "$rc"
+}
 
 # Build a configured arm of the event-store model. Keeping the arms generated rather than committed
 # means the four cannot drift apart from the module they are meant to be configurations of.
@@ -120,14 +135,28 @@ run_arm _Arm_NoSer_NoRoll InvariantJ "(racing,     burns value) <- hole from int
 echo
 echo "-- adequacy: does the shipped arm actually exercise concurrency?"
 diam_for() {
+    local out rc diameter
     mkarm _Arm_Diam TRUE TRUE "$1"
-    TLC "$HERE/_Arm_Diam.tla" | grep -oE 'depth of the complete state graph search is [0-9]+' | grep -oE '[0-9]+$'
+    out="$(TLC "$HERE/_Arm_Diam.tla")"; rc=$?
+    if [ "$rc" -ne 0 ]; then
+        printf 'Diameter probe unavailable: TLC exited %s.\n%s\n' "$rc" "$out" >&2
+        return 1
+    fi
+    diameter="$(printf '%s\n' "$out" | grep -oE 'depth of the complete state graph search is [0-9]+' | grep -oE '[0-9]+$')"
+    if [ -z "$diameter" ]; then
+        printf 'Diameter probe unavailable: TLC reported no diameter.\n%s\n' "$out" >&2
+        return 1
+    fi
+    printf '%s\n' "$diameter"
 }
-d1="$(diam_for '{w1}')"
-d3="$(diam_for '{w1, w2, w3}')"
+d1="$(diam_for '{w1}')"; d1_rc=$?
+d3="$(diam_for '{w1, w2, w3}')"; d3_rc=$?
 echo "     diameter with 1 writer:  ${d1:-?}"
 echo "     diameter with 3 writers: ${d3:-?}"
-if [ -n "$d1" ] && [ "$d1" = "$d3" ]; then
+if [ "$d1_rc" -ne 0 ] || [ "$d3_rc" -ne 0 ]; then
+    echo "     >> UNAVAILABLE. A failed probe is not evidence that concurrency was exercised."
+    fails=$((fails+1))
+elif [ "$d1" = "$d3" ]; then
     echo "     >> UNCHANGED. The shipped arm does NOT exercise concurrency between writers:"
     echo "        serialisation is GRANTED by the model, so three writers behave as one and the"
     echo "        extra states are name permutations. What this arm establishes is the implication"

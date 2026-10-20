@@ -62,7 +62,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, typeof(RebuildTestEvent)))
 			.Returns(new RebuildTestEvent());
 
-		var store = new InMemoryProjectionStore<RebuildTestState>();
+		var store = new TestProjectionStore<RebuildTestState>();
 
 		var sp = A.Fake<IServiceProvider>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
@@ -172,7 +172,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, typeof(RebuildTestEvent)))
 			.Returns(new RebuildTestEvent());
 
-		var store = new InMemoryProjectionStore<RebuildTestState>();
+		var store = new TestProjectionStore<RebuildTestState>();
 
 		var sp = A.Fake<IServiceProvider>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);

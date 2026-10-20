@@ -12,7 +12,7 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 public sealed class ProjectionRecoveryServiceShould
 {
 	private readonly InMemoryProjectionRegistry _registry = new();
-	private readonly InMemoryProjectionStore<OrderSummary> _projectionStore = new();
+	private readonly TestProjectionStore<OrderSummary> _projectionStore = new();
 	private readonly IEventStore _eventStore = A.Fake<IEventStore>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
 

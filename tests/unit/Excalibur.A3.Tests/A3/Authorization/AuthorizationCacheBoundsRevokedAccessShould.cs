@@ -49,6 +49,7 @@ public sealed class AuthorizationCacheBoundsRevokedAccessShould : IDisposable
 	private readonly ManualClock _clock = new();
 	private readonly IGrantStore _grantStore = A.Fake<IGrantStore>();
 	private readonly IGrantQueryStore _grantQueries = A.Fake<IGrantQueryStore>();
+	private readonly IAtomicGrantRevocationStore _atomicStore = A.Fake<IAtomicGrantRevocationStore>();
 	private readonly IActivityGroupStore _groupStore = A.Fake<IActivityGroupStore>();
 	private readonly IDistributedCache _cache;
 
@@ -59,6 +60,11 @@ public sealed class AuthorizationCacheBoundsRevokedAccessShould : IDisposable
 		_cache = new MemoryDistributedCache(MsOptions.Create(new MemoryDistributedCacheOptions { Clock = _clock }));
 
 		A.CallTo(() => _grantStore.GetService(typeof(IGrantQueryStore))).Returns(_grantQueries);
+		A.CallTo(() => _grantStore.GetService(typeof(IAtomicGrantRevocationStore))).Returns(_atomicStore);
+		A.CallTo(() => _grantStore.GetService(typeof(IDurableGrantStore))).Returns(A.Fake<IDurableGrantStore>());
+		A.CallTo(() => _atomicStore.ReadUserRevisionAsync(UserId, A<CancellationToken>._)).Returns(0L);
+		A.CallTo(() => _atomicStore.ReadUserSnapshotAsync(UserId, false, A<CancellationToken>._))
+			.Returns(new UserGrantSnapshot(UserId, 0, []));
 		A.CallTo(() => _grantQueries.FindUserGrantsAsync(UserId, A<CancellationToken>._))
 			.Returns(new Dictionary<string, object>());
 		A.CallTo(() => _groupStore.FindActivityGroupsAsync(TenantId, A<CancellationToken>._))
@@ -75,7 +81,7 @@ public sealed class AuthorizationCacheBoundsRevokedAccessShould : IDisposable
 	{
 		await ReadThroughTheBoundAsync().ConfigureAwait(false);
 
-		A.CallTo(() => _grantQueries.FindUserGrantsAsync(UserId, A<CancellationToken>._))
+		A.CallTo(() => _atomicStore.ReadUserSnapshotAsync(UserId, false, A<CancellationToken>._))
 			.MustHaveHappenedTwiceExactly();
 	}
 
@@ -107,7 +113,7 @@ public sealed class AuthorizationCacheBoundsRevokedAccessShould : IDisposable
 		_clock.Advance(TimeSpan.FromMinutes(1));
 		await ReadPolicyAsync().ConfigureAwait(false);
 
-		A.CallTo(() => _grantQueries.FindUserGrantsAsync(UserId, A<CancellationToken>._))
+		A.CallTo(() => _atomicStore.ReadUserSnapshotAsync(UserId, false, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => _groupStore.FindActivityGroupsAsync(TenantId, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();

@@ -211,16 +211,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - name: Checkout candidate helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.checkout-ref }}
+          token: ${{ inputs.checkout-token || github.token }}
+
       - name: Checkout base branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.pr-base-sha }}
           path: base
           fetch-depth: 1
+      - name: Verify coverage checkout layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -r base/global.json
+          test -r eng/ci/run-filtered-tests.sh
+          candidate_sha="$(git rev-parse HEAD)"
+          base_sha="$(git -C base rev-parse HEAD)"
+          printf 'Coverage candidate: %s\nCoverage base: %s\n' "$candidate_sha" "$base_sha" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          global-json-file: global.json
+          global-json-file: base/global.json
       - name: Resolve base unit test solution filter
         working-directory: base
         shell: bash

@@ -23,7 +23,7 @@ public sealed class ElasticSearchMaterializedViewStoreOptions
 	/// Gets or sets the Elasticsearch node URI.
 	/// </summary>
 	/// <value>Defaults to "http://localhost:9200".</value>
-	public string NodeUri { get; set; } = "http://localhost:9200";
+	public string NodeUri { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the index name for materialized views.
@@ -100,7 +100,10 @@ public sealed class ElasticSearchMaterializedViewStoreOptions
 	{
 		if (string.IsNullOrWhiteSpace(NodeUri))
 		{
-			throw new InvalidOperationException("NodeUri is required.");
+			throw new InvalidOperationException(
+				"No ElasticSearch node is configured for the materialized-view store. Set NodeUri to the "
+				+ "cluster's node address. There is no default: a cluster nobody configured is refused "
+				+ "rather than silently addressed on the local machine.");
 		}
 
 		if (!Uri.TryCreate(NodeUri, UriKind.Absolute, out _))

@@ -170,7 +170,30 @@ internal sealed class MultiStreamProjection<TProjection>
 	/// </remarks>
 	public bool Apply(TProjection projection, IDomainEvent domainEvent, string aggregateId)
 	{
-		return Apply(projection, domainEvent, new ProjectionContext(isReplay: false, globalPosition: null, aggregateId));
+		// Preserve the context constructor's validation before checking dispatch arguments.
+		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
+		ArgumentNullException.ThrowIfNull(projection);
+		ArgumentNullException.ThrowIfNull(domainEvent);
+
+		if (!_handlers.TryGetValue(domainEvent.GetType(), out var entry))
+		{
+			return false;
+		}
+
+		if (entry.SyncAction is not null)
+		{
+			entry.SyncAction(projection, domainEvent);
+			return true;
+		}
+
+		if (entry.SyncContextAction is not null)
+		{
+			entry.SyncContextAction(projection, domainEvent,
+				new ProjectionContext(isReplay: false, globalPosition: null, aggregateId));
+			return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>

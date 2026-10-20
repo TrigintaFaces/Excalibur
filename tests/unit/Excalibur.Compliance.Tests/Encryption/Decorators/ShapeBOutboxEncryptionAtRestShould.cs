@@ -225,7 +225,7 @@ public sealed class ShapeBOutboxEncryptionAtRestShould
 
 		public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
-		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken) => ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 
 		public ValueTask<IEnumerable<OutboundMessage>> GetAllTenantsFailedMessagesAsync(int batchSize, CancellationToken cancellationToken) =>
 			ValueTask.FromResult<IEnumerable<OutboundMessage>>([]);

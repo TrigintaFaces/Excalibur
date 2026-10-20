@@ -24,9 +24,14 @@ namespace Excalibur.Data.Postgres.Authorization;
 /// Implements both <see cref="IGrantStore"/> and <see cref="IGrantQueryStore"/> (via <see cref="GetService"/>)
 /// plus <see cref="IActivityGroupGrantStore"/> for activity-group grant operations and
 /// <see cref="IActivityGroupGrantReplacement"/> for replacing a set of them atomically.
+/// Atomic revocation, history, revisions, and retry outcomes commit in a database transaction. Every writer
+/// takes the estate gate before subject authority locks. Use primary database connections for authoritative
+/// reads. Revision reads reject servers reporting recovery (including physical hot standbys); this check
+/// does not identify a separately writable logical replica. Direct SQL mutations that bypass this store
+/// do not participate in the revision protocol.
 /// </remarks>
 public sealed class PostgresGrantStore
-	: IGrantStore, IDurableGrantStore, IGrantQueryStore, IActivityGroupGrantStore, IActivityGroupGrantReplacement
+	: IGrantStore, IDurableGrantStore, IGrantQueryStore, IActivityGroupGrantStore, IActivityGroupGrantReplacement, IAtomicGrantRevocationStore
 {
 	/// <summary>The widest user id the shipped schema's key column holds, in characters.</summary>
 	internal const int MaxUserIdLength = 128;
@@ -99,7 +104,7 @@ public sealed class PostgresGrantStore
 		CancellationToken cancellationToken)
 	{
 		// Default-secure: exclude expired grants unless explicitly requested. Expiry is evaluated
-		// against the DB clock — same precedent as GrantExistsAsync.
+		// against the DB clock â€” same precedent as GrantExistsAsync.
 		const string sql = """
 		                        SELECT *
 		                        FROM authz.grant
@@ -143,7 +148,7 @@ public sealed class PostgresGrantStore
 		                   granted_on = EXCLUDED.granted_on;
 		                   """;
 
-		return await _connection.ExecuteAsync(
+		return await MutateUserAsync(grant.UserId, async (connection, transaction) => await connection.ExecuteAsync(
 			new CommandDefinition(sql,
 				new
 				{
@@ -156,8 +161,9 @@ public sealed class PostgresGrantStore
 					grant.GrantedBy,
 					grant.GrantedOn,
 				},
+				transaction: transaction,
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+				cancellationToken: cancellationToken)).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -195,7 +201,7 @@ public sealed class PostgresGrantStore
 		                   DELETE FROM authz.grant WHERE user_id = @UserId COLLATE "C" AND tenant_id = @TenantId COLLATE "C" AND grant_type = @GrantType COLLATE "C" AND qualifier = @Qualifier COLLATE "C";
 		                   """;
 
-		return await _connection.ExecuteAsync(
+		return await MutateUserAsync(userId, async (connection, transaction) => await connection.ExecuteAsync(
 			new CommandDefinition(sql,
 				new
 				{
@@ -206,8 +212,9 @@ public sealed class PostgresGrantStore
 					RevokedBy = revokedBy,
 					RevokedOn = revokedOn,
 				},
+				transaction: transaction,
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+				cancellationToken: cancellationToken)).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -237,6 +244,11 @@ public sealed class PostgresGrantStore
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IAtomicGrantRevocationStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IDurableGrantStore))
 		{
@@ -317,28 +329,35 @@ public sealed class PostgresGrantStore
 		                        AND grant_type = @GrantType COLLATE "C"
 		                   """;
 
-		return await _connection.ExecuteAsync(
+		return await MutateUserAsync(userId, async (connection, transaction) => await connection.ExecuteAsync(
 			new CommandDefinition(sql,
 				new { UserId = userId, GrantType = grantType },
+				transaction: transaction,
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+				cancellationToken: cancellationToken)).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
-	public async Task<int> DeleteAllActivityGroupGrantsAsync(string grantType,
-		CancellationToken cancellationToken)
-	{
-		const string sql = """
-		                         DELETE FROM Authz.grant
-		                         WHERE grant_type = @GrantType COLLATE "C"
-		                   """;
-
-		return await _connection.ExecuteAsync(
-			new CommandDefinition(sql,
-				new { GrantType = grantType },
-				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-	}
+	public Task<int> DeleteAllActivityGroupGrantsAsync(string grantType, CancellationToken cancellationToken) =>
+		InTransactionAsync(async (connection, transaction) =>
+		{
+			await AcquireGateAsync(connection, transaction, exclusive: true, cancellationToken).ConfigureAwait(false);
+			var users = (await connection.QueryAsync<string>(new CommandDefinition(
+				"SELECT DISTINCT user_id FROM authz.\"grant\" WHERE grant_type = @GrantType COLLATE \"C\"",
+				new { GrantType = grantType }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false)).ToArray();
+			foreach (var user in users.Order(StringComparer.Ordinal))
+			{
+				_ = await LockUserAsync(connection, transaction, user, cancellationToken).ConfigureAwait(false);
+			}
+			var count = await connection.ExecuteAsync(new CommandDefinition(
+				"DELETE FROM authz.\"grant\" WHERE grant_type = @GrantType COLLATE \"C\"",
+				new { GrantType = grantType }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			foreach (var user in users)
+			{
+				_ = await AdvanceRevisionAsync(connection, transaction, user, cancellationToken).ConfigureAwait(false);
+			}
+			return count;
+		}, cancellationToken);
 
 	/// <inheritdoc />
 	public async Task<int> InsertActivityGroupGrantAsync(string userId, string fullName,
@@ -355,7 +374,7 @@ public sealed class PostgresGrantStore
 		                        VALUES (@UserId, @FullName, @TenantId, @GrantType, @Qualifier, @ExpiresOn::timestamptz, @GrantedBy, now())
 		                   """;
 
-		return await _connection.ExecuteAsync(
+		return await MutateUserAsync(userId, async (connection, transaction) => await connection.ExecuteAsync(
 			new CommandDefinition(sql,
 				new
 				{
@@ -367,8 +386,9 @@ public sealed class PostgresGrantStore
 					ExpiresOn = expiresOn,
 					GrantedBy = grantedBy,
 				},
+				transaction: transaction,
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+				cancellationToken: cancellationToken)).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -476,11 +496,24 @@ public sealed class PostgresGrantStore
 			_ = await connection.ExecuteAsync(
 				new CommandDefinition(
 					$"SET LOCAL lock_timeout = '{DbTimeouts.RegularTimeoutSeconds}s'; "
-					+ "SELECT pg_advisory_xact_lock(@Namespace, @Key);",
+					+ (userId is null ? "SELECT pg_advisory_xact_lock(@Namespace, @Key);" : "SELECT pg_advisory_xact_lock_shared(@Namespace, @Key);"),
 					new { Namespace = AdvisoryLockNamespace, Key = ReplaceLockKey },
 					transaction,
 					commandTimeout: DbTimeouts.LongRunningTimeoutSeconds,
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+			var affectedUsers = (await connection.QueryAsync<string>(new CommandDefinition(
+				$"SELECT DISTINCT user_id FROM {GrantTable} WHERE grant_type = @GrantType"
+					+ (userId is null ? string.Empty : " AND user_id = @UserId COLLATE \"C\""),
+				new { GrantType = grantType, UserId = userId }, transaction,
+				cancellationToken: cancellationToken)).ConfigureAwait(false))
+				.Concat(entries.Select(static e => e.UserId))
+				.Concat(userId is null ? [] : new[] { userId })
+				.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+			foreach (var affected in affectedUsers)
+			{
+				_ = await LockUserAsync(connection, transaction, affected, cancellationToken).ConfigureAwait(false);
+			}
 
 			// Read under the lock, from the delete itself, so the previous users are exactly the ones removed.
 			var scope = userId is null ? string.Empty : " AND user_id = @UserId";
@@ -524,6 +557,11 @@ public sealed class PostgresGrantStore
 						transaction,
 						commandTimeout: DbTimeouts.LongRunningTimeoutSeconds,
 						cancellationToken: cancellationToken)).ConfigureAwait(false);
+			}
+
+			foreach (var affected in affectedUsers)
+			{
+				_ = await AdvanceRevisionAsync(connection, transaction, affected, cancellationToken).ConfigureAwait(false);
 			}
 
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -601,6 +639,170 @@ public sealed class PostgresGrantStore
 				$"'{paramName}' is {value.Length} characters; the shipped grant schema holds at most {maxLength}.",
 				paramName);
 		}
+	}
+
+	/// <inheritdoc />
+	public Task<GrantRevocationResult> RevokeAllAsync(GrantRevocationRequest request, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(request);
+		return InTransactionAsync(async (connection, transaction) =>
+		{
+			await AcquireGateAsync(connection, transaction, exclusive: false, cancellationToken).ConfigureAwait(false);
+			_ = await LockUserAsync(connection, transaction, request.UserId, cancellationToken).ConfigureAwait(false);
+			var parameters = new { request.UserId, request.OperationId, ScopeTenantId = request.Scope.TenantId, request.RevokedBy };
+			var prior = await connection.QuerySingleOrDefaultAsync<RevocationRow>(new CommandDefinition(
+				"SELECT scope_tenant_id, revoked_by, revision, revoked_count FROM authz.grant_revocation WHERE user_id = @UserId COLLATE \"C\" AND operation_id = @OperationId",
+				parameters, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			if (prior is not null)
+			{
+				if (!string.Equals(prior.ScopeTenantId, request.Scope.TenantId, StringComparison.Ordinal)
+					|| !string.Equals(prior.RevokedBy, request.RevokedBy, StringComparison.Ordinal))
+				{
+					throw new InvalidOperationException("The grant revocation operation identifier was already used with a different payload.");
+				}
+				return new GrantRevocationResult(request.OperationId, prior.Revision, prior.RevokedCount);
+			}
+			// DELETE RETURNING is the only source of history: the audit cannot describe a different set.
+			const string revokeSql = """
+				WITH removed AS (
+					DELETE FROM authz."grant"
+					WHERE user_id = @UserId COLLATE "C"
+					  AND (@ScopeTenantId::text IS NULL OR tenant_id = @ScopeTenantId::text COLLATE "C")
+					RETURNING *
+				), audited AS (
+					INSERT INTO authz.grant_history
+						(user_id, tenant_id, grant_type, qualifier, full_name, expires_on, granted_by, granted_on, revoked_by, revoked_on)
+					SELECT user_id, tenant_id, grant_type, qualifier, full_name, expires_on, granted_by, granted_on, @RevokedBy, now()
+					FROM removed RETURNING 1
+				) SELECT count(*)::integer FROM audited;
+				""";
+			var count = await connection.ExecuteScalarAsync<int>(new CommandDefinition(revokeSql, parameters,
+				transaction, commandTimeout: DbTimeouts.LongRunningTimeoutSeconds, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			var revision = await AdvanceRevisionAsync(connection, transaction, request.UserId, cancellationToken).ConfigureAwait(false);
+			_ = await connection.ExecuteAsync(new CommandDefinition(
+				"INSERT INTO authz.grant_revocation(user_id, operation_id, scope_tenant_id, revoked_by, revision, revoked_count) VALUES (@UserId, @OperationId, @ScopeTenantId, @RevokedBy, @Revision, @RevokedCount)",
+				new { request.UserId, request.OperationId, ScopeTenantId = request.Scope.TenantId, request.RevokedBy, Revision = revision, RevokedCount = count },
+				transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+			return new GrantRevocationResult(request.OperationId, revision, count);
+		}, cancellationToken);
+	}
+
+	/// <inheritdoc />
+	public async Task<long> ReadUserRevisionAsync(string userId, CancellationToken cancellationToken)
+	{
+		ValidateSubject(userId);
+		if (Transaction.Current is not null)
+		{
+			throw new InvalidOperationException("Authoritative grant reads cannot run inside an ambient transaction.");
+		}
+		using var results = await _connection.QueryMultipleAsync(new CommandDefinition(
+			"SELECT pg_catalog.pg_is_in_recovery(); SELECT COALESCE((SELECT revision FROM authz.grant_revision WHERE user_id = @UserId COLLATE \"C\"), 0)",
+			new { UserId = userId }, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+		if (await results.ReadSingleAsync<bool>().ConfigureAwait(false))
+		{
+			throw new InvalidOperationException("Authoritative grant revision reads require the primary PostgreSQL server; a server in recovery cannot be used.");
+		}
+		return await results.ReadSingleAsync<long>().ConfigureAwait(false);
+	}
+
+	/// <inheritdoc />
+	public Task<UserGrantSnapshot> ReadUserSnapshotAsync(string userId, bool includeExpired, CancellationToken cancellationToken)
+	{
+		ValidateSubject(userId);
+		return InTransactionAsync(async (connection, transaction) =>
+		{
+			await AcquireGateAsync(connection, transaction, exclusive: false, cancellationToken).ConfigureAwait(false);
+			var revision = await LockUserAsync(connection, transaction, userId, cancellationToken).ConfigureAwait(false);
+			var rows = await connection.QueryAsync<GrantRow>(new CommandDefinition(
+				"SELECT * FROM authz.\"grant\" WHERE user_id = @UserId COLLATE \"C\" AND (@IncludeExpired OR COALESCE(expires_on, 'infinity') > now())",
+				new { UserId = userId, IncludeExpired = includeExpired }, transaction,
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
+			return new UserGrantSnapshot(userId, revision, rows.Select(static g => new Grant(
+				g.UserId, g.FullName, g.TenantId, g.GrantType, g.Qualifier, g.ExpiresOn, g.GrantedBy, g.GrantedOn!.Value)));
+		}, cancellationToken);
+	}
+
+	private Task<int> MutateUserAsync(string userId, Func<DbConnection, DbTransaction, Task<int>> mutation,
+		CancellationToken cancellationToken)
+	{
+		ValidateSubject(userId);
+		return InTransactionAsync(async (connection, transaction) =>
+		{
+			await AcquireGateAsync(connection, transaction, exclusive: false, cancellationToken).ConfigureAwait(false);
+			_ = await LockUserAsync(connection, transaction, userId, cancellationToken).ConfigureAwait(false);
+			var count = await mutation(connection, transaction).ConfigureAwait(false);
+			_ = await AdvanceRevisionAsync(connection, transaction, userId, cancellationToken).ConfigureAwait(false);
+			return count;
+		}, cancellationToken);
+	}
+
+	private async Task<T> InTransactionAsync<T>(Func<DbConnection, DbTransaction, Task<T>> operation,
+		CancellationToken cancellationToken)
+	{
+		if (Transaction.Current is not null)
+		{
+			throw new InvalidOperationException("Atomic grant operations own their transaction and cannot run inside an ambient transaction.");
+		}
+		var connection = _connection as DbConnection
+			?? throw new InvalidOperationException("Atomic grant operations require a DbConnection.");
+		var openedHere = connection.State != ConnectionState.Open;
+		if (openedHere) { await connection.OpenAsync(cancellationToken).ConfigureAwait(false); }
+		try
+		{
+			await using var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted,
+				cancellationToken).ConfigureAwait(false);
+			var result = await operation(connection, transaction).ConfigureAwait(false);
+			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+			return result;
+		}
+		finally
+		{
+			if (openedHere) { await connection.CloseAsync().ConfigureAwait(false); }
+		}
+	}
+
+	private static async Task AcquireGateAsync(DbConnection connection, DbTransaction transaction, bool exclusive,
+		CancellationToken cancellationToken) =>
+		_ = await connection.ExecuteAsync(new CommandDefinition(
+			$"SET LOCAL lock_timeout = '{DbTimeouts.RegularTimeoutSeconds}s'; "
+				+ (exclusive ? "SELECT pg_advisory_xact_lock(@Namespace, @Key);" : "SELECT pg_advisory_xact_lock_shared(@Namespace, @Key);"),
+			new { Namespace = AdvisoryLockNamespace, Key = ReplaceLockKey }, transaction,
+			commandTimeout: DbTimeouts.LongRunningTimeoutSeconds, cancellationToken: cancellationToken)).ConfigureAwait(false);
+
+	private static async Task<long> LockUserAsync(DbConnection connection, DbTransaction transaction, string userId,
+		CancellationToken cancellationToken)
+	{
+		ValidateSubject(userId);
+		_ = await connection.ExecuteAsync(new CommandDefinition(
+			"INSERT INTO authz.grant_revision(user_id, revision) VALUES (@UserId, 0) ON CONFLICT (user_id) DO NOTHING",
+			new { UserId = userId }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+			"SELECT revision FROM authz.grant_revision WHERE user_id = @UserId COLLATE \"C\" FOR UPDATE",
+			new { UserId = userId }, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+	}
+
+	private static Task<long> AdvanceRevisionAsync(DbConnection connection, DbTransaction transaction, string userId,
+		CancellationToken cancellationToken) => connection.ExecuteScalarAsync<long>(new CommandDefinition(
+			"UPDATE authz.grant_revision SET revision = revision + 1 WHERE user_id = @UserId COLLATE \"C\" RETURNING revision",
+			new { UserId = userId }, transaction, cancellationToken: cancellationToken));
+
+	private static void ValidateSubject(string userId)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		if (!string.Equals(userId, userId.Trim(), StringComparison.Ordinal))
+		{
+			throw new ArgumentException("Grant subject identifiers cannot contain leading or trailing whitespace.", nameof(userId));
+		}
+		ThrowIfLongerThan(userId, MaxUserIdLength, nameof(userId));
+	}
+
+	private sealed record RevocationRow
+	{
+		public string? ScopeTenantId { get; init; }
+		public required string RevokedBy { get; init; }
+		public long Revision { get; init; }
+		public int RevokedCount { get; init; }
 	}
 
 	private sealed record GrantRow

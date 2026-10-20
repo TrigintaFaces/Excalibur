@@ -13,9 +13,9 @@ namespace Excalibur.Outbox.Oracle;
 /// Represents a data request to query failed messages from the Oracle dead letter table.
 /// </summary>
 /// <remarks>
-/// Queries messages that have been moved to the dead letter table due to exceeding the
-/// maximum retry count. Supports pagination via LIMIT/OFFSET and filtering by retry count
-/// and timestamp.
+/// Queries archived messages, including retry-exhausted, poison, and administrative records.
+/// Supports pagination and filtering by the persisted logical attempt count and timestamp.
+/// The attempt-count threshold is exclusive; -1 includes records with zero delivery attempts.
 /// </remarks>
 [NoTenantTerm(
 	TenantConfinement.EstateWide,
@@ -27,7 +27,7 @@ public sealed class GetDeadLetterMessages : DataRequest<IEnumerable<DeadLetterRe
 	/// Initializes a new instance of the <see cref="GetDeadLetterMessages"/> class.
 	/// </summary>
 	/// <param name="deadLetterTableName">The fully qualified dead letter table name.</param>
-	/// <param name="maxRetries">Only return messages with attempts exceeding this count.</param>
+	/// <param name="maxRetries">Exclusive attempt-count threshold. Use -1 to include zero-attempt poison or administrative records.</param>
 	/// <param name="olderThan">Only return messages that occurred before this timestamp. Pass null to skip time filter.</param>
 	/// <param name="batchSize">Maximum number of messages to retrieve.</param>
 	/// <param name="offset">Number of records to skip for pagination.</param>

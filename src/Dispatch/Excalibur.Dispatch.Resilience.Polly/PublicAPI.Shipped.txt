@@ -312,3 +312,5 @@ static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollection
 static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.ConfigureTimeoutManager(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 virtual Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.Dispose(bool disposing) -> void
 virtual Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.Dispose(bool disposing) -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.ExecuteAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
+Excalibur.Dispatch.Resilience.Polly.IBulkheadPolicy.ExecuteAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!

@@ -1,10 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- This sample is the ahead-of-time acceptance surface: it must be able to REPORT trim
-         warnings. The shared samples NoWarn silences IL2026 for demo code; strip it back out here,
-         because a sample that cannot warn cannot prove anything about trimming. -->
-    <NoWarn>$(NoWarn.Replace('IL2026',''));CA1506;CA1505</NoWarn>
+    <!-- This ahead-of-time acceptance surface must report both trim and dynamic-code diagnostics.
+         Defensively remove either inherited suppression rather than hiding an unsupported path. -->
+    <NoWarn>$(NoWarn.Replace('IL2026','').Replace('IL3050',''));CA1506;CA1505</NoWarn>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

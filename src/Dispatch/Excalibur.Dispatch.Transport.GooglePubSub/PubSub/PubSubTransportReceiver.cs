@@ -174,10 +174,9 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var ackId = GetAckId(message);
-
 		try
 		{
+			var ackId = GetAckId(message);
 			// Ack must complete even during shutdown to prevent redelivery;
 			// use dedicated timeout instead of caller's cancellation token
 			using var ackCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -185,10 +184,14 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 				.ConfigureAwait(false);
 			LogMessageAcknowledged(message.Id, Source);
 		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
 		catch (Exception ex)
 		{
 			LogAcknowledgeError(message.Id, Source, ex);
-			throw;
+			throw CreateSettlementException("acknowledge", message, ex);
 		}
 	}
 
@@ -197,10 +200,9 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var ackId = GetAckId(message);
-
 		try
 		{
+			var ackId = GetAckId(message);
 			// Reject must complete even during shutdown to prevent redelivery;
 			// use dedicated timeout instead of caller's cancellation token
 			using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -219,12 +221,24 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 				LogMessageRejected(message.Id, Source, reason ?? "no reason");
 			}
 		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
 		catch (Exception ex)
 		{
 			LogRejectError(message.Id, Source, ex);
-			throw;
+			throw CreateSettlementException("reject", message, ex);
 		}
 	}
+
+	private static TransportSettlementException CreateSettlementException(string operation, TransportReceivedMessage message, Exception cause) =>
+		new($"Failed to {operation} Pub/Sub message '{message.Id}'.", cause)
+		{
+			TransportName = "GooglePubSub",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			Retryability = SettlementRetryability.Unspecified,
+		};
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)
@@ -313,7 +327,12 @@ internal sealed partial class PubSubTransportReceiver : ITransportReceiver
 			return ackIdStr;
 		}
 
-		throw new InvalidOperationException("Message does not contain a Pub/Sub ack ID in ProviderData.");
+		throw new TransportSettlementException("Message does not contain a Pub/Sub ack ID in ProviderData.")
+		{
+			TransportName = "GooglePubSub",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			Retryability = SettlementRetryability.Permanent,
+		};
 	}
 
 	[LoggerMessage(GooglePubSubEventId.TransportReceiverMessageReceived, LogLevel.Debug,

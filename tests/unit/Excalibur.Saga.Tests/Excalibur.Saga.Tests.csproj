@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -13,6 +13,7 @@
   <ItemGroup>
     <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
     <PackageReference Include="Shouldly" />
+    <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
@@ -37,5 +38,12 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exercise the actual nonshipping fixture, without referencing unrelated benchmarks. -->
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/Saga/SqlServerSagaStoreBenchmarks.cs" Link="Benchmarks/SqlServerSagaStoreBenchmarks.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Benchmarks/BenchmarkTenantContext.cs" Link="Benchmarks/BenchmarkTenantContext.cs" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Saga.SqlServer/Scripts/01-SagaSchema.sql" LogicalName="BenchmarkSchema.01-SagaSchema.sql" />
+    <None Include="../../../src/Excalibur/Excalibur.Saga.SqlServer/Scripts/01-SagaSchema.sql" Link="TestResources/CanonicalSagaSchema.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

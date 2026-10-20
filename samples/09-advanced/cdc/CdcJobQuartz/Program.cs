@@ -75,6 +75,7 @@ using CdcJobQuartz.Infrastructure;
 using CdcJobQuartz.Projections;
 
 using Excalibur.Cdc.SqlServer;
+using Excalibur.Data.ElasticSearch.Projections;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.Jobs.Cdc;
 
@@ -253,6 +254,17 @@ builder.Services.AddExcalibur(excalibur => excalibur
 			.WhenHandledBy<CustomerCreated, CustomerTierSummaryCreatedHandler>());
 	}));
 
+// Step 3b: where those projections live is decided ABOVE, by AddElasticSearchProjections.
+//
+// AddProjection says what each projection FOLDS; it does not give it anywhere to live, and this
+// sample once had no store at all -- so the first SaveAsync threw after the events were already
+// durable. The host now refuses to start when a projection has no store, which is how that was found.
+//
+// There is deliberately no second registration here. Both projection-store registrars use TryAdd, so
+// the FIRST one wins: adding an in-memory store below the Elasticsearch one above would not override
+// it, it would simply do nothing -- while reading exactly like the line that chose the storage. This
+// sample stores in Elasticsearch, as its README and its docker-compose describe.
+
 // ============================================================================
 // Step 4: Build and Start Host
 // ============================================================================
@@ -262,6 +274,18 @@ Console.WriteLine("[Startup] Building host with Quartz.NET scheduler...");
 
 using var host = builder.Build();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
+
+// Ask the cluster once, here, while someone is watching the console.
+//
+// Without this the host starts cleanly, says nothing, and the first sign of an unreachable
+// Elasticsearch is an error per document from inside a Quartz job -- however many minutes later that
+// job first fires. The projections are not being written the whole time and nothing says so.
+//
+// It throws, which is the right trade for a sample (fail at the console, not silently) and a choice
+// you own in production: under an orchestrator, refusing to start turns a transient cluster blip into
+// a crash-loop, and a read-model host that starts degraded and recovers is often better. Drop the
+// call, or catch and log it, if that is your preference.
+await host.VerifyElasticSearchProjectionConnectivityAsync().ConfigureAwait(false);
 
 Console.WriteLine("[Startup] Starting Quartz.NET job scheduler...");
 Console.WriteLine();

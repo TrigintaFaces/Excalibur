@@ -18,7 +18,20 @@ internal sealed class OutboxConfiguration
 	public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(5);
 	public int MaxRetryCount { get; set; } = 3;
 	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMinutes(5);
-	public bool EnableBackgroundProcessing { get; set; } = true;
+	// NO INITIALIZER, and the absence is the fix. This defaulted to true while the builder route that
+	// creates this object registers no hosted service and nothing on that route ever reads the flag -- so
+	// the options reported that a drain was running in hosts that had none. That is the silent class: rows
+	// accepted for delivery, nothing publishing them, and the one property a consumer would check to find
+	// out saying it was switched on.
+	//
+	// With no initializer, IOutboxBuilder.EnableBackgroundProcessing() is the sole writer of true on this
+	// route, and it registers the hosted service in the same call -- one writer, one act -- so the flag and
+	// the registration cannot disagree. Restoring '= true' here reddens
+	// OutboxBackgroundProcessingAgreementShould.
+	//
+	// Background processing remains an explicit opt-in. The hosted drain prefers a supplied publisher,
+	// otherwise it resolves the framework processor in an owned asynchronous scope for each cycle.
+	public bool EnableBackgroundProcessing { get; set; }
 	public string? ProcessorId { get; set; }
 	public bool EnableParallelProcessing { get; set; }
 	public int MaxDegreeOfParallelism { get; set; } = 4;

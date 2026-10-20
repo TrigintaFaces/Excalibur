@@ -131,7 +131,7 @@ public sealed class InboxPayloadSerializerRoundTripShould
 			new DispatchJsonSerializer(),
 			NullLogger<InboxProcessor>.Instance,
 			payloadSerializer: payloadSerializer,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 		processor.Init("dispatcher-1");
 
 		// Act

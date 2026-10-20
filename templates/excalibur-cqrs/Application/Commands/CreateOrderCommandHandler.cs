@@ -1,5 +1,4 @@
 ﻿using Company.ExcaliburCqrs.Domain.Aggregates;
-using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
 
@@ -7,44 +6,32 @@ namespace Company.ExcaliburCqrs.Application.Commands;
 
 /// <summary>
 /// Handles <see cref="CreateOrderCommand"/> by creating a new Order aggregate,
-/// persisting it to the event store, and dispatching domain events for projections.
+/// persisting it to the event store, and returning its identifier after inline projection processing.
 /// </summary>
-public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderCommand>
+public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderCommand, Guid>
 {
     private readonly IEventSourcedRepository<Order, Guid> _orderRepository;
-    private readonly IDispatcher _dispatcher;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
 
     public CreateOrderCommandHandler(
         IEventSourcedRepository<Order, Guid> orderRepository,
-        IDispatcher dispatcher,
         ILogger<CreateOrderCommandHandler> logger)
     {
         _orderRepository = orderRepository;
-        _dispatcher = dispatcher;
         _logger = logger;
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
+    public async Task<Guid> HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
     {
         var orderId = Guid.NewGuid();
         var order = Order.Create(orderId, action.ProductId, action.Quantity);
 
         _logger.LogInformation("Persisting order {OrderId} with {ItemCount} items", orderId, order.Items.Count);
 
-        // Capture uncommitted events before save (save clears them)
-        var uncommittedEvents = order.GetUncommittedEvents().ToList();
-
+        // The repository notifies framework-managed inline projections after the event commit.
         await _orderRepository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
-
-        // Dispatch domain events to update projections (CQRS read side)
-        foreach (var domainEvent in uncommittedEvents)
-        {
-            await _dispatcher.DispatchAsync(domainEvent, cancellationToken).ConfigureAwait(false);
-        }
-
-        _logger.LogInformation("Order {OrderId} persisted and {EventCount} events dispatched for projections",
-            orderId, uncommittedEvents.Count);
+        _logger.LogInformation("Order {OrderId} persisted and inline projection processing completed", orderId);
+        return orderId;
     }
 }

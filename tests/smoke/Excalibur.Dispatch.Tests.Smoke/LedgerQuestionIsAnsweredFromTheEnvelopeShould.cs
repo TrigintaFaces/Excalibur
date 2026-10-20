@@ -165,7 +165,7 @@ public sealed class LedgerQuestionIsAnsweredFromTheEnvelopeShould
 
 		await scope.ServiceProvider
 			.GetRequiredService<SubjectFieldCryptor>()
-			.DecryptFieldsAsync(stored, CancellationToken.None)
+			.DecryptFieldsAsync(stored, TenantAlpha, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		ledger.Questions.Count.ShouldBe(

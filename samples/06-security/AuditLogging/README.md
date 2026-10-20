@@ -223,4 +223,4 @@ builder.Services.AddSingleton<ISecurityEventStore, FileSecurityEventStore>(sp =>
 - [SOC2 Compliance](https://www.aicpa.org/soc2)
 - [HIPAA Security Rule](https://www.hhs.gov/hipaa/for-professionals/security/)
 - [GDPR Requirements](https://gdpr-info.eu/)
-- [Excalibur.Security Package](../../../src/Dispatch/Excalibur.Security/)
+- [Excalibur.Security Package](../../../src/Excalibur/Excalibur.Security/)

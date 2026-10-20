@@ -53,6 +53,11 @@ public class ProviderOptions
 	/// <summary>
 	/// Gets custom metadata for the provider.
 	/// </summary>
+	/// <remarks>
+	/// Application and provider extension code consumes this collection through the configured
+	/// options instance. Use typed transport options for SDK behavior and message-context metadata
+	/// for transmitted message headers.
+	/// </remarks>
 	/// <value>The current <see cref="Metadata"/> value.</value>
 	public Dictionary<string, string> Metadata { get; init; } = [];
 }

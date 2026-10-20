@@ -275,7 +275,7 @@ public sealed class ServiceCollectionExtensionsShould
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["ElasticSearch:Projections:IndexPrefix"] = "test-proj",
+				["ElasticSearch:ProjectionManagement:IndexPrefix"] = "test-proj",
 			})
 			.Build();
 
@@ -283,7 +283,7 @@ public sealed class ServiceCollectionExtensionsShould
 		services.AddElasticsearchIndexManagement(config);
 
 		// Act
-		services.AddElasticsearchProjections(config);
+		services.AddElasticSearchProjectionManagement(config);
 
 		// Assert
 		using var sp = services.BuildServiceProvider();
@@ -291,24 +291,29 @@ public sealed class ServiceCollectionExtensionsShould
 		sp.GetService<IProjectionRebuildManager>().ShouldNotBeNull();
 		sp.GetService<IEventualConsistencyTracker>().ShouldNotBeNull();
 		sp.GetService<ISchemaEvolutionHandler>().ShouldNotBeNull();
+
+		// The configured value must actually arrive. Without this the arm passes against any section
+		// name at all, which is how a rename of the section went unnoticed by it.
+		sp.GetRequiredService<IOptions<ElasticSearchProjectionManagementOptions>>()
+			.Value.IndexPrefix.ShouldBe("test-proj");
 	}
 
 	[Fact]
 	public void ThrowWhenConfigurationIsNullForProjections()
 	{
 		var services = new ServiceCollection();
-		Should.Throw<ArgumentNullException>(() => services.AddElasticsearchProjections(null!));
+		Should.Throw<ArgumentNullException>(() => services.AddElasticSearchProjectionManagement(null!));
 	}
 
 	[Fact]
-	public void RegisterProjectionOptionsValidator()
+	public void RegisterElasticSearchProjectionManagementOptionsValidator()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		var config = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["ElasticSearch:Projections:IndexPrefix"] = "test",
+				["ElasticSearch:ProjectionManagement:IndexPrefix"] = "test",
 			})
 			.Build();
 
@@ -320,11 +325,11 @@ public sealed class ServiceCollectionExtensionsShould
 		services.AddMetrics();
 
 		// Act
-		services.AddElasticsearchProjections(config);
+		services.AddElasticSearchProjectionManagement(config);
 
 		// Assert — validator resolves without needing full dependency tree
 		using var sp = services.BuildServiceProvider();
-		var validators = sp.GetServices<IValidateOptions<ProjectionOptions>>();
-		validators.ShouldContain(v => v is ProjectionOptionsValidator);
+		var validators = sp.GetServices<IValidateOptions<ElasticSearchProjectionManagementOptions>>();
+		validators.ShouldContain(v => v is ElasticSearchProjectionManagementOptionsValidator);
 	}
 }

@@ -50,8 +50,11 @@ public sealed class MqttOptions
 	/// </para>
 	/// <para>
 	/// Defaults to <see langword="true"/> because this transport offers rejection with redelivery. Set it to
-	/// <see langword="false"/> only if you do not rely on that: a rejected message is then dropped at the first
-	/// disconnect, with no error and no warning.
+	/// <see langword="false"/> for a clean session that only acknowledges or rejects without requeue.
+	/// Rejection with requeue is refused before consuming the receipt when the connection configuration
+	/// cannot retain its session; the same receipt remains available for acknowledgement.
+	/// Session-retention eligibility cannot change across reconnects of a receiver's reused client;
+	/// create a new receiver when changing between clean and retained sessions.
 	/// </para>
 	/// <para>
 	/// Resuming a session requires the <b>same client id</b>, so <see cref="ClientId"/> must be stable across

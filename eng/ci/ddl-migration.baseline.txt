@@ -20,6 +20,9 @@
 # NOT EVALUATED  (prefix `refuse:`) -- the gate RAN and could not read this artifact. It is neither
 # a defect nor a clean result: coverage there is UNKNOWN. Recorded so the blindness is committed
 # where a reader can see it rather than absorbed into a green run.
+# Unchanged runtime placeholders, including SqliteTableInitializer.cs's {table}, are not evidence
+# of a schema delta and remain allowed. Their concrete table correspondence is unknown; a
+# meaningful schema change or changed unresolved spelling must be refused rather than credited.
 # ---------------------------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------------------------

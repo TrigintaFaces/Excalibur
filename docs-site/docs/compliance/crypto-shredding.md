@@ -98,7 +98,7 @@ A third refusal covers the instrument rather than the wiring: if the container s
 
 Crypto-shredding is annotation-driven. Two attributes (both in `Excalibur.Compliance`) declare what to protect and whose key protects it:
 
-- **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. Exactly one property per record should carry it; if more than one does, the first property discovered is used and the others are ignored. **The value must be unique across your whole deployment, not merely within a tenant.** In every published version the per-subject key is named from this value alone, so two tenants holding one value share one key and either tenant's erasure destroys it for both — embed your tenant identifier in the value. See [the known issue](../known-issues.md#one-tenants-erasure-destroys-another-tenants-data-when-they-share-a-data-subject-id-and-the-victims-read-reports-it-as-lawfully-erased).
+- **`[DataSubjectId]`** marks the property whose value identifies the data subject the record belongs to. Exactly one property per record should carry it; if more than one does, the first property discovered is used and the others are ignored. For implementations using the shared-key derivation described in [Known issues](../known-issues.md#compliance-gdpr-and-soc-2), the value must be unique across the deployment, not merely within a tenant. Two tenants sharing that value share an encryption key, so either tenant's erasure can destroy both tenants' data. The assessment covers alpha.4 through alpha.13; later published packages were not behaviorally assessed here. Current source uses tenant-qualified key identities.
 - **`[PersonalData]`** marks each property that holds personal data to be encrypted under that subject's key. `[PersonalData]` also carries policy metadata: `Category`, `Purpose` and `LegalBasis` drive erasure, `RetentionDays` drives retention for the types you declare with `AddRetentionPolicies<T>()` (see [GDPR Erasure](./gdpr-erasure.md#retention-enforcement-retentiondays)), and `MaskInLogs` drives masking. **`IsSensitive` is inert — nothing reads it.** It records your own classification; it does not cause the framework to treat the property differently, so do not rely on it as a control.
 
 ```csharp
@@ -144,16 +144,27 @@ public sealed class CustomerWriter(SubjectFieldCryptor cryptor)
         // ... persist record ...
     }
 
-    public async Task RevealAsync(CustomerRecord record, CancellationToken ct)
+    public async Task RevealAsync(CustomerRecord record, string expectedTenantId, CancellationToken ct)
     {
-        // ... load record ...
-        await cryptor.DecryptFieldsAsync(record, ct);
+        // Load from an authorized partition and retain its owning tenant metadata.
+        await cryptor.DecryptFieldsAsync(record, expectedTenantId, ct);
     }
 }
 ```
 
 - **`EncryptFieldsAsync`** resolves the subject id from the `[DataSubjectId]` property, obtains (or mints) the key for that subject in the given scope via `ISubjectKeyManager`, and replaces each `[PersonalData]` field value with a subject-bound ciphertext envelope. `string` and `byte[]` personal-data properties are supported. **Pass the aggregate type the record is stored inside**, exactly as the event store records it; pass `null` when it is not inside an aggregate. The argument selects nothing but the key, and it matters only where that aggregate type is under a declared erasure retention — see [Per-Subject Keys and Erasure](#per-subject-keys-and-erasure) below.
-- **`DecryptFieldsAsync`** takes no scope. An envelope records which key protects it, so the read path needs nothing from the caller.
+- **`DecryptFieldsAsync(record, expectedTenantId, ct)`** requires the owner established by the authorized request or trusted stored-record metadata. Do not take this argument from the envelope. Missing or unequal tenant identifiers raise `CryptographicException` before any provider or destruction-ledger lookup, even when the supplied envelope names an erased generation. Comparison is ordinal, without trimming or case folding. The envelope still identifies the key and retained scope; callers do not re-derive either.
+
+Resolved tenant identities stay distinct, including the declared single-tenant identity `__default__`
+and the storage partition `__untenanted__`. Neither is an alias for the other. Erasure requests retain
+the exact resolved owner when they are stored, so a background processor derives the same key as the
+write without borrowing its own ambient tenant. In single-tenant mode an omitted request tenant is
+captured from the configured tenant context; an unresolved owner is refused rather than invented.
+
+The NativeAOT sample's published executable accepts `--crypto-shred-smoke`. It checks real AES-GCM
+round trips, cross-tenant rejection, lawful tombstones and surviving data for both ordinary tenants
+and the default/untenanted pair. Its in-memory fixtures demonstrate the public field-crypto contract;
+they do not establish durable recovery or cloud-provider behavior.
 - **`DecryptFieldsAsync`** reverses the process. A field whose key generation the **destruction ledger holds a record for** decrypts to `null` (a tombstone), leaving the rest of the record intact so an aggregate still loads with its non-personal fields. A key that merely cannot be found is not a tombstone — see [the read path](#fail-closed-field-protection) below.
 - **`EncryptFieldsAsync` is idempotent, so retrying a failed write is safe.** It mutates the record in place, so a write that fails *after* it returns leaves you holding a record whose fields are already envelopes. Calling it again on that same instance re-encrypts nothing: a field already carrying an envelope is left as it is, and the stored value still decrypts in a single pass to the original data. You do not have to reload the record or track whether encryption already ran before retrying a transient persistence fault. A field that carries **no** envelope is always encrypted, so a record written before you adopted this capability is protected on its next write rather than skipped.
 - A record whose type carries **no `[DataSubjectId]` property** is left untouched — per-subject protection is additive over any existing at-rest encryption. A record that **declares** a data subject whose identifier is null or blank is **rejected with an `EncryptionException`**: it has `[PersonalData]` fields and no key under which to protect them, so proceeding would persist plaintext personal data.
@@ -169,6 +180,8 @@ A type that carries `[DataSubjectId]` has **declared that it holds personal data
 This fail-closed guarantee holds under trimming/AOT. The type-plan lookup roots the record's public properties with `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]`, so the `[PersonalData]`/`[DataSubjectId]` annotations survive trimming; the throw-on-empty-plan check is the defense-in-depth backstop behind that rooting.
 :::
 
+Background event replay passes `StoredEvent.TenantId` from the owning store. It does not need an ambient tenant. An unknown owner is allowed for plaintext/no-field passthrough, but encountering an encrypted personal-data field without ownership fails closed. Store metadata is part of the trust boundary: protect it from unauthorized modification.
+
 The read path is deliberately asymmetric:
 
 - **Write path (`EncryptAsync`) fails closed:** any encryption failure throws; it never returns plaintext or a partially-protected value.
@@ -182,10 +195,13 @@ A `null` asserts that the data was lawfully crypto-shredded, so it is produced o
 
 The record is keyed on the **key generation** the envelope names, not on the handle and not on a version ordinal. A subject's handle is derived from the subject, so an ordinary write after an erasure re-mints material at the same handle and restarts the ordinal — and both then report "not destroyed", truthfully, about material the reader is not holding. A generation is minted once from a CSPRNG and never reused.
 
+If recording a completed destruction fails, its staged generation remains attached to that erasure request. When an operator requeues the same request, an immediate whole-handle destruction also records any earlier staged generations for that exact handle before counting the key as erased. This covers ordinary encryption reminting the handle between attempts. Scheduled deletion still requires affirmative irreversible-destruction verification; absence alone cannot repair the ledger.
+
 **A row's existence is the statement.** There is no status column and no timestamp to compare: a row is written only after an irreversible destruction completed. So a `true` is monotone and may be cached indefinitely; a `false` means "no row yet"; and **failing to read the ledger throws** rather than answering `false`, because a `false` from an outage is indistinguishable in logs and metrics from "asked, and there is no row".
 
 These failures throw rather than returning a tombstone:
 
+- **The expected owner is missing, or differs from the envelope tenant** — `CryptographicException`, before provider selection or destruction lookup. A foreign erased envelope is never an authorized tombstone.
 - **No registered provider supports the envelope's algorithm** — a configuration fault, never a lawful erasure.
 - **The envelope declares an earlier format version, or carries no key generation** — `EncryptionErrorCode.InvalidCiphertext`. The material behind it cannot be identified, so a destroyed subject cannot be told from one whose key was provisioned again.
 - **The generation has no ledger row and the decrypt then fails** — including `EncryptionErrorCode.KeyNotFound`. The ledger has already said this generation was not destroyed here, so the read fails loudly and the data may still be recoverable: recover a soft-deleted key that should be live rather than working around the error.
@@ -204,16 +220,19 @@ A tombstone's claim is scoped to the **envelope**, not the subject. A `true` say
 
 The **tenant is part of the key's identity**, not a filter applied around it. A data-subject identifier comes from your own entity, so customer numbers, employee identifiers and e-mail addresses repeat across tenants; a handle that did not carry the tenant would give two such tenants one key, and either tenant's erasure would destroy it for both. A handle is a name in a key store with no row beside it to carry a tenant column, so the name itself carries the tenant.
 
-:::danger This is true of our source and of no published version — check which version you installed
-The paragraph above describes the **corrected** behaviour. **In every published version —
-`10.0.0-alpha.4` through `10.0.0-alpha.13` — the handle carries no tenant.** Two tenants whose
+:::danger Check the assessed versions and your installed implementation
+The paragraph above describes the **current source** behavior. The shared-key defect was identified in
+`10.0.0-alpha.4` through `10.0.0-alpha.13`: package type presence was checked at the endpoints,
+and the intervening versions were inferred from continuity. Later published versions, including
+`alpha.14` and `alpha.15`, have not been verified here for this behavior; do not infer that they are
+fixed or affected from this assessment. **In an implementation whose handle carries no tenant**, two tenants whose
 `[DataSubjectId]` values collide therefore share one key, and either tenant's erasure destroys it for
 both. The other tenant then reads `null` over data nobody asked to erase — which the read path on this
 page defines as the assertion of a lawful erasure — and the key is gone, so that data is unrecoverable.
 It takes no race and no fault: two ordinary writes and one ordinary erasure. The authenticated data
 carries no tenant on this path either, so the read produces the tombstone rather than failing loudly.
 
-**Until a release carries the fix, make the `[DataSubjectId]` value globally unique yourself** by
+**If your implementation has the shared-key defect, make the `[DataSubjectId]` value globally unique yourself** by
 embedding your tenant identifier in it, at **both** the write path and the erasure-request path. It
 protects only data written afterwards, repairs nothing already written, and cannot recover a collision
 that has already been erased. Changing those values also makes your existing legal holds and registered

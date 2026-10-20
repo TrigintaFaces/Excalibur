@@ -495,6 +495,7 @@ public sealed class ErasureCoverageGateShould
     {
         var status = new ErasureStatus
         {
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
             RequestId = requestId,
             DataSubjectIdHash = "abc123hash",
             IdType = DataSubjectIdType.UserId,

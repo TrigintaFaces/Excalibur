@@ -229,12 +229,16 @@ public sealed partial class FirestoreCdcStateStore : IFirestoreCdcStateStore
 		{
 			return CdcPositionSaveOutcome.RefusedAsStale;
 		}
-		catch (RpcException rpc) when (rpc.StatusCode is StatusCode.Aborted or StatusCode.FailedPrecondition)
+		catch (RpcException rpc) when (rpc.StatusCode == StatusCode.Aborted)
 		{
 			// Firestore reports transaction contention as ABORTED once RunTransactionAsync has exhausted its
-			// own retry budget, and the emulator adds "Transaction lock timeout." under the same status. Both
-			// mean the write did not apply and nothing was decided, which is exactly Contended. Cancellation
+			// own retry budget, and the emulator adds "Transaction lock timeout." under the same status. That
+			// means the write did not apply and nothing was decided, which is exactly Contended. Cancellation
 			// is deliberately NOT caught here: a cancelled save is the caller's own doing and must surface.
+			// FAILED_PRECONDITION is deliberately NOT mapped: this path passes no Precondition (unlike the
+			// delete above), so an unmet precondition cannot arise, and the conditions that DO raise it --
+			// a missing index, a database not in a usable state -- are broken data access. Calling those
+			// Contended would tell the processor to carry on and try again next cycle, forever.
 			LogSavePositionContended(consumerId, rpc.Status.Detail);
 			return CdcPositionSaveOutcome.Contended;
 		}

@@ -132,3 +132,21 @@ model reviewed by someone who did not write it.
 **That review is not a formality.** The first model in this directory passed its checker, passed its
 non-vacuity arm, and was still rejected on review: its reachable state space turned out to be exactly what
 its invariants enumerate.
+
+## Explicit field ownership
+
+`ComplianceErasureOwner.tla` and its configuration model two tenants sharing a subject, retained
+and unretained handles, staged destruction, separate ledger recording, a crash and key re-creation.
+The read is chosen nondeterministically across ownership, retention and generation combinations.
+Reads have no shared writes in this abstraction; parallel caches and provider effects are excluded.
+
+Require the shipped configuration to pass. Three separate controls must fail with the named invariant:
+tenant-blind handles (`InvOtherOwner`), no expected-owner guard (`InvReadOwner`), and a generation-only
+ledger (`InvNoFalseTombstone`). A nonzero tool exit alone does not establish a counterexample.
+Inspect state coverage for live/rejected reads, retained data, crash after destruction and an old
+envelope read after key re-creation. This safety slice does not establish durable recovery, legacy
+deployment ordering, provider implementation refinement or the complete compliance rigor rung.
+
+For `check-models.sh`, an optional `TLA_RUN_ARTIFACTS` must name an existing directory. Each TLC
+invocation retains its own unique state directory there; otherwise the runner uses the temporary
+directory. Failed diameter probes fail verification and report unavailable evidence.

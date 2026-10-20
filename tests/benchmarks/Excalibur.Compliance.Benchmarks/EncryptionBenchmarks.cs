@@ -18,7 +18,7 @@ namespace Excalibur.Compliance.Benchmarks;
 /// These benchmarks establish baselines for bd-5jn9 (boxing) and bd-q7fj (string allocations).
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class EncryptionBenchmarks
 {
 	private IEncryptionProvider _provider = null!;

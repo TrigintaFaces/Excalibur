@@ -37,14 +37,18 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 
 	#region Default Value Tests
 
+	/// <summary>
+	/// There is no node default. It used to be <c>http://localhost:9200</c>, which made the
+	/// required-node check in <c>Validate()</c> unreachable -- so a store nobody configured addressed
+	/// the local machine instead of refusing to start.
+	/// </summary>
 	[Fact]
-	public void HaveCorrectDefaultNodeUri()
+	public void HaveNoDefaultNodeUriAndRefuseValidationWithoutOne()
 	{
-		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
-		// Assert
-		options.NodeUri.ShouldBe("http://localhost:9200");
+		options.NodeUri.ShouldBeEmpty();
+		_ = Should.Throw<InvalidOperationException>(options.Validate);
 	}
 
 	[Fact]

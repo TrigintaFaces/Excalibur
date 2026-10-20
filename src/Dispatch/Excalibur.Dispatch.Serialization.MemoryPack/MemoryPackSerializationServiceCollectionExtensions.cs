@@ -39,8 +39,10 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 	/// <para>
 	/// <b>Note:</b> JSON (System.Text.Json) is the default serializer.
 	/// Call this method to opt into MemoryPack for high-performance binary serialization
-	/// in .NET-only environments. Consumer event types do not need <c>[MemoryPackable]</c> —
-	/// only the internal envelope wrapper uses MemoryPack attributes.
+	/// in .NET-only environments. Custom consumer payload types require compatible formatters,
+	/// normally generated with <c>[MemoryPackable]</c> or registered explicitly. Supported built-in
+	/// types need not all carry attributes; internal envelope attributes do not cover arbitrary payloads.
+	/// Verify NativeAOT with the concrete payloads and APIs; registration alone does not certify compatibility.
 	/// </para>
 	/// </remarks>
 	[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",

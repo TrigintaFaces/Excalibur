@@ -4,12 +4,14 @@ using Excalibur.Dispatch.Observability.Metrics;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddDispatchExceptionHandler();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSingleton<Company.DispatchApi.Infrastructure.InMemoryOrderStore>();
 
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+    dispatch.UseValidation().WithDataAnnotationsValidation();
 #if (UseKafka)
     dispatch.UseKafka(kafka =>
     {
@@ -45,10 +47,8 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
+// Dispatch maps exceptions to ProblemDetails and protects private details in production.
+app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();

@@ -837,6 +837,7 @@ public sealed class ErasureServiceShould
 	private static ErasureStatus CreateStatus(Guid requestId, ErasureRequestStatus status) =>
 		new()
 		{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
 			IdType = DataSubjectIdType.UserId,

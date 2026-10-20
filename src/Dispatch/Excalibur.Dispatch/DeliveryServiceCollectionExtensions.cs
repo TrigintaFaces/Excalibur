@@ -211,7 +211,12 @@ public static class DeliveryServiceCollectionExtensions
 		// alone stays gate-free so a development host, or one replacing an in-process mediator, is not made
 		// to justify a store it never schedules against. The refusal is installed by the compositions that
 		// start the scheduler runtime, where the host begins accepting deliveries it owes later.
-		services.TryAddSingleton<IScheduleStore, InMemoryScheduleStore>();
+		// The store judges occurrence due-ness against its own clock, so an in-process store MUST share the
+		// host's TimeProvider rather than reaching for TimeProvider.System. Two clocks in one process is
+		// not a skew hazard, it is a correctness bug: the scheduler would decide an occurrence is due on
+		// one clock and the store would refuse it on another, and a host driving a test or a simulated
+		// clock would never dispatch anything.
+		services.TryAddSingleton<IScheduleStore>(sp => new InMemoryScheduleStore(sp.GetService<TimeProvider>()));
 		services.TryAddSingleton<ICronScheduler, CronScheduler>();
 		// RecurringDispatchScheduler takes the concrete serializer, so scheduling composed on its own must
 		// seat it rather than rely on the consumer also having called AddDispatchPipeline/AddDispatchSerializer.

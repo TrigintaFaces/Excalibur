@@ -136,3 +136,80 @@ verification seam — remain UNVERIFIED for this subsystem.
 - **R4** — a model of the ordering and verification seam. **UNVERIFIED**.
 
 The arms that exist are sampling-class. Do not describe this seam as covered.
+
+## Scheduler execution and clocks
+
+`ScheduledMessageService` dispatches scheduled actions, events and documents through the
+dispatcher; `ScheduledMessageOutcomeShould` exercises the document pipeline path.
+Each admitted occurrence owns an asynchronous DI scope, supplied as the message context's
+`RequestServices`. The scope remains alive through progress and the matching release
+attempt, then is asynchronously disposed. Catch-up occurrences use distinct scopes.
+`ScheduledOccurrenceScopeShould` checks lifetime and cleanup ordering, including faults
+and cancellation. Asynchronous dependency disposal remains cooperative.
+Its injected `TimeProvider` controls polling, signal-wait deadlines and finite
+dispatch deadlines. Caller cancellation remains effective for infinite deadlines. A signal
+wait cancels its actual reader when the polling deadline expires, so an abandoned reader
+does not consume the next notification. Deadline scopes dispose both their linked token
+source and their provider-backed timer source.
+
+`MissedScheduleTimeoutShould`, `ScheduledMessageServiceTimeoutShould` and
+`ScheduledMessageServiceTimeAwareShould` exercise these paths with controlled time.
+These controls establish the tested clock and cancellation behavior; they do not prove
+durable recovery or physical timer release independently of the implementation.
+
+Parsed cron schedules delegate timezone evaluation to Cronos. The separate
+`CronScheduler.HandleDaylightSavingTransition` helper interprets the supplied wall-clock
+fields in the supplied zone; its adjustment option does not change parsed cron evaluation.
+Valid inputs and disabled adjustment preserve the original value, including its offset.
+Ambiguous inputs select the earlier UTC occurrence.
+
+The schedule-store startup gate requires a durability capability registration unless
+volatile operation is explicitly allowed.
+Registering a custom store as durable declares a capability; the gate does not test that
+provider's disk persistence, transactions or recovery. A new container sharing an in-memory
+dictionary is not evidence of recovery after process termination.
+
+Stores implementing `IScheduleExecutionStore` provide occurrence admission on the same
+authority as their administrative `IScheduleStore` operations. The in-memory store
+implements this capability with detached copies, fresh administrative generations and
+one progress commit per admission. Cancellation or replacement before admission prevents
+that invocation; an already admitted invocation may finish, but its old result cannot
+revive cancellation or overwrite a replacement. Matching release also cannot release a
+newer owner. The worker acquires before decoding and releases independently of a stopped
+host token. Host shutdown retains the due occurrence for another attempt.
+
+For recurring work beyond the polling/tolerance window, `SkipMissed` advances without
+dispatch, `ExecuteLatestMissed` coalesces to one invocation, and `DisableSchedule` disables
+the row. `ExecuteAllMissed` admits each persisted occurrence separately, with a positive
+`MaxMissedExecutions` bounding each poll and retaining excess backlog for later polls.
+Zero skips missed catch-up and advances into the future; it does not suppress an on-time
+invocation. Overdue one-time deliveries still run. Ordinary interval advancement uses
+completion time; catch-up advances from the recorded occurrence.
+An undecodable, unsupported or failed invocation ends catch-up for that row and advances
+once from completion time, coalescing its remaining missed backlog. A cancelled host does
+not take this failure path. Expired per-attempt tokens cannot record success even when a
+handler catches cancellation and returns normally. Replay logs report bounded actual
+attempt counts for the current poll.
+
+Legacy stores exposing only `IScheduleStore` do not provide atomic admission or stale-result
+fencing. Declaring a custom provider durable does not establish these additional guarantees.
+Providers implementing the execution capability must coordinate administration, admission,
+progress and release at one storage boundary and specify crashed-owner recovery. The
+`ScheduleExecutionStoreConformanceTestKit` supplies consumer contract controls; it cannot
+certify disk persistence, distributed recovery or NativeAOT publishing. The SQL Server
+provider's separate process controls exercise crashed and gracefully released store owners
+against a real database; they do not certify hosted-worker or NativeAOT process recovery.
+Handlers must be idempotent; this scheduler
+does not promise exactly-once external effects.
+
+Expiring providers can implement `IScheduleExecutionLeaseRenewal` on the configured store.
+Acquisition and renewal grant a positive `LeaseDuration` measured at the provider's atomic
+authority boundary. Renewal checks the complete current, unexpired tuple and remains valid
+through progress settlement until release. The worker uses a conservative local elapsed
+deadline, renews throughout execution and latches ownership loss on rejection, failure or
+deadline expiry. Loss cancels the occurrence and bars new progress requests or catch-up;
+an in-flight request may still be accepted if authoritative ownership remains current and
+unexpired. Cooperative cancellation cannot roll back handler
+effects or forcibly terminate user code. Renewal cleanup is bounded and observes late
+provider failures without disposing cancellation resources still in use. This capability
+does not by itself provide durable recovery or distributed external-effect fencing.

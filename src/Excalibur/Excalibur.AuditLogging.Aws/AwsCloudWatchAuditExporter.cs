@@ -69,7 +69,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 		{
 			var payload = CreatePayload(auditEvent);
 			var json = JsonSerializer.Serialize(payload, AwsAuditJsonContext.Default.CloudWatchAuditPayload);
-			var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+			using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -161,7 +161,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 					}
 				}
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
 				LogAuditExportBatchChunkError(ex);
 
@@ -197,7 +197,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 			var serviceUrl = _options.ServiceUrl
 							 ?? $"https://logs.{_options.Region}.amazonaws.com";
 			using var request = new HttpRequestMessage(HttpMethod.Get, serviceUrl);
-			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+			using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			// Any response from the endpoint indicates reachability
 			var isHealthy = response.StatusCode is not HttpStatusCode.ServiceUnavailable
@@ -283,7 +283,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 			_ = sb.AppendLine(JsonSerializer.Serialize(payload, AwsAuditJsonContext.Default.CloudWatchAuditPayload));
 		}
 
-		var response = await SendAsync(sb.ToString(), cancellationToken).ConfigureAwait(false);
+		using var response = await SendAsync(sb.ToString(), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -301,7 +301,8 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
 		// resilience pipeline attached to the typed HttpClient in DI (AwsAuditServiceCollectionExtensions),
 		// the same seam the Datadog/Elasticsearch/OpenSearch/Splunk audit exporters already use. The
-		// buffered StringContent is replayable, so the pipeline can safely re-send across attempts.
+		// buffered StringContent is replayable. Ambiguous server acceptance can still cause duplicate logs on retry;
+		// replayability does not provide idempotency.
 		var serviceUrl = _options.ServiceUrl ?? $"https://logs.{_options.Region}.amazonaws.com";
 		using var request = new HttpRequestMessage(HttpMethod.Post, serviceUrl)
 		{

@@ -32,6 +32,17 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 [Trait("Component", "Core")]
 public sealed class MessageFailureClassifierShould
 {
+	[Fact]
+	public void PreserveUncertainAcceptanceAndItsOriginalTransportEvidence()
+	{
+		var original = new IOException("Transport response evidence.");
+		var fault = new Excalibur.Dispatch.Exceptions.DispatchDeliveryUncertainException("Acceptance unestablished.", original);
+		Classifier.Classify(fault).ShouldBe(MessageFailureKind.Uncertain);
+		Classifier.Classify(new AggregateException(fault)).ShouldBe(MessageFailureKind.Uncertain);
+		fault.InnerException.ShouldBeSameAs(original);
+		fault.StatusCode.ShouldBe(500);
+	}
+
 	private static readonly IMessageFailureClassifier Classifier = new DefaultMessageFailureClassifier();
 
 	[Fact]

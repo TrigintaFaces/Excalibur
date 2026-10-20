@@ -6,6 +6,7 @@ using Excalibur.EventSourcing.Diagnostics;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -25,11 +26,13 @@ namespace Excalibur.EventSourcing.Projections;
 /// via <see cref="IProjectionRecovery"/>.
 /// </para>
 /// </remarks>
-internal sealed class InlineProjectionProcessor
+internal sealed partial class InlineProjectionProcessor
 {
 	private readonly IProjectionRegistry _registry;
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly ILogger<InlineProjectionProcessor> _logger;
+	private readonly TimeSpan _globalWarningThreshold;
+	private readonly TimeProvider _timeProvider;
 	private readonly ProjectionHealthState? _healthState;
 	private readonly ProjectionObservability? _observability;
 
@@ -38,7 +41,9 @@ internal sealed class InlineProjectionProcessor
 		IServiceScopeFactory scopeFactory,
 		ILogger<InlineProjectionProcessor> logger,
 		ProjectionHealthState? healthState = null,
-		ProjectionObservability? observability = null)
+		ProjectionObservability? observability = null,
+		IOptions<EventNotificationOptions>? notificationOptions = null,
+		TimeProvider? timeProvider = null)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 		ArgumentNullException.ThrowIfNull(scopeFactory);
@@ -47,6 +52,14 @@ internal sealed class InlineProjectionProcessor
 		_registry = registry;
 		_scopeFactory = scopeFactory;
 		_logger = logger;
+
+		// Both fall back to the same value the options type itself defaults to, so a container that has
+		// not registered them behaves exactly as one that registered the defaults -- there is no third
+		// behaviour hiding in the null.
+		_globalWarningThreshold = (notificationOptions?.Value ?? new EventNotificationOptions())
+			.InlineProjectionWarningThreshold;
+		_timeProvider = timeProvider ?? TimeProvider.System;
+
 		_healthState = healthState;
 		_observability = observability;
 	}
@@ -193,7 +206,35 @@ internal sealed class InlineProjectionProcessor
 			projectionEvents.Add(new ProjectionEvent(domainEvent, context.AggregateId, GlobalPosition: null));
 		}
 
+		var startedAt = _timeProvider.GetTimestamp();
+
 		await registration.InlineApply!(projectionEvents, context, scope.ServiceProvider, cancellationToken)
 			.ConfigureAwait(false);
+
+		// An inline projection runs inside SaveAsync, so its duration is added to every write. The
+		// per-projection threshold wins when one is set -- one slow projection must not force the
+		// threshold up for every other projection on the host.
+		var elapsed = _timeProvider.GetElapsedTime(startedAt);
+		var threshold = registration.Options?.WarningThreshold ?? _globalWarningThreshold;
+
+		if (elapsed > threshold)
+		{
+			LogSlowInlineProjection(
+				registration.ProjectionType.Name,
+				elapsed.TotalMilliseconds,
+				threshold.TotalMilliseconds);
+		}
 	}
+
+	[LoggerMessage(
+		EventNotificationTelemetry.InlineProjectionSlowWarning,
+		LogLevel.Warning,
+		"Inline projection '{ProjectionType}' took {ElapsedMilliseconds:F1}ms, over its "
+		+ "{ThresholdMilliseconds:F1}ms threshold. It runs inside SaveAsync, so this latency is added to "
+		+ "every write of the aggregates it folds. Move it to Async() if the read model can lag, or raise "
+		+ "the threshold with WithOptions(o => o.WarningThreshold = ...) if this duration is expected.")]
+	private partial void LogSlowInlineProjection(
+		string projectionType,
+		double elapsedMilliseconds,
+		double thresholdMilliseconds);
 }

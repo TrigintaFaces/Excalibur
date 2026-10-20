@@ -189,20 +189,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		IServiceCollection services,
 		GooglePubSubOptions transportOptions)
 	{
-		// Register PublisherClient
-		services.TryAddSingleton(sp =>
-		{
-			var topicName = new TopicName(transportOptions.Connection.ProjectId, transportOptions.Connection.TopicId);
-
-			// Same emulator detection as every other default client this package builds. The SDK's
-			// static factory performs none, so a host running against the emulator would publish to
-			// production while its subscriber read the emulator.
-			return new PublisherClientBuilder
-			{
-				TopicName = topicName,
-				EmulatorDetection = EmulatorDetection.EmulatorOrProduction,
-			}.Build();
-		});
+		NamedTopicPublisherRegistration.Register(services, transportOptions.Name ?? DefaultTransportName);
 
 		// Register SubscriberClient if subscription is configured
 		if (!string.IsNullOrEmpty(transportOptions.Connection.SubscriptionId))
@@ -342,7 +329,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<GooglePubSubTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<GooglePubSubMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<GooglePubSubMessageBus>(name);
 			return new GooglePubSubTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -350,7 +337,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<GooglePubSubTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<GooglePubSubMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<GooglePubSubMessageBus>(name);
 			return new GooglePubSubTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 

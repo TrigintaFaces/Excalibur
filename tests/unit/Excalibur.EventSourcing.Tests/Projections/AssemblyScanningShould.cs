@@ -106,7 +106,7 @@ public sealed class AssemblyScanningShould
 	public async Task MixExplicitWhenHandledByWithScannedHandlers()
 	{
 		// Arrange -- explicit When<T> lambda for TestOrderShipped + scan for InventoryView handlers
-		var store = new InMemoryProjectionStore<InventoryView>();
+		var store = new TestProjectionStore<InventoryView>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<InventoryView>>(store)
 			.AddTransient<InventoryEventHandler>()

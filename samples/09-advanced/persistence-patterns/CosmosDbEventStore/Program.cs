@@ -37,6 +37,21 @@ Console.WriteLine("  Cosmos DB Event Store Sample");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 
+if (args is ["--illustrative"])
+{
+	Console.WriteLine("Illustrative mode: no database operations are performed.");
+	RunDemoMode();
+	return;
+}
+
+if (args.Length > 0 && args is not ["--real"])
+{
+	throw new ArgumentException("Usage: dotnet run -- [--real|--illustrative]");
+}
+
+using var operationDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+var operationToken = operationDeadline.Token;
+
 // Load configuration
 var configuration = new ConfigurationBuilder()
 	.SetBasePath(Directory.GetCurrentDirectory())
@@ -46,20 +61,23 @@ var configuration = new ConfigurationBuilder()
 
 // Check for emulator connection string
 var connectionString = configuration["CosmosDb:ConnectionString"];
-var useEmulator = string.IsNullOrEmpty(connectionString) ||
-				  connectionString.Contains("localhost:8081", StringComparison.OrdinalIgnoreCase);
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+	throw new InvalidOperationException("Real mode requires CosmosDb:ConnectionString (or CosmosDb__ConnectionString), including for the emulator. Use --illustrative for an offline example.");
+}
+
+var useEmulator = connectionString.Contains("localhost:8081", StringComparison.OrdinalIgnoreCase);
+var databaseName = configuration["CosmosDb:DatabaseName"] ?? "events";
+var containerName = configuration["CosmosDb:ContainerName"] ?? "events";
 
 if (useEmulator)
 {
 	Console.WriteLine("Configuration: Using Cosmos DB Emulator");
-	Console.WriteLine("  Endpoint: https://localhost:8081/");
 	Console.WriteLine();
 	Console.WriteLine("  To install the emulator:");
 	Console.WriteLine("    winget install Microsoft.Azure.CosmosEmulator");
 	Console.WriteLine();
 
-	// Emulator connection string
-	connectionString = BuildLocalEmulatorConnectionString();
 }
 else
 {
@@ -105,7 +123,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 	{
 		// The CosmosClient is already registered in DI above, so no connection config needed.
 		// The store resolves CosmosClient from DI automatically.
-		cosmos.ContainerName("events");
+		cosmos.ContainerName(containerName);
 	});
 
 	_ = builder.AddRepository<BankAccountAggregate, Guid>(id => new BankAccountAggregate(id));
@@ -115,13 +133,14 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 services.Configure<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions>(options =>
 {
 	options.PartitionKeyPath = "/streamId";
+	options.DatabaseName = databaseName;
 	options.CreateContainerIfNotExists = true;
 	options.ContainerThroughput = 400; // Minimum for development
 	options.MaxBatchSize = 100;
 	options.ChangeFeedPollIntervalMs = 1000;
 });
 
-var provider = services.BuildServiceProvider();
+await using var provider = services.BuildServiceProvider();
 
 try
 {
@@ -129,7 +148,7 @@ try
 	Console.WriteLine("Initializing Cosmos DB...");
 	var cosmosClient = provider.GetRequiredService<CosmosClient>();
 
-	var databaseResponse = await cosmosClient.CreateDatabaseIfNotExistsAsync("events");
+	var databaseResponse = await cosmosClient.CreateDatabaseIfNotExistsAsync(databaseName, cancellationToken: operationToken);
 	Console.WriteLine($"  Database: {databaseResponse.Database.Id}");
 
 	Console.WriteLine("  Cosmos DB initialized successfully!");
@@ -142,17 +161,14 @@ catch (Exception ex)
 	Console.WriteLine("  Make sure the Cosmos DB Emulator is running or");
 	Console.WriteLine("  configure a valid connection string in appsettings.json");
 	Console.WriteLine();
-	Console.WriteLine("Running in demo mode with simulated output...");
-	Console.WriteLine();
-	RunDemoMode();
-	return;
+	throw;
 }
 
 // Get the repository
 var repository = provider.GetRequiredService<IEventSourcedRepository<BankAccountAggregate, Guid>>();
 
 // Demonstrate event sourcing with Cosmos DB
-await DemonstrateBankAccountOperationsAsync(repository);
+await DemonstrateBankAccountOperationsAsync(repository, services, operationToken);
 
 Console.WriteLine();
 Console.WriteLine("=================================================");
@@ -174,7 +190,7 @@ Console.WriteLine("  - Optimal for loading/saving individual aggregates");
 Console.WriteLine();
 
 static async Task DemonstrateBankAccountOperationsAsync(
-	IEventSourcedRepository<BankAccountAggregate, Guid> repository)
+	IEventSourcedRepository<BankAccountAggregate, Guid> repository, IServiceCollection services, CancellationToken cancellationToken)
 {
 	Console.WriteLine("Step 1: Opening a new bank account");
 	Console.WriteLine("  This creates a BankAccountAggregate and raises AccountOpened event.");
@@ -188,7 +204,7 @@ static async Task DemonstrateBankAccountOperationsAsync(
 		initialDeposit: 1000m);
 
 	// Save the aggregate to Cosmos DB
-	await repository.SaveAsync(account, CancellationToken.None);
+	await repository.SaveAsync(account, cancellationToken);
 
 	Console.WriteLine($"  Account ID: {accountId}");
 	Console.WriteLine($"  Account Holder: {account.AccountHolder}");
@@ -202,17 +218,16 @@ static async Task DemonstrateBankAccountOperationsAsync(
 	Console.WriteLine();
 
 	// Reload the aggregate from Cosmos DB
-	var loadedAccount = await repository.GetByIdAsync(accountId, CancellationToken.None);
+	var loadedAccount = await repository.GetByIdAsync(accountId, cancellationToken);
 	if (loadedAccount == null)
 	{
-		Console.WriteLine("  ERROR: Failed to load account!");
-		return;
+		throw new InvalidOperationException("Failed to reload the persisted account.");
 	}
 
 	loadedAccount.Deposit(500m, "Paycheck - January");
 	loadedAccount.Deposit(250m, "Bonus");
 
-	await repository.SaveAsync(loadedAccount, CancellationToken.None);
+	await repository.SaveAsync(loadedAccount, cancellationToken);
 
 	Console.WriteLine($"  Deposited: $500.00 (Paycheck - January)");
 	Console.WriteLine($"  Deposited: $250.00 (Bonus)");
@@ -224,17 +239,16 @@ static async Task DemonstrateBankAccountOperationsAsync(
 	Console.WriteLine("  Withdrawals enforce the no-negative-balance invariant.");
 	Console.WriteLine();
 
-	loadedAccount = await repository.GetByIdAsync(accountId, CancellationToken.None);
+	loadedAccount = await repository.GetByIdAsync(accountId, cancellationToken);
 	if (loadedAccount == null)
 	{
-		Console.WriteLine("  ERROR: Failed to load account!");
-		return;
+		throw new InvalidOperationException("Failed to reload the persisted account.");
 	}
 
 	loadedAccount.Withdraw(200m, "ATM Withdrawal");
 	loadedAccount.Withdraw(50m, "Coffee Shop");
 
-	await repository.SaveAsync(loadedAccount, CancellationToken.None);
+	await repository.SaveAsync(loadedAccount, cancellationToken);
 
 	Console.WriteLine($"  Withdrew: $200.00 (ATM Withdrawal)");
 	Console.WriteLine($"  Withdrew: $50.00 (Coffee Shop)");
@@ -246,21 +260,25 @@ static async Task DemonstrateBankAccountOperationsAsync(
 	Console.WriteLine("  Business rule: Cannot withdraw more than available balance.");
 	Console.WriteLine();
 
-	loadedAccount = await repository.GetByIdAsync(accountId, CancellationToken.None);
+	loadedAccount = await repository.GetByIdAsync(accountId, cancellationToken);
 	if (loadedAccount == null)
 	{
-		Console.WriteLine("  ERROR: Failed to load account!");
-		return;
+		throw new InvalidOperationException("Failed to reload the persisted account.");
 	}
 
+	var overdraftRejected = false;
 	try
 	{
 		loadedAccount.Withdraw(10000m, "Attempted Overdraft");
-		Console.WriteLine("  ERROR: Overdraft should have been rejected!");
 	}
 	catch (InvalidOperationException ex)
 	{
+		overdraftRejected = true;
 		Console.WriteLine($"  Correctly rejected: {ex.Message}");
+	}
+	if (!overdraftRejected)
+	{
+		throw new InvalidOperationException("Overdraft should have been rejected.");
 	}
 
 	Console.WriteLine();
@@ -269,11 +287,12 @@ static async Task DemonstrateBankAccountOperationsAsync(
 	Console.WriteLine("  Loading the aggregate replays all events to rebuild state.");
 	Console.WriteLine();
 
-	var rehydratedAccount = await repository.GetByIdAsync(accountId, CancellationToken.None);
+	await using var verificationProvider = services.BuildServiceProvider();
+	var verificationRepository = verificationProvider.GetRequiredService<IEventSourcedRepository<BankAccountAggregate, Guid>>();
+	var rehydratedAccount = await verificationRepository.GetByIdAsync(accountId, cancellationToken);
 	if (rehydratedAccount == null)
 	{
-		Console.WriteLine("  ERROR: Failed to load account!");
-		return;
+		throw new InvalidOperationException("Failed to reload the persisted account.");
 	}
 
 	Console.WriteLine($"  Account ID: {rehydratedAccount.Id}");
@@ -283,6 +302,13 @@ static async Task DemonstrateBankAccountOperationsAsync(
 	Console.WriteLine($"  Transaction Count: {rehydratedAccount.TransactionCount}");
 	Console.WriteLine($"  Opened At: {rehydratedAccount.OpenedAt:u}");
 	Console.WriteLine($"  Aggregate Version: {rehydratedAccount.Version}");
+	if (rehydratedAccount.Id != accountId || rehydratedAccount.AccountHolder != "Jane Doe" ||
+		rehydratedAccount.AccountType != "Savings" || rehydratedAccount.Balance != 1500m ||
+		rehydratedAccount.Status != AccountStatus.Active || rehydratedAccount.TransactionCount != 5 ||
+		rehydratedAccount.Version != 5)
+	{
+		throw new InvalidOperationException("Persisted account state did not match the saved event stream.");
+	}
 	Console.WriteLine();
 }
 
@@ -318,11 +344,4 @@ static void RunDemoMode()
 	Console.WriteLine("=================================================");
 	Console.WriteLine("  Demo Complete!");
 	Console.WriteLine("=================================================");
-}
-
-static string BuildLocalEmulatorConnectionString()
-{
-	const string emulatorEndpoint = "https://localhost:8081/";
-	var emulatorKey = string.Concat("local-", "cosmos-", "emulator-", "key");
-	return string.Concat("AccountEndpoint=", emulatorEndpoint, ";AccountKey=", emulatorKey);
 }

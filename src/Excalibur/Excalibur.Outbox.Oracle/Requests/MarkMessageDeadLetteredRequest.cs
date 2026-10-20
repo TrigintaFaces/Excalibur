@@ -29,7 +29,8 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     /// Initializes a new instance of the <see cref="MarkMessageDeadLetteredRequest"/> class.
     /// </summary>
     /// <param name="messageId">The unique identifier of the message to dead-letter.</param>
-    /// <param name="reason">The reason the message was dead-lettered.</param>
+    /// <param name="attemptCount">The absolute number of observed logical send attempts.</param>
+	/// <param name="reason">The reason the message was dead-lettered.</param>
     /// <param name="outboxTableName">The fully qualified outbox table name.</param>
     /// <param name="deadLetterTableName">The fully qualified dead-letter table name.</param>
     /// <param name="commandTimeout">Command timeout in seconds.</param>
@@ -50,11 +51,13 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     public MarkMessageDeadLetteredRequest(
         string messageId,
         string reason,
+		int attemptCount,
         string outboxTableName,
         string deadLetterTableName,
         int commandTimeout,
         CancellationToken cancellationToken)
     {
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentNullException.ThrowIfNull(reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(outboxTableName);
@@ -64,29 +67,48 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
         // Deleting the row is the Oracle idiom for a terminal state — the row is structurally
         // absent from all claim predicates without needing a status column.
         // Oracle: two DML statements must run in a single PL/SQL anonymous block (no client-side ';' batching).
-        var sql = $"""
-                BEGIN
-                        INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-                        SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, :Reason
-                        FROM {outboxTableName}
-                        WHERE message_id = :MessageIdInsert;
+        // Lock the source before copying. Check archive/delete counts inside the command
+		// so trigger-suppressed deletion raises and rolls back the entire terminal transition.
+		var sql = $"""
+		   DECLARE
+		   v_inserted NUMBER;
+		   v_deleted NUMBER;
+		   v_moved NUMBER := 0;
+		   BEGIN
+		   FOR src IN (SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts FROM {outboxTableName}
+		   WHERE message_id = :MessageId FOR UPDATE) LOOP
+		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+		   VALUES (src.message_id, src.tenant_id, src.message_type, src.message_metadata, src.message_body,
+		   src.occurred_on, GREATEST(src.attempts, :AttemptCount), :Reason);
+		   v_inserted := SQL%ROWCOUNT;
+		   IF v_inserted = 1 THEN
+		   DELETE FROM {outboxTableName} WHERE message_id = src.message_id;
+		   v_deleted := SQL%ROWCOUNT;
+		   IF v_deleted != v_inserted THEN
+		   RAISE_APPLICATION_ERROR(-20001, 'Dead-letter archive/delete count mismatch');
+		   END IF;
+		   v_moved := v_inserted;
+		   ELSIF v_inserted != 0 THEN
+		   RAISE_APPLICATION_ERROR(-20001, 'Unexpected dead-letter archive count');
+		   END IF;
+		   END LOOP;
+		   :MovedCount := v_moved;
+		   END;
+		   """;
 
-                        DELETE FROM {outboxTableName}
-                        WHERE message_id = :MessageIdDelete;
-                END;
-                """;
-
-        // ODP.NET binds positionally (this store does not set BindByName), so a placeholder appearing more
-        // than once consumes one parameter PER occurrence and parameters must be added in textual order.
-        // The reused message_id is given a distinct name per occurrence, both bound to the same id, so the
-        // block binds correctly regardless of BindByName.
+		// Anonymous PL/SQL blocks return -1 from ExecuteNonQuery; export the actual move count.
         var parameters = new DynamicParameters();
+        parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
+        parameters.Add("AttemptCount", attemptCount, direction: ParameterDirection.Input);
         parameters.Add("Reason", reason, direction: ParameterDirection.Input);
-        parameters.Add("MessageIdInsert", messageId, direction: ParameterDirection.Input);
-        parameters.Add("MessageIdDelete", messageId, direction: ParameterDirection.Input);
+		parameters.Add("MovedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-        Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
-        ResolveAsync = async connection =>
-            await connection.ExecuteAsync(Command).ConfigureAwait(false);
+		Command = new CommandDefinition(sql, new OracleDynamicParameters(parameters),
+			commandTimeout: commandTimeout, cancellationToken: cancellationToken);
+		ResolveAsync = async connection =>
+		{
+			_ = await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			return parameters.Get<int>("MovedCount");
+		};
     }
 }

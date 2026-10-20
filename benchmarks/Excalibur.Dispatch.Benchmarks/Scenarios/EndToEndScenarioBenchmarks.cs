@@ -30,6 +30,11 @@ namespace Excalibur.Dispatch.Benchmarks.Scenarios;
 /// These benchmarks measure framework overhead, not I/O. All implementations are in-memory
 /// to isolate the cost of the dispatch pipeline, event sourcing, outbox, and transport layers.
 /// </para>
+/// <para>
+/// Each iteration creates fresh providers and stores outside timing and invokes one workload.
+/// The timed dispatch therefore includes first use of those instances. This isolated fixture epoch
+/// is not directly comparable with the earlier GlobalSetup fixture's warmed provider-local caches.
+/// </para>
 /// <list type="bullet">
 /// <item>Scenario 1: Command dispatch through pipeline to outbox staging</item>
 /// <item>Scenario 2: Full event sourcing read-modify-write cycle with snapshot</item>
@@ -38,6 +43,7 @@ namespace Excalibur.Dispatch.Benchmarks.Scenarios;
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
+[InvocationCount(1, 1)]
 public class EndToEndScenarioBenchmarks
 {
 	// Scenario 1: Command dispatch to outbox
@@ -60,19 +66,65 @@ public class EndToEndScenarioBenchmarks
 	private InMemoryOutboxStore _fullPipelineOutboxStore = null!;
 	private SubmitOrderCommand _submitOrderCommand = null!;
 
-	[GlobalSetup]
-	public async Task GlobalSetup()
+	private bool _iterationActive;
+
+	[IterationSetup]
+	public void IterationSetup()
 	{
-		SetupScenario1_CommandDispatchToOutbox();
-		await SetupScenario2_EventSourcingFullCycleAsync();
-		SetupScenario3_FullPipelineWithTransport();
+		if (_iterationActive) throw new InvalidOperationException("Clean up the preceding iteration before setup.");
+		_iterationActive = true;
+		try
+		{
+			SetupScenario1_CommandDispatchToOutbox();
+			// BenchmarkDotNet binds iteration hooks to Action. Complete this bounded,
+			// in-memory fixture initialization outside the measured operation.
+			SetupScenario2_EventSourcingFullCycleAsync().GetAwaiter().GetResult();
+			SetupScenario3_FullPipelineWithTransport();
+		}
+		catch
+		{
+			IterationCleanup();
+			throw;
+		}
 	}
 
-	[GlobalCleanup]
-	public void GlobalCleanup()
+	[IterationCleanup]
+	public void IterationCleanup()
 	{
-		(_dispatchToOutboxProvider as IDisposable)?.Dispose();
-		(_fullPipelineProvider as IDisposable)?.Dispose();
+		// Fixture-owned state is discarded outside the timed operation, never by changing retention.
+		try { DisposeProvider(_dispatchToOutboxProvider); }
+		finally
+		{
+			try { DisposeProvider(_fullPipelineProvider); }
+			finally
+			{
+				_snapshotStore?.Dispose();
+				_fullPipelineOutboxStore?.Dispose();
+				_transportSender?.Clear();
+				_dispatchToOutboxProvider = null!;
+				_dispatchToOutboxDispatcher = null!;
+				_dispatchToOutboxContextFactory = null!;
+				_placeOrderCommand = null!;
+				_eventStore = null!;
+				_snapshotStore = null!;
+				_preloadedAggregateId = null!;
+				_fullPipelineProvider = null!;
+				_fullPipelineDispatcher = null!;
+				_fullPipelineContextFactory = null!;
+				_fullPipelineEventStore = null!;
+				_fullPipelineOutboxStore = null!;
+				_transportSender = null!;
+				_submitOrderCommand = null!;
+				_iterationActive = false;
+			}
+		}
+	}
+
+	private static void DisposeProvider(IServiceProvider? provider)
+	{
+		if (provider is IAsyncDisposable asynchronous)
+			asynchronous.DisposeAsync().AsTask().GetAwaiter().GetResult();
+		else (provider as IDisposable)?.Dispose();
 	}
 
 	#region Scenario 1: Command Dispatch to Outbox
@@ -258,9 +310,9 @@ public class EndToEndScenarioBenchmarks
 
 	/// <summary>
 	/// Scenario 2 variant: Load from snapshot, then load only new events since snapshot version.
-	/// Measures: Snapshot load + partial event load (optimized hydration path).
+	/// Measures: Synthetic snapshot load + empty-tail lookup (seed stores versions 0..19; snapshot is 20).
 	/// </summary>
-	[Benchmark(Description = "S2: Snapshot + Partial Load")]
+	[Benchmark(Description = "S2: Synthetic Snapshot + Empty Tail")]
 	public async Task EventSourcingSnapshotPartialLoad()
 	{
 		// 1. Load snapshot
@@ -374,7 +426,7 @@ public class EndToEndScenarioBenchmarks
 
 	/// <summary>
 	/// Scenario 3 variant: 10 sequential full-pipeline dispatches.
-	/// Measures: Sustained throughput of the complete end-to-end path.
+	/// Measures: One committed creation, nine append conflicts, ten outbox stages and ten sends.
 	/// </summary>
 	[Benchmark(Description = "S3: 10x Full Pipeline")]
 	public async Task<int> FullPipelineWithTransport_10Sequential()
@@ -395,7 +447,7 @@ public class EndToEndScenarioBenchmarks
 
 	/// <summary>
 	/// Scenario 3 variant: 10 concurrent full-pipeline dispatches.
-	/// Measures: Concurrent throughput through the complete end-to-end path.
+	/// Measures: One committed creation, nine append conflicts, ten outbox stages and ten sends.
 	/// </summary>
 	[Benchmark(Description = "S3: 10x Concurrent Full Pipeline")]
 	public async Task<int> FullPipelineWithTransport_10Concurrent()
@@ -461,6 +513,7 @@ public class EndToEndScenarioBenchmarks
 
 	// -- Scenario 2 Types --
 
+	[MessageName("excalibur.benchmarks.order-event.v1")]
 	private sealed class BenchmarkOrderEvent : IDomainEvent
 	{
 		public required string EventId { get; init; }

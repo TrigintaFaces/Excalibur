@@ -260,3 +260,8 @@ virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.AddOrUpdateAsy
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.GetByIdAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.RemoveAsync(string! documentId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.DynamoDb.DynamoDbRepositoryBase<TDocument>.ScanAsync(Amazon.DynamoDBv2.Model.ScanRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.CloudNative.CloudQueryResult<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbOptions.StreamDocumentTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.Data.DynamoDb.DynamoDbOptions.StreamDocumentTypeInfoResolver.set -> void
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.DynamoDbStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, string! tableName, string! partitionKeyAttribute, string! sortKeyAttribute, Excalibur.Data.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? documentTypeInfoResolver) -> void
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.JsonTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.JsonTypeInfoResolver.set -> void

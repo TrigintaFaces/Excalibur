@@ -265,9 +265,7 @@ public sealed partial class DynamoDbOutboxStore : ICloudNativeOutboxStore, IClou
 			return new CloudQueryResult<CloudOutboxMessage>(
 				messages,
 				consumedCapacity,
-#pragma warning disable IL2026, IL3050
-				response.LastEvaluatedKey?.Count > 0 ? JsonSerializer.Serialize(response.LastEvaluatedKey) : null);
-#pragma warning restore IL2026, IL3050
+				DynamoDbContinuationTokenWriter.Serialize(response.LastEvaluatedKey));
 		}
 		catch (AmazonDynamoDBException ex)
 		{

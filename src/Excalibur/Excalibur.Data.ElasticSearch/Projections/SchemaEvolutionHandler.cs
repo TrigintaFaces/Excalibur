@@ -25,7 +25,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 	private readonly IMigrationHistoryStore _migrationHistory;
 	private readonly IIndexInspection _inspection;
 	private readonly IIndexAliasManager _aliasManager;
-	private readonly ProjectionOptions _settings;
+	private readonly ElasticSearchProjectionManagementOptions _settings;
 	private readonly ILogger<SchemaEvolutionHandler> _logger;
 	private readonly string _historyIndexName;
 	private readonly string _migrationIndexName;
@@ -42,7 +42,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 	public SchemaEvolutionHandler(
 		ElasticsearchClient client,
 		IIndexAliasManager aliasManager,
-		IOptions<ProjectionOptions> options,
+		IOptions<ElasticSearchProjectionManagementOptions> options,
 		ILogger<SchemaEvolutionHandler> logger)
 		: this(
 			CreateOps(client),
@@ -65,7 +65,7 @@ public sealed class SchemaEvolutionHandler : ISchemaEvolutionHandler, ISchemaEvo
 		IMigrationHistoryStore migrationHistory,
 		IIndexInspection inspection,
 		IIndexAliasManager aliasManager,
-		IOptions<ProjectionOptions> options,
+		IOptions<ElasticSearchProjectionManagementOptions> options,
 		ILogger<SchemaEvolutionHandler> logger)
 	{
 		_ops = ops ?? throw new ArgumentNullException(nameof(ops));

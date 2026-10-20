@@ -125,6 +125,43 @@ services.AddCdcProcessor(cdc =>
 });
 ```
 
+### Stream Document Metadata and Checkpoints
+
+Configure document metadata for subscriptions created through `DynamoDbPersistenceProvider`:
+
+```csharp
+using Excalibur.Data.DynamoDb;
+using System.Text.Json.Serialization;
+
+services.Configure<DynamoDbOptions>(options =>
+    options.StreamDocumentTypeInfoResolver = StreamJsonContext.Default);
+
+[JsonSerializable(typeof(OrderDocument))]
+internal sealed partial class StreamJsonContext : JsonSerializerContext;
+
+public sealed record OrderDocument(string Id, string? Description);
+```
+
+The subscription's resolver constructor overload also accepts the context directly. A supplied resolver
+is authoritative: an image requiring undeclared metadata fails without a reflection fallback. Keys-only
+events retain a null document and do not resolve document metadata. Direct contexts retain their naming
+policies and converters. Declare the document's nested and polymorphic types as well.
+
+Each event carries an opaque resumable token containing the offered position of every established shard.
+Process events in order and persist the event's token only after successful processing; parallel processors
+must checkpoint only a contiguous successfully processed prefix. `CurrentContinuationToken` describes
+offered records and is not a processing acknowledgement. Conversion failure, cancellation, or early disposal
+cannot advance the checkpoint past an unoffered record. Only one enumeration may be active per subscription.
+
+Keep the AWS SDK v4 default `AWSConfigs.InitializeCollections = false` to preserve the distinction between
+unset and explicitly empty maps/lists. Legacy automatic collection initialization can make an empty map
+indistinguishable from an empty list; that ambiguous value is rejected instead of invented. Identifiable
+scalar and nonempty collection values remain supported.
+
+Document decoding and the SDK conversion chain have been exercised in a reflection-disabled native control.
+This is a bounded serialization path; it does not establish Native AOT support for all provider CRUD,
+registration, client operations, or live AWS behavior.
+
 ## Builder Methods
 
 ### Connection Methods
@@ -250,6 +287,40 @@ Bind DynamoDB options from `appsettings.json`:
 services.AddExcaliburDynamoDb(dynamo =>
     dynamo.BindConfiguration("DynamoDb"));
 ```
+
+## Local DAX Cache and Native AOT
+
+`AddDynamoDbDaxCaching` registers an in-memory provider for development and testing. It stores detached
+JSON snapshots; changing an object after caching it, or changing a fetched object, does not change the
+stored snapshot. Register an actual DAX SDK implementation for cloud DAX connectivity.
+
+Supply generated metadata through the configuration delegate for Native AOT:
+
+```csharp
+using System.Text.Json.Serialization;
+
+services.AddDynamoDbDaxCaching(options =>
+{
+    options.ClusterEndpoint = "dax://local-development";
+    options.JsonTypeInfoResolver = CacheJsonContext.Default;
+});
+
+[JsonSerializable(typeof(CachedOrder))]
+internal sealed partial class CacheJsonContext : JsonSerializerContext;
+
+public sealed record CachedOrder(string Id, string? Description);
+```
+
+The local provider retains a directly supplied context's naming policies and converters. Other resolvers
+supply metadata under its default JSON options. It serializes the declared generic type; polymorphic and
+`object` members also need metadata for their runtime types. A supplied resolver never falls back to
+reflection when metadata is missing. Without a resolver, reflection is available only in hosts that support
+dynamic code and enable JSON reflection.
+
+Type requirements are checked when an operation needs serialization, since generic types are unknown at
+startup. Cache misses and writes skipped because the cache is full do not resolve metadata. Local put/get,
+snapshot isolation, key separation and missing-metadata refusal have been executed in a Native AOT control
+with JSON reflection disabled. This does not verify cloud DAX or DynamoDB SDK paths.
 
 ## See Also
 

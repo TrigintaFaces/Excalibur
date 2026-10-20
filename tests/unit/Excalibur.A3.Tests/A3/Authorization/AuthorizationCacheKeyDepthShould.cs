@@ -49,6 +49,7 @@ public sealed class AuthorizationCacheKeyDepthShould : IDisposable
 		// Was ForActivityGroups_ThrowsWhenBasePathNotConfigured. Same inversion.
 		ApplicationContext.Reset();
 
-		AuthorizationCacheKey.ForActivityGroups("tenant-1").ShouldBe("authorization/tenant-1/activity-groups/v3");
+		AuthorizationCacheKey.ForActivityGroups("tenant-1").ShouldBe("authorization/tenant-1/activity-groups/v4");
 	}
 }
+

@@ -26,6 +26,10 @@ namespace Excalibur.Dispatch.Benchmarks.Serialization;
 /// These benchmarks measure raw cryptographic performance using .NET's AesGcm class
 /// directly, isolated from key management overhead.
 /// </para>
+/// <para>
+/// Fixed-nonce arms isolate primitive cost and are benchmark-only: production encryption must
+/// never reuse a nonce with the same key. Only EncryptWithNonceGeneration includes nonce generation.
+/// </para>
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -48,7 +52,10 @@ public class EncryptionBenchmarks
 	private byte[] _mediumCiphertext = null!;
 	private byte[] _largeCiphertext = null!;
 	private byte[] _veryLargeCiphertext = null!;
-	private byte[] _tag = null!;
+	private byte[] _smallTag = null!;
+	private byte[] _mediumTag = null!;
+	private byte[] _largeTag = null!;
+	private byte[] _veryLargeTag = null!;
 
 	/// <summary>
 	/// Initialize encryption provider and test payloads.
@@ -59,7 +66,10 @@ public class EncryptionBenchmarks
 		// Create key and nonce
 		_key = new byte[KeySizeBytes];
 		_nonce = new byte[NonceSizeBytes];
-		_tag = new byte[TagSizeBytes];
+		_smallTag = new byte[TagSizeBytes];
+		_mediumTag = new byte[TagSizeBytes];
+		_largeTag = new byte[TagSizeBytes];
+		_veryLargeTag = new byte[TagSizeBytes];
 		RandomNumberGenerator.Fill(_key);
 		RandomNumberGenerator.Fill(_nonce);
 
@@ -84,10 +94,10 @@ public class EncryptionBenchmarks
 		_veryLargeCiphertext = new byte[_veryLargePayload.Length];
 
 		// Pre-encrypt for decryption benchmarks
-		_aesGcm.Encrypt(_nonce, _smallPayload, _smallCiphertext, _tag);
-		_aesGcm.Encrypt(_nonce, _mediumPayload, _mediumCiphertext, _tag);
-		_aesGcm.Encrypt(_nonce, _largePayload, _largeCiphertext, _tag);
-		_aesGcm.Encrypt(_nonce, _veryLargePayload, _veryLargeCiphertext, _tag);
+		_aesGcm.Encrypt(_nonce, _smallPayload, _smallCiphertext, _smallTag);
+		_aesGcm.Encrypt(_nonce, _mediumPayload, _mediumCiphertext, _mediumTag);
+		_aesGcm.Encrypt(_nonce, _largePayload, _largeCiphertext, _largeTag);
+		_aesGcm.Encrypt(_nonce, _veryLargePayload, _veryLargeCiphertext, _veryLargeTag);
 	}
 
 	/// <summary>
@@ -123,7 +133,7 @@ public class EncryptionBenchmarks
 	public void DecryptSmall()
 	{
 		var plaintext = new byte[_smallCiphertext.Length];
-		_aesGcm.Decrypt(_nonce, _smallCiphertext, _tag, plaintext);
+		_aesGcm.Decrypt(_nonce, _smallCiphertext, _smallTag, plaintext);
 	}
 
 	/// <summary>
@@ -146,7 +156,7 @@ public class EncryptionBenchmarks
 	public void DecryptMedium()
 	{
 		var plaintext = new byte[_mediumCiphertext.Length];
-		_aesGcm.Decrypt(_nonce, _mediumCiphertext, _tag, plaintext);
+		_aesGcm.Decrypt(_nonce, _mediumCiphertext, _mediumTag, plaintext);
 	}
 
 	/// <summary>
@@ -169,7 +179,7 @@ public class EncryptionBenchmarks
 	public void DecryptLarge()
 	{
 		var plaintext = new byte[_largeCiphertext.Length];
-		_aesGcm.Decrypt(_nonce, _largeCiphertext, _tag, plaintext);
+		_aesGcm.Decrypt(_nonce, _largeCiphertext, _largeTag, plaintext);
 	}
 
 	/// <summary>
@@ -192,7 +202,7 @@ public class EncryptionBenchmarks
 	public void DecryptVeryLarge()
 	{
 		var plaintext = new byte[_veryLargeCiphertext.Length];
-		_aesGcm.Decrypt(_nonce, _veryLargeCiphertext, _tag, plaintext);
+		_aesGcm.Decrypt(_nonce, _veryLargeCiphertext, _veryLargeTag, plaintext);
 	}
 
 	/// <summary>

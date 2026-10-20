@@ -27,25 +27,29 @@ internal sealed class ErasureLifecycleHarness
 		IKeyManagementAdmin keyAdmin,
 		IKeyManagementProvider keyProvider,
 		IEnumerable<IErasureContributor>? contributors = null,
-		bool withVerifier = true)
+		bool withVerifier = true,
+		ITenantContext? tenantContext = null,
+		bool requireTenant = false,
+		ErasureOptions? erasureOptions = null,
+		Func<InMemoryErasureStore, IErasureStore>? decorateStore = null)
 	{
 		Store = new InMemoryErasureStore(
 			TestDataSubjectHasher.Instance,
-			UntenantedContext.Instance,
-			Options.Create(new TenantContextOptions { RequireTenant = false }));
+			tenantContext ?? UntenantedContext.Instance,
+			Options.Create(new TenantContextOptions { RequireTenant = requireTenant }));
 
 		A.CallTo(() => _legalHolds.CheckHoldsAsync(
 				A<string>._, A<DataSubjectIdType>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new LegalHoldCheckResult { HasActiveHolds = false, ActiveHolds = [] }));
 
-		var options = Options.Create(new ErasureOptions
+		var options = Options.Create(erasureOptions ?? new ErasureOptions
 		{
 			KeyShredOnlyErasure = true,
 			Retention = new ErasureRetentionOptions { SigningKey = new byte[32] },
 		});
 
 		Service = new ErasureService(
-			Store,
+			decorateStore?.Invoke(Store) ?? Store,
 			keyAdmin,
 			options,
 			NullLogger<ErasureService>.Instance,
@@ -89,6 +93,7 @@ internal sealed class ErasureLifecycleHarness
 		var request = new ErasureRequest
 		{
 			DataSubjectId = subjectId,
+            TenantId = TenantDefaults.DefaultTenantId,
 			IdType = DataSubjectIdType.UserId,
 			LegalBasis = ErasureLegalBasis.DataSubjectRequest,
 			RequestedBy = "test",
@@ -96,11 +101,8 @@ internal sealed class ErasureLifecycleHarness
 
 		_ = await Service.RequestErasureAsync(request, CancellationToken.None);
 		var result = await Service.ExecuteAsync(request.RequestId, CancellationToken.None);
-		// THE HANDLE THE ERASURE ACTUALLY DERIVES, not the bare pseudonymisation token. The store records an
-		// untenanted request as the reserved sentinel, which the derivation collapses onto the framework
-		// default identity -- the same identity a single-tenant write resolves. Reporting the bare token here
-		// would hand every arm a handle nothing was written under, so an erasure that destroyed nothing would
-		// look indistinguishable from one that worked.
+		// Derive the handle from the explicit owner saved on this fixture's request. The resolved default
+		// identity is distinct from the reserved untenanted identity; neither is inferred from ciphertext.
 		var handle = SubjectKeyHandle.ForSubjectHash(
 			new TenantId(TenantDefaults.DefaultTenantId),
 			TestDataSubjectHasher.Instance.HashDataSubjectId(subjectId),

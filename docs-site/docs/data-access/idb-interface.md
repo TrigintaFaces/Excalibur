@@ -28,12 +28,19 @@ Excalibur intentionally avoids Entity Framework Core:
 | **Performance** | Tracking overhead | Direct SQL execution |
 | **Control** | Generated queries | Explicit SQL |
 | **Complexity** | Change tracking, migrations | Simple connection management |
-| **AOT Support** | Limited | Full Native AOT |
+| **AOT Support** | Depends on provider and query path | Depends on provider and query generation |
 
 :::note Design Decision
 
 For a framework distributed as NuGet packages, minimal dependencies and maximum performance are critical. Dapper provides the best balance of usability and efficiency.
 :::
+
+`IDb` is a connection abstraction; it does not establish NativeAOT compatibility for the
+queries executed through it. Standard Dapper uses reflection and runtime code generation.
+For application-owned queries, [Dapper.AOT](https://aot.dapperlib.dev/gettingstarted.html)
+provides an explicit build-time generation option with documented API limitations.
+Enabling it in an application does not transform calls inside an already compiled provider
+package. Verify the chosen provider and query path with an actual NativeAOT executable.
 
 ## IDb Interface
 
@@ -354,16 +361,23 @@ public class OrderQueryService
     {
         var request = new GetOrdersByDateRangeRequest(startDate, endDate, status: null, ct);
 
-        // ResolveAsync extension wraps exceptions in OperationFailedException
+        // Application exceptions and cancellation propagate; infrastructure faults are wrapped.
         return await _db.Connection.ResolveAsync(request);
     }
 }
 ```
 
 The `ResolveAsync` extension method:
-- Automatically opens the connection if needed (via `Ready()`)
-- Wraps database exceptions in `OperationFailedException` for consistent error handling
-- Preserves the original exception as `InnerException`
+
+- Executes the request's resolver. The framework `Db` base readies its connection when `Connection` is accessed.
+- Preserves application exceptions, including `ConcurrencyException`, unchanged.
+- Propagates `OperationCanceledException` and its subtypes unchanged, preserving the request's token and canceled task status.
+- Wraps other infrastructure failures, including timeouts, in `OperationFailedException` with the original cause as `InnerException`.
+
+This overload has no separate caller cancellation token. Pass cancellation into the request's
+`CommandDefinition`, and check your own token when distinguishing caller shutdown from an
+independent operation cancellation. An infrastructure exception containing a cancellation
+exception remains a fault; the resolver does not reinterpret its nested cause.
 
 ### Connection Extension Methods
 

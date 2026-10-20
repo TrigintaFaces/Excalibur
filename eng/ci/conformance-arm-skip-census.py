@@ -11,6 +11,10 @@ Usage: conformance-arm-skip-census.py <repo-root> <kit-subdir>
 import os
 import re
 import sys
+import json
+import pathlib
+import subprocess
+import tempfile
 
 
 def walk(directory):
@@ -38,11 +42,37 @@ DECL = re.compile(
 
 # A kit reports a declined arm through its skip hook, naming the arm and either the capability it
 # wanted or nothing at all.
-SKIP = re.compile(
-    r"SkipArm\(\s*nameof\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*,\s*"
-    r"(?:typeof\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)|null)\s*,",
-    re.S,
-)
+# Invocation/base-list syntax is read by PowerShell's fingerprinted coherent Roslyn pair.
+# This is a direct syntax census, not semantic inheritance or all-configuration proof.
+
+
+def syntax_census(paths, kits):
+    helper = pathlib.Path(__file__).with_name("conformance-arm-skip-syntax.ps1")
+    with tempfile.TemporaryDirectory(prefix="conformance-syntax-") as directory:
+        temporary = pathlib.Path(directory).resolve()
+        if temporary.parent != pathlib.Path(tempfile.gettempdir()).resolve() or not temporary.name.startswith("conformance-syntax-"):
+            raise ValueError("temporary request directory escaped its expected root")
+        request = pathlib.Path(directory) / "request.json"
+        request.write_text(json.dumps({"paths": paths, "kits": kits}), encoding="utf-8")
+        result = subprocess.run(["pwsh", "-NoProfile", "-File", str(helper), "-RequestPath", str(request)],
+                                capture_output=True, text=True, timeout=90,
+                                cwd=pathlib.Path(__file__).resolve().parents[2])
+        if result.returncode or result.stderr:
+            raise ValueError("syntax helper failed: " + (result.stderr or result.stdout)[-1500:])
+        payload = json.loads(result.stdout)
+        files = payload["files"]
+        by_path = {entry["Path"]: entry for entry in files}
+        if len(files) != len(paths) or len(by_path) != len(paths) or set(by_path) != set(paths):
+            raise ValueError("syntax helper input/output roster differs")
+        if len(payload["roslyn"]) != 2 or not payload["sdk"]:
+            raise ValueError("syntax toolchain identity is incomplete")
+        for entry in files:
+            if entry["CandidateCount"] < len(entry["Calls"]):
+                raise ValueError("syntax candidate count is inconsistent")
+            for field in ("Calls", "Derivations", "Refusals"):
+                if not isinstance(entry[field], list):
+                    raise ValueError("syntax result field is not a list: " + field)
+        return payload, by_path
 
 NEW = re.compile(r"\bnew\s+([A-Z][A-Za-z0-9_]*)\s*[(\{<]")
 
@@ -261,23 +291,54 @@ def main():
     records = []
 
     kits = {}
+    kit_paths = sorted(path for path in walk(kit_dir)
+                       if os.path.basename(path)[:-3].endswith("ConformanceTestKit")) if os.path.isdir(kit_dir) else []
+    kit_names = [os.path.basename(path)[:-3] for path in kit_paths]
+    tests_dir = os.path.join(root, "tests")
+    # Raw mentions select a superset for direct base-list spelling. Roslyn decides whether a
+    # mention is actually a derivation; aliases/disabled candidates explicitly refuse.
+    suite_files = []
+    if os.path.isdir(tests_dir):
+        for path in walk(tests_dir):
+            source = read(path)
+            if any(name in source for name in kit_names):
+                suite_files.append(path)
+    suite_files.sort()
+    paths = sorted(set(kit_paths + suite_files))
+    try:
+        toolchain, syntax = syntax_census(paths, kit_names)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        print("UNPARSED\ttooling\t" + str(error).replace("\n", " ").replace("\r", " ").replace("\t", " "))
+        print("COUNTS\t0\t0\t0")
+        return
+    records.append("SYNTAX\tSDK " + toolchain["sdk"] + "; " + toolchain["parserHost"] + "\t" + ",".join(a["sha256"] for a in toolchain["roslyn"]))
+    for path, entry in syntax.items():
+        for refusal in entry["Refusals"]:
+            records.append("UNPARSED\t%s\t%s" % (path, refusal))
     if os.path.isdir(kit_dir):
         for path in sorted(walk(kit_dir)):
             name = os.path.basename(path)[:-3]
             if not name.endswith("ConformanceTestKit"):
                 continue
             src = read(path)
-            sites = [(m.group(1), m.group(2)) for m in SKIP.finditer(src)]
-            if not sites:
+            parsed = syntax[path]
+            sites = []
+            for call in parsed["Calls"]:
+                arm = call["Arm"]
+                if call["DynamicArmKind"]:
+                    location = "%s:%d:%d" % (os.path.relpath(path, root).replace("\\", "/"), call["Line"], call["Column"])
+                    arm = "<dynamic@" + location + ">"
+                    records.append("DYNAMIC_ARM\t%s\t%s\t%s" % (name, location, call["DynamicArmKind"]))
+                sites.append((arm, call["Capability"]))
+            if not parsed["CandidateCount"] and not parsed["Refusals"]:
                 continue
             contract = CONTRACT.search(src) or CONTRACT_SYNC.search(src)
             kits[name] = {
                 "contract": contract.group(1) if contract else None,
                 "sites": sites,
+                "candidate_count": parsed["CandidateCount"],
             }
 
-    tests_dir = os.path.join(root, "tests")
-    suite_files = sorted(walk(tests_dir)) if os.path.isdir(tests_dir) else []
     suites_seen = 0
 
     for kit, info in sorted(kits.items()):
@@ -290,10 +351,11 @@ def main():
         probes = []
         for path in suite_files:
             src = read(path)
-            if not re.search(r":[^;{]*\b" + re.escape(kit) + r"\b", src):
+            derivations = [d for d in syntax[path]["Derivations"] if d["Kit"] == kit]
+            if not derivations:
                 continue
             suite = os.path.basename(path)[:-3]
-            total, private = derivations(src, kit)
+            total, private = len(derivations), sum(d["PrivateNested"] for d in derivations)
             # A probe is reported, never silently dropped, and never judged: it constructs no store
             # by design. Note the guard is `total > 0` -- a file this parse cannot read at all falls
             # through as a DERIVER, so a parse failure can only ever over-report a subject.
@@ -340,7 +402,7 @@ def main():
                         "%s\t%s\t%s\t%s\t%s" % (verdict, suite, arm, capability, store)
                     )
 
-    site_count = sum(len(k["sites"]) for k in kits.values())
+    site_count = sum(k["candidate_count"] for k in kits.values())
     records.append("COUNTS\t%d\t%d\t%d" % (len(kits), site_count, suites_seen))
     print("\n".join(records))
 

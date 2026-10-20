@@ -36,12 +36,34 @@ Discovery through `GetService` (rather than a direct cast) is what lets a **deco
 |-----------|--------|---------|----------------|----------------------|
 | `IFencedOutboxStore` | `GetUnsentMessagesAsync(batchSize, long fencingToken, ct)`, `MarkSentAsync(messageId, long fencingToken, ct)` | Fenced drain/mark for leader-elected deployments — the caller passes its current fencing token so a superseded leader's writes are rejected. The token is a non-nullable `long` (absence of fencing is modelled by not implementing this capability, never an in-band `0`). On **PostgreSQL and Oracle** both fenced operations are a **single-statement atomic compare-and-swap** (the token check and the mutation execute under one DB statement — a wCTE on Postgres, a PL/SQL block on Oracle), so there is no check-then-act window a demoted leader can interleave (Sprint 888, `uw1nv4`/`f5zutu`); those stores hold the high-water mark in a dedicated fence surface. **SQL Server implements this interface but does not currently satisfy its contract in full**: it derives the high-water from `MAX(FencingToken)` over the message rows and overwrites rather than raises it, so cleanup, a drained-empty outbox, or a later write can lower or reset it. | SQL Server (partial — see note), PostgreSQL, Oracle | Core `IOutboxStore.GetUnsentMessagesAsync`/`MarkSentAsync` (no fence) |
 | `IOutboxStoreCapabilities` | `SupportsSentTracking` (property) | Reports whether the store retains a successfully-sent message as a countable, cleanup-eligible `OutboxStatus.Sent` row. `true` for tracking stores; `false` for the **delete-on-sent** relational stores (PostgreSQL, Oracle) that remove the row on mark-sent — so statistics and cleanup don't assume one uniform storage model. Data-shaped capability in the BCL idiom (`Stream.CanSeek`), sibling to `IInboxStoreCapabilities` (Sprint 888, `y1moc0`). | PostgreSQL, Oracle declare `false`; others default to `true` | Treated as a tracking store (`true`) |
-| `IDeadLetterableOutboxStore` | `MarkDeadLetteredAsync` | Terminal `OutboxStatus.DeadLettered` transition that the claim predicate structurally excludes | all shipped stores | Message stays `Failed` |
+| `IDeadLetterableOutboxStore` | `MarkDeadLetteredAsync(messageId, reason, attemptCount, ct)` | Terminal retirement records the maximum of the stored and supplied logical attempt count atomically | SQL Server, PostgreSQL, Oracle, InMemory, MongoDB, Redis, Elasticsearch polling stores | Message stays `Failed` |
 | `IBackoffSchedulableOutboxStore` | `MarkFailedWithBackoffAsync` | Records the per-message `NextAttemptAt` so the computed exponential backoff actually throttles re-claim | SQL Server, PostgreSQL | `MarkFailedAsync` (immediate re-eligibility) |
 
 `IBackoffSchedulableOutboxStore.MarkFailedWithBackoffAsync(messageId, errorMessage, retryCount, nextAttemptAt, ct)` is called by the processor only on a genuine delivery failure; a circuit-breaker-open short-circuit uses the plain `MarkFailedAsync` path (no backoff) so the message stays immediately retryable. The claim predicate then excludes the message via `WHERE NextAttemptAt IS NULL OR NextAttemptAt <= @now`. Remaining providers (Redis, MongoDB, Elasticsearch, DynamoDB, Cosmos DB) retain the fail-open immediate-retry path and are tracked as follow-ups.
 
 The inbox has a parallel capability, `IBackoffSchedulableInboxStore.MarkFailedWithBackoffAsync(messageId, handlerType, error, retryCount, nextAttemptAt, ct)` (Sprint 850), implemented by the SQL Server inbox store and forwarded through the same telemetry/encrypting inbox decorators — same fail-open contract.
+
+## Implementing counted retirement
+
+Both ordinary and fenced retirement require an absolute `attemptCount`. This is the number of
+observed logical delivery attempts, including the initial send. It is not a count of SDK retries.
+Reject negative values before mutation. A preparation failure may supply zero; an administrative
+archive preserves the existing count because it performs no delivery.
+
+The atomic storage operation must first establish nonterminal status and current claim ownership
+(and fencing authority for fenced retirement). Only an accepted transition writes
+`max(storedCount, attemptCount)`, its reason and terminal state. Missing, terminal or refused rows
+remain unchanged. A move-to-archive store must archive and remove the same locked source snapshot
+in one transaction. A concurrent failure report cannot lower the archived count or reopen it.
+
+Persist `LastError` when recording failed delivery and return it in claim projections. The processor
+uses versioned pending-disposition evidence there to recover an exhausted row without another send.
+Do not parse that evidence in provider SQL to infer counts; the explicit argument is authoritative.
+
+Custom stores implementing either retirement capability must update their signatures and enforce
+these invariants. Use the outbox conformance kit plus provider-specific persisted readback and
+ownership/race controls. Marten does not declare this retirement capability; the change-feed
+providers expose different contracts and are not included in this polling-store inventory.
 
 ## Rationale
 

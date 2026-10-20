@@ -6,7 +6,7 @@ This example demonstrates the **MinimizedWindow** delivery guarantee for smaller
 
 - **DeliveryGuarantee**: `MinimizedWindow`
 - **Behavior**: Each message is marked as sent immediately after publishing
-- **Throughput**: ~50% lower than AtLeastOnce (N DB round-trips per batch)
+- **Throughput**: Workload-dependent; the earlier ~50% lower estimate has no verified matched provenance and is not a current measurement.
 - **Failure Window**: Single message (not entire batch)
 
 ## When to Use
@@ -32,7 +32,7 @@ services.Configure<OutboxDeliveryOptions>(options =>
 | Aspect | AtLeastOnce | MinimizedWindow |
 |--------|-------------|-----------------|
 | DB Round-Trips | 1 per batch | N per batch |
-| Throughput | Highest | ~50% lower |
+| Throughput | Workload-dependent | Earlier ~50% lower estimate is unverified |
 | Failure Window | Entire batch | Single message |
 | Duplicates on Crash | Up to batch size | 1 message max |
 

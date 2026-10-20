@@ -7,6 +7,7 @@ using Excalibur.EventSourcing.InMemory;
 using Excalibur.EventSourcing.Queries;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -56,7 +57,8 @@ public static class InMemoryEventSourcingServiceCollectionExtensions
 		// configuration. A host opts into reflection-free serialization with
 		// Configure<InMemoryEventStoreOptions>(o => o.EventTypeInfoResolver = MyContext.Default); with nothing
 		// configured this resolves the default instance and the store serializes through reflection as before.
-		_ = services.AddOptions<InMemoryEventStoreOptions>();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<InMemoryEventStoreOptions>, InMemoryEventStoreOptionsValidator>());
+		_ = services.AddOptions<InMemoryEventStoreOptions>().ValidateOnStart();
 
 		// TryAdd, so a host that established its own tenancy keeps it and a single-tenant host still gets a
 		// context. The store's constructor requires ITenantContext -- the tenant term is part of its stream

@@ -107,7 +107,7 @@ public sealed class InboxProcessorRetryCeilingShould : UnitTestBase
 			A.Fake<IServiceProvider>(),
 			new DispatchJsonSerializer(),
 			NullLogger<InboxProcessor>.Instance,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 	}
 
 	private static async Task InvokeReadRetryableEntriesAsync(InboxProcessor processor)

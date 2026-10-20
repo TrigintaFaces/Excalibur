@@ -108,7 +108,23 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
     builder.UseInMemory().AddRepository<OrderAggregate, Guid>();
     builder.AddProjectionsFromAssembly(typeof(OrderSummary).Assembly);
 }));
+
+// 3. Say WHERE each projection is stored. AddProjection says what a projection folds; it does not
+//    give it anywhere to live, and the host refuses to start if nothing does.
+services.AddInMemoryProjectionStore<OrderSummary>();
 ```
+
+:::info Two registrations, always
+
+A stored projection needs both: `AddProjection<T>()` (or assembly scanning) for **what it folds**, and a
+store registration for **where it lives**. If the second is missing the host refuses to start and names
+the projection, so this is a mistake you find at `dotnet run` rather than in production. For a real
+backend, swap the in-memory store for a provider — see [Registering Store Backends](#registering-store-backends).
+
+`AddInMemoryProjectionStore<T>()` is for development, tests and samples: it keeps nothing after the
+process exits and is **not tenant-confined**.
+
+:::
 
 After `SaveAsync`, the read model is immediately consistent:
 
@@ -172,7 +188,7 @@ Inline projections run during `SaveAsync()` and guarantee read-after-write consi
 
 ### Lambda Handlers (Tier 1)
 
-Zero-allocation, zero-DI. Best for simple property mapping:
+Lambda handlers invoke registered delegates without resolving a separate handler through DI. They suit simple property mapping; the callback and the rest of projection processing can still allocate:
 
 ```csharp
 builder.AddProjection<OrderSummary>(p => p
@@ -338,6 +354,32 @@ builder.AddProjection<CustomerSearchProjection>(p => p
 
 `WhenHandledBy` auto-registers the handler in DI as `Transient` -- no manual `services.AddTransient<THandler>()` needed.
 
+:::info Handler dependencies are checked at start-up
+
+Registering the handler makes the handler itself resolvable. It says nothing about the services the
+handler asks for in its own constructor, and that is where the common mistake is: a handler that reads
+another projection to build the one it writes needs *that* projection's store registered too.
+
+The host refuses to start when it cannot supply a registered handler's constructor dependencies, naming
+the handler and the dependency:
+
+```text
+The following projection event handler cannot be constructed, because nothing registers
+the services they ask for:
+
+  CustomerOrderPlacedHandler (folds CustomerSearchProjection) needs
+  IProjectionStore<ProductCatalogProjection> catalog
+```
+
+Without that check the handler resolves on the first event instead -- which for an async projection
+happens inside a background host, after the events are already durable and with no request to fail.
+
+A genuinely optional dependency is a supported shape: give the constructor parameter a default value
+and the check skips it. Dependencies the container manufactures without a registration --
+`IServiceProvider`, `IServiceScopeFactory`, and `IEnumerable<T>` of anything -- are always considered
+available.
+:::
+
 ### Assembly Scanning
 
 For projects with many handlers, scan an assembly to auto-discover all `IProjectionEventHandler<T, TEvent>` implementations:
@@ -414,13 +456,13 @@ public sealed class ProjectionHandlerContext
 
 ### Performance
 
-| Scenario | Overhead per Event | Allocation |
-|----------|-------------------|------------|
-| `When<T>` lambda (Tier 1) | Baseline | Zero |
-| `WhenHandledBy` singleton handler | ~20-50ns (`GetRequiredService`) | Zero |
-| `WhenHandledBy` transient handler | ~20-50ns + constructor | Handler instance |
+| Scenario | Work to include in measurements |
+|----------|---------------------------------|
+| `When<T>` lambda (Tier 1) | Delegate invocation and callback work |
+| `WhenHandledBy` singleton handler | DI lookup, any required initialization and handler execution |
+| `WhenHandledBy` transient handler | DI lookup, handler construction and execution |
 
-When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors are registered, the pipeline uses a zero-allocation fast path. Adding `KeyedBy` selectors or any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking.
+When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors are registered, the pipeline avoids multi-ID dictionary tracking. Adding `KeyedBy` selectors or any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking. This distinction does not guarantee zero allocations: selectors, callbacks, handler dependencies, stores and the rest of projection processing can allocate. Measure the complete projection workload with the configured lifetimes and store before publishing latency or allocation values.
 
 ### Read-After-Write Consistency Guarantee
 
@@ -568,8 +610,8 @@ var results = await projectionStore.QueryAsync(filters, null, cancellationToken)
 |--------|----------|
 | **Timing** | Computed **once per upsert** — after all events in the batch are applied, before the store saves |
 | **Scope** | Per projection instance — multi-stream projections (via `KeyedBy`) compute search text for each instance independently |
-| **Zero overhead** | Projections without `WithSearchText` have no performance impact |
-| **AOT-safe** | Dual-delegate approach avoids reflection — fully compatible with Native AOT |
+| **Unconfigured** | Projections without `WithSearchText` do not invoke search-text callbacks |
+| **Native AOT** | Registered search-text delegates avoid reflection on this path; verify application callbacks, stores, and the complete application with a Native AOT publish |
 | **Null/empty** | If the compute function returns `null` or empty, the setter receives an empty string |
 
 ### When to Use
@@ -982,6 +1024,19 @@ The builder supports all filter operators:
 | `LessThanOrEqual(value)` | `:lte` | `["Amount:lte"] = 1000` |
 | `In(values)` | `:in` | `["Category:in"] = ["A", "B"]` |
 | `Contains(value)` | `:contains` | `["Name:contains"] = "search"` |
+
+`:eq` is accepted as an explicit spelling of equality, alongside omitting the suffix.
+
+:::warning An unrecognised suffix is refused
+
+A key whose suffix is not in the table above throws `ArgumentException`, naming the suffix and listing the
+valid ones. It is not read as equality: a mistyped `"Amount:gtt"` would otherwise become an equality
+filter on `Amount`, so the query would run, return the wrong set, and report nothing. The suffix is the
+one part of a filter key you cannot check by eye, because a typo in it still reads as a sensible key.
+
+Prefer the builder above, which composes these keys for you and cannot produce an invalid one.
+
+:::
 
 `Build()` returns a new `IDictionary<string, object>` each time — the builder is reusable and mutations to the returned dictionary do not affect the builder state.
 

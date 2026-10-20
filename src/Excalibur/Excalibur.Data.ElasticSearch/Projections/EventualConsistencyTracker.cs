@@ -21,7 +21,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 	private readonly IProjectionEventLookup _lookup;
 	private readonly IProjectionEventScan _scan;
 	private readonly IProjectionIndexProvisioning _provisioning;
-	private readonly ProjectionOptions _settings;
+	private readonly ElasticSearchProjectionManagementOptions _settings;
 	private readonly ILogger<EventualConsistencyTracker> _logger;
 	private readonly string _writeIndexName;
 	private readonly string _readIndexName;
@@ -34,7 +34,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 	/// </summary>
 	public EventualConsistencyTracker(
 		ElasticsearchClient client,
-		IOptions<ProjectionOptions> options,
+		IOptions<ElasticSearchProjectionManagementOptions> options,
 		ILogger<EventualConsistencyTracker> logger)
 		: this(
 			CreateIngest(client, options),
@@ -55,7 +55,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		IProjectionEventLookup lookup,
 		IProjectionEventScan scan,
 		IProjectionIndexProvisioning provisioning,
-		IOptions<ProjectionOptions> options,
+		IOptions<ElasticSearchProjectionManagementOptions> options,
 		ILogger<EventualConsistencyTracker> logger)
 	{
 		_ingest = ingest ?? throw new ArgumentNullException(nameof(ingest));
@@ -502,7 +502,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 		}
 	}
 
-	private static IProjectionEventIngest CreateIngest(ElasticsearchClient client, IOptions<ProjectionOptions> options)
+	private static IProjectionEventIngest CreateIngest(ElasticsearchClient client, IOptions<ElasticSearchProjectionManagementOptions> options)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -514,7 +514,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-checkpoints");
 	}
 
-	private static IProjectionEventLookup CreateLookup(ElasticsearchClient client, IOptions<ProjectionOptions> options)
+	private static IProjectionEventLookup CreateLookup(ElasticsearchClient client, IOptions<ElasticSearchProjectionManagementOptions> options)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);
@@ -526,7 +526,7 @@ public sealed class EventualConsistencyTracker : IEventualConsistencyTracker, IE
 			$"{IndexNameNormalizer.Normalize(settings.IndexPrefix)}-consistency-checkpoints");
 	}
 
-	private static IProjectionEventScan CreateScan(ElasticsearchClient client, IOptions<ProjectionOptions> options)
+	private static IProjectionEventScan CreateScan(ElasticsearchClient client, IOptions<ElasticSearchProjectionManagementOptions> options)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		ArgumentNullException.ThrowIfNull(options);

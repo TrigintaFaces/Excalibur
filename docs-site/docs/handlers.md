@@ -216,6 +216,12 @@ public class OrderService
 }
 ```
 
+### Context setter registration
+
+`HandlerActivatorRegistry.RegisterContextSetter<THandler>` provides a typed context setter for handlers that need one. A registration completed before dispatch begins is observed even when activation or dispatch plans have already been cached or frozen. Replacing a registration affects subsequent dispatches; a dispatch overlapping the replacement can observe either complete setter. `IMessageContextAware.SetContext` takes precedence over registry setters.
+
+Prefer registering setters during startup. Late registration remains supported, but singleton handlers still need their own concurrency discipline when storing mutable per-dispatch state. A registry replacement does not serialize concurrent handler executions.
+
 ## Context Propagation
 
 When dispatching messages from within a handler, call `DispatchAsync` — it automatically maintains proper message lineage for distributed tracing and debugging by dispatching a child message.

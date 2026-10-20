@@ -666,11 +666,11 @@ public class MetricsFunction
 }
 ```
 
-**Consumption Plan:** ~1-3 second cold starts
-**Premium Plan:** Always-warm instances (no cold starts)
+**Consumption Plan:** Earlier unverified illustration: ~1-3 second cold starts. Measure the deployed workload.
+**Premium Plan:** Always-ready and prewarmed instances to reduce cold-start latency. See [Microsoft Premium plan guidance](https://learn.microsoft.com/en-us/azure/azure-functions/functions-premium-plan).
 **Dedicated Plan:** Full VM control
 
-### ReadyToRun (AOT Compilation)
+### ReadyToRun
 
 ```xml
 <PropertyGroup>
@@ -679,7 +679,7 @@ public class MetricsFunction
 </PropertyGroup>
 ```
 
-**Result:** 30-50% faster cold starts
+**Earlier unverified estimate:** 30-50% faster cold starts; this is not a current framework measurement. ReadyToRun includes IL and precompiled native code and still uses JIT compilation for some methods; it is separate from Native AOT. Measure the deployed workload. See [Microsoft ReadyToRun guidance](https://learn.microsoft.com/en-us/dotnet/core/deploying/ready-to-run).
 
 ---
 

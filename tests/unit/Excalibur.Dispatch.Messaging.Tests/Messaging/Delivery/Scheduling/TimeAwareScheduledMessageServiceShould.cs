@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Options.Scheduling;
 using Excalibur.Dispatch.Serialization;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -24,8 +25,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 /// </summary>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", TestComponents.Messaging)]
-public sealed class ScheduledMessageServiceTimeAwareShould
+[Trait("Pattern", "Regression")]
+public sealed class ScheduledMessageServiceTimeAwareShould : IDisposable
 {
+	private readonly ServiceProvider _scopeProvider = new ServiceCollection().BuildServiceProvider();
+
+	public void Dispose() => _scopeProvider.Dispose();
 	// Scaled by TEST_TIMEOUT_MULTIPLIER (3 on CI): this budget bounds a wait on real background
 	// work, so a fixed value times out on a loaded runner with nothing actually wrong.
 	private static readonly TimeSpan ScheduleProcessingTimeout =
@@ -36,7 +41,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 	{
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
 		var dispatchCount = 0;
@@ -56,8 +61,8 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		dispatchCount.ShouldBeGreaterThanOrEqualTo(1);
-		store.StoredMessages.Count.ShouldBeGreaterThanOrEqualTo(1);
+		dispatchCount.ShouldBe(1);
+		store.StoredMessages.Count.ShouldBe(1);
 
 		var updated = store.StoredMessages[0];
 		updated.Enabled.ShouldBeTrue();
@@ -76,7 +81,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 	{
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: null);
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -102,7 +107,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(1));
 		schedule.MessageBody = "<<invalid-json>>";
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
@@ -122,11 +127,13 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		// ShouldBe(0) -- asserting the row was left untouched, which is exactly why a body that can never
 		// deserialize stayed due and was re-processed and re-logged on every poll for the life of the
 		// process. Advancing is the fix, so the write is the observable evidence of it.
-		store.StoreCalls.ShouldBeGreaterThan(
-			0,
-			"a row that failed must advance, or it is still due on the very next poll");
-		schedule.Enabled.ShouldBeTrue("an interval schedule can still be advanced, so it keeps running");
-		schedule.NextExecutionUtc.ShouldNotBeNull();
+		store.StoreCalls.ShouldBe(1, "a failed row advances once without replaying the poisoned payload");
+		var stored = store.StoredMessages.ShouldHaveSingleItem();
+		stored.Enabled.ShouldBeTrue("an interval schedule can still be advanced, so it keeps running");
+		stored.LastExecutionUtc.ShouldBeNull();
+		stored.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		schedule.LastExecutionUtc.ShouldBeNull();
+		schedule.NextExecutionUtc.ShouldNotBeNull().ShouldBeLessThan(DateTimeOffset.UtcNow);
 	}
 
 	[Fact]
@@ -134,7 +141,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 	{
 		var schedule = CreateDueSchedule("NonExistent.Message.Type, MissingAssembly", interval: TimeSpan.FromMinutes(1));
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 		var dispatcher = A.Fake<IDispatcher>();
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
@@ -150,6 +157,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		// forever, ahead of every other schedule.
 		store.StoreCalls.ShouldBe(1);
 		var stored = store.StoredMessages.ShouldHaveSingleItem();
+		stored.LastExecutionUtc.ShouldBeNull();
 		stored.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
 	}
 
@@ -157,14 +165,20 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 	public async Task DisposeAsyncStoreDuringStop()
 	{
 		var store = new SequenceScheduleStore([]);
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 		var dispatcher = A.Fake<IDispatcher>();
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy());
 
-		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
-
+		try
+		{
+			await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+			await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+			store.AsyncDisposed.ShouldBeFalse("the scheduler borrows this externally owned store");
+			store.DisposeCalls.ShouldBe(0);
+		}
+		finally { await store.DisposeAsync().ConfigureAwait(false); }
 		store.AsyncDisposed.ShouldBeTrue();
+		store.DisposeCalls.ShouldBe(1, "the external owner disposes its store exactly once");
 	}
 
 	[Fact]
@@ -177,7 +191,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		var poisoned = CreateDueSchedule("Excalibur.Dispatch.Tests.NoSuchScheduledMessageTypeExists", TimeSpan.FromMinutes(5));
 		var healthy = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
 		var store = new SequenceScheduleStore(new List<IScheduledMessage> { poisoned, healthy });
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 
 		var dispatched = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var dispatcher = A.Fake<IDispatcher>();
@@ -189,9 +203,12 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		var healthyRan = await WaitForAsync(dispatched.Task).ConfigureAwait(false);
+		var healthyStored = await store.WaitForStoredMessageAsync(healthy.Id, ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		healthyRan.ShouldBeTrue();
+		healthyStored.ShouldBeTrue();
+		AssertFailureAndHealthyProgress(store, poisoned.Id, healthy.Id);
 	}
 
 	[Fact]
@@ -201,7 +218,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		poisoned.MessageBody = "<<invalid-json>>";
 		var healthy = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
 		var store = new SequenceScheduleStore(new List<IScheduledMessage> { poisoned, healthy });
-		var serializer = new DispatchJsonSerializer();
+		using var serializer = new DispatchJsonSerializer();
 
 		var dispatched = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var dispatcher = A.Fake<IDispatcher>();
@@ -213,9 +230,25 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		var healthyRan = await WaitForAsync(dispatched.Task).ConfigureAwait(false);
+		var healthyStored = await store.WaitForStoredMessageAsync(healthy.Id, ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		healthyRan.ShouldBeTrue();
+		healthyStored.ShouldBeTrue();
+		AssertFailureAndHealthyProgress(store, poisoned.Id, healthy.Id);
+	}
+
+	private static void AssertFailureAndHealthyProgress(SequenceScheduleStore store, Guid failedId, Guid healthyId)
+	{
+		store.StoreCalls.ShouldBe(2);
+		var failed = store.StoredMessages.Single(row => row.Id == failedId);
+		failed.Enabled.ShouldBeTrue();
+		failed.LastExecutionUtc.ShouldBeNull();
+		failed.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		var healthy = store.StoredMessages.Single(row => row.Id == healthyId);
+		healthy.Enabled.ShouldBeTrue();
+		healthy.LastExecutionUtc.ShouldNotBeNull();
+		healthy.NextExecutionUtc.ShouldNotBeNull().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
 	}
 
 	private static async Task<bool> WaitForAsync(Task<bool> signal)
@@ -230,7 +263,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		}
 	}
 
-	private static ScheduledMessageService CreateService(
+	private ScheduledMessageService CreateService(
 		SequenceScheduleStore store,
 		IDispatcher dispatcher,
 		DispatchJsonSerializer serializer,
@@ -246,6 +279,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 			}),
 			Microsoft.Extensions.Options.Options.Create(new CronScheduleOptions()),
 			NullLogger<ScheduledMessageService>.Instance,
+			_scopeProvider.GetRequiredService<IServiceScopeFactory>(),
 			timePolicy);
 
 	private static ScheduledMessage CreateDueSchedule(Type messageType, TimeSpan? interval)
@@ -270,20 +304,32 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 			UserId = "user-42",
 			// Keep this comfortably in the past to avoid false negatives when CI runner clocks jitter backwards.
 			NextExecutionUtc = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromMinutes(1)),
+			// These fixtures exercise dispatch and failure handling rather than the default skip policy.
+			MissedExecutionBehavior = MissedExecutionBehavior.ExecuteLatestMissed,
 		};
 
 	private sealed class SequenceScheduleStore(params IEnumerable<IScheduledMessage>[] batches) : IScheduleStore, IAsyncDisposable
 	{
 		private readonly ConcurrentQueue<IEnumerable<IScheduledMessage>> _batches = new(batches);
 		private readonly TaskCompletionSource<bool> _storeCallObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly ConcurrentDictionary<Guid, TaskCompletionSource<bool>> _storedById = new();
 		private int _storeCalls;
 		private int _isDisposed;
+		private int _disposeCalls;
 
 		public List<ScheduledMessage> StoredMessages { get; } = [];
 
 		public int StoreCalls => Volatile.Read(ref _storeCalls);
 
 		public bool AsyncDisposed => Volatile.Read(ref _isDisposed) == 1;
+		public int DisposeCalls => Volatile.Read(ref _disposeCalls);
+
+		public async Task<bool> WaitForStoredMessageAsync(Guid id, TimeSpan timeout, CancellationToken cancellationToken)
+		{
+			var signal = _storedById.GetOrAdd(id, static _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
+			try { return await signal.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false); }
+			catch (TimeoutException) { return false; }
+		}
 
 		public async Task<bool> WaitForStoreCallAsync(TimeSpan timeout, CancellationToken cancellationToken)
 		{
@@ -316,11 +362,12 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			_ = Interlocked.Increment(ref _storeCalls);
-			_ = _storeCallObserved.TrySetResult(true);
 			if (message is ScheduledMessage scheduled)
 			{
 				StoredMessages.Add(CloneScheduledMessage(scheduled));
 			}
+			_ = _storeCallObserved.TrySetResult(true);
+			_ = _storedById.GetOrAdd(message.Id, static _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult(true);
 
 			return Task.CompletedTask;
 		}
@@ -333,6 +380,7 @@ public sealed class ScheduledMessageServiceTimeAwareShould
 
 		public ValueTask DisposeAsync()
 		{
+			_ = Interlocked.Increment(ref _disposeCalls);
 			_ = Interlocked.Exchange(ref _isDisposed, 1);
 			return ValueTask.CompletedTask;
 		}

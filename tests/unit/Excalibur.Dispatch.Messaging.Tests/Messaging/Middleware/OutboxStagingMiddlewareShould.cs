@@ -19,6 +19,34 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 [Trait("Component", "Dispatch.Core")]
 public sealed class OutboxStagingMiddlewareShould
 {
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task StageBufferedFollowUpOnlyAfterSuccessfulDownstreamResult(bool succeeded)
+	{
+		var store = A.Fake<IOutboxStore>();
+		var middleware = new OutboxStagingMiddleware(
+			Microsoft.Extensions.Options.Options.Create(new OutboxStagingOptions()), store,
+			new DispatchJsonSerializer(), NullLogger<OutboxStagingMiddleware>.Instance);
+		var context = new Excalibur.Dispatch.Messaging.MessageContext();
+		var outcome = succeeded ? MessageResult.Success() : MessageResult.Failed("CONTROLLED-BUSINESS-REFUSAL");
+		DispatchRequestDelegate next = (message, current, token) =>
+		{
+			current.GetItem<OutboxContext>("OutboxContext")!.AddOutboundMessage(new StagedTestMessage());
+			return ValueTask.FromResult(outcome);
+		};
+		var result = await middleware.InvokeAsync(new StagedTestMessage(), context, next, CancellationToken.None);
+		result.ShouldBeSameAs(outcome);
+		if (succeeded)
+		{
+			A.CallTo(() => store.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		}
+		else
+		{
+			A.CallTo(() => store.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
+		}
+	}
+
 	[Fact]
 	public void ThrowForNullOptions() =>
 		Should.Throw<ArgumentNullException>(() =>

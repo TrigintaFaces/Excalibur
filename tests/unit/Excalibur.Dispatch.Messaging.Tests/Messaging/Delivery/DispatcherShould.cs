@@ -15,6 +15,7 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Options.Configuration;
 
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 
 using MessageResult = Excalibur.Dispatch.MessageResult;
 
@@ -709,6 +710,7 @@ public sealed class DispatcherShould
 		_ = A.CallTo(() => registry.GetAll()).Returns([handlerEntry]);
 
 		var handler = new LocalTransportNullableQueryHandler();
+		DeclareSingletonHandler(serviceProvider, typeof(LocalTransportNullableQueryHandler), handler);
 		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportNullableQueryHandler), A<IMessageContext>._, serviceProvider))
 			.Returns(handler);
 		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, A<IDispatchMessage>._, A<CancellationToken>._))
@@ -769,6 +771,7 @@ public sealed class DispatcherShould
 		_ = A.CallTo(() => registry.GetAll()).Returns([handlerEntry]);
 
 		var handler = new LocalTransportNullableQueryHandler();
+		DeclareSingletonHandler(serviceProvider, typeof(LocalTransportNullableQueryHandler), handler);
 		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportNullableQueryHandler), A<IMessageContext>._, serviceProvider))
 			.Returns(handler);
 		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, A<IDispatchMessage>._, A<CancellationToken>._))
@@ -918,6 +921,7 @@ public sealed class DispatcherShould
 			.AssignsOutAndRefParameters(handlerEntry);
 
 		var handler = new LocalTransportActionHandler();
+		DeclareSingletonHandler(serviceProvider, typeof(LocalTransportActionHandler), handler);
 		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportActionHandler), A<IMessageContext>._, serviceProvider))
 			.Returns(handler);
 		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, A<IDispatchMessage>._, A<CancellationToken>._))
@@ -969,6 +973,7 @@ public sealed class DispatcherShould
 			.AssignsOutAndRefParameters(handlerEntry);
 
 		var handler = new LocalTransportQueryHandler();
+		DeclareSingletonHandler(serviceProvider, typeof(LocalTransportQueryHandler), handler);
 		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportQueryHandler), A<IMessageContext>._, serviceProvider))
 			.Returns(handler);
 		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, A<IDispatchMessage>._, A<CancellationToken>._))
@@ -1033,6 +1038,13 @@ public sealed class DispatcherShould
 			busOptionsMap: busOptionsMap,
 			dispatchRouter: null,
 			dispatchOptions: null);
+	}
+
+	private static void DeclareSingletonHandler(IServiceProvider provider, Type handlerType, object handler)
+	{
+		var services = new ServiceCollection().AddSingleton(handlerType, handler);
+		_ = A.CallTo(() => provider.GetService(typeof(HandlerLifetimeRegistry)))
+			.Returns(new HandlerLifetimeRegistry(services));
 	}
 
 	private sealed record LocalTransportAction : IDispatchAction;

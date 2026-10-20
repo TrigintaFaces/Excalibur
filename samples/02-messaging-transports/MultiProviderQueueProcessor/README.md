@@ -240,3 +240,17 @@ builder.Services.AddExcalibur(excalibur => excalibur
 ---
 
 *Category: Messaging Transports*
+
+
+## Projection error persistence resilience
+
+The sample configures `ElasticSearch:ProjectionManagement:RetryPolicy`: three total
+single-record attempts and two total bulk attempts, bounded exponential delay and 20% jitter.
+`AddElasticSearchProjectionManagement` owns those retries through Polly and disables SDK write
+retries for error records. It uses create-only stable IDs and pins a concrete error index per call;
+provide `view_index_metadata` privileges and retain records through the retry window.
+Mixed bulk responses retry only their failed transient records. Caller cancellation propagates.
+This policy does not retry read-model updates or rebuild state overwrites. Configure broker and
+handler retries independently by failure class; this error-record budget is not a global message
+retry budget. The sample uses the current `ProjectionManagement` section; the older `Projections`
+section remains accepted, with explicit `ProjectionManagement` values taking precedence.

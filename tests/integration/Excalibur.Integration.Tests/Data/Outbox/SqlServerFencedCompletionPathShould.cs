@@ -47,6 +47,76 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 	public SqlServerFencedCompletionPathShould(SqlServerOutboxStoreContainerFixture fixture) =>
 		_fixture = fixture;
 
+	[Theory]
+	[InlineData(false, 1, 2, 2)]
+	[InlineData(true, 1, 2, 2)]
+	[InlineData(false, 2, 2, 2)]
+	[InlineData(true, 2, 2, 2)]
+	[InlineData(false, 0, 0, 0)]
+	[InlineData(true, 0, 0, 0)]
+	[InlineData(false, 3, 0, 3)]
+	[InlineData(true, 3, 0, 3)]
+	public async Task PersistTheMaximumObservedCountOnlyOnAppliedRetirement(bool fenced, int stored, int observed, int expected)
+	{
+		await EnsureReadyAsync();
+		var store = CreateStore("counted-retirement");
+		var row = new OutboundMessage("Test.MessageType", [1], "test-queue") { RetryCount = stored };
+		await store.StageMessageAsync(row, CancellationToken.None);
+		await store.MarkFailedAsync(row.Id, "stored-observation", stored, CancellationToken.None);
+		(await ReadRetryCountAsync(row.Id)).ShouldBe(stored);
+		if (fenced)
+		{
+			(await store.MarkDeadLetteredAsync(row.Id, "counted", observed, 5L, CancellationToken.None))
+				.ShouldBe(OutboxCompletionOutcome.Applied);
+		}
+		else
+		{
+			await store.MarkDeadLetteredAsync(row.Id, "counted", observed, CancellationToken.None);
+		}
+		(await ReadStatusAsync(row.Id)).ShouldBe(StatusDeadLettered);
+		(await ReadRetryCountAsync(row.Id)).ShouldBe(expected);
+		await store.MarkDeadLetteredAsync(row.Id, "late", expected + 10, CancellationToken.None);
+		(await store.MarkDeadLetteredAsync(row.Id, "late-fenced", expected + 10, 5L, CancellationToken.None))
+			.ShouldBe(OutboxCompletionOutcome.AlreadyTerminal);
+		(await ReadRetryCountAsync(row.Id)).ShouldBe(expected);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task RejectNegativeCountBeforeChangingTheRowOrFence(bool fenced)
+	{
+		await EnsureReadyAsync();
+		var store = CreateStore("negative-retirement");
+		var row = new OutboundMessage("Test.MessageType", [1], "test-queue") { RetryCount = 1 };
+		await store.StageMessageAsync(row, CancellationToken.None);
+		await store.MarkFailedAsync(row.Id, "stored-observation", 1, CancellationToken.None);
+		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+		{
+			if (fenced)
+			{
+				await store.MarkDeadLetteredAsync(row.Id, "invalid", -1, 10L, CancellationToken.None);
+			}
+			else
+			{
+				await store.MarkDeadLetteredAsync(row.Id, "invalid", -1, CancellationToken.None);
+			}
+		});
+		(await ReadStatusAsync(row.Id)).ShouldBe(StatusFailed);
+		(await ReadRetryCountAsync(row.Id)).ShouldBe(1);
+		(await store.MarkDeadLetteredAsync(row.Id, "valid-lower-tenure", 2, 5L, CancellationToken.None))
+			.ShouldBe(OutboxCompletionOutcome.Applied);
+	}
+
+	private async Task<int> ReadRetryCountAsync(string id)
+	{
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+		await using var command = new SqlCommand("SELECT RetryCount FROM [dbo].[OutboxMessages] WHERE Id = @id", connection);
+		_ = command.Parameters.Add(new SqlParameter("@id", id));
+		return (int)(await command.ExecuteScalarAsync())!;
+	}
+
 	[Fact]
 	public async Task RecordTheFailure_ForTheTenureThatHoldsTheClaim()
 	{
@@ -139,7 +209,7 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 		// also pins that boundary: 3 is accepted here precisely because nothing preceded it.
 		var (first, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 		var established = await store.MarkDeadLetteredAsync(
-			first.Id, "establishes the fence", 3, CancellationToken.None).ConfigureAwait(false);
+			first.Id, "establishes the fence", 0, 3, CancellationToken.None).ConfigureAwait(false);
 		established.ShouldBe(
 			OutboxCompletionOutcome.Applied,
 			"the first token on a fresh scope establishes the fence");
@@ -147,18 +217,19 @@ public sealed class SqlServerFencedCompletionPathShould : IClassFixture<SqlServe
 
 		var (second, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 		var live = await store.MarkDeadLetteredAsync(
-			second.Id, "by the live tenure", 12, CancellationToken.None).ConfigureAwait(false);
+			second.Id, "by the live tenure", 0, 12, CancellationToken.None).ConfigureAwait(false);
 		live.ShouldBe(
 			OutboxCompletionOutcome.Applied,
 			"a tenure at or above the high-water must still be able to bury");
 
 		var (third, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 		var superseded = await store.MarkDeadLetteredAsync(
-			third.Id, "by a superseded tenure", 6, CancellationToken.None).ConfigureAwait(false);
+			third.Id, "by a superseded tenure", 99, 6, CancellationToken.None).ConfigureAwait(false);
 
 		superseded.ShouldBe(
 			OutboxCompletionOutcome.FenceRefused,
 			"the fence stands at 12, so a tenure presenting 6 must not be able to bury anything");
+		(await ReadRetryCountAsync(third.Id)).ShouldBe(0, "a refused transition must not record the supplied count");
 		(await ReadStatusAsync(third.Id).ConfigureAwait(false)).ShouldNotBe(
 			StatusDeadLettered,
 			"a refused burial must leave the row alone; reporting the refusal while still writing would be the "

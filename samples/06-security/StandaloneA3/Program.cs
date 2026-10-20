@@ -3,6 +3,8 @@
 // without any database, event sourcing, outbox, or Dispatch pipeline dependencies.
 
 using Excalibur.A3.Authorization;
+using Excalibur.A3.Authentication;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,6 +13,9 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // Register A3 Core with in-memory stores (no database required)
 builder.Services.AddExcaliburA3Core();
+var subject = new SampleSubject();
+builder.Services.AddSingleton<IAuthenticationToken>(subject);
+builder.Services.AddSingleton<ITenantContext>(subject);
 
 var app = builder.Build();
 
@@ -106,6 +111,13 @@ Console.WriteLine();
 
 // 4. Check authorization
 Console.WriteLine("--- Step 4: Authorization Checks ---");
+var policies = scope.ServiceProvider.GetRequiredService<IAuthorizationPolicyProvider>();
+var policy = await policies.GetPolicyAsync();
+if (!policy.HasGrant("Orders.Read") || !policy.HasGrant("Users.Read") || policy.HasGrant("Orders.Delete"))
+{
+	throw new InvalidOperationException("The framework policy did not resolve the granted activity groups correctly.");
+}
+Console.WriteLine("Framework policy: Orders.Read and Users.Read allowed; Orders.Delete denied.");
 var hasOrderMgmt = await grantStore.GrantExistsAsync(
 	"user-alice", "tenant-1", "ActivityGroup", "OrderManagement", CancellationToken.None);
 Console.WriteLine($"Alice has OrderManagement: {hasOrderMgmt}");
@@ -153,8 +165,36 @@ if (queryStore is not null)
 
 Console.WriteLine();
 
-// 7. Remove YOUR tenant's activity groups -- and not anybody else's
-Console.WriteLine("--- Step 7: Remove One Tenant's Activity Groups ---");
+// 7. Revoke every grant type in one tenant, then retry the same operation safely.
+Console.WriteLine("--- Step 7: Atomic Tenant Revocation ---");
+var atomic = grantStore.GetService(typeof(IAtomicGrantRevocationStore)) as IAtomicGrantRevocationStore
+	?? throw new InvalidOperationException("This sample requires atomic grant revocation.");
+await grantStore.SaveGrantAsync(grant with { TenantId = "tenant-2" }, CancellationToken.None);
+await grantStore.SaveGrantAsync(grant with { GrantType = "Activity", Qualifier = "Orders.Read" }, CancellationToken.None);
+var operation = new GrantRevocationRequest(Guid.NewGuid(), "user-alice", GrantRevocationScope.ForTenant("tenant-1"), "admin");
+var revoked = await atomic.RevokeAllAsync(operation, CancellationToken.None);
+var after = await atomic.ReadUserSnapshotAsync("user-alice", includeExpired: true, CancellationToken.None);
+if (revoked.RevokedCount != 2 || after.Grants.Count != 1 || after.Grants[0].TenantId != "tenant-2")
+{
+	throw new InvalidOperationException("Atomic revocation did not preserve the other tenant's grants.");
+}
+// An unknown response is retried with the SAME operation ID. A legitimate addition after commit survives.
+await grantStore.SaveGrantAsync(grant2, CancellationToken.None);
+var retried = await atomic.RevokeAllAsync(operation, CancellationToken.None);
+if (retried != revoked || !await grantStore.GrantExistsAsync("user-alice", "tenant-1", "ActivityGroup", "UserManagement", CancellationToken.None))
+{
+	throw new InvalidOperationException("Retry repeated the revocation instead of returning its committed result.");
+}
+Console.WriteLine($"Atomic tenant revoke: {revoked.RevokedCount} grants; other tenant preserved; retry preserved later addition.");
+var refreshed = await policies.GetPolicyAsync();
+if (refreshed.HasGrant("Orders.Read") || !refreshed.HasGrant("Users.Read"))
+{
+	throw new InvalidOperationException("A new policy acquisition retained revoked grants or lost the later addition.");
+}
+Console.WriteLine("Same-scope policy refreshed: Orders.Read revoked; later Users.Read grant allowed.");
+
+// 8. Remove YOUR tenant's activity groups -- and not anybody else's
+Console.WriteLine("--- Step 8: Remove One Tenant's Activity Groups ---");
 
 // A second tenant, so the confinement below is observable rather than asserted.
 await activityGroupStore.CreateActivityGroupAsync(
@@ -186,3 +226,4 @@ Console.WriteLine($"tenant-2 groups remaining: {tenant2After.Count}  (untouched)
 
 Console.WriteLine();
 Console.WriteLine("=== Sample Complete ===");
+

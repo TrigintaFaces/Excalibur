@@ -71,7 +71,18 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 	}
 
 	/// <inheritdoc />
-	public async Task<T> ExecuteAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+	/// <remarks>
+	/// This overload cannot supply the execution timeout token to the operation. Use the token-aware
+	/// overload for cooperative cancellation; a timeout waits for the operation to finish cancelling.
+	/// </remarks>
+	public Task<T> ExecuteAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(operation);
+		return ExecuteAsync(_ => operation(), cancellationToken);
+	}
+
+	/// <inheritdoc />
+	public async Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(operation);
 
@@ -103,7 +114,7 @@ public partial class BulkheadPolicy : IBulkheadPolicy, IDisposable, IAsyncDispos
 			LogBulkheadExecuting(_name, _activeExecutions, _options.MaxConcurrency);
 
 			var result = await _pipeline.ExecuteAsync(
-				async _ => await operation().ConfigureAwait(false),
+				async token => await operation(token).ConfigureAwait(false),
 				cancellationToken).ConfigureAwait(false);
 
 			var duration = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;

@@ -14,8 +14,8 @@ namespace Excalibur.Compliance.Erasure;
 /// </summary>
 /// <remarks>
 /// The request set is read in full before any request is confirmed. Confirming a request removes it from the
-/// status filter, so confirming while paging would shift later pages and skip requests; reading first means a
-/// single call visits every request that was waiting when it started.
+/// status filter, so confirming while paging would shift later pages and skip requests. Concurrent mutations
+/// can still affect discovery; later polls revisit survivors. Discovery is neither a snapshot nor a claim.
 /// </remarks>
 internal sealed partial class ErasureCompletionProcessor : IErasureCompletionProcessor
 {
@@ -51,23 +51,20 @@ internal sealed partial class ErasureCompletionProcessor : IErasureCompletionPro
 	/// <inheritdoc />
 	public async Task<int> CompletePendingErasuresAsync(CancellationToken cancellationToken)
 	{
-		var queryStore = (IErasureQueryStore?)_store.GetService(typeof(IErasureQueryStore))
+		var queryStore = (IErasureBackgroundQueryStore?)_store.GetService(typeof(IErasureBackgroundQueryStore))
 			?? throw new InvalidOperationException(
-				"The erasure store does not support query operations, so requests awaiting key destruction cannot be found.");
+				"The erasure store must expose IErasureBackgroundQueryStore for background completion. " +
+				"Implement its estate-wide awaiting-destruction discovery; consumer listing cannot substitute for it.");
 
-		var waiting = new List<Guid>();
+		var waiting = new List<ErasureStatus>();
 		for (var page = 1; ; page++)
 		{
-			var batch = await queryStore.ListRequestsAsync(
-				ErasureRequestStatus.AwaitingKeyDestruction,
-				tenantId: null,
-				fromDate: null,
-				toDate: null,
+			var batch = await queryStore.GetAwaitingKeyDestructionRequestsAsync(
 				page,
 				PageSize,
 				cancellationToken).ConfigureAwait(false);
 
-			waiting.AddRange(batch.Select(static r => r.RequestId));
+			waiting.AddRange(batch);
 
 			if (batch.Count < PageSize)
 			{
@@ -89,13 +86,27 @@ internal sealed partial class ErasureCompletionProcessor : IErasureCompletionPro
 		}
 
 		var completed = 0;
-		foreach (var requestId in waiting.Distinct())
+		foreach (var request in waiting.DistinctBy(static row => row.RequestId))
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			IDisposable tenantScope;
 			try
 			{
-				if (await _erasureService.ConfirmKeyDestructionAsync(requestId, _verifier, cancellationToken)
+				tenantScope = ErasureRequestTenantScope.Begin(request);
+			}
+#pragma warning disable CA1031 // A malformed recorded owner must not stop other requests.
+			catch (Exception ex)
+#pragma warning restore CA1031
+			{
+				LogConfirmFailed(request.RequestId, ex);
+				continue;
+			}
+
+			using var ownedScope = tenantScope;
+			try
+			{
+				if (await _erasureService.ConfirmKeyDestructionAsync(request.RequestId, _verifier, cancellationToken)
 					.ConfigureAwait(false))
 				{
 					completed++;
@@ -110,7 +121,7 @@ internal sealed partial class ErasureCompletionProcessor : IErasureCompletionPro
 #pragma warning restore CA1031
 			{
 				// The request is left in AwaitingKeyDestruction, which is revisited on the next call.
-				LogConfirmFailed(requestId, ex);
+				LogConfirmFailed(request.RequestId, ex);
 			}
 		}
 

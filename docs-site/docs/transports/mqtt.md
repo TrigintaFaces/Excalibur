@@ -150,8 +150,8 @@ The receiver uses **manual acknowledgement**: an inbound message is only PUBACK/
 
 | Call | Mechanism | Outcome |
 |------|-----------|---------|
-| `RejectAsync(…, requeue: true, …)` | The acknowledgement is **withheld**. | The broker redelivers the message when the session resumes. |
-| `RejectAsync(…, requeue: false, …)` | The acknowledgement is **sent carrying a failure reason code**. | The delivery flow completes and ownership transfers to the client, so the broker does **not** redeliver. |
+| `RejectAsync(…, requeue: true, …)` | The acknowledgement is **withheld**. | Redelivery depends on the broker retaining the session and the client resuming it. |
+| `RejectAsync(…, requeue: false, …)` | The acknowledgement is **sent carrying a failure reason code**. | Requests completion of the delivery flow; callback completion does not prove durable broker acceptance. |
 
 The second row is the one to reach for in a poison-message handler. Under MQTT 5 a PUBACK completes the
 QoS 1 flow whatever its reason code, and at QoS 2 a PUBREC with a reason code of 0x80 or above terminates
@@ -160,9 +160,9 @@ this, and do not send it again." The transport always connects as MQTT 5, so thi
 connection it opens.
 
 :::caution `requeue: false` suppresses redelivery on a best-effort basis
-Returning normally means the acknowledgement was handed to the transport. MQTT has no acknowledgement of
-an acknowledgement, so if the connection fails before the broker processes the packet, the message stays
-outstanding and is redelivered on resume — and nothing in the protocol can distinguish that from success.
+Returning normally means the native acknowledgement callback completed without an observed failure.
+It does not prove durable broker acceptance. If the connection fails before the broker processes the
+packet, the message may remain outstanding and arrive again when the retained session resumes.
 **Deduplicate in your dead-letter handler** — but not on `TransportReceivedMessage.Id`, which is unique per
 *delivery* and so differs on every redelivery. It has to be: it keys the receiver's pending-settlement map,
 and deriving it from a content field a producer may legitimately repeat would let two in-flight messages
@@ -170,6 +170,13 @@ settle against each other's handle. Set a deduplication id at the sender (`UseDe
 an MQTT user property, the broker retransmits it with the message, and it is readable from
 `TransportReceivedMessage.Properties`. That is the key that survives a redelivery.
 :::
+
+Native acknowledgement callback failures surface as `TransportSettlementException`, preserving the
+original exception in `InnerException`. Redelivery is `Unspecified`, while retrying the same settlement
+is `Permanent` because the local handle was consumed before the callback. An existing portable exception
+retains its identity. Cancellation remains a raw cancellation exception only when it carries the exact
+forwarded caller token and that token was requested; unrelated callback timeouts remain portable failures.
+Caller cancellation also leaves the handle consumed.
 
 The requeue promise depends on the session outliving the disconnect, which is why `PersistentSession` defaults to `true`.
 The transport connects with a non-clean start and a one-hour session expiry so that a rejected message is still held
@@ -182,10 +189,17 @@ and anything you rejected is gone. Configuration validation cannot catch this: a
 that is stable for the deployment.
 :::
 
-Setting `PersistentSession` to `false` opts out. The broker then discards the session as soon as the connection
-closes, so a rejected message is **dropped rather than redelivered** — with no error and no warning. Choose it only
-if you do not rely on rejection, for example when every failure is handled in-process or routed to a dead-letter
-topic by your own code.
+Setting `PersistentSession` to `false` opts out. Clean sessions support acknowledgment and rejection without
+requeue. A requeue request is refused with `TransportSettlementException` (`Mqtt`, `Unspecified`, `Permanent`)
+before the receipt is claimed or the native callback is changed. You can still acknowledge that receipt or reject
+it without requeue. The receiver uses the connection settings captured for the delivery; changing the options
+object after connecting does not change that delivery's session configuration. These settings describe the
+requested connection, rather than proving that the broker retained a session.
+
+Session-retention eligibility is fixed for the receiver's reused client. A reconnect request that changes
+that eligibility is refused before connecting; create a new receiver to change between clean and retained
+sessions. This keeps a delayed callback from an earlier connection from adopting a later connection's
+requeue policy. Reconnecting with unchanged eligibility remains supported.
 
 `SessionExpiryInterval` is the recovery window, sized for reconnects and rolling restarts rather than for outages. A
 subscriber that returns inside the window resumes its session and receives what it left unacknowledged; one that

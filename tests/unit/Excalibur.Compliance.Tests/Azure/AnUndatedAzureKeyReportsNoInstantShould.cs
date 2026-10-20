@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
-
 using Azure;
 using Azure.Security.KeyVault.Keys;
 
@@ -91,14 +89,7 @@ public sealed class AnUndatedAzureKeyReportsNoInstantShould
 
 	private static AzureKeyVaultProvider CreateProvider(DateTimeOffset? createdOn)
 	{
-		var sut = new AzureKeyVaultProvider(
-			Options.Create(new AzureKeyVaultOptions
-			{
-				VaultUri = new Uri(VaultUri),
-				KeyNamePrefix = string.Empty,
-			}),
-			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
+
 
 		var properties = KeyModelFactory.KeyProperties(
 			id: new Uri($"{VaultUri}keys/{KeyId}/abcdef0123456789abcdef0123456789"),
@@ -114,17 +105,20 @@ public sealed class AnUndatedAzureKeyReportsNoInstantShould
 			properties,
 			new JsonWebKey(System.Security.Cryptography.RSA.Create(2048), includePrivateParameters: false));
 
-		var keyClient = A.Fake<KeyClient>(o => o.WithArgumentsForConstructor(() =>
+		var keyClient = A.Fake<global::Azure.Security.KeyVault.Keys.KeyClient>(o => o.WithArgumentsForConstructor(() =>
 			new KeyClient(new Uri(VaultUri), new global::Azure.Identity.DefaultAzureCredential())));
 
 		A.CallTo(() => keyClient.GetKeyAsync(KeyId, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(Response.FromValue(key, A.Fake<Response>())));
 
-		var field = typeof(AzureKeyVaultProvider).GetField(
-			"_keyClient", BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(sut, keyClient);
-
-		return sut;
+		return new AzureKeyVaultProvider(
+			Options.Create(new AzureKeyVaultOptions
+			{
+				VaultUri = new Uri(VaultUri),
+				KeyNamePrefix = string.Empty,
+			}),
+			new MemoryCache(new MemoryCacheOptions()),
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 	}
 }

@@ -76,7 +76,7 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
         try
         {
             var ndjson = BuildBulkPayload([auditEvent]);
-            var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
+            using var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
@@ -169,7 +169,7 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
                     }
                 }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 LogAuditExportBatchChunkError(ex);
 
@@ -206,7 +206,7 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
             using var request = new HttpRequestMessage(HttpMethod.Get, healthUri);
             ApplyAuthentication(request);
 
-            var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
             var isHealthy = response.IsSuccessStatusCode;
             var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
@@ -307,7 +307,7 @@ public sealed partial class OpenSearchAuditExporter : IAuditLogExporter
         CancellationToken cancellationToken)
     {
         var ndjson = BuildBulkPayload(events);
-        var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
+        using var response = await SendBulkAsync(ndjson, cancellationToken).ConfigureAwait(false);
 
         if (response.IsSuccessStatusCode)
         {

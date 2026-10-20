@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Delivery;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 
@@ -28,6 +29,8 @@ namespace Excalibur.Dispatch.Outbox;
 /// Messages are first staged to the outbox store within the same transaction as the business operation, then published asynchronously by
 /// background processors.
 /// </remarks>
+[SuppressMessage("Maintainability", "CA1506:AvoidExcessiveClassCoupling",
+	Justification = "Coordinates the existing serialization, transport, store, and retry-owner contracts for transactional publication; these dependencies belong to that composition boundary.")]
 public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 {
 	private readonly IOutboxStore _outboxStore;
@@ -237,10 +240,15 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+		if (message is not IDispatchMessage)
+		{
+			throw new ArgumentException("Outbox messages must implement IDispatchMessage.", nameof(message));
+		}
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
-		var payload = _serializer.SerializeObject(message, message.GetType());
-		var messageType = message.GetType().FullName ?? message.GetType().Name;
+		var runtimeType = message.GetType();
+		var payload = _serializer.SerializeObject(message, runtimeType);
+		var messageType = OutboxMessageTypeResolver.Register(runtimeType);
 
 		var outboundMessage = new OutboundMessage(messageType, payload, destination) { ScheduledAt = scheduledAt };
 
@@ -267,6 +275,10 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(transports);
+		if (message is not IDispatchMessage)
+		{
+			throw new ArgumentException("Outbox messages must implement IDispatchMessage.", nameof(message));
+		}
 
 		if (_multiTransportStore is null)
 		{
@@ -285,7 +297,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var runtimeType = message.GetType();
 		var payload = _serializer.SerializeObject(message, runtimeType);
-		var messageType = runtimeType.FullName ?? runtimeType.Name;
+		var messageType = OutboxMessageTypeResolver.Register(runtimeType);
 
 		var outboundMessage = new OutboundMessage(messageType, payload, transportList[0].Destination ?? string.Empty)
 		{
@@ -576,7 +588,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			// marks the message failed (rejected), never dispatches an over-limit body.
 			PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
 
-			var wrappedMessage = new OutboxDispatchMessage(message.Payload);
+			var wrappedMessage = RestoreMessage(message);
 			var destination = transport.Destination ?? message.Destination;
 
 			var context = new MessageContext(wrappedMessage, _serviceProvider)
@@ -602,7 +614,10 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				context.GetOrCreateRoutingFeature().PartitionKey = message.PartitionKey;
 			}
 
-			await adapter.SendAsync(wrappedMessage, destination, context, cancellationToken).ConfigureAwait(false);
+			using (RetryOwnershipScope.Enter(wrappedMessage, context))
+			{
+				await adapter.SendAsync(wrappedMessage, destination, context, cancellationToken).ConfigureAwait(false);
+			}
 
 			if (_multiTransportStore is not null)
 			{
@@ -619,6 +634,9 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 		catch (Exception ex)
 		{
+			// Adapters can wrap cancellation or return it as failure. Caller cancellation takes
+			// precedence over charging a new durable failure, regardless of exception shape.
+			cancellationToken.ThrowIfCancellationRequested();
 			if (_multiTransportStore is not null)
 			{
 				await _multiTransportStore.MarkTransportFailedAsync(
@@ -891,6 +909,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			}
 			catch (Exception ex)
 			{
+				cancellationToken.ThrowIfCancellationRequested();
 				await ReportFailureForClaimAsync(message, ex.Message, cancellationToken).ConfigureAwait(false);
 
 				failureCount++;
@@ -931,7 +950,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		// which marks the message failed (rejected), never dispatches an over-limit body.
 		PayloadSizeGuard.EnsureWithinLimit(message.Payload.Length, _maxPayloadBytes);
 
-		var wrappedMessage = new OutboxDispatchMessage(message.Payload);
+		var wrappedMessage = RestoreMessage(message);
 		var context = new MessageContext(wrappedMessage, _serviceProvider)
 		{
 			MessageId = message.Id,
@@ -955,7 +974,15 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			context.GetOrCreateRoutingFeature().PartitionKey = message.PartitionKey;
 		}
 
-		_ = await _messageBus.PublishAsync(wrappedMessage, context, cancellationToken).ConfigureAwait(false);
+		IMessageResult result;
+		using (RetryOwnershipScope.Enter(wrappedMessage, context))
+		{
+			result = await _messageBus.PublishAsync(wrappedMessage, context, cancellationToken).ConfigureAwait(false);
+		}
+		if (!result.Succeeded)
+		{
+			throw new InvalidOperationException(result.ErrorMessage ?? result.ProblemDetails?.Detail ?? "Outbox message publishing failed.");
+		}
 		await MarkSentFencedAsync(message.Id, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -1155,23 +1182,6 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			=> new(messageId, transportName, false, errorMessage, exception);
 	}
 
-	/// <summary>
-	/// Wrapper message for outbox payloads that implements IDispatchMessage.
-	/// </summary>
-	private sealed class OutboxDispatchMessage : IDispatchMessage
-	{
-		/// <summary>
-		/// Initializes a new instance of the <see cref="OutboxDispatchMessage" /> class.
-		/// </summary>
-		/// <param name="payload"> The serialized message payload. </param>
-		public OutboxDispatchMessage(byte[] payload)
-		{
-			Payload = payload ?? throw new ArgumentNullException(nameof(payload));
-		}
-
-		/// <summary>
-		/// Gets the serialized message payload.
-		/// </summary>
-		public byte[] Payload { get; }
-	}
+	private IDispatchMessage RestoreMessage(OutboundMessage message)
+		=> OutboxMessageTypeResolver.Restore(message, _serializer);
 }

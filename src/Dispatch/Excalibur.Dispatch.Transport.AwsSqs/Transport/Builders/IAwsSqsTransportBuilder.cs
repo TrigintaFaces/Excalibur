@@ -229,24 +229,26 @@ public interface IAwsSqsTransportBuilder
 	IAwsSqsTransportBuilder ConfigureCloudEvents(Action<AwsSqsCloudEventOptions> configure);
 
 	/// <summary>
-	/// Sets the maximum number of SDK-level retries the SQS client performs per request.
+	/// Sets the foreground message bus send retry count and receive client SDK retry count.
 	/// </summary>
-	/// <param name="maxRetryAttempts">The maximum retry count (0 disables SDK retries).</param>
+	/// <param name="maxRetryAttempts">The maximum retry count after the initial attempt (0 disables retries).</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxRetryAttempts"/> is negative.</exception>
 	/// <remarks>
-	/// Maps to <c>AmazonSQSConfig.MaxErrorRetry</c>. When not set, the AWS SDK default applies.
+	/// Framework message bus sends use a separate SDK client with both SDK retry counters disabled.
+	/// An existing Dispatch retry owner supplies its own budget. Receive operations retain SDK retries.
 	/// </remarks>
 	IAwsSqsTransportBuilder UseMaxRetryAttempts(int maxRetryAttempts);
 
 	/// <summary>
-	/// Sets the per-request timeout applied to the SQS client.
+	/// Sets the total message bus send deadline and receive client SDK request timeout.
 	/// </summary>
 	/// <param name="timeout">The request timeout. Must be greater than <see cref="TimeSpan.Zero"/>.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="timeout"/> is not positive.</exception>
 	/// <remarks>
-	/// Maps to <c>AmazonSQSConfig.Timeout</c>. When not set, the AWS SDK default applies.
+	/// Message bus sends apply the deadline across all send attempts, including asynchronous SDK calls.
+	/// Receive operations map this setting to <c>AmazonSQSConfig.Timeout</c>.
 	/// </remarks>
 	IAwsSqsTransportBuilder UseRequestTimeout(TimeSpan timeout);
 

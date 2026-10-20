@@ -56,16 +56,40 @@ public sealed class FilterParserShould
 		result.Operator.ShouldBe(FilterOperator.GreaterThan);
 	}
 
+	/// <summary>
+	/// An unrecognised suffix is refused rather than read as equality.
+	/// </summary>
+	/// <remarks>
+	/// This arm used to assert the opposite, and that is what made the defect findable: a mistyped
+	/// suffix -- "Amount:gtt" for "Amount:gt" -- silently became an EQUALITY filter on Amount, so the
+	/// query ran, returned a wrong set, and reported nothing. The message has to name the suffix and the
+	/// valid ones, because the author of a typo cannot see it by re-reading the key.
+	/// </remarks>
 	[Fact]
-	public void Parse_UnknownOperator_DefaultsToEquals()
+	public void Parse_UnknownOperator_Throws()
 	{
-		// Arrange & Act
-		var result = FilterParser.Parse("Field:unknown");
+		var error = Should.Throw<ArgumentException>(() => FilterParser.Parse("Field:gtt"));
 
-		// Assert
-		result.PropertyName.ShouldBe("Field");
-		result.Operator.ShouldBe(FilterOperator.Equals);
+		error.Message.ShouldContain("gtt", Case.Sensitive);
+		error.Message.ShouldContain("gte", Case.Sensitive);
 	}
+
+	/// <summary>
+	/// CONTROL: every documented suffix is still accepted, including the explicit "eq" that the old
+	/// fallback accepted only by accident.
+	/// </summary>
+	[Theory]
+	[InlineData("Field:eq", FilterOperator.Equals)]
+	[InlineData("Field:EQ", FilterOperator.Equals)]
+	[InlineData("Field:neq", FilterOperator.NotEquals)]
+	[InlineData("Field:gt", FilterOperator.GreaterThan)]
+	[InlineData("Field:gte", FilterOperator.GreaterThanOrEqual)]
+	[InlineData("Field:lt", FilterOperator.LessThan)]
+	[InlineData("Field:lte", FilterOperator.LessThanOrEqual)]
+	[InlineData("Field:in", FilterOperator.In)]
+	[InlineData("Field:contains", FilterOperator.Contains)]
+	public void Parse_EveryDocumentedSuffix_IsAccepted(string key, FilterOperator expected) =>
+		FilterParser.Parse(key).Operator.ShouldBe(expected);
 
 	[Fact]
 	public void Parse_NullKey_ThrowsArgumentNullException()
@@ -74,38 +98,25 @@ public sealed class FilterParserShould
 		_ = Should.Throw<ArgumentNullException>(() => FilterParser.Parse(null!));
 	}
 
+	[Theory]
+	[InlineData("")]
+	[InlineData("   ")]
+	[InlineData(":gt")]
+	public void Parse_KeyWithNoPropertyName_Throws(string key) =>
+		Should.Throw<ArgumentException>(() => FilterParser.Parse(key));
+
+	/// <summary>
+	/// The first colon separates, so everything after it must be one suffix. "Field:Name:gt" is not a
+	/// property path -- paths use dots -- so it is a malformed key, not an equality filter on "Field".
+	/// </summary>
 	[Fact]
-	public void Parse_EmptyKey_ReturnsEmptyPropertyName()
-	{
-		// Arrange & Act
-		var result = FilterParser.Parse(string.Empty);
+	public void Parse_KeyWithMultipleColons_Throws() =>
+		Should.Throw<ArgumentException>(() => FilterParser.Parse("Field:Name:gt"));
 
-		// Assert
-		result.PropertyName.ShouldBe(string.Empty);
-		result.Operator.ShouldBe(FilterOperator.Equals);
-	}
-
+	/// <summary>
+	/// A trailing colon is a suffix the author started and did not finish.
+	/// </summary>
 	[Fact]
-	public void Parse_KeyWithMultipleColons_UsesFirstColonAsSeparator()
-	{
-		// Arrange & Act
-		var result = FilterParser.Parse("Field:Name:gt");
-
-		// Assert
-		result.PropertyName.ShouldBe("Field");
-		// "Name:gt" is not a valid operator, so defaults to Equals
-		result.Operator.ShouldBe(FilterOperator.Equals);
-	}
-
-	[Fact]
-	public void Parse_KeyEndingWithColon_HasEmptyOperator()
-	{
-		// Arrange & Act
-		var result = FilterParser.Parse("Status:");
-
-		// Assert
-		result.PropertyName.ShouldBe("Status");
-		// Empty string is not a known operator, defaults to Equals
-		result.Operator.ShouldBe(FilterOperator.Equals);
-	}
+	public void Parse_KeyEndingWithColon_Throws() =>
+		Should.Throw<ArgumentException>(() => FilterParser.Parse("Status:"));
 }

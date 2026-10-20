@@ -27,7 +27,7 @@ namespace Excalibur.Compliance.Tests.Azure;
 public sealed class AzureKeyVaultErasureReachesTerminalShould : IDisposable
 {
 	private readonly MemoryCache _cache = new(new MemoryCacheOptions());
-	private readonly KeyClient _keyClient = A.Fake<KeyClient>(options => options.WithArgumentsForConstructor(() =>
+	private readonly KeyClient _keyClient = A.Fake<global::Azure.Security.KeyVault.Keys.KeyClient>(options => options.WithArgumentsForConstructor(() =>
 		new KeyClient(new Uri("https://unit-tests.vault.azure.net/"), new global::Azure.Identity.DefaultAzureCredential())));
 	private readonly AzureKeyVaultProvider _provider;
 
@@ -59,7 +59,7 @@ public sealed class AzureKeyVaultErasureReachesTerminalShould : IDisposable
 			logger: NullLogger<AzureKeyVaultProvider>.Instance,
 			keyClient: _keyClient);
 
-		var operation = A.Fake<DeleteKeyOperation>();
+		var operation = A.Fake<global::Azure.Security.KeyVault.Keys.DeleteKeyOperation>();
 		A.CallTo(() => operation.WaitForCompletionAsync(A<CancellationToken>._))
 			.Returns(new ValueTask<Response<DeletedKey>>(Response.FromValue(DeletedKeyNamed("dispatch-x"), A.Fake<Response>())));
 		A.CallTo(() => _keyClient.StartDeleteKeyAsync(A<string>._, A<CancellationToken>._))

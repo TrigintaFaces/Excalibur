@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// 4. Pipeline execution at various depths (3, 5 stages)
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class MiddlewareInterceptorBenchmarks
 {
 	private IServiceProvider _serviceProvider = null!;

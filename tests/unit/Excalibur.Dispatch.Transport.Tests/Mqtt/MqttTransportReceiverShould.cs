@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Mqtt;
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Transport)]
+[Trait("Pattern", "TRANSPORT")]
 public sealed class MqttTransportReceiverShould : IAsyncDisposable
 {
 	private readonly IMqttConnectionProvider _fakeConnectionProvider = A.Fake<IMqttConnectionProvider>();
@@ -32,6 +33,12 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 
 	public MqttTransportReceiverShould()
 	{
+		var client = A.Fake<IMqttClient>();
+		A.CallTo(() => client.IsConnected).Returns(true);
+		A.CallTo(() => _fakeConnectionProvider.CreateClient()).Returns(client);
+		A.CallTo(() => _fakeConnectionProvider.BuildClientOptions("sub"))
+			.Returns(new MqttClientOptionsBuilder().WithTcpServer("broker.example.com")
+				.WithCleanStart(false).WithSessionExpiryInterval(3600).Build());
 		_sut = new MqttTransportReceiver(_fakeConnectionProvider, _options, NullLogger<MqttTransportReceiver>.Instance);
 	}
 
@@ -562,13 +569,15 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 	/// it repeats in ordinary traffic and must not reach the delivery identity either.
 	/// </param>
 	/// <param name="target">The receiver to deliver into; the arm's own receiver when not supplied.</param>
+	/// <param name="acknowledge">Optional native acknowledgement callback for settlement fault tests.</param>
 	private async Task DeliverAsync(
 		string tag,
 		string? correlationId,
 		List<string> acknowledged,
 		string? applicationMessageId = null,
 		ushort packetIdentifier = 0,
-		MqttTransportReceiver? target = null)
+		MqttTransportReceiver? target = null,
+		Func<MqttApplicationMessageReceivedEventArgs, CancellationToken, Task>? acknowledge = null)
 	{
 		List<MqttUserProperty> userProperties = [new MqttUserProperty(DeliveryTag, tag)];
 		if (applicationMessageId is not null)
@@ -587,17 +596,414 @@ public sealed class MqttTransportReceiverShould : IAsyncDisposable
 			"client-1",
 			message,
 			new MqttPublishPacket { PacketIdentifier = packetIdentifier },
-			(_, _) =>
+			acknowledge ?? ((_, _) =>
 			{
 				acknowledged.Add(tag);
 				return Task.CompletedTask;
+			}));
+
+		// Establish the real receiver connection path before raising the subscribed delivery event.
+		var receiver = target ?? _sut;
+		var subscribe = typeof(MqttTransportReceiver).GetMethod("EnsureSubscribedAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+		await (Task)subscribe.Invoke(receiver, [CancellationToken.None])!;
+		var client = (IMqttClient)receiver.GetService(typeof(IMqttClient))!;
+		client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>.With(args);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task WrapNativeCallbackFailureAfterClaimIsConsumed(bool reject)
+	{
+		var native = new IOException("native acknowledgement response lost");
+		var calls = 0;
+		await DeliverAsync("fault", null, [], acknowledge: (_, _) =>
+		{
+			calls++;
+			return Task.FromException(native);
+		});
+		var message = (await _sut.ReceiveAsync(1, CancellationToken.None)).Single();
+
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() => SettleNative(message, reject, CancellationToken.None));
+
+		AssertConsumedFailure(thrown, native);
+		var repeated = await Should.ThrowAsync<TransportSettlementException>(() => SettleNative(message, reject, CancellationToken.None));
+		repeated.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		calls.ShouldBe(1);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task PreservePortableCallbackFailureIdentity(bool reject)
+	{
+		var sentinel = new TransportSettlementException("already classified")
+		{
+			TransportName = "Mqtt",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Expected,
+			Retryability = SettlementRetryability.Retryable,
+		};
+		await DeliverAsync("portable", null, [], acknowledge: (_, _) => Task.FromException(sentinel));
+		var message = (await _sut.ReceiveAsync(1, CancellationToken.None)).Single();
+
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() => SettleNative(message, reject, CancellationToken.None));
+
+		thrown.ShouldBeSameAs(sentinel);
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(true, false)]
+	[InlineData(false, true)]
+	[InlineData(true, true)]
+	public async Task WrapUnrelatedCallbackCancellationWhenCallerCancellationRaces(bool reject, bool tokenless)
+	{
+		using var caller = new CancellationTokenSource();
+		using var other = new CancellationTokenSource();
+		other.Cancel();
+		var native = new OperationCanceledException(tokenless ? CancellationToken.None : other.Token);
+		await DeliverAsync("unrelated-cancellation", null, [], acknowledge: (_, forwarded) =>
+		{
+			forwarded.ShouldBe(caller.Token);
+			caller.Cancel();
+			return Task.FromException(native);
+		});
+		var message = (await _sut.ReceiveAsync(1, CancellationToken.None)).Single();
+
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() => SettleNative(message, reject, caller.Token));
+
+		AssertConsumedFailure(thrown, native);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task PreserveExactForwardedCallerCancellation(bool reject)
+	{
+		using var caller = new CancellationTokenSource();
+		var calls = 0;
+		await DeliverAsync("caller-cancellation", null, [], acknowledge: (_, forwarded) =>
+		{
+			calls++;
+			forwarded.ShouldBe(caller.Token);
+			caller.Cancel();
+			return Task.FromException(new OperationCanceledException(forwarded));
+		});
+		var message = (await _sut.ReceiveAsync(1, CancellationToken.None)).Single();
+
+		var thrown = await Should.ThrowAsync<OperationCanceledException>(() => SettleNative(message, reject, caller.Token));
+
+		// TAP can surface TaskCanceledException; the contract preserves the cancellation token.
+		thrown.CancellationToken.ShouldBe(caller.Token);
+		thrown.CancellationToken.IsCancellationRequested.ShouldBeTrue();
+		thrown.ShouldNotBeOfType<TransportSettlementException>();
+		var reused = await Should.ThrowAsync<TransportSettlementException>(() => SettleNative(message, reject, CancellationToken.None));
+		reused.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		calls.ShouldBe(1);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task CompleteNativeSettlementOnce(bool reject)
+	{
+		var calls = 0;
+		await DeliverAsync("healthy", null, [], acknowledge: (_, _) =>
+		{
+			calls++;
+			return Task.CompletedTask;
+		});
+		var message = (await _sut.ReceiveAsync(1, CancellationToken.None)).Single();
+
+		await SettleNative(message, reject, CancellationToken.None);
+
+		calls.ShouldBe(1);
+		await Should.ThrowAsync<TransportSettlementException>(() => SettleNative(message, reject, CancellationToken.None));
+		calls.ShouldBe(1);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task GiveOnlyOneOpposingSettlementOwnershipWhileNativeCallbackIsPaused(bool rejectWins)
+	{
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var calls = 0;
+		await DeliverAsync("opposing", null, [], acknowledge: (_, _) =>
+		{
+			calls++;
+			entered.TrySetResult();
+			return release.Task;
+		});
+		var message = (await _sut.ReceiveAsync(1, CancellationToken.None)).Single();
+		var winner = SettleNative(message, rejectWins, CancellationToken.None);
+		await entered.Task;
+		try
+		{
+			var loser = await Should.ThrowAsync<TransportSettlementException>(() =>
+				SettleNative(message, !rejectWins, CancellationToken.None));
+			loser.Retryability.ShouldBe(SettlementRetryability.Permanent);
+			loser.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+			calls.ShouldBe(1);
+		}
+		finally
+		{
+			release.TrySetResult();
+			await winner;
+		}
+	}
+
+	[Theory]
+	[InlineData(false, true)]
+	[InlineData(true, true)]
+	[InlineData(false, false)]
+	[InlineData(true, false)]
+	public async Task RefuseNonRetainedConnectionRequeueBeforeClaimOrMutationDespiteMutableConfiguration(bool configuredPersistent, bool cleanStart)
+	{
+		_options.PersistentSession = configuredPersistent;
+		var acknowledged = new List<string>();
+		var (receiver, args, message) = await ReceiveSessionDeliveryAsync(cleanStart, expirySeconds: 0, acknowledged);
+		await using var owned = receiver;
+		_options.PersistentSession = !configuredPersistent;
+		var originalReason = args.ReasonCode;
+		var originalReasonString = args.ResponseReasonString;
+		var error = await Should.ThrowAsync<TransportSettlementException>(() => receiver.RejectAsync(message, "retry", true, CancellationToken.None));
+		error.TransportName.ShouldBe("Mqtt");
+		error.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		error.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		args.ProcessingFailed.ShouldBeFalse();
+		args.ReasonCode.ShouldBe(originalReason);
+		args.ResponseReasonString.ShouldBe(originalReasonString);
+		acknowledged.ShouldBeEmpty();
+		await receiver.AcknowledgeAsync(message, CancellationToken.None);
+		acknowledged.ShouldBe(["session"]);
+		await Should.ThrowAsync<TransportSettlementException>(() => receiver.AcknowledgeAsync(message, CancellationToken.None));
+		acknowledged.ShouldBe(["session"]);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task PreserveCleanConnectionAcknowledgementAndDrop(bool reject)
+	{
+		_options.PersistentSession = false;
+		var acknowledged = new List<string>();
+		var (receiver, args, message) = await ReceiveSessionDeliveryAsync(cleanStart: true, expirySeconds: 0, acknowledged);
+		await using var owned = receiver;
+		if (reject)
+		{
+			await receiver.RejectAsync(message, "drop", false, CancellationToken.None);
+			args.ReasonCode.ShouldBe(MqttApplicationMessageReceivedReasonCode.UnspecifiedError);
+			args.ResponseReasonString.ShouldBe("drop");
+		}
+		else
+		{
+			await receiver.AcknowledgeAsync(message, CancellationToken.None);
+		}
+		acknowledged.ShouldBe(["session"]);
+		args.ProcessingFailed.ShouldBeFalse();
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task UseRetainedConnectionRequestForRequeueRatherThanLaterMutableConfiguration(bool configuredPersistent)
+	{
+		_options.PersistentSession = configuredPersistent;
+		var acknowledged = new List<string>();
+		var (receiver, args, message) = await ReceiveSessionDeliveryAsync(cleanStart: false, expirySeconds: 3600, acknowledged);
+		await using var owned = receiver;
+		_options.PersistentSession = !configuredPersistent;
+		_options.SessionExpiryInterval = TimeSpan.Zero;
+		await receiver.RejectAsync(message, "retry", true, CancellationToken.None);
+		args.ProcessingFailed.ShouldBeTrue();
+		acknowledged.ShouldBeEmpty();
+		var reused = await Should.ThrowAsync<TransportSettlementException>(() => receiver.AcknowledgeAsync(message, CancellationToken.None));
+		reused.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		reused.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		acknowledged.ShouldBeEmpty();
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task RefuseChangedSessionRetentionRequestBeforeReconnectAndPreserveOriginalReceipt(bool initiallyRetained)
+	{
+		var client = A.Fake<IMqttClient>();
+		var connections = A.Fake<IMqttConnectionProvider>();
+		var connected = false;
+		var connectCalls = 0;
+		var acknowledged = new List<string>();
+		A.CallTo(() => client.IsConnected).ReturnsLazily(() => connected);
+		A.CallTo(() => connections.CreateClient()).Returns(client);
+		var firstRequest = new MqttClientOptionsBuilder().WithTcpServer("localhost")
+			.WithCleanStart(!initiallyRetained).WithSessionExpiryInterval(initiallyRetained ? 3600u : 0u).Build();
+		var changedRequest = new MqttClientOptionsBuilder().WithTcpServer("localhost")
+			.WithCleanStart(initiallyRetained).WithSessionExpiryInterval(initiallyRetained ? 0u : 3600u).Build();
+		A.CallTo(() => connections.BuildClientOptions("sub")).ReturnsNextFromSequence(firstRequest, changedRequest);
+		A.CallTo(() => client.ConnectAsync(A<MqttClientOptions>._, A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				connected = true;
+				if (++connectCalls == 2)
+				{
+					// Against the unsafe implementation, let Receive return normally after the second connect.
+					// Thus RED identifies a missing guard, not a receive timeout or a fixture exception.
+					client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>
+						.With(new MqttApplicationMessageReceivedEventArgs("changed-session",
+							new MqttApplicationMessage { Topic = _options.Topic }, new MqttPublishPacket(), static (_, _) => Task.CompletedTask));
+				}
 			});
+		await using var receiver = new MqttTransportReceiver(connections, _options, NullLogger<MqttTransportReceiver>.Instance);
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		var receive = receiver.ReceiveAsync(1, bounded.Token);
+		var originalArgs = new MqttApplicationMessageReceivedEventArgs("original-session",
+			new MqttApplicationMessage { Topic = _options.Topic }, new MqttPublishPacket(), (_, _) =>
+			{
+				acknowledged.Add("original");
+				return Task.CompletedTask;
+			});
+		client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>.With(originalArgs);
+		var original = (await receive).Single();
+		connected = false;
+		var change = await Should.ThrowAsync<InvalidOperationException>(() => receiver.ReceiveAsync(1, bounded.Token));
+		change.Message.ShouldContain("session-retention");
+		change.Message.ShouldContain("change");
+		A.CallTo(() => client.ConnectAsync(A<MqttClientOptions>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		originalArgs.ProcessingFailed.ShouldBeFalse();
+		acknowledged.ShouldBeEmpty();
+		if (initiallyRetained)
+		{
+			await receiver.RejectAsync(original, "retry", true, CancellationToken.None);
+			originalArgs.ProcessingFailed.ShouldBeTrue();
+			acknowledged.ShouldBeEmpty();
+			var reused = await Should.ThrowAsync<TransportSettlementException>(() => receiver.AcknowledgeAsync(original, CancellationToken.None));
+			reused.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		}
+		else
+		{
+			var refusal = await Should.ThrowAsync<TransportSettlementException>(() => receiver.RejectAsync(original, "retry", true, CancellationToken.None));
+			refusal.TransportName.ShouldBe("Mqtt");
+			refusal.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+			refusal.Retryability.ShouldBe(SettlementRetryability.Permanent);
+			originalArgs.ProcessingFailed.ShouldBeFalse();
+			await receiver.AcknowledgeAsync(original, CancellationToken.None);
+			acknowledged.ShouldBe(["original"]);
+		}
+	}
 
-		var handler = typeof(MqttTransportReceiver).GetMethod(
-			"OnMessageReceivedAsync",
-			BindingFlags.NonPublic | BindingFlags.Instance)!;
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task KeepInitialEligibilityPinnedAfterNativeConnectFails(bool initiallyRetained)
+	{
+		var client = A.Fake<IMqttClient>();
+		var connections = A.Fake<IMqttConnectionProvider>();
+		A.CallTo(() => client.IsConnected).Returns(false);
+		A.CallTo(() => connections.CreateClient()).Returns(client);
+		var initialRequest = new MqttClientOptionsBuilder().WithTcpServer("localhost")
+			.WithCleanStart(!initiallyRetained).WithSessionExpiryInterval(initiallyRetained ? 3600u : 0u).Build();
+		var changedRequest = new MqttClientOptionsBuilder().WithTcpServer("localhost")
+			.WithCleanStart(initiallyRetained).WithSessionExpiryInterval(initiallyRetained ? 0u : 3600u).Build();
+		A.CallTo(() => connections.BuildClientOptions("sub")).ReturnsNextFromSequence(initialRequest, changedRequest);
+		var firstFailure = new IOException("First native connection failed after its request was sent");
+		var calls = 0;
+		A.CallTo(() => client.ConnectAsync(A<MqttClientOptions>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (++calls == 1)
+				{
+					return Task.FromException<MqttClientConnectResult>(firstFailure);
+				}
+				// If a mutant clears the pin after failure, let its second Receive finish normally.
+				client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>
+					.With(new MqttApplicationMessageReceivedEventArgs("changed-after-failure",
+						new MqttApplicationMessage { Topic = _options.Topic }, new MqttPublishPacket(), static (_, _) => Task.CompletedTask));
+				return Task.FromResult(new MqttClientConnectResult());
+			});
+		await using var receiver = new MqttTransportReceiver(connections, _options, NullLogger<MqttTransportReceiver>.Instance);
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		var observedFailure = await Should.ThrowAsync<IOException>(() => receiver.ReceiveAsync(1, bounded.Token));
+		observedFailure.ShouldBeSameAs(firstFailure);
+		var change = await Should.ThrowAsync<InvalidOperationException>(() => receiver.ReceiveAsync(1, bounded.Token));
+		change.Message.ShouldContain("session-retention");
+		change.Message.ShouldContain("change");
+		A.CallTo(() => client.ConnectAsync(A<MqttClientOptions>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
 
-		await (Task)handler.Invoke(target ?? _sut, [args])!;
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task AllowReconnectWithUnchangedSessionRetentionEligibility(bool retained)
+	{
+		var acknowledged = new List<string>();
+		var (receiver, _, original) = await ReceiveSessionDeliveryAsync(!retained, retained ? 3600u : 0u, acknowledged);
+		await using var owned = receiver;
+		var client = (IMqttClient)receiver.GetService(typeof(IMqttClient))!;
+		A.CallTo(() => client.IsConnected).Returns(false);
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		var receive = receiver.ReceiveAsync(1, bounded.Token);
+		client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>
+			.With(new MqttApplicationMessageReceivedEventArgs("reconnected-session",
+				new MqttApplicationMessage { Topic = _options.Topic }, new MqttPublishPacket(), (_, _) =>
+				{
+					acknowledged.Add("reconnected");
+					return Task.CompletedTask;
+				}));
+		var reconnected = (await receive).Single();
+		A.CallTo(() => client.ConnectAsync(A<MqttClientOptions>._, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+		await receiver.AcknowledgeAsync(reconnected, CancellationToken.None);
+		await receiver.AcknowledgeAsync(original, CancellationToken.None);
+		acknowledged.ShouldBe(["reconnected", "session"]);
+	}
+
+	private async Task<(MqttTransportReceiver Receiver, MqttApplicationMessageReceivedEventArgs Args, TransportReceivedMessage Message)>
+		ReceiveSessionDeliveryAsync(bool cleanStart, uint expirySeconds, List<string> acknowledged)
+	{
+		var client = A.Fake<IMqttClient>();
+		var connections = A.Fake<IMqttConnectionProvider>();
+		A.CallTo(() => client.IsConnected).Returns(true);
+		A.CallTo(() => connections.CreateClient()).Returns(client);
+		var connectionRequest = new MqttClientOptionsBuilder().WithTcpServer("localhost")
+			.WithCleanStart(cleanStart).WithSessionExpiryInterval(expirySeconds).Build();
+		A.CallTo(() => connections.BuildClientOptions("sub")).Returns(connectionRequest);
+		var receiver = new MqttTransportReceiver(connections, _options, NullLogger<MqttTransportReceiver>.Instance);
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		try
+		{
+			var receive = receiver.ReceiveAsync(1, bounded.Token);
+			var args = new MqttApplicationMessageReceivedEventArgs("session-client",
+				new MqttApplicationMessage
+				{
+					Topic = _options.Topic,
+					QualityOfServiceLevel = MqttTransportSender.MapQos(_options.QualityOfService),
+				}, new MqttPublishPacket(), (_, _) =>
+				{
+					acknowledged.Add("session");
+					return Task.CompletedTask;
+				});
+			client.ApplicationMessageReceivedAsync += Raise.FreeForm<Func<MqttApplicationMessageReceivedEventArgs, Task>>.With(args);
+			var message = (await receive).Single();
+			A.CallTo(() => client.ConnectAsync(connectionRequest, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+			return (receiver, args, message);
+		}
+		catch
+		{
+			await receiver.DisposeAsync();
+			throw;
+		}
+	}
+
+	private Task SettleNative(TransportReceivedMessage message, bool reject, CancellationToken token) =>
+		reject ? _sut.RejectAsync(message, "test reason", false, token) : _sut.AcknowledgeAsync(message, token);
+
+	private static void AssertConsumedFailure(TransportSettlementException thrown, Exception native)
+	{
+		thrown.TransportName.ShouldBe("Mqtt");
+		thrown.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		thrown.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		thrown.InnerException.ShouldBeSameAs(native);
 	}
 
 	private const string DeliveryTag = "x-delivery-tag";

@@ -50,7 +50,7 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 
 		_ = A.CallTo(() => eventBridgeClient.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._))
 				.Invokes((PutEventsRequest request, CancellationToken _) => capturedPutRequest = request)
-				.Returns(new PutEventsResponse { Entries = [] });
+				.Returns(new PutEventsResponse { FailedEntryCount = 0, Entries = [new PutEventsResultEntry { EventId = "accepted" }] });
 
 		var options = new AwsEventBridgeOptions
 		{
@@ -93,8 +93,8 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 		// The CloudEvents path builds its entry from a DIFFERENT options object than the native paths, and
 		// that object's EventBusName defaults to the literal "default". Nothing copies the configured bus
 		// across, so before the fix a consumer who set a bus for the native path had every CloudEvent land
-		// on "default" -- silently, because the PutEventsResponse is discarded and its FailedEntryCount is
-		// never inspected. This asserts the bus the CONSUMER configured, which is the requirement; asserting
+		// on "default" -- silently, because an API acknowledgement does not prove target rule matching.
+		// This asserts the bus the CONSUMER configured, which is the requirement; asserting
 		// merely that some bus name is present would pass on the defect.
 		var eventBridgeClient = A.Fake<IAmazonEventBridge>();
 		var serializer = A.Fake<IPayloadSerializer>();
@@ -105,7 +105,7 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 
 		_ = A.CallTo(() => eventBridgeClient.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._))
 				.Invokes((PutEventsRequest request, CancellationToken _) => capturedPutRequest = request)
-				.Returns(new PutEventsResponse { Entries = [] });
+				.Returns(new PutEventsResponse { FailedEntryCount = 0, Entries = [new PutEventsResultEntry { EventId = "accepted" }] });
 
 		// The bridge returns an entry carrying the CloudEvents options' own default -- exactly what the
 		// real adapter produces, and the value the fix must override.
@@ -172,7 +172,7 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 
 		_ = A.CallTo(() => eventBridgeClient.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._))
 				.Invokes((PutEventsRequest request, CancellationToken _) => captured = request)
-				.Returns(new PutEventsResponse { Entries = [] });
+				.Returns(new PutEventsResponse { FailedEntryCount = 0, Entries = [new PutEventsResultEntry { EventId = "accepted" }] });
 
 		var cloudEventOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions());
 		var mapper = new AwsEventBridgeCloudEventAdapter(
@@ -211,6 +211,61 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 		detail.ShouldContain("specversion", Case.Insensitive);
 		detail.ShouldContain(nameof(TestCloudEventBusEvent), Case.Insensitive);
 	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	public async Task PropagateRejectedIngestionFromEveryCloudEventsPublishPath(int path)
+	{
+		var client = A.Fake<IAmazonEventBridge>();
+		A.CallTo(() => client.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._))
+			.Returns(new PutEventsResponse
+			{
+				FailedEntryCount = 1,
+				Entries = [new PutEventsResultEntry { ErrorCode = "InternalFailure", ErrorMessage = "controlled rejection" }],
+			});
+		var bridge = A.Fake<IEnvelopeCloudEventBridge>();
+		A.CallTo(() => bridge.ToTransportAsync<PutEventsRequestEntry>(A<MessageEnvelope>._, A<CloudEventMode>._, A<CancellationToken>._))
+			.Returns(new PutEventsRequestEntry { Detail = "{}" });
+		var encoder = A.Fake<ICloudEventEncoder<PutEventsRequestEntry>>();
+		A.CallTo(() => encoder.Options).Returns(new CloudEventOptions());
+		await using var bus = new AwsEventBridgeMessageBus(client, A.Fake<IPayloadSerializer>(),
+			new AwsEventBridgeOptions { EventBusName = "orders", EnableArchiving = false },
+			A.Fake<ILogger<AwsEventBridgeMessageBus>>(), bridge, encoder);
+		var context = new MessageContext();
+		var error = await Should.ThrowAsync<AmazonEventBridgeException>(() => path switch
+		{
+			0 => bus.PublishAsync(new TestAction(), context, TestContext.Current.CancellationToken),
+			1 => bus.PublishAsync(new TestCloudEventBusEvent(), context, TestContext.Current.CancellationToken),
+			_ => bus.PublishAsync(new TestDocument(), context, TestContext.Current.CancellationToken),
+		});
+		error.ErrorCode.ShouldBe("InternalFailure");
+		A.CallTo(() => client.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task PreserveAwsErrorDetailsWithoutRetryingAnAcknowledgementWithAMissingCount()
+	{
+		var client = A.Fake<IAmazonEventBridge>();
+		A.CallTo(() => client.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._))
+			.Returns(new PutEventsResponse
+			{
+				Entries = [new PutEventsResultEntry { ErrorCode = "InternalFailure", ErrorMessage = "controlled response details" }],
+			});
+		var serializer = A.Fake<IPayloadSerializer>();
+		A.CallTo(() => serializer.SerializeObject(A<object>._, A<Type>._)).Returns(new byte[] { 1, 2 });
+		await using var bus = new AwsEventBridgeMessageBus(client, serializer,
+			new AwsEventBridgeOptions { EventBusName = "orders", EnableArchiving = false }, A.Fake<ILogger<AwsEventBridgeMessageBus>>());
+		var error = await Should.ThrowAsync<global::Excalibur.Dispatch.Exceptions.DispatchDeliveryUncertainException>(() =>
+			bus.PublishAsync(new TestAction(), new MessageContext(), TestContext.Current.CancellationToken));
+		var awsError = error.InnerException.ShouldBeOfType<AmazonEventBridgeException>();
+		awsError.ErrorCode.ShouldBe("InternalFailure");
+		awsError.Message.ShouldBe("controlled response details");
+		A.CallTo(() => client.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
+	private sealed class TestDocument : IDispatchDocument;
 
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{

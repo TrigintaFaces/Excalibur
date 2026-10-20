@@ -63,4 +63,4 @@ UserProfileVersioning/
 
 - [EcommerceOrderVersioning](../EcommerceOrderVersioning/) -- Domain event versioning
 - [IntegrationEventVersioning](../IntegrationEventVersioning/) -- Cross-service integration event versioning
-- [EventUpcasting](../../EventUpcasting/) -- Full event sourcing upcasting with aggregates
+- [EventUpcasting](../EventUpcasting/) -- Full event sourcing upcasting with aggregates

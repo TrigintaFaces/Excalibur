@@ -222,3 +222,6 @@ virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.Dispose(
 virtual Excalibur.Data.Postgres.Persistence.PostgresPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.Postgres.Persistence.PostgresTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.RevokeAllAsync(Excalibur.A3.Authorization.GrantRevocationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.GrantRevocationResult!>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.ReadUserRevisionAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.Postgres.Authorization.PostgresGrantStore.ReadUserSnapshotAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.UserGrantSnapshot!>!

@@ -294,6 +294,130 @@ try {
     }
 } finally { $env:RestoreLockedMode = $previousLockedMode }
 
+# Regression for ARB P08: a caught middle-project failure must survive aggregation.
+# This copied entry point runs real MSBuild builds; unrelated production, assets and
+# sample collaborators are replaced only inside its isolated fixture.
+$aggregationFixture = Join-Path $root 'aggregation'
+New-Item -ItemType Directory "$aggregationFixture/eng","$aggregationFixture/templates" -Force | Out-Null
+Copy-Item "$PSScriptRoot/validate-package-composition.ps1","$PSScriptRoot/package-composition.functions.ps1" "$aggregationFixture/eng"
+& git -C $aggregationFixture init --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Aggregation fixture git init failed.' }
+[IO.File]::WriteAllText("$aggregationFixture/.git/objects/info/alternates",$objectDirectory + "`n")
+& git -C $aggregationFixture update-ref HEAD $head
+if ($LASTEXITCODE -ne 0) { throw 'Aggregation fixture git identity failed.' }
+@('**/bin/','**/obj/','/artifacts/') | Set-Content "$aggregationFixture/.gitignore"
+New-Package "$aggregationFixture/templates" 'Excalibur.Dispatch'
+foreach ($name in @('A','B','C')) {
+    $directory = "$aggregationFixture/src/Excalibur/$name"
+    New-Item -ItemType Directory $directory -Force | Out-Null
+    @'
+<Project DefaultTargets="Build">
+ <PropertyGroup><ProjectAssetsFile>$(MSBuildProjectDirectory)/obj/project.assets.json</ProjectAssetsFile></PropertyGroup>
+ <Target Name="Restore" />
+ <Target Name="Build">
+  <Error Condition="Exists('$(MSBuildProjectDirectory)/fail-build')" Text="P08_PLANTED_MIDDLE_BUILD_FAILURE" />
+  <MakeDir Directories="$(MSBuildProjectDirectory)/obj;$(MSBuildProjectDirectory)/$([System.IO.Path]::GetDirectoryName('$(NuGetLockFilePath)'))" />
+  <WriteLinesToFile File="$(ProjectAssetsFile)" Lines="{}" Overwrite="true" />
+  <WriteLinesToFile File="$(MSBuildProjectDirectory)/$(NuGetLockFilePath)" Lines="{}" Overwrite="true" />
+ </Target>
+</Project>
+'@ | Set-Content "$directory/$name.csproj"
+}
+@'
+param([string]$Version,[string]$OutputDirectory,[string]$EvidenceDirectory)
+New-Item -ItemType Directory $OutputDirectory,$EvidenceDirectory -Force | Out-Null
+Copy-Item "$PSScriptRoot/../templates/*.nupkg" $OutputDirectory
+$identity = Get-CompositionSourceIdentity (Split-Path $PSScriptRoot)
+$packages = Get-CompositionPackages $OutputDirectory $Version
+@{status='passed';buildVerified=$true;candidateSha=(& git -C (Split-Path $PSScriptRoot) rev-parse HEAD).Trim();sourceSha256=$identity.sha256;
+ packages=@($packages.Values);projects=@('A','B','C' | ForEach-Object {
+ @{project="src/Excalibur/$_/$_.csproj";dispatchDependencies=@{}}
+ })} | ConvertTo-Json -Depth 12 | Set-Content "$EvidenceDirectory/candidate-packages.json"
+'@ | Set-Content "$aggregationFixture/eng/pack-local.ps1"
+@'
+
+# Fixture-only substitutions; target-project processes still use the real helper.
+$script:aggregationRealCommand = ${function:Invoke-PackageCommand}
+function Assert-CompositionAssets {
+    param($AssetsPath,$Packages,$Cache,[switch]$PackageOnly,$RequiredPackages,$RequiredByTarget)
+    if (-not (Test-Path $AssetsPath)) { throw "Fixture assets missing: $AssetsPath" }
+    return @('Excalibur.Dispatch')
+}
+function Invoke-PackageCommand {
+    param($FilePath,$Arguments,$LogPrefix,$WorkingDirectory,[int]$TimeoutSeconds=600)
+    if ($LogPrefix -match '(?:[\\/])(?:smoke|scenario-controls|sample\.(?:build|scenario))$') {
+        if ($LogPrefix -match 'sample\.build$') {
+            $sample = Join-Path $WorkingDirectory 'samples/01-getting-started/DispatchOnly'
+            $lock = @($Arguments | Where-Object { $_ -like '-p:NuGetLockFilePath=*' })[0].Substring('-p:NuGetLockFilePath='.Length)
+            New-Item -ItemType Directory "$sample/obj",(Split-Path (Join-Path $sample $lock)) -Force | Out-Null
+            '{}' | Set-Content "$sample/obj/project.assets.json"
+            '{}' | Set-Content (Join-Path $sample $lock)
+        }
+        return
+    }
+    & $script:aggregationRealCommand $FilePath $Arguments $LogPrefix $WorkingDirectory -TimeoutSeconds $TimeoutSeconds
+}
+'@ | Add-Content "$aggregationFixture/eng/package-composition.functions.ps1"
+function Invoke-AggregationControl([string]$Name) {
+    $log = Join-Path $root "aggregation-$Name"
+    $caught = $null
+    try {
+        Invoke-PackageCommand $shell @('-NoProfile','-File',"$aggregationFixture/eng/validate-package-composition.ps1") $log $aggregationFixture -TimeoutSeconds 120
+    } catch { $caught = $_.Exception.Message }
+    $receipt = Get-Content "$log.receipt.json" -Raw | ConvertFrom-Json
+    $runs = @(Get-ChildItem "$aggregationFixture/artifacts/package-composition" -Directory | Where-Object { $_.Name -notin $script:aggregationRuns })
+    if ($runs.Count -ne 1) { throw 'Expected exactly one new aggregation evidence directory.' }
+    $script:aggregationRuns += $runs[0].Name
+    $verdict = Get-Content (Join-Path $runs[0].FullName 'composition-verdict.json') -Raw | ConvertFrom-Json
+    if ($verdict.production -ne 'passed' -or $verdict.packageBuilds.Count -ne 3) { throw 'Aggregation did not execute the intended three-project population.' }
+    foreach ($name in @('A','B','C')) {
+        $buildReceipt = Get-Content (Join-Path $runs[0].FullName "$name.build.receipt.json") -Raw | ConvertFrom-Json
+        $outcome = @($verdict.packageBuilds | Where-Object project -eq "src/Excalibur/$name/$name.csproj")
+        if ($outcome.Count -ne 1) { throw "Missing $name aggregate outcome." }
+        $shouldFail = $name -eq 'B' -and (Test-Path "$aggregationFixture/src/Excalibur/B/fail-build")
+        if ($shouldFail) {
+            $output = Get-Content (Join-Path $runs[0].FullName 'B.build.stdout.log') -Raw
+            if ($buildReceipt.exitCode -eq 0 -or $buildReceipt.timedOut -or $outcome[0].build -eq 'passed' -or -not $output.Contains('P08_PLANTED_MIDDLE_BUILD_FAILURE')) { throw 'Middle project did not fail for the planted MSBuild reason.' }
+        } elseif ($buildReceipt.exitCode -ne 0 -or $buildReceipt.status -ne 'passed' -or $outcome[0].build -ne 'passed') {
+            throw "Surrounding project $name did not pass."
+        } else {
+            $evaluationReceipt = Get-Content (Join-Path $runs[0].FullName "$name.assets-path.receipt.json") -Raw | ConvertFrom-Json
+            if ($evaluationReceipt.exitCode -ne 0 -or $evaluationReceipt.status -ne 'passed') { throw "Project $name asset-path evaluation did not pass." }
+        }
+    }
+    return @{receipt=$receipt;verdict=$verdict;caught=$caught;run=$runs[0].FullName;log=$log}
+}
+function Assert-AggregationRefused($Result) {
+    if (-not $Result.caught -or $Result.receipt.exitCode -eq 0 -or $Result.receipt.timedOut -or $Result.verdict.status -eq 'passed') { throw 'Aggregation control accepted a failed required package-mode build.' }
+    $output = (Get-Content "$($Result.log).stdout.log" -Raw) + (Get-Content "$($Result.log).stderr.log" -Raw)
+    if (-not $output.Contains('1 required package-mode validation(s) failed.')) { throw 'Aggregation failed for an unintended reason.' }
+}
+$script:aggregationRuns = @()
+Expect-Success 'composition aggregation healthy three-project control' {
+    $result = Invoke-AggregationControl 'healthy'
+    if ($result.caught -or $result.receipt.exitCode -ne 0 -or $result.verdict.status -ne 'passed' -or $result.verdict.scenario -ne 'passed') { throw 'Healthy aggregation fixture failed.' }
+}
+'planted' | Set-Content "$aggregationFixture/src/Excalibur/B/fail-build"
+Expect-Success 'composition aggregation rejects one of three package-mode builds' {
+    Assert-AggregationRefused (Invoke-AggregationControl 'middle-failure')
+}
+$aggregationPath = "$aggregationFixture/eng/validate-package-composition.ps1"
+$aggregationSource = [IO.File]::ReadAllText($aggregationPath)
+$aggregationGuard = 'if ($failures.Count -gt 0) { throw "$($failures.Count) required package-mode validation(s) failed. See $run" }'
+if ([regex]::Matches($aggregationSource,[regex]::Escape($aggregationGuard)).Count -ne 1) { throw 'Expected exactly one composition aggregation guard.' }
+try {
+    [IO.File]::WriteAllText($aggregationPath,$aggregationSource.Replace($aggregationGuard,'# Deliberately removed aggregation guard in fixture.'))
+    $mutant = Invoke-AggregationControl 'guard-mutant'
+    Expect-Success 'removed aggregation guard produces the planted false pass' {
+        if ($mutant.caught -or $mutant.receipt.exitCode -ne 0 -or $mutant.verdict.status -ne 'passed' -or $mutant.verdict.scenario -ne 'passed') { throw 'Guard mutant did not produce the intended false pass.' }
+    }
+    Expect-Failure 'same aggregation assertion kills the guard mutant' { Assert-AggregationRefused $mutant } 'accepted a failed required package-mode build'
+} finally { [IO.File]::WriteAllText($aggregationPath,$aggregationSource) }
+
+Expect-Success 'full metapackage evaluated-mode dependency parity' {
+    & "$PSScriptRoot/validate-metapackage-modes.test.ps1"
+}
+
 if ($CandidateFeed) {
     $sample = Join-Path $root 'sample'
     New-Item -ItemType Directory $sample -Force | Out-Null

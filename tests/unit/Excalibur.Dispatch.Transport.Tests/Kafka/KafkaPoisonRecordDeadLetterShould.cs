@@ -124,7 +124,7 @@ public sealed class KafkaPoisonRecordDeadLetterShould
 		var cursor = 0;
 		var commits = new List<long>();
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() =>
 			{
 				if (cursor < log.Count)
@@ -273,7 +273,7 @@ public sealed class KafkaPoisonRecordDeadLetterShould
 		var cursor = 0;
 		var commits = new List<long>();
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() =>
 			{
 				if (cursor < log.Count)

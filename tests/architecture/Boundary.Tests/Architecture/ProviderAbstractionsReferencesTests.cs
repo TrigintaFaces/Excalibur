@@ -27,7 +27,7 @@ public sealed class ProviderAbstractionsReferencesTests
     public void Providers_Should_Not_Reference_A3_Implementation()
     {
         // Excalibur.Data.* provider assemblies (exclude the core Excalibur.Data, the .Abstractions layers,
-        // and test assemblies). Enumerated from the loaded set, which the module initializer force-loads in
+        // and test assemblies). Enumerated from the loaded set, which the assembly fixture force-loads in
         // full — so this stays correct as providers are added or renamed.
         var providerAssemblies = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => a.GetName().Name is { } n
@@ -37,7 +37,7 @@ public sealed class ProviderAbstractionsReferencesTests
             .ToArray();
 
         providerAssemblies.ShouldNotBeEmpty(
-            "No Excalibur.Data.* provider assemblies are loaded — the module initializer force-loads the full " +
+            "No Excalibur.Data.* provider assemblies are loaded — the assembly fixture force-loads the full " +
             "framework set, so an empty set means drift, not a pass.");
 
         var violations = new List<string>();

@@ -117,7 +117,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// <param name="serializer"> JSON serializer for message serialization and deserialization operations. </param>
 	/// <param name="logger"> Logger for diagnostic and operational messaging. </param>
 	/// <param name="envelopeDeserializer"> Optional binary envelope deserializer for high-performance binary envelope support. </param>
-	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
+	/// <param name="deadLetterQueue"> Explicit dead letter queue for failed messages. Null is rejected; pass NullDeadLetterQueue.Instance to intentionally discard. </param>
 	/// <param name="circuitBreakerRegistry">
 	/// Required circuit breaker registry for message-type resilience. It is required rather than optional
 	/// because a drain that silently ran without a circuit breaker was indistinguishable from one that had
@@ -158,6 +158,9 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
 		ArgumentNullException.ThrowIfNull(logger);
+
+		_deadLetterQueue = deadLetterQueue
+			?? throw new InvalidOperationException(Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.MissingDeadLetterQueueMessage);
 
 		_options = options.Value;
 
@@ -204,11 +207,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		// Initialize deduplication (opt-in)
 		_deduplicationStore = deduplicationStore;
 
-		// Initialize resilience components -- warn when using silent no-op fallbacks
-		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
+		// Explicit discard remains available and is observable.
 		_circuitBreakerRegistry = circuitBreakerRegistry;
 
-		if (deadLetterQueue is null)
+		if (deadLetterQueue is NullDeadLetterQueue)
 		{
 			LogDeadLetterQueueNotConfigured();
 		}
@@ -1276,7 +1278,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private partial void LogDrainLeaveForRetryNotApplied(string messageId, string handlerType, string outcome);
 
 	[LoggerMessage(OutboxEventId.InboxDeadLetterQueueNotConfigured, LogLevel.Warning,
-		"No IDeadLetterQueue registered. Failed inbox messages will be discarded silently. Register a dead letter queue implementation to preserve failed messages for investigation.")]
+		"NullDeadLetterQueue was explicitly selected. Failed inbox messages routed to dead letter will be discarded. Register a retaining IDeadLetterQueue implementation to preserve them for investigation.")]
 	private partial void LogDeadLetterQueueNotConfigured();
 
 

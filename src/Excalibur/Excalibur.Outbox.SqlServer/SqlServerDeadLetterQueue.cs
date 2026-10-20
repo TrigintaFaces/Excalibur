@@ -327,48 +327,52 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 			return false;
 		}
 
+		if (_replayHandler is null)
+		{
+			throw new InvalidOperationException("A replay handler must be configured before replaying a dead letter entry.");
+		}
+
 		var entry = MapRowToEntry(row);
 
 		// The tenant of the row we actually read — not a second, independently-resolved lookup. Every write
 		// below is keyed to (Id, TenantId) using this value, so replay affects exactly the row that was read.
 		var storedTenant = row.TenantId;
 
-		if (_replayHandler is not null)
+		try
 		{
-			try
-			{
 #pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
-				var message = JsonSerializer.Deserialize<object>(entry.Payload, _jsonOptions);
+			var message = JsonSerializer.Deserialize<object>(entry.Payload, _jsonOptions);
 #pragma warning restore IL2026, IL3050
-				if (message is not null)
-				{
-					// SECURITY-CRITICAL: replay runs under the tenant STORED on the entry, never the ambient
-					// caller's. An operator (no tenant, or a different tenant) replaying tenant A's dead letter
-					// must re-enter A's context, or replay becomes a cross-tenant injection vector.
-					//
-					// A scope is entered UNCONDITIONALLY, including for an untenanted entry. Entering no scope
-					// would not replay "with no tenant" — it would INHERIT the caller's, so an operator working
-					// inside tenant B's scope would replay an untenanted entry as B's data: a wrong-tenant
-					// write by a privileged caller. The scope binds the entry's OWN partition term -- the reserved
-					// untenanted term for an untenanted entry, never null. Clearing the ambient does not mean
-					// "no tenant"; it means "no tenant was established", which a multi-tenant store fails
-					// closed on, so replaying a legacy untenanted entry on a multi-tenant host would throw
-					// instead of replaying.
-					// One canonicalisation, shared with the audit chain key: FromStoredValue is the same
-					// predicate ToSignedTenantId is written in terms of, so every spelling of untenanted
-					// (null, empty, whitespace, the sentinel) reaches the partition the signing side called
-					// untenanted.
-					using var tenantScope = TenantContextHolder.BeginScope(
-						KeyedTenantPartition.FromStoredValue(storedTenant).TenantId);
-
-					await _replayHandler(message).ConfigureAwait(false);
-				}
-			}
-			catch (Exception ex)
+			if (message is null)
 			{
-				_logger.LogError(ex, "Failed to replay dead letter entry {EntryId}", entryId);
-				throw;
+				throw new InvalidOperationException("The dead letter payload must deserialize to a non-null message before replay.");
 			}
+
+			// SECURITY-CRITICAL: replay runs under the tenant STORED on the entry, never the ambient
+			// caller's. An operator (no tenant, or a different tenant) replaying tenant A's dead letter
+			// must re-enter A's context, or replay becomes a cross-tenant injection vector.
+			//
+			// A scope is entered UNCONDITIONALLY, including for an untenanted entry. Entering no scope
+			// would not replay "with no tenant" — it would INHERIT the caller's, so an operator working
+			// inside tenant B's scope would replay an untenanted entry as B's data: a wrong-tenant
+			// write by a privileged caller. The scope binds the entry's OWN partition term -- the reserved
+			// untenanted term for an untenanted entry, never null. Clearing the ambient does not mean
+			// "no tenant"; it means "no tenant was established", which a multi-tenant store fails
+			// closed on, so replaying a legacy untenanted entry on a multi-tenant host would throw
+			// instead of replaying.
+			// One canonicalisation, shared with the audit chain key: FromStoredValue is the same
+			// predicate ToSignedTenantId is written in terms of, so every spelling of untenanted
+			// (null, empty, whitespace, the sentinel) reaches the partition the signing side called
+			// untenanted.
+			using var tenantScope = TenantContextHolder.BeginScope(
+				KeyedTenantPartition.FromStoredValue(storedTenant).TenantId);
+
+			await _replayHandler(message).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Failed to replay dead letter entry {EntryId}", entryId);
+			throw;
 		}
 
 		// Mark as replayed

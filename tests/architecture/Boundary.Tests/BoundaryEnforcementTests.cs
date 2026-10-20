@@ -16,7 +16,7 @@ namespace Boundary.Tests;
 /// under namespace <c>Excalibur.Dispatch</c>, so a namespace guard on that string over-captures. The
 /// authoritative Dispatch⊥Excalibur project-reference boundaries live in the disk-based
 /// <c>ProjectReferenceTests</c>; the namespace-duplicate guards that used to sit here were deleted rather
-/// than kept broken. The module initializer force-loads the full framework set, so a null/empty target set
+/// than kept broken. The assembly fixture force-loads the full framework set, so a null/empty target set
 /// means drift — each surviving guard asserts non-emptiness rather than skipping.
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -94,11 +94,11 @@ public sealed class BoundaryEnforcementTests
         }
 
         // Liveness: an empty candidate set would make every assertion above pass while measuring nothing.
-        // The module initializer force-loads the framework set, so zero here means drift, not compliance.
+        // The assembly fixture force-loads the framework set, so zero here means drift, not compliance.
         candidates.ShouldBeGreaterThan(
             0,
             "No public Excalibur type depends on Excalibur.Dispatch at all — the guard measured an empty " +
-            "set and its green is vacuous. Check that the module initializer still force-loads the " +
+            "set and its green is vacuous. Check that the assembly fixture still force-loads the " +
             "Excalibur.* assemblies.");
     }
 
@@ -138,7 +138,7 @@ public sealed class BoundaryEnforcementTests
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch.Abstractions");
 
         _ = abstractionsAssembly.ShouldNotBeNull(
-            "Excalibur.Dispatch.Abstractions is not loaded — the module initializer force-loads it, so its " +
+            "Excalibur.Dispatch.Abstractions is not loaded — the assembly fixture force-loads it, so its " +
             "absence means drift, not a pass.");
 
         var actualDependencies = abstractionsAssembly.GetReferencedAssemblies()

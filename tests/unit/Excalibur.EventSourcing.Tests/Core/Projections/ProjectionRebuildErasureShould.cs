@@ -72,7 +72,7 @@ public sealed class ProjectionRebuildErasureShould
 			.Throws(() => new InvalidOperationException(
 				$"'{ErasedEventMarker.EventType}' is a reserved erasure marker, not a registered event type."));
 
-		var store = new InMemoryProjectionStore<SubjectTrackingProjection>();
+		var store = new TestProjectionStore<SubjectTrackingProjection>();
 		var projection = new MultiStreamProjection<SubjectTrackingProjection>();
 		projection.AddContextHandler<SubjectTouchedEvent>(
 			static (state, evt, ctx) => state.SeenAggregateIds.Add(ctx.AggregateId));

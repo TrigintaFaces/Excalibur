@@ -1,11 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Buffers;
+using System.Text;
+using System.Text.Json;
+
 using Amazon.EventBridge;
 using Amazon.EventBridge.Model;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.CloudEvents;
+using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Serialization;
@@ -65,7 +70,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(action, action.GetType());
-		var body = Convert.ToBase64String(payload);
+		var body = CreateNativeDetail(payload);
 
 		var entry = new PutEventsRequestEntry
 		{
@@ -76,7 +81,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 			TraceHeader = context.GetTraceParent(),
 		};
 
-		_ = await client.PutEventsAsync(new PutEventsRequest { Entries = [entry] }, cancellationToken).ConfigureAwait(false);
+		await PublishEntryAsync(entry, cancellationToken).ConfigureAwait(false);
 
 		LogPublishedAction(action.GetType().Name);
 	}
@@ -96,7 +101,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(evt, evt.GetType());
-		var body = Convert.ToBase64String(payload);
+		var body = CreateNativeDetail(payload);
 
 		var entry = new PutEventsRequestEntry
 		{
@@ -107,7 +112,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 			TraceHeader = context.GetTraceParent(),
 		};
 
-		_ = await client.PutEventsAsync(new PutEventsRequest { Entries = [entry] }, cancellationToken).ConfigureAwait(false);
+		await PublishEntryAsync(entry, cancellationToken).ConfigureAwait(false);
 
 		LogPublishedEvent(evt.GetType().Name);
 	}
@@ -127,7 +132,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
 		var payload = serializer.SerializeObject(doc, doc.GetType());
-		var body = Convert.ToBase64String(payload);
+		var body = CreateNativeDetail(payload);
 
 		var entry = new PutEventsRequestEntry
 		{
@@ -138,7 +143,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 			TraceHeader = context.GetTraceParent(),
 		};
 
-		_ = await client.PutEventsAsync(new PutEventsRequest { Entries = [entry] }, cancellationToken).ConfigureAwait(false);
+		await PublishEntryAsync(entry, cancellationToken).ConfigureAwait(false);
 
 		LogSentDocument(doc.GetType().Name);
 	}
@@ -201,7 +206,7 @@ internal sealed partial class AwsEventBridgeMessageBus(
 			// for the native path has every CloudEvents publish land on "default" instead, silently.
 			entry.EventBusName = _busName;
 
-			_ = await client.PutEventsAsync(new PutEventsRequest { Entries = [entry] }, cancellationToken).ConfigureAwait(false);
+			await PublishEntryAsync(entry, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -212,6 +217,53 @@ internal sealed partial class AwsEventBridgeMessageBus(
 		{
 			logAction(message.GetType().Name);
 		}
+	}
+
+	private static string CreateNativeDetail(ReadOnlySpan<byte> payload)
+	{
+		// EventBridge requires a JSON object even when the pluggable serializer emits binary bytes.
+		var buffer = new ArrayBufferWriter<byte>();
+		using var writer = new Utf8JsonWriter(buffer);
+		writer.WriteStartObject();
+		writer.WriteBase64String("payload", payload);
+		writer.WriteEndObject();
+		writer.Flush();
+		return Encoding.UTF8.GetString(buffer.WrittenSpan);
+	}
+
+	private async Task PublishEntryAsync(PutEventsRequestEntry entry, CancellationToken cancellationToken)
+	{
+		var response = await client.PutEventsAsync(new PutEventsRequest { Entries = [entry] }, cancellationToken).ConfigureAwait(false);
+		if (response is null || response.Entries is not { Count: 1 }
+			|| response.Entries[0] is not { } result)
+		{
+			throw new DispatchDeliveryUncertainException("EventBridge ingestion acceptance is unestablished: the acknowledgement is incomplete.");
+		}
+
+		if (response.FailedEntryCount == 0 && !string.IsNullOrWhiteSpace(result.EventId)
+			&& string.IsNullOrEmpty(result.ErrorCode) && string.IsNullOrEmpty(result.ErrorMessage))
+		{
+			return;
+		}
+
+		var error = new AmazonEventBridgeException(result.ErrorMessage ?? "EventBridge did not acknowledge ingestion.")
+		{
+			ErrorCode = result.ErrorCode,
+		};
+		// A contradictory response is not evidence of a retryable rejection or successful ingestion.
+		if (response.FailedEntryCount != 1 || !string.IsNullOrEmpty(result.EventId) || string.IsNullOrWhiteSpace(result.ErrorCode))
+		{
+			throw new DispatchDeliveryUncertainException("EventBridge ingestion acceptance is unestablished: the acknowledgement is inconsistent.", error);
+		}
+
+		throw result.ErrorCode switch
+		{
+			"InternalFailure" or "ThrottlingException" => error,
+			"MalformedDetail" => new DispatchSerializationException(error.Message, error),
+			"AccessDeniedException" or "InvalidAccountIdException" or "InvalidArgument" or "RedactionFailure"
+				or "NotAuthorizedForSourceException" or "NotAuthorizedForDetailTypeException" => new ConfigurationException(error.Message, error),
+			_ => new DispatchDeliveryUncertainException($"EventBridge ingestion acceptance is unestablished for error '{result.ErrorCode}'.", error),
+		};
 	}
 
 	private string ResolveSource(IMessageContext context)

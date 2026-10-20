@@ -159,10 +159,10 @@ const features: { title: string; icon: ReactNode; description: string }[] = [
       'Authorize with native ASP.NET Core [Authorize] via a standard AuthorizationHandler<GrantsAuthorizationRequirement>. Grants flow to a pluggable policy engine (Cedar or OPA) and fail closed — any evaluation fault denies the request.',
   },
   {
-    title: 'Blazing Fast Messaging',
+    title: 'Low-Allocation Messaging',
     icon: <IconLightning />,
     description:
-      'Low-allocation message dispatching with minimal overhead. A standard command dispatch measures ~46 ns at a 96 B floor, and a three-middleware pipeline ~72 ns -- 1.74x faster than MediatR at 2.8x less memory.',
+      'Message dispatching with configurable middleware and a measured 96 B per command. Latency depends on your handler, pipeline and runtime; the measured figures and their conditions are published in the performance docs.',
   },
   {
     title: 'Event Sourcing Built-in',
@@ -363,10 +363,8 @@ dotnet add package Excalibur.Hosting.Web`}
 
 function PerformanceShowcaseSection() {
   const metrics: { value: string; label: string; detail: string }[] = [
-    { value: '~60 ns', label: 'Standard Dispatch', detail: '96 B floor; MediatR is 1.40x faster here' },
-    { value: '1.74x', label: 'Faster Than MediatR', detail: 'Three-middleware pipeline: 71.7 ns vs 124.9 ns' },
-    { value: '1.58x', label: 'Less Memory Than MediatR', detail: 'Single command: 96 B vs 152 B' },
-    { value: '3.8x', label: 'Faster Than Wolverine', detail: 'Single command in-process: 47.0 ns vs 179.1 ns' },
+    { value: '96 B', label: 'Allocated per command', detail: 'Measured 17 October 2026, byte-identical across every process.' },
+    { value: '~60 ns', label: 'Command dispatch overhead', detail: 'Median of three independent processes with a no-op handler.' },
     { value: '44,262+', label: 'Tests Passing', detail: 'Unit, integration, functional' },
     { value: '170+', label: 'NuGet Packages', detail: 'Install only what you need' },
   ];
@@ -375,8 +373,8 @@ function PerformanceShowcaseSection() {
     <section className={styles.performanceSection}>
       <div className="container">
         <div className={styles.sectionHeader}>
-          <Heading as="h2">Performance at a Glance</Heading>
-          <p>Benchmarked on .NET 10, Intel Core i9-14900K — real numbers, no marketing claims</p>
+          <Heading as="h2">Historical Performance Snapshot</Heading>
+          <p>September .NET 10 comparisons on Intel Core i9-14900K retain distinct code epochs. The current refresh is incomplete; these figures do not rank the current source.</p>
         </div>
         <div className={styles.metricsGrid}>
           {metrics.map((m, idx) => (
@@ -389,7 +387,7 @@ function PerformanceShowcaseSection() {
         </div>
         <div className={styles.benchmarkLink}>
           <Link to="/docs/performance/competitor-comparison">
-            View detailed benchmarks and methodology
+            View the measurements and how to reproduce them
           </Link>
         </div>
       </div>
@@ -429,8 +427,8 @@ export default function Home(): ReactNode {
   const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
-      title="Fast .NET Messaging Framework"
-      description="Excalibur is a high-performance .NET framework for messaging, event sourcing, CQRS, and compliance. Drop-in MediatR replacement with low-allocation dispatch."
+      title="Modular .NET Messaging Framework"
+      description="Excalibur is a modular .NET framework for messaging, event sourcing, CQRS, and compliance. MediatR-compatible dispatch with a measured 96 B per command."
     >
       <HomepageHeader />
       <main>

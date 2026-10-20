@@ -98,8 +98,9 @@ internal sealed class OutboxHealthCheck : IHealthCheck
 		var totalProcessed = _state.TotalProcessed;
 		var totalFailed = _state.TotalFailed;
 		var total = totalProcessed + totalFailed;
+		data["FailureRateAvailable"] = _state.FailureCountsComplete;
 
-		if (total > 0)
+		if (_state.FailureCountsComplete && total > 0)
 		{
 			var failureRate = (double)totalFailed / total * 100.0;
 			data["FailureRatePercent"] = failureRate;

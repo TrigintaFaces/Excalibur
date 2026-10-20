@@ -65,6 +65,31 @@ check "ENV: no --filter -> cannot evaluate" 2 $?
 DOTNET_BIN="$WORK/dotnet" bash "$GATE" --filter "Category=Unit" >/dev/null 2>&1
 check "ENV: no dotnet args -> cannot evaluate" 2 $?
 
+# Unknown wrapper arguments must fail before invoking the test command, even when the remaining
+# arguments describe a valid run. Otherwise silently ignoring the bad argument can reach a green stub.
+cat > "$WORK/argument-dotnet" <<'STUBEOF'
+#!/usr/bin/env bash
+: > "$FILTERED_TEST_STUB_MARKER"
+printf 'Passed!  - Failed: 0, Passed: 1, Skipped: 0, Total: 1, Duration: 1 s\n'
+STUBEOF
+chmod +x "$WORK/argument-dotnet"
+
+for argument in --unknown-wrapper-option some-positional-arg; do
+    marker="$WORK/argument-called"
+    rm -f "$marker"
+    FILTERED_TEST_STUB_MARKER="$marker" DOTNET_BIN="$WORK/argument-dotnet" \
+        bash "$GATE" "$argument" --filter "Category=Unit" --log "$WORK/argument.log" -- proj.slnf >/dev/null 2>&1
+    argument_exit=$?
+    check "ENV: unknown argument $argument -> cannot evaluate" 2 "$argument_exit"
+    if [ -e "$marker" ]; then
+        note "  FAIL SAFETY: $argument launched the test command"
+        fail=$((fail + 1))
+    else
+        note "  ok   SAFETY: $argument never launches the test command"
+        pass=$((pass + 1))
+    fi
+done
+
 # -- SAFETY: a refusal that is NOT zero-executed must not be relabelled as zero-executed ------------
 # assert-tests-executed.sh returns its single EXIT_REFUSE=3 for eight different findings. A skipped
 # test is one of them, and this wrapper used to print "executed NOTHING" for every one -- so a run

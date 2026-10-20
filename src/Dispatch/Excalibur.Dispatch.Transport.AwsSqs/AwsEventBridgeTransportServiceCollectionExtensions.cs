@@ -162,13 +162,19 @@ public static class AwsEventBridgeTransportServiceCollectionExtensions
 		// transport's client/bus, silently sending every named transport to the first event bus.
 		services.TryAddKeyedSingleton<IAmazonEventBridge>(name, (_, _) =>
 		{
+			// Zero SDK retries: this client only sends, so the dispatch pipeline owns retry outright.
+			// PutEventsRequestEntry carries no client token, so an SDK retry emits a distinct event
+			// rather than replaying one -- stacking it under the outbox's own attempts multiplies
+			// duplicates by the product of the two budgets. A bare client here inherits the SDK
+			// default instead, which is how this path used to double-retry.
+			var config = new AmazonEventBridgeConfig { MaxErrorRetry = 0, MaxStaleConnectionRetries = 0 };
+
 			if (!string.IsNullOrEmpty(transportOptions.Region))
 			{
-				var region = Amazon.RegionEndpoint.GetBySystemName(transportOptions.Region);
-				return new AmazonEventBridgeClient(region);
+				config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(transportOptions.Region);
 			}
 
-			return new AmazonEventBridgeClient();
+			return new AmazonEventBridgeClient(config);
 		});
 
 		services.TryAddKeyedSingleton<AwsEventBridgeMessageBus>(name, (sp, key) =>

@@ -20,6 +20,8 @@
     <PackageReference Include="Excalibur.Saga" Version="$(ExcaliburDispatchVersion)" />
     <!--#if (UseSqlServer) -->
     <PackageReference Include="Excalibur.Saga.SqlServer" Version="$(ExcaliburDispatchVersion)" />
+    <!--#elseif (UsePostgreSql) -->
+    <PackageReference Include="Excalibur.Saga.Postgres" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
     <!--#if (UseKafka) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
@@ -36,6 +38,10 @@
     <!--#if (UseGooglePubSub) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Company.ExcaliburSaga.Tests/**/*.cs" />
   </ItemGroup>
 
 </Project>

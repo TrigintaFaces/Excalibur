@@ -123,7 +123,7 @@ public sealed class KafkaPayloadGuardShould
 
         using var cts = new CancellationTokenSource();
         var call = 0;
-        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._)).ReturnsLazily(() =>
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() =>
         {
             call++;
             return call switch
@@ -154,7 +154,7 @@ public sealed class KafkaPayloadGuardShould
 
         using var cts = new CancellationTokenSource();
         var call = 0;
-        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._)).ReturnsLazily(() =>
+        A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._)).ReturnsLazily(() =>
         {
             call++;
             return call == 1 ? oversized : Cancel(cts);

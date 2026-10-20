@@ -119,7 +119,7 @@ public class TheRegisteredErasureServiceSeesDeclaredRetentionsShould
 			+ "retention when the period ends. A null here is the registration never having supplied the "
 			+ "registry, which is invisible from the surviving record alone");
 
-		(await encryptor.DecryptAsync(retainedEnvelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(retainedEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldNotBeNull("and the retained record has to still be readable, which is the whole point");
 	}
 
@@ -164,7 +164,7 @@ public class TheRegisteredErasureServiceSeesDeclaredRetentionsShould
 		_ = await sp.GetRequiredService<IErasureExecutor>()
 			.ExecuteAsync(requestId, TestContext.Current.CancellationToken);
 
-		(await encryptor.DecryptAsync(unretained, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(unretained, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBeNull("nothing protects this value, so this erasure must have destroyed it");
 	}
 

@@ -29,7 +29,8 @@ public static class OutboxPipelineExtensions
 	/// </para>
 	/// <para>
 	/// Outbox services (including an <c>IOutboxStore</c> implementation) must be registered
-	/// separately in the DI container. This method only adds the middleware to the pipeline.
+	/// separately in the DI container. This method adds staging middleware and a default deferred
+	/// writer, preserving any writer the consumer has already registered.
 	/// </para>
 	/// <para>
 	/// Recommended pipeline order:
@@ -45,6 +46,7 @@ public static class OutboxPipelineExtensions
 	public static IDispatchBuilder UseOutbox(this IDispatchBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		RegisterWriter(builder);
 
 		// The DELIBERATE call is the signal. A host that reaches UseOutbox() has asked for staging, so a
 		// missing store is a misconfiguration and startup must refuse. A host that merely took the default
@@ -72,6 +74,7 @@ public static class OutboxPipelineExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
+		RegisterWriter(builder);
 
 		builder.Services.Configure(configure);
 		// The DELIBERATE call is the signal. A host that reaches UseOutbox() has asked for staging, so a
@@ -87,4 +90,7 @@ public static class OutboxPipelineExtensions
 			.UseMiddleware<OutboxStagingMiddleware>()
 			.UseMiddleware<CascadeMiddleware>();
 	}
+
+	private static void RegisterWriter(IDispatchBuilder builder) =>
+		builder.Services.TryAddScoped<Excalibur.Dispatch.Outbox.IOutboxWriter, DeferredOutboxWriter>();
 }

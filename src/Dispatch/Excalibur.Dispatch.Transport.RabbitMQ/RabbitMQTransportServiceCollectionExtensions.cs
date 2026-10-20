@@ -235,120 +235,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		IServiceCollection services,
 		RabbitMQTransportOptions transportOptions)
 	{
-		// Register ConnectionFactory
-		services.TryAddSingleton<IConnectionFactory>(sp =>
-		{
-			var factory = new ConnectionFactory();
-
-			var connection = transportOptions.Connection;
-
-			if (!string.IsNullOrEmpty(connection.ConnectionString))
-			{
-				factory.Uri = new Uri(connection.ConnectionString);
-			}
-			else
-			{
-				factory.HostName = connection.HostName;
-				factory.Port = connection.Port;
-				factory.VirtualHost = connection.VirtualHost;
-				factory.UserName = connection.Username;
-				factory.Password = connection.Password;
-
-				// Warn about default guest credentials -- these should not be used in production
-				if (string.Equals(connection.Username, "guest", StringComparison.OrdinalIgnoreCase) &&
-					string.Equals(connection.Password, "guest", StringComparison.OrdinalIgnoreCase))
-				{
-					var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("Excalibur.Dispatch.Transport.RabbitMQ");
-					logger?.LogWarning(
-						"RabbitMQ transport is configured with default 'guest' credentials. " +
-						"Use secure credentials for production environments.");
-				}
-			}
-
-			factory.AutomaticRecoveryEnabled = connection.AutomaticRecoveryEnabled;
-			factory.NetworkRecoveryInterval = connection.NetworkRecoveryInterval;
-
-			if (connection.UseSsl)
-			{
-				// Mutate rather than replace. An 'amqps://' connection string has already populated
-				// factory.Ssl -- including the server name the certificate is verified against -- and
-				// assigning a fresh SslOption over it would discard that, leaving an empty expected name
-				// that no certificate can match.
-				factory.Ssl.Enabled = true;
-
-				if (!string.IsNullOrEmpty(connection.Ssl.ServerName))
-				{
-					factory.Ssl.ServerName = connection.Ssl.ServerName;
-				}
-
-				if (!string.IsNullOrEmpty(connection.Ssl.CertificatePath))
-				{
-					factory.Ssl.CertPath = connection.Ssl.CertificatePath;
-				}
-
-				if (!string.IsNullOrEmpty(connection.Ssl.CertificatePassphrase))
-				{
-					factory.Ssl.CertPassphrase = connection.Ssl.CertificatePassphrase;
-				}
-
-				// The name the peer certificate is checked against defaults to the host being dialled.
-				// Leaving it empty fails every handshake, which reads as a broker problem rather than as
-				// a setting nobody supplied.
-				if (string.IsNullOrEmpty(factory.Ssl.ServerName))
-				{
-					factory.Ssl.ServerName = factory.HostName;
-				}
-			}
-
-			// Certificate-validation posture is set here, for whatever carries TLS, rather than inside the
-			// UseSsl branch above: an 'amqps://' connection string enables TLS on the factory without
-			// entering that branch, so a branch-local rule would be honoured on one path and inert on the
-			// other. CarriesTls is the same predicate the posture check below uses, so both read TLS from
-			// the value the wire is actually built from.
-			//
-			// The assignment is deliberate, and it is not redundant. The client library's own Uri setter
-			// waives RemoteCertificateNameMismatch when the scheme is 'amqps', while the UseSsl path
-			// leaves validation full -- so two documented ways of asking for TLS would otherwise
-			// authenticate the broker differently, with nothing telling the consumer which one they got.
-			// Assigning rather than OR-ing normalises both paths to full validation and leaves
-			// AcceptUntrustedCertificates as the single control over any relaxation.
-			if (RabbitMqSecurityPosture.CarriesTls(factory.Ssl))
-			{
-				// The relaxation waives exactly the two errors that describe an untrusted certificate: one
-				// that does not chain to a trusted root, and one whose subject does not match the name
-				// being dialled. A certificate the broker never presents (RemoteCertificateNotAvailable)
-				// is not untrusted -- it is absent -- and stays refused, so this can never reduce the
-				// connection to unauthenticated without the broker presenting anything at all.
-				factory.Ssl.AcceptablePolicyErrors = connection.Ssl.AcceptUntrustedCertificates
-					? SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch
-					: SslPolicyErrors.None;
-			}
-
-			// The transport's TLS posture is enforced here because this factory is the only thing in the
-			// package that can produce a connection, and every channel, sender, receiver, subscriber,
-			// dead-letter manager and health check is reached through it. A client that skipped this
-			// check would have to be built without a connection.
-			return RabbitMqSecurityPosture.Apply(factory, connection.Ssl.RequireTls);
-		});
-
-		// Register IConnection
-		services.TryAddSingleton(sp =>
-			ExecuteSync(() => sp.GetRequiredService<IConnectionFactory>().CreateConnectionAsync()));
-
-		// Register IChannel
-		services.TryAddSingleton(sp =>
-		{
-			var connection = sp.GetRequiredService<IConnection>();
-			var cloudEventOptions = sp.GetService<IOptionsMonitor<RabbitMqCloudEventOptions>>()?.Get(transportOptions.Name);
-			var publisherConfirms = cloudEventOptions?.Exchange.EnablePublisherConfirms == true;
-			var createOptions = new CreateChannelOptions(
-				publisherConfirms,
-				publisherConfirms,
-				outstandingPublisherConfirmationsRateLimiter: null,
-				consumerDispatchConcurrency: null);
-
-			return ExecuteSync(() => connection.CreateChannelAsync(createOptions));
-		});
+		NamedRabbitMqMessageBusRegistration.Register(services, transportOptions);
 
 		// Register TopologyInitializer
 		services.TryAddSingleton(sp =>
@@ -398,6 +285,14 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		{
 			binding.Exchange = Prefixed(exchangePrefix, binding.Exchange);
 			binding.Queue = Prefixed(queuePrefix, binding.Queue);
+		}
+		foreach (var messageType in topology.ExchangeMappings.Keys.ToArray())
+		{
+			topology.ExchangeMappings[messageType] = Prefixed(exchangePrefix, topology.ExchangeMappings[messageType]);
+		}
+		foreach (var messageType in topology.QueueMappings.Keys.ToArray())
+		{
+			topology.QueueMappings[messageType] = Prefixed(queuePrefix, topology.QueueMappings[messageType]);
 		}
 
 		static string Prefixed(string? prefix, string name) =>
@@ -494,7 +389,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<RabbitMQTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<RabbitMqMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<RabbitMqMessageBus>(name);
 			return new RabbitMQTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -502,7 +397,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<RabbitMQTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<RabbitMqMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<RabbitMqMessageBus>(name);
 			return new RabbitMQTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -522,7 +417,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	// RabbitMQ.Client exposes async-only connection/channel creation while DI factories are synchronous.
 	// Task.Run ensures no SynchronizationContext deadlock; constrained to DI composition root.
 #pragma warning disable RS0030 // Sync-over-async bridge is constrained to DI composition root.
-	private static T ExecuteSync<T>(Func<Task<T>> operation) =>
+	internal static T ExecuteSync<T>(Func<Task<T>> operation) =>
 		Task.Run(operation).GetAwaiter().GetResult();
 #pragma warning restore RS0030
 
@@ -622,5 +517,100 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				.UseTelemetry(name, meter, activitySource)
 				.Build();
 		});
+	}
+	/// <summary>Builds a connection factory with the existing transport security posture.</summary>
+	internal static IConnectionFactory CreateConnectionFactory(IServiceProvider sp, RabbitMQTransportOptions transportOptions)
+	{
+		var factory = new ConnectionFactory();
+
+		var connection = transportOptions.Connection;
+
+		if (!string.IsNullOrEmpty(connection.ConnectionString))
+		{
+			factory.Uri = new Uri(connection.ConnectionString);
+		}
+		else
+		{
+			factory.HostName = connection.HostName;
+			factory.Port = connection.Port;
+			factory.VirtualHost = connection.VirtualHost;
+			factory.UserName = connection.Username;
+			factory.Password = connection.Password;
+
+			// Warn about default guest credentials -- these should not be used in production
+			if (string.Equals(connection.Username, "guest", StringComparison.OrdinalIgnoreCase) &&
+				string.Equals(connection.Password, "guest", StringComparison.OrdinalIgnoreCase))
+			{
+				var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("Excalibur.Dispatch.Transport.RabbitMQ");
+				logger?.LogWarning(
+					"RabbitMQ transport is configured with default 'guest' credentials. " +
+					"Use secure credentials for production environments.");
+			}
+		}
+
+		factory.AutomaticRecoveryEnabled = connection.AutomaticRecoveryEnabled;
+		factory.NetworkRecoveryInterval = connection.NetworkRecoveryInterval;
+
+		if (connection.UseSsl)
+		{
+			// Mutate rather than replace. An 'amqps://' connection string has already populated
+			// factory.Ssl -- including the server name the certificate is verified against -- and
+			// assigning a fresh SslOption over it would discard that, leaving an empty expected name
+			// that no certificate can match.
+			factory.Ssl.Enabled = true;
+
+			if (!string.IsNullOrEmpty(connection.Ssl.ServerName))
+			{
+				factory.Ssl.ServerName = connection.Ssl.ServerName;
+			}
+
+			if (!string.IsNullOrEmpty(connection.Ssl.CertificatePath))
+			{
+				factory.Ssl.CertPath = connection.Ssl.CertificatePath;
+			}
+
+			if (!string.IsNullOrEmpty(connection.Ssl.CertificatePassphrase))
+			{
+				factory.Ssl.CertPassphrase = connection.Ssl.CertificatePassphrase;
+			}
+
+			// The name the peer certificate is checked against defaults to the host being dialled.
+			// Leaving it empty fails every handshake, which reads as a broker problem rather than as
+			// a setting nobody supplied.
+			if (string.IsNullOrEmpty(factory.Ssl.ServerName))
+			{
+				factory.Ssl.ServerName = factory.HostName;
+			}
+		}
+
+		// Certificate-validation posture is set here, for whatever carries TLS, rather than inside the
+		// UseSsl branch above: an 'amqps://' connection string enables TLS on the factory without
+		// entering that branch, so a branch-local rule would be honoured on one path and inert on the
+		// other. CarriesTls is the same predicate the posture check below uses, so both read TLS from
+		// the value the wire is actually built from.
+		//
+		// The assignment is deliberate, and it is not redundant. The client library's own Uri setter
+		// waives RemoteCertificateNameMismatch when the scheme is 'amqps', while the UseSsl path
+		// leaves validation full -- so two documented ways of asking for TLS would otherwise
+		// authenticate the broker differently, with nothing telling the consumer which one they got.
+		// Assigning rather than OR-ing normalises both paths to full validation and leaves
+		// AcceptUntrustedCertificates as the single control over any relaxation.
+		if (RabbitMqSecurityPosture.CarriesTls(factory.Ssl))
+		{
+			// The relaxation waives exactly the two errors that describe an untrusted certificate: one
+			// that does not chain to a trusted root, and one whose subject does not match the name
+			// being dialled. A certificate the broker never presents (RemoteCertificateNotAvailable)
+			// is not untrusted -- it is absent -- and stays refused, so this can never reduce the
+			// connection to unauthenticated without the broker presenting anything at all.
+			factory.Ssl.AcceptablePolicyErrors = connection.Ssl.AcceptUntrustedCertificates
+				? SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch
+				: SslPolicyErrors.None;
+		}
+
+		// The transport's TLS posture is enforced here because this factory is the only thing in the
+		// package that can produce a connection, and every channel, sender, receiver, subscriber,
+		// dead-letter manager and health check is reached through it. A client that skipped this
+		// check would have to be built without a connection.
+		return RabbitMqSecurityPosture.Apply(factory, connection.Ssl.RequireTls);
 	}
 }

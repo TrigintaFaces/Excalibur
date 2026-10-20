@@ -50,6 +50,9 @@ $context = @{
     # the honest shape: a test that cannot run in an environment is not required to pass there. The
     # availability guards stay, because they are what lets the same tests run for someone who has
     # credentials configured.
+    #
+    # Firestore inbox durability now uses a non-destructive severable route to its real emulator,
+    # so fault-injection arms remain in the required population rather than being excluded.
     filter = '(Category=Integration|Category=EndToEnd)&Category!=RequiresCredentials'
 }
 $prefix = "nightly-integration-$Shard"
@@ -58,6 +61,19 @@ $receiptPath = Join-Path $root "$prefix.runner.json"
 [void][IO.Directory]::CreateDirectory($root)
 $contextPath = Join-Path $root "$prefix.$($Mode.ToLowerInvariant()).context.json"
 ConvertTo-Json -InputObject $context | Set-Content -LiteralPath $contextPath -Encoding utf8NoBOM
+# THE ABSENCE MUST BE A LINE IN THE LOG, not the absence of a line. A category exclusion removes a test
+# from the results AND from the log in one move, so a reader of this run cannot see what was not required
+# of it -- which is the one thing the declared-skip machinery exists to make legible, and the reason a
+# skip inside a required set is louder than an exclusion outside it. Derived from the composed filter
+# rather than restated, so it cannot drift away from what was actually applied.
+$excludedCategories = @([regex]::Matches($context.filter, 'Category!=([A-Za-z0-9_]+)') |
+    ForEach-Object { $_.Groups[1].Value })
+if ($excludedCategories.Count -gt 0) {
+    Write-Host ("Not required in this environment, excluded by category ({0}): {1}" -f
+        $excludedCategories.Count, ($excludedCategories -join ', '))
+    Write-Host '  These tests are not discovered here, so they appear in no count below. Each one is a'
+    Write-Host '  declared environment limit, not a passing result.'
+}
 if ($Mode -eq 'Run') {
     if ((Test-Path -LiteralPath $receiptPath) -or (Test-Path -LiteralPath $evidence)) { throw 'Nightly evidence must be fresh.' }
     # 100 minutes. The session bound must leave a HEALTHY run room to finish, or it converts slow into

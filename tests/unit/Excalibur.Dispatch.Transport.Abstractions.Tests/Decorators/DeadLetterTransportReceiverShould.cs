@@ -115,4 +115,107 @@ public sealed class DeadLetterTransportReceiverShould : IDisposable
         // Should not throw even without a meter
         await receiver.RejectAsync(new TransportReceivedMessage(), "reason", false, CancellationToken.None);
     }
+
+    [Fact]
+    [Trait("Pattern", "Regression")]
+    public Task Persist_Quarantine_Before_Rejecting_Source() => VerifyWriteBeforeRejectAsync(failWrite: false);
+
+    [Fact]
+    [Trait("Pattern", "Regression")]
+    public Task Preserve_Source_When_Quarantine_Write_Fails() => VerifyWriteBeforeRejectAsync(failWrite: true);
+
+    [Fact]
+    [Trait("Pattern", "Regression")]
+    public async Task Preserve_Quarantine_When_Source_Reject_Fails()
+    {
+        var records = new Dictionary<string, TransportReceivedMessage>();
+        var inner = A.Fake<ITransportReceiver>();
+        var message = new TransportReceivedMessage { Id = "terminal-failure" };
+        var terminalFailure = new InvalidOperationException("source rejection failed");
+        A.CallTo(() => inner.RejectAsync(message, "poison", false, A<CancellationToken>._))
+            .ReturnsLazily(() =>
+            {
+                records[message.Id].ShouldBeSameAs(message);
+                return Task.FromException(terminalFailure);
+            });
+        var receiver = new DeadLetterTransportReceiver(inner, (received, _, _) =>
+        {
+            records.TryAdd(received.Id, received);
+            return Task.CompletedTask;
+        }, "TestTransport");
+
+        var observed = await Should.ThrowAsync<InvalidOperationException>(() =>
+            receiver.RejectAsync(message, "poison", false, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)));
+
+        observed.ShouldBeSameAs(terminalFailure);
+        records.Count.ShouldBe(1);
+        records[message.Id].ShouldBeSameAs(message);
+        A.CallTo(() => inner.RejectAsync(message, "poison", false, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    private static async Task VerifyWriteBeforeRejectAsync(bool failWrite)
+    {
+        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var records = new Dictionary<string, TransportReceivedMessage>();
+        var inner = A.Fake<ITransportReceiver>();
+        var message = new TransportReceivedMessage { Id = "quarantine-ordering" };
+        var writeFailure = new InvalidOperationException("quarantine write failed");
+        A.CallTo(() => inner.RejectAsync(message, "poison", false, A<CancellationToken>._))
+            .ReturnsLazily(() =>
+            {
+                records[message.Id].ShouldBeSameAs(message);
+                return Task.CompletedTask;
+            });
+        var receiver = new DeadLetterTransportReceiver(inner, async (received, _, _) =>
+        {
+            entered.TrySetResult(true);
+            await release.Task.ConfigureAwait(false);
+            if (failWrite)
+            {
+                throw writeFailure;
+            }
+
+            records.Add(received.Id, received);
+        }, "TestTransport");
+        var operation = receiver.RejectAsync(message, "poison", false, CancellationToken.None);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            operation.IsCompleted.ShouldBeFalse();
+            A.CallTo(() => inner.RejectAsync(message, "poison", false, A<CancellationToken>._))
+                .MustNotHaveHappened();
+            release.TrySetResult(true);
+            if (failWrite)
+            {
+                var observed = await Should.ThrowAsync<InvalidOperationException>(() =>
+                    operation.WaitAsync(TimeSpan.FromSeconds(5)));
+                observed.ShouldBeSameAs(writeFailure);
+                records.ShouldBeEmpty();
+                A.CallTo(() => inner.RejectAsync(message, "poison", false, A<CancellationToken>._))
+                    .MustNotHaveHappened();
+            }
+            else
+            {
+                await operation.WaitAsync(TimeSpan.FromSeconds(5));
+                records.Count.ShouldBe(1);
+                records[message.Id].ShouldBeSameAs(message);
+                A.CallTo(() => inner.RejectAsync(message, "poison", false, A<CancellationToken>._))
+                    .MustHaveHappenedOnceExactly();
+            }
+        }
+        finally
+        {
+            release.TrySetResult(true);
+            try
+            {
+                await operation.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (InvalidOperationException exception) when (ReferenceEquals(exception, writeFailure))
+            {
+                // The injected failure is asserted above; drain the operation before leaving the test.
+            }
+        }
+    }
 }

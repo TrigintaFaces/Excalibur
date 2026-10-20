@@ -66,6 +66,11 @@ public static class MigrationServiceCollectionExtensions
 
 	private static void RegisterMigrationCore(IServiceCollection services)
 	{
+		_ = services.AddOptions<MigrationOptions>()
+			.Validate(options => options.MaxConcurrentMigrations > 0,
+				$"{nameof(MigrationOptions.MaxConcurrentMigrations)} must be greater than zero.")
+			.ValidateOnStart();
+
 		services.TryAddSingleton<MigrationService>();
 		services.TryAddSingleton<IMigrationService>(sp => sp.GetRequiredService<MigrationService>());
 		services.TryAddSingleton<IMigrationInfo>(sp => sp.GetRequiredService<MigrationService>());

@@ -266,17 +266,7 @@ public static class KafkaTransportServiceCollectionExtensions
 
 		services.TryAddSingleton(sp => sp.GetRequiredService<IOptionsMonitor<KafkaCloudEventOptions>>().Get(transportName));
 
-		// Register the Kafka producer
-		services.TryAddSingleton(sp =>
-		{
-			var kafkaOptions = sp.GetRequiredService<IOptionsMonitor<KafkaOptions>>().Get(transportName);
-			var cloudEventOptions = sp.GetService<IOptionsMonitor<KafkaCloudEventOptions>>()?.Get(transportName);
-			var config = KafkaProducerConfigBuilder.Build(
-				kafkaOptions,
-				cloudEventOptions);
-
-			return new ProducerBuilder<string, byte[]>(config).Build();
-		});
+		KafkaNamedMessageBusRegistration.Register(services, transportName, transportOptions.TopicMappings);
 
 		// Register the Kafka consumer used by the transport subscriber/receiver, and the progress
 		// tracker its rebalance handlers and the receiver settle through.
@@ -411,7 +401,7 @@ public static class KafkaTransportServiceCollectionExtensions
 		_ = services.AddSingleton(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<KafkaMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<KafkaMessageBus>(name);
 			return new KafkaTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 
@@ -419,7 +409,7 @@ public static class KafkaTransportServiceCollectionExtensions
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<KafkaTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<KafkaMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<KafkaMessageBus>(name);
 			return new KafkaTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 

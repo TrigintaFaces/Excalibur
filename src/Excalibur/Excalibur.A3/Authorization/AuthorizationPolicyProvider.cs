@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
-using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.PolicyData;
 using Excalibur.Dispatch;
-using Excalibur.Dispatch.Options.Serialization;
-using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Dispatch.Caching;
 
@@ -29,6 +27,7 @@ namespace Excalibur.A3.Authorization;
 /// <param name="userGrants"> A collection of grants for authorization purposes. </param>
 /// <param name="currentUser"> The current authenticated user token. </param>
 /// <param name="cache"> Distributed cache used for caching authorization data. </param>
+/// <param name="timeProvider">Time source for checking grant expiration on each acquisition.</param>
 	/// <param name="tenantContext">
 	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
 	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
@@ -42,21 +41,15 @@ internal sealed class AuthorizationPolicyProvider(
 	ActivityGroups activityGroups,
 	UserGrants userGrants,
 	IAuthenticationToken currentUser,
-	[FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache,
 	ITenantContext tenantContext,
-	IOptions<AuthorizationCacheOptions> cacheOptions
+	IOptions<AuthorizationCacheOptions> cacheOptions,
+	[FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache? cache = null,
+	TimeProvider? timeProvider = null
 ) : IAuthorizationPolicyProvider
 {
-	/// <summary>
-	/// The policy built for this scope, memoized after the first call. This type is registered scoped, so
-	/// one instance already lives for exactly one request/dispatch -- caching here is per-request
-	/// memoization without introducing any new lifetime or shared state. Distributed-cache reads for
-	/// grants and activity groups are cheap relative to a request, but ASP.NET Core evaluates
-	/// <c>HandleRequirementAsync</c> once per requirement, so a request checking more than one activity or
-	/// resource previously repeated the round-trip and the JSON deserialization for an answer that cannot
-	/// change within the same scope.
-	/// </summary>
-	private Task<IAuthorizationPolicy>? _cachedPolicy;
+	private readonly IDistributedCache _cache = AuthorizationCachePrerequisiteValidator.RequireCache(cache);
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+
 
 	/// <inheritdoc />
 	/// <exception cref="InvalidOperationException">
@@ -84,16 +77,34 @@ internal sealed class AuthorizationPolicyProvider(
 				"Establish the ambient tenant (TenantContextHolder.BeginScope / tenant middleware) before evaluating authorization.");
 		}
 
-		return await (_cachedPolicy ??= BuildPolicyAsync(currentUser.UserId, tenantContext.TenantId)).ConfigureAwait(false);
+		// A policy is a snapshot. A new acquisition, including another call in the same scope,
+		// must not reuse a snapshot from before a committed revocation.
+		var userId = currentUser.UserId;
+		var tenantId = tenantContext.TenantId;
+		for (var attempt = 0; attempt < 3; attempt++)
+		{
+			var revision = await userGrants.RevisionAsync(userId, CancellationToken.None).ConfigureAwait(false);
+			var policy = await BuildPolicyAsync(userId, tenantId, revision).ConfigureAwait(false);
+			var finalRevision = revision is null ? null : await userGrants.RevisionAsync(userId, CancellationToken.None).ConfigureAwait(false);
+			if (!string.Equals(userId, currentUser.UserId, StringComparison.Ordinal)
+				|| !string.Equals(tenantId, tenantContext.TenantId, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException("Authorization identity changed while acquiring a policy.");
+			}
+			if (revision is null || revision == finalRevision)
+			{
+				return policy;
+			}
+		}
+
+		throw new InvalidOperationException("Authorization grants changed repeatedly while acquiring a policy. Retry authorization.");
 	}
 
-	private async Task<IAuthorizationPolicy> BuildPolicyAsync(string userId, string tenantId)
+	private async Task<IAuthorizationPolicy> BuildPolicyAsync(string userId, string tenantId, long? revision)
 	{
 		// NOTE: IPolicyProvider<T>.GetPolicyAsync() does not accept CancellationToken.
 		// CancellationToken.None is used here because the interface contract does not support cancellation.
-#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-		var authData = await LoadPolicyDataAsync(userId, tenantId, CancellationToken.None).ConfigureAwait(false);
-#pragma warning restore IL2026, IL3050
+		var authData = await LoadPolicyDataAsync(userId, tenantId, revision, CancellationToken.None).ConfigureAwait(false);
 
 		return new AuthorizationPolicy(
 			authData.Grants,
@@ -107,42 +118,75 @@ internal sealed class AuthorizationPolicyProvider(
 	/// </summary>
 	/// <param name="userId"> The user identifier for which the policy data is being loaded. </param>
 	/// <param name="tenantId"> The tenant whose activity groups the policy is built from. </param>
+	/// <param name="revision">Authoritative revision captured before this acquisition.</param>
 	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> The authorization data containing grants, activity groups, and activities. </returns>
-	[RequiresDynamicCode("Creates DispatchJsonSerializer which uses dynamic code for JSON serialization")]
-	private async Task<AuthorizationData> LoadPolicyDataAsync(string userId, string tenantId, CancellationToken cancellationToken)
+	private async Task<AuthorizationData> LoadPolicyDataAsync(string userId, string tenantId, long? revision, CancellationToken cancellationToken)
 	{
-		var grantsTask = GetGrantsAsync(userId, cancellationToken);
-		var activityGroupsTask = GetActivityGroupsAsync(tenantId, cancellationToken);
-
-		await Task.WhenAll(grantsTask, activityGroupsTask).ConfigureAwait(false);
-
-		return new AuthorizationData(
-			await grantsTask.ConfigureAwait(false),
-			await activityGroupsTask.ConfigureAwait(false));
+		// Relational stores can share the scoped IDomainDb connection. Complete the grant
+		// snapshot transaction before issuing the catalogue query on that connection.
+		var grants = await GetGrantsAsync(userId, revision, cancellationToken).ConfigureAwait(false);
+		var groups = await GetActivityGroupsAsync(tenantId, cancellationToken).ConfigureAwait(false);
+		return new AuthorizationData(grants, groups);
 	}
 
 	/// <summary>
 	/// Retrieves grants for the specified user, using a cached value if available.
 	/// </summary>
 	/// <param name="userId"> The user identifier. </param>
+	/// <param name="revision">Authoritative revision captured before this acquisition.</param>
 	/// <param name="cancellationToken"> A token to cancel the asynchronous operation. </param>
 	/// <returns> A dictionary of grants for the user. </returns>
-	[RequiresDynamicCode("Calls Excalibur.A3.Authorization.AuthorizationPolicyProvider.ReadFromCacheAsync(String)")]
-	private async Task<IDictionary<string, object>> GetGrantsAsync(string userId, CancellationToken cancellationToken)
+	private async Task<IDictionary<string, object>> GetGrantsAsync(string userId, long? revision, CancellationToken cancellationToken)
 	{
-		var cachedGrants = await ReadFromCacheAsync<IDictionary<string, object>>(
-			AuthorizationCacheKey.ForGrants(userId)).ConfigureAwait(false);
-
-		if (cachedGrants != null)
+		if (revision is null)
 		{
-			return cachedGrants;
+			// Stores without an authoritative revision cannot safely share grant snapshots in a cache.
+			return await userGrants.ValueAsync(userId, cancellationToken).ConfigureAwait(false);
+		}
+		if (!userGrants.SupportsSharedCache)
+		{
+			var volatileSnapshot = await userGrants.SnapshotAsync(userId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException("The grant store lost its atomic snapshot capability.");
+			if (!string.Equals(volatileSnapshot.UserId, userId, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException("The grant snapshot belongs to a different user.");
+			}
+			return ToGrantDictionary(volatileSnapshot.Grants);
 		}
 
-		cachedGrants = await userGrants.ValueAsync(userId, cancellationToken).ConfigureAwait(false);
-		await WriteToCacheAsync(AuthorizationCacheKey.ForGrants(userId), cachedGrants, TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+		var key = SegmentedKey.Compose(AuthorizationCacheKey.ForGrants(userId), "revision-v1", revision.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		var cachedBytes = await _cache.GetAsync(key, cancellationToken).ConfigureAwait(false);
+		var cached = cachedBytes is null ? null : JsonSerializer.Deserialize(cachedBytes, GrantCacheJsonContext.Default.GrantCacheDocument);
+		if (cached is not null && cached.Revision == revision.Value && string.Equals(cached.UserId, userId, StringComparison.Ordinal))
+		{
+			return ToGrantDictionary(cached.Grants);
+		}
 
-		return cachedGrants;
+		var snapshot = await userGrants.SnapshotAsync(userId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException("The grant store lost its atomic snapshot capability.");
+		if (!string.Equals(snapshot.UserId, userId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("The grant snapshot belongs to a different user.");
+		}
+
+		// Label data with the revision of its coherent snapshot, never a separate revision read.
+		key = SegmentedKey.Compose(AuthorizationCacheKey.ForGrants(userId), "revision-v1", snapshot.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		var bytes = JsonSerializer.SerializeToUtf8Bytes(new GrantCacheDocument(userId, snapshot.Revision, snapshot.Grants.ToArray()), GrantCacheJsonContext.Default.GrantCacheDocument);
+		await _cache.SetAsync(key, bytes, new DistributedCacheEntryOptions
+		{
+			SlidingExpiration = TimeSpan.FromMinutes(5),
+			AbsoluteExpirationRelativeToNow = cacheOptions.Value.AbsoluteExpirationRelativeToNow,
+		}, cancellationToken).ConfigureAwait(false);
+
+		return ToGrantDictionary(snapshot.Grants);
+	}
+
+	private IDictionary<string, object> ToGrantDictionary(IEnumerable<Grant> grants)
+	{
+		var now = _timeProvider.GetUtcNow();
+		return grants.Where(g => g.IsActive(now)).ToDictionary(
+			g => SegmentedKey.Compose(g.TenantId, g.GrantType, g.Qualifier), g => (object)g, StringComparer.Ordinal);
 	}
 
 	/// <summary>
@@ -157,76 +201,33 @@ internal sealed class AuthorizationPolicyProvider(
 	/// a tenant finds none of its own groups under another's composed keys — so every activity-group grant
 	/// would be denied, silently.
 	/// </remarks>
-	[RequiresDynamicCode("Calls Excalibur.A3.Authorization.AuthorizationPolicyProvider.ReadFromCacheAsync(String)")]
 	private async Task<IReadOnlyDictionary<string, IReadOnlyCollection<string>>> GetActivityGroupsAsync(
 		string tenantId,
 		CancellationToken cancellationToken)
 	{
-		// Cached and read back with its SHAPE intact. This was declared IDictionary<string, object>, and
-		// a declared `object` is materialised by the JSON deserializer as a JsonElement -- which satisfies
-		// no collection test, so every activity-group grant was silently denied on the cache-HIT path,
-		// for every provider. The type is the fix; there is no longer a shape to guess at.
-		var groups = await ReadFromCacheAsync<IReadOnlyDictionary<string, IReadOnlyCollection<string>>>(
-			AuthorizationCacheKey.ForActivityGroups(tenantId)).ConfigureAwait(false);
-
-		if (groups != null)
+		var key = AuthorizationCacheKey.ForActivityGroups(tenantId);
+		if (!userGrants.SupportsSharedCache)
 		{
-			return groups;
+			return await activityGroups.ValueAsync(tenantId, cancellationToken).ConfigureAwait(false);
 		}
-
-		groups = await activityGroups.ValueAsync(tenantId, cancellationToken).ConfigureAwait(false);
-		await WriteToCacheAsync(AuthorizationCacheKey.ForActivityGroups(tenantId), groups, TimeSpan.FromHours(1)).ConfigureAwait(false);
-
-		return groups;
-	}
-
-	[RequiresDynamicCode("Creates DispatchJsonSerializer which uses dynamic code for JSON serialization")]
-	private async Task<TDocument?> ReadFromCacheAsync<TDocument>(string key)
-		where TDocument : class
-	{
-		var item = await cache.GetStringAsync(key).ConfigureAwait(false);
-		using var serializer = new DispatchJsonSerializer(options =>
+		var bytes = await _cache.GetAsync(key, cancellationToken).ConfigureAwait(false);
+		var document = bytes is null ? null : JsonSerializer.Deserialize(bytes, GrantCacheJsonContext.Default.ActivityGroupCacheDocument);
+		if (document is not null && string.Equals(document.TenantId, tenantId, StringComparison.Ordinal)
+			&& document.ExpiresOn > _timeProvider.GetUtcNow())
 		{
-			var defaultOptions = DispatchJsonSerializerOptions.Default;
-			options.PropertyNamingPolicy = defaultOptions.PropertyNamingPolicy;
-			options.DefaultIgnoreCondition = defaultOptions.DefaultIgnoreCondition;
-			options.WriteIndented = defaultOptions.WriteIndented;
-		});
-		return item == null
-			? null
-			: serializer.Deserialize<TDocument>(item);
-	}
-
-	/// <summary>
-	/// Writes an item to the distributed cache.
-	/// </summary>
-	/// <param name="key"> The cache key. </param>
-	/// <param name="item"> The item to cache. </param>
-	/// <param name="slidingExpiration"> The sliding expiration duration for the cache entry. </param>
-	[RequiresDynamicCode("Creates DispatchJsonSerializer which uses dynamic code for JSON serialization")]
-	private async Task WriteToCacheAsync<TDocument>(string key, TDocument item, TimeSpan slidingExpiration)
-		where TDocument : class
-	{
-		using var serializer = new DispatchJsonSerializer(options =>
+			return document.Groups.ToDictionary(pair => pair.Key, pair => (IReadOnlyCollection<string>)pair.Value, StringComparer.Ordinal);
+		}
+		var groups = await activityGroups.ValueAsync(tenantId, cancellationToken).ConfigureAwait(false);
+		var expires = _timeProvider.GetUtcNow() + cacheOptions.Value.AbsoluteExpirationRelativeToNow;
+		var owned = groups.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal);
+		var encoded = JsonSerializer.SerializeToUtf8Bytes(new ActivityGroupCacheDocument(tenantId, expires, owned),
+			GrantCacheJsonContext.Default.ActivityGroupCacheDocument);
+		await _cache.SetAsync(key, encoded, new DistributedCacheEntryOptions
 		{
-			var defaultOptions = DispatchJsonSerializerOptions.Default;
-			options.PropertyNamingPolicy = defaultOptions.PropertyNamingPolicy;
-			options.DefaultIgnoreCondition = defaultOptions.DefaultIgnoreCondition;
-			options.WriteIndented = defaultOptions.WriteIndented;
-		});
-		// The sliding window alone never expires an entry that keeps being read, so a request that cached the
-		// previous state just after a sync invalidated it would keep serving that state for as long as it is
-		// read. The absolute bound is the longest a revoked grant can still authorize through the cache.
-		var entryOptions = new DistributedCacheEntryOptions
-		{
-			SlidingExpiration = slidingExpiration,
+			SlidingExpiration = TimeSpan.FromHours(1),
 			AbsoluteExpirationRelativeToNow = cacheOptions.Value.AbsoluteExpirationRelativeToNow,
-		};
-#pragma warning disable IL2026, IL3050 // Serialization/reflection inherently not AOT-safe
-		var serialized = await serializer.SerializeAsync(item, typeof(TDocument)).ConfigureAwait(false);
-#pragma warning restore IL2026, IL3050
-
-		await cache.SetStringAsync(key, serialized, entryOptions).ConfigureAwait(false);
+		}, cancellationToken).ConfigureAwait(false);
+		return groups;
 	}
 
 	/// <summary>
@@ -236,3 +237,4 @@ internal sealed class AuthorizationPolicyProvider(
 		IDictionary<string, object> Grants,
 		IReadOnlyDictionary<string, IReadOnlyCollection<string>> ActivityGroups);
 }
+

@@ -95,8 +95,17 @@ internal sealed class MongoDbEventDocument
 	/// would hand the caller back a different identifier than the one it asked for.
 	/// </param>
 	/// <returns>The stored event representation.</returns>
-	public StoredEvent ToStoredEvent(string aggregateId) =>
-		new(
+	public StoredEvent ToStoredEvent(string aggregateId)
+	{
+		var parts = global::Excalibur.Dispatch.SegmentedKey.Split(StreamId, 3);
+		if (!string.Equals(parts[0], "t", StringComparison.Ordinal)
+			|| string.IsNullOrWhiteSpace(parts[1])
+			|| !string.Equals(parts[2], aggregateId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("Stored event partition ownership does not match its stream.");
+		}
+
+		return new StoredEvent(
 			EventId,
 			aggregateId,
 			AggregateType,
@@ -104,7 +113,11 @@ internal sealed class MongoDbEventDocument
 			Payload,
 			Metadata,
 			Version,
-			OccurredAt);
+			OccurredAt)
+		{
+			TenantId = parts[1],
+		};
+	}
 }
 
 /// <summary>

@@ -22,6 +22,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/001_CreateEventStoreSchema.sql" LogicalName="BenchmarkSchema.001_CreateEventStoreSchema.sql" />
     <EmbeddedResource Include="../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/002_CreateSnapshotSchema.sql" LogicalName="BenchmarkSchema.002_CreateSnapshotSchema.sql" />
+    <EmbeddedResource Include="../../src/Excalibur/Excalibur.Saga.SqlServer/Scripts/01-SagaSchema.sql" LogicalName="BenchmarkSchema.01-SagaSchema.sql" />
   </ItemGroup>
   <ItemGroup>
     <!-- Core Excalibur packages -->

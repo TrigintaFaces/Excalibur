@@ -34,6 +34,9 @@ public sealed class FirestoreInboxStoreContainerFixture : ContainerFixtureBase
 	/// </summary>
 	public FirestoreDb Db { get; private set; } = null!;
 
+	/// <summary>Gets this fixture's emulator endpoint, independent of ambient environment variables.</summary>
+	public string EmulatorEndpoint => _container!.GetEmulatorEndpoint();
+
 	/// <summary>
 	/// Gets the project id used for the emulator.
 	/// </summary>

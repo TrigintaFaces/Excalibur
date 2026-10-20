@@ -118,13 +118,39 @@ foreach ($trx in $trxFiles) {
     if ($runOutcome -notin @('Completed', 'Passed')) {
       throw "Run did not complete successfully: $runOutcome."
     }
+    # KEYED ON THE OUTCOME ATTRIBUTE, NEVER ON THE TEXT. This block used to require every RunInfo's
+    # text to equal one exact sentence emitted by the SDK's blame collector, and refuse otherwise.
+    # Three measured reasons that was wrong:
+    #
+    #   * it refused a passing build, in production. A generated runsettings produced a DataCollector
+    #     with no friendlyName, VSTest wrote "Unable to find a datacollector with friendly name ''"
+    #     into every TRX, and -- eng/build.ps1's own words -- "every coverage-collecting shard refused
+    #     its own passing evidence". The remedy taken was to change the BUILD so it would stop saying
+    #     something this gate had not been told about.
+    #   * the sentence is owned by Microsoft.TestPlatform.Extensions.BlameDataCollector and is pinned
+    #     nowhere, so a wording change in an SDK bump reddens every shard at once.
+    #   * a per-test skip notice arrives here as a RunInfo whose text embeds a wall-clock timestamp, so
+    #     it can never be enumerated. The complement of a one-sentence allowlist is all console output,
+    #     which made this a denylist of everything the runner might ever print.
+    #
+    # What is NOT lost: whether the run passed completely is established from STRUCTURED evidence, three
+    # times over -- the counters below, every result row's own outcome, and the expected-assembly set. A
+    # failure that matters shows up there. What remains here is the runner's own verdict attribute,
+    # which the platform defines rather than phrases: Error and Aborted are a refusal.
     foreach ($info in $summary.SelectNodes('t:RunInfos/t:RunInfo', $ns)) {
-      # Observed on completed passing runs with the SDK's blame collector. This diagnostic
-      # means no hang occurred; it does not excuse any failed/skipped test or other warning.
-      if ($info.GetAttribute('outcome') -cne 'Warning' -or $info.InnerText.Trim() -cne
-          "Data collector 'Blame' message: All tests finished running, Sequence file will not be generated.") {
-        throw "Run reported unrecognized diagnostics; investigate before accepting results."
+      # ALLOWLIST THE BENIGN OUTCOME, never denylist the failing ones. GetAttribute returns '' for a
+      # missing attribute, so a RunInfo carrying no outcome at all refuses here rather than slipping
+      # through a list of the failures we happened to think of. Fail closed.
+      $infoOutcome = $info.GetAttribute('outcome')
+      $text = $info.InnerText.Trim()
+      if ($text.Length -gt 400) { $text = $text.Substring(0, 400) + ' [truncated]' }
+      if ($infoOutcome -cne 'Warning') {
+        throw "Run reported a RunInfo with outcome '$infoOutcome': $text"
       }
+      # PRINTED, NEVER ADJUDICATED. A diagnostic that stops being reported is one that stops being
+      # questioned, and dropping the text was the other half of the defect above: the old check read it
+      # to refuse on it, and nothing read it to show it. Truncation is a DISPLAY bound and belongs here.
+      Write-Host "  diagnostic: $text"
     }
     $results = @($run.SelectNodes('t:Results/t:UnitTestResult', $ns))
     $resultNodes = @($run.SelectNodes('t:Results/*', $ns))

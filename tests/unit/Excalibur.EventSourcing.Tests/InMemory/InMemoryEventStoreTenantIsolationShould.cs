@@ -70,9 +70,11 @@ public sealed class InMemoryEventStoreTenantIsolationShould
 		// Assert — LIVENESS: each tenant reads back its own events...
 		_tenantContext.TenantId = "tenant-a";
 		var loadedByA = await _store.LoadAsync(SharedAggregateId, AggregateType, CancellationToken.None);
+		loadedByA.ShouldAllBe(stored => stored.TenantId == "tenant-a");
 
 		_tenantContext.TenantId = "tenant-b";
 		var loadedByB = await _store.LoadAsync(SharedAggregateId, AggregateType, CancellationToken.None);
+		loadedByB.ShouldAllBe(stored => stored.TenantId == "tenant-b");
 
 		loadedByA.Count.ShouldBe(2, "Tenant A wrote 2 events and must read all 2 back.");
 		loadedByB.Count.ShouldBe(3, "Tenant B wrote 3 events and must read all 3 back.");
@@ -186,6 +188,7 @@ public sealed class InMemoryEventStoreTenantIsolationShould
 			"Tenant A's erasure must not report tenant B's same-id aggregate as erased.");
 
 		var loadedByB = await _store.LoadAsync(SharedAggregateId, AggregateType, CancellationToken.None);
+		loadedByB.ShouldAllBe(stored => stored.TenantId == "tenant-b");
 		loadedByB.Count.ShouldBe(2);
 		loadedByB.ShouldAllBe(e => e.EventType != ErasedEventMarker.EventType);
 		loadedByB.Select(static e => e.EventId)

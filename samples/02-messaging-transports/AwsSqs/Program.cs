@@ -29,6 +29,8 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Routing;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Routing;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,9 +39,6 @@ using Microsoft.Extensions.Logging;
 
 // Build configuration
 var builder = new HostApplicationBuilder(args);
-
-// Add appsettings.json configuration
-builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
 
 // Configure logging for visibility
 builder.Services.AddLogging(logging =>
@@ -56,20 +55,24 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
 	// Configure JSON serialization
-
+	_ = dispatch.WithSerialization(serialization => serialization.RegisterSystemTextJson().UseSystemTextJson());
 	// Route OrderPlacedEvent to AWS SQS transport
 	_ = dispatch.UseRouting(routing =>
-		routing.Transport.Route<OrderPlacedEvent>().To("sqs"));
+	{
+		routing.Transport.Route<OrderPlacedEvent>().To("sqs");
+		routing.Endpoints.Route<OrderPlacedEvent>().To("sqs");
+	});
+	_ = dispatch.UseMiddleware<RoutingMiddleware>();
 });
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging
 // ============================================================
-// The outbox pattern ensures messages are persisted before sending,
-// providing at-least-once delivery guarantees.
-builder.Services.AddOutbox<InMemoryOutboxStore>();
+// Register volatile outbox/inbox services for experiments. This demo publishes
+// directly; registration alone does not stage its messages in the outbox.
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+	outbox.UseInMemory().EnableBackgroundProcessing()));
 builder.Services.AddInMemoryInboxStore();
-builder.Services.AddOutboxHostedService();
 builder.Services.AddInboxHostedService();
 
 // Set default remote bus for outbox processing
@@ -90,36 +93,34 @@ var queueUrl = builder.Configuration["AwsSqs:QueueUrl"]
 var useLocalStack = builder.Configuration.GetValue("AwsSqs:UseLocalStack", true);
 
 // Register AWS SQS client with LocalStack or production configuration
-if (useLocalStack && !string.IsNullOrEmpty(serviceUrl))
+if (useLocalStack)
 {
+	ArgumentException.ThrowIfNullOrEmpty(serviceUrl);
 	// LocalStack configuration
-	_ = builder.Services.AddSingleton<IAmazonSQS>(_ =>
+	_ = builder.Services.AddKeyedSingleton<IAmazonSQS>("sqs", (_, _) =>
 	{
 		var config = new AmazonSQSConfig
 		{
 			RegionEndpoint = RegionEndpoint.GetBySystemName(region),
 			ServiceURL = serviceUrl,
 			UseHttp = true,
+			MaxErrorRetry = 0,
+			MaxStaleConnectionRetries = 0,
 		};
 		return new AmazonSQSClient(
 			new BasicAWSCredentials("test", "test"),
 			config);
 	});
 }
-else
-{
-	// Production AWS configuration (uses default credential chain)
-	_ = builder.Services.AddSingleton<IAmazonSQS>(_ =>
-	{
-		var config = new AmazonSQSConfig { RegionEndpoint = RegionEndpoint.GetBySystemName(region), };
-		return new AmazonSQSClient(config);
-	});
-}
+
+// Production uses the transport's default credential chain and separate send/receive clients.
 
 // Add AWS SQS message bus (Single Entry Point)
 builder.Services.AddAwsSqsTransport("sqs", sqs =>
 {
 	_ = sqs.UseRegion(region)
+		.UseMaxRetryAttempts(2)
+		.UseRequestTimeout(TimeSpan.FromSeconds(10))
 		.MapQueue<OrderPlacedEvent>(queueUrl);
 });
 
@@ -145,7 +146,6 @@ await host.StartAsync().ConfigureAwait(false);
 // Publish sample messages
 // ============================================================
 var dispatcher = host.Services.GetRequiredService<IDispatcher>();
-var context = DispatchContextInitializer.CreateDefaultContext();
 
 logger.LogInformation("Publishing sample OrderPlacedEvent messages...");
 
@@ -158,7 +158,13 @@ var orders = new[]
 
 foreach (var order in orders)
 {
-	_ = await dispatcher.DispatchAsync(order, context, cancellationToken: default).ConfigureAwait(false);
+	var context = DispatchContextInitializer.CreateDefaultContext();
+	var result = await dispatcher.DispatchAsync(order, context, cancellationToken: default).ConfigureAwait(false);
+	if (!result.Succeeded)
+	{
+		logger.LogError("SQS dispatch failed for {OrderId}: {Error}", order.OrderId, result.ErrorMessage);
+		throw new InvalidOperationException("Failed to dispatch the sample order to SQS.");
+	}
 	logger.LogInformation(
 		"Published: OrderId={OrderId}, Amount={Amount:C}",
 		order.OrderId,
@@ -166,6 +172,11 @@ foreach (var order in orders)
 }
 
 logger.LogInformation("Messages published to AWS SQS queue: {QueueUrl}", queueUrl);
+if (builder.Configuration.GetValue<bool>("Sample:RunOnce"))
+{
+	await host.StopAsync().ConfigureAwait(false);
+	return;
+}
 logger.LogInformation("Press Ctrl+C to exit...");
 
 // Wait for shutdown signal

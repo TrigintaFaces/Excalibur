@@ -1,8 +1,8 @@
 -- SQL Server Schema for Excalibur.Data.SqlServer — AUTHORIZATION GRANTS
--- Version: 1.0
+-- Version: 2.0
 --
--- Creates the two tables SqlServerGrantStore reads and writes: authz.Grant, the grants in force, and
--- authz.GrantHistory, the record of every grant that was revoked. This provider never creates them at
+-- Creates SqlServerGrantStore's grant, history, durable user revision and revocation operation tables.
+-- authz.Grant contains grants in force; authz.GrantHistory records revocations. This provider never creates them at
 -- runtime: run this script against the target database before registering the store. Without it, every
 -- grant operation fails with "Invalid object name 'authz.Grant'".
 --
@@ -18,6 +18,34 @@ SET QUOTED_IDENTIFIER ON;
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'authz')
 BEGIN
     EXEC(N'CREATE SCHEMA authz');
+END;
+
+-- Never remove revision or operation rows while grants are in use: revisions fence authorization cache
+-- entries, and the operation ledger resolves a lost commit response without revoking later grants.
+IF OBJECT_ID(N'authz.GrantRevision', N'U') IS NULL
+BEGIN
+    CREATE TABLE authz.GrantRevision
+    (
+        UserId NVARCHAR(128) COLLATE Latin1_General_BIN2 NOT NULL,
+        Revision BIGINT NOT NULL,
+        CONSTRAINT PK_GrantRevision PRIMARY KEY (UserId),
+        CONSTRAINT CK_GrantRevision_Positive CHECK (Revision > 0)
+    );
+END;
+
+IF OBJECT_ID(N'authz.GrantRevocation', N'U') IS NULL
+BEGIN
+    CREATE TABLE authz.GrantRevocation
+    (
+        UserId NVARCHAR(128) COLLATE Latin1_General_BIN2 NOT NULL,
+        OperationId UNIQUEIDENTIFIER NOT NULL,
+        -- Operation target, not a grant partition: NULL means explicitly requested all tenants.
+        ScopeTenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL,
+        RevokedBy NVARCHAR(128) COLLATE Latin1_General_BIN2 NOT NULL,
+        Revision BIGINT NOT NULL,
+        RevokedCount INT NOT NULL,
+        CONSTRAINT PK_GrantRevocation PRIMARY KEY (UserId, OperationId)
+    );
 END;
 
 IF OBJECT_ID(N'authz.Grant', N'U') IS NULL

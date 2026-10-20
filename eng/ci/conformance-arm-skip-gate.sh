@@ -112,6 +112,8 @@ CENSUS_PY="$(dirname "${BASH_SOURCE[0]}")/conformance-arm-skip-census.py"
 #   PROBE      <TAB> kit <TAB> suite                       the kit's own fixture, not a provider (reported, exempt)
 #   NOSTORE    <TAB> kit <TAB> suite                       suite constructs no type implementing the contract
 #   UNNAMED    <TAB> kit <TAB> arm                         skip site names no capability (reported, never fatal)
+#   UNPARSED   <TAB> file <TAB> line/reason                 syntax/helper/configuration uncertainty (fatal refusal)
+#   DYNAMIC_ARM <TAB> kit <TAB> file:line:column <TAB> kind arm text opaque; source identity preserves capability verdict
 #   TOLERABLE  <TAB> suite <TAB> arm <TAB> cap <TAB> store genuine absence
 #   BINDS      <TAB> suite <TAB> arm <TAB> cap <TAB> store store has it and the arm reaches it
 #   LIE        <TAB> suite <TAB> arm <TAB> cap <TAB> store store has it and the arm cannot reach it
@@ -141,6 +143,13 @@ run_gate() {
 
 	local kits sites suites
 	IFS=$'\t' read -r _ kits sites suites <<<"$(printf '%s\n' "$records" | grep '^COUNTS' | head -1)"
+	local unparsed
+	unparsed="$(printf '%s\n' "$records" | grep '^UNPARSED' || true)"
+	if [ -n "$unparsed" ]; then
+		echo "REFUSE: syntax candidates could not be completely classified:" >&2
+		printf '%s\n' "$unparsed" >&2
+		return 2
+	fi
 
 	if [ "${sites:-0}" -eq 0 ]; then
 		echo "REFUSE: no kit under $kitdir declares a skip site. Either the kits stopped reporting" >&2
@@ -189,6 +198,11 @@ run_gate() {
 	if [ "$unnamed" -gt 0 ]; then
 		echo "($unnamed skip site(s) name no capability; reported, not judged -- see the header.)"
 	fi
+	local dynamic
+	dynamic="$(printf '%s\n' "$records" | grep -c '^DYNAMIC_ARM' || true)"
+	if [ "$dynamic" -gt 0 ]; then
+		echo "($dynamic dynamic arm candidate(s) use source locations; capability verdicts still apply.)"
+	fi
 
 	if [ "$lies" -gt 0 ]; then
 		echo "FAIL: an arm declined for a capability its store implements. Each line below is a pass" >&2
@@ -209,6 +223,13 @@ run_gate() {
 self_test() {
 	local tmp fails=0 ran=0 reddening=0
 	tmp="$(mktemp -d)"
+	# Verify every recursive cleanup target resolves inside this invocation's temporary fixture tree.
+	tmp="$(cd "$tmp" && pwd -P)" || return 2
+	remove_fixture_tree() {
+		local target
+		target="$(realpath "$1")" || return 2
+		case "$target" in "$tmp"/*) rm -rf -- "$target" ;; *) return 2 ;; esac
+	}
 	trap 'rm -rf "$tmp"' RETURN
 
 	arm() { # arm <name> <expected-rc> <root>
@@ -345,12 +366,38 @@ self_test() {
 	arm "zero skip sites REFUSES (the census is blind)" 2 "$tmp/nosites"
 
 	# ---- REFUSE 10/11/12: a missing tree cannot be evaluated.
-	cp -r "$tmp/binds" "$tmp/notests"; rm -rf "$tmp/notests/tests"
+	cp -r "$tmp/binds" "$tmp/notests"; remove_fixture_tree "$tmp/notests/tests" || return 2
 	arm "a missing tests tree REFUSES (not a pass)" 2 "$tmp/notests"
-	cp -r "$tmp/binds" "$tmp/nokits"; rm -rf "$tmp/nokits/kits"
+	cp -r "$tmp/binds" "$tmp/nokits"; remove_fixture_tree "$tmp/nokits/kits" || return 2
 	arm "a missing kit directory REFUSES (not a pass)" 2 "$tmp/nokits"
-	cp -r "$tmp/binds" "$tmp/nosrc"; rm -rf "$tmp/nosrc/src"
+	cp -r "$tmp/binds" "$tmp/nosrc"; remove_fixture_tree "$tmp/nosrc/src" || return 2
 	arm "a missing src tree REFUSES (not a pass)" 2 "$tmp/nosrc"
+
+	# Syntax controls also verify native gate exit codes, rather than only parser records.
+	cp -r "$tmp/binds" "$tmp/named"
+	sed -i 's/), typeof(/), capability: typeof(/g' "$tmp/named/kits/WidgetStoreConformanceTestKit.cs"
+	arm "named capability arguments retain the real verdict" 0 "$tmp/named"
+	cp -r "$tmp/binds" "$tmp/partial"
+	sed -i 's/typeof(IWidgetStoreAdmin), "Admin not supported"/capability: , "Admin not supported"/g' "$tmp/partial/kits/WidgetStoreConformanceTestKit.cs"
+	arm "one malformed call beside a healthy call REFUSES" 2 "$tmp/partial"
+	cp -r "$tmp/binds" "$tmp/literal"
+	printf '%s\n' 'public class LiteralMention { const string Path = "C:/WidgetStoreConformanceTestKit.cs"; }' > "$tmp/literal/tests/LiteralMention.cs"
+	arm "a literal kit path is not a provider derivation" 0 "$tmp/literal"
+	cp -r "$tmp/lie" "$tmp/dynamic_lie"
+	sed -i 's/nameof(Admin_ShouldReportCounts)/arm/g' "$tmp/dynamic_lie/kits/WidgetStoreConformanceTestKit.cs"
+	arm "a dynamic arm still detects a narrowed capability" 1 "$tmp/dynamic_lie"
+	cp -r "$tmp/absent" "$tmp/dynamic_absent"
+	sed -i 's/nameof(Admin_ShouldReportCounts)/arm/g' "$tmp/dynamic_absent/kits/WidgetStoreConformanceTestKit.cs"
+	arm "a dynamic arm preserves legitimate absence" 0 "$tmp/dynamic_absent"
+	cp -r "$tmp/binds" "$tmp/dynamic_null"
+	sed -i 's/nameof(Admin_ShouldReportCounts)/arm/g; s/typeof(IWidgetStoreAdmin), "Admin not supported"/null, "Admin not supported"/g' "$tmp/dynamic_null/kits/WidgetStoreConformanceTestKit.cs"
+	arm "a dynamic null-capability candidate stays reported and unjudged" 0 "$tmp/dynamic_null"
+	cp -r "$tmp/binds" "$tmp/generic"
+	sed -i 's/SkipArm(/SkipArm<int>(/g' "$tmp/generic/kits/WidgetStoreConformanceTestKit.cs"
+	arm "an unsupported generic skip candidate REFUSES" 2 "$tmp/generic"
+	cp -r "$tmp/binds" "$tmp/unknown_capability"
+	sed -i 's/typeof(IWidgetStoreAdmin), "Admin not supported"/ResolveCapability(), "Admin not supported"/g' "$tmp/unknown_capability/kits/WidgetStoreConformanceTestKit.cs"
+	arm "an unresolved capability cannot disappear beside a healthy call" 2 "$tmp/unknown_capability"
 
 	if [ "$fails" -ne 0 ]; then
 		echo "self-test: FAILED ($fails arm(s))" >&2

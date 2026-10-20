@@ -393,6 +393,7 @@
       "samples/09-advanced/querying/Redis/Redis.csproj",
       "samples/09-advanced/querying/StreamingHandlers/StreamingHandlers.csproj",
       "samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
+      "samples/10-aot/Excalibur.Dispatch.Scheduling.Aot.Sample/Excalibur.Dispatch.Scheduling.Aot.Sample.csproj",
       "samples/11-real-world/ECommerceSample/ECommerceSample.csproj",
       "samples/11-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj",
       "samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj",
@@ -1097,6 +1098,11 @@
         "project": "samples/10-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
         "mode": "run",
         "timeoutSeconds": 20
+      },
+      {
+        "project": "samples/10-aot/Excalibur.Dispatch.Scheduling.Aot.Sample/Excalibur.Dispatch.Scheduling.Aot.Sample.csproj",
+        "mode": "run",
+        "timeoutSeconds": 60
       },
       {
         "project": "samples/11-real-world/ECommerceSample/ECommerceSample.csproj",

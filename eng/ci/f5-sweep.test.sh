@@ -196,6 +196,71 @@ else
     fail "J/K: could not build the synthetic repository fixture (git unavailable?) — arms did not run"
 fi
 
+# --- L-R. committed-base identity and legitimate empty scopes ---------------
+if [ -d "$repo/.git" ]; then
+    head_sha="$(cd "$repo" && git rev-parse HEAD)"
+    (cd "$repo" && git update-ref refs/remotes/origin/main "$head_sha")
+    for same_base in HEAD "$head_sha" origin/main; do
+        base_out="$(cd "$repo" && bash "$GUARD" --base "$same_base" 2>&1)"
+        base_rc=$?
+        if [ "$base_rc" -eq 4 ] && printf '%s' "$base_out" | grep -q 'REFUSE'; then
+            pass "L: committed base $same_base resolving to HEAD refuses with exit 4"
+        else
+            fail "L: committed base $same_base got exit $base_rc instead of distinct refusal"
+        fi
+    done
+    base_out="$(cd "$repo" && bash "$GUARD" --base HEAD --report-only 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 4 ]; then pass "M: report-only preserves same-HEAD refusal"; else fail "M: report-only hid refusal (exit $base_rc)"; fi
+
+    base_out="$(cd "$repo" && bash "$GUARD" 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 1 ] && printf '%s' "$base_out" | grep -q 'CompletedAt'; then
+        pass "N: default parent comparison still detects actual stale siblings"
+    else fail "N: default parent lost real sweep (exit $base_rc)"; fi
+
+    base_out="$(cd "$repo" && bash "$GUARD" --staged --base HEAD 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 0 ] && printf '%s' "$base_out" | grep -q 'nothing to sweep'; then
+        pass "O: empty staged scope remains a legitimate no-work success"
+    else fail "O: empty staged scope changed (exit $base_rc)"; fi
+
+    base_out="$(cd "$repo" && bash "$GUARD" --base f5-nonexistent-base 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 2 ] && printf '%s' "$base_out" | grep -q 'base'; then
+        pass "P: invalid committed base is an environment error"
+    else fail "P: invalid base masqueraded as empty (exit $base_rc)"; fi
+
+    (cd "$repo" && printf 'public class Combined { public DateTimeOffset? CompletedAt { get; set; } }\n' > src/Pkg/Combined.cs && git add src/Pkg/Combined.cs)
+    base_out="$(cd "$repo" && bash "$GUARD" --all --base HEAD 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 1 ] && printf '%s' "$base_out" | grep -q 'CompletedAt'; then
+        pass "Q: combined scope with base HEAD still examines staged changes"
+    else fail "Q: combined scope lost staged sweep (exit $base_rc)"; fi
+    (cd "$repo" && git commit -qm combined && printf 'fixture documentation\n' > docs.txt && git add docs.txt && git commit -qm docs)
+    base_out="$(cd "$repo" && bash "$GUARD" --base HEAD~1 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 0 ] && printf '%s' "$base_out" | grep -q 'nothing to sweep' && ! printf '%s' "$base_out" | grep -q 'F-5 clean'; then
+        pass "R: valid parent with no source changes remains distinct from triaged clean"
+    else fail "R: legitimate empty parent diff changed (exit $base_rc)"; fi
+
+    (cd "$repo" && printf 'public class Saga { public string CompletedAt { get; set; } }\n' > src/Pkg/Saga.cs)
+    base_out="$(cd "$repo" && bash "$GUARD" --working --base HEAD 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 1 ] && printf '%s' "$base_out" | grep -q 'CompletedAt'; then
+        pass "S: working scope with base HEAD still detects stale siblings"
+    else fail "S: working scope lost real sweep (exit $base_rc)"; fi
+
+    (cd "$repo" && printf 'public class FooShould { void T() { var x = saga.CompletedAt; /* triaged */ } }\n' > tests/ProjA/FooShould.cs && printf 'public class BarShould { void T() { var y = saga.CompletedAt; /* triaged */ } }\n' > tests/ProjB/BarShould.cs && git add -A && git commit -qm triaged)
+    base_out="$(cd "$repo" && bash "$GUARD" --base HEAD~1 2>&1)"
+    base_rc=$?
+    if [ "$base_rc" -eq 0 ] && printf '%s' "$base_out" | grep -q 'F-5 clean'; then
+        pass "T: actual parent change with both siblings triaged remains clean"
+    else fail "T: healthy triaged committed sweep changed (exit $base_rc)"; fi
+else
+    fail "L-R: synthetic repository missing; committed-base controls did not execute"
+fi
+
 echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo "✅ f5-sweep.test.sh: ALL GREEN"

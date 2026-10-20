@@ -43,6 +43,7 @@ public interface IFencedDeadLetterableOutboxStore
 	/// </summary>
 	/// <param name="messageId">The unique identifier of the message to dead-letter.</param>
 	/// <param name="reason">The reason recorded against the dead-lettered message.</param>
+	/// <param name="attemptCount">Observed logical delivery attempts. Nonnegative; an applied transition atomically records the maximum of this value and the stored count. Missing, terminal, and refused transitions do not change the count.</param>
 	/// <param name="fencingToken">The monotonic token identifying the caller's leadership tenure.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
 	/// <returns>What the store did, decided by the same atomic action that performed the transition.</returns>
@@ -63,9 +64,11 @@ public interface IFencedDeadLetterableOutboxStore
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="messageId"/> is null or empty.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown before mutation when <paramref name="attemptCount"/> is negative.</exception>
 	ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		CancellationToken cancellationToken);
 }

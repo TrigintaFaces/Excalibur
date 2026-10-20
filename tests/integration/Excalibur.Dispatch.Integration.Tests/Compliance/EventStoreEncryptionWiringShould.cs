@@ -3,6 +3,7 @@
 
 using Excalibur.Compliance;
 using Excalibur.Compliance.Configuration;
+using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Compliance.Encryption;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Dispatch;
@@ -36,6 +37,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance;
 /// </remarks>
 [Trait("Category", "Integration")]
 [Trait("Component", "Compliance")]
+[Trait("Pattern", "Regression")]
 public sealed class EventStoreEncryptionWiringShould
 {
 	private const string SubjectId = "subject-42";
@@ -80,7 +82,11 @@ public sealed class EventStoreEncryptionWiringShould
 		_ = services.AddInMemoryEventStore();
 		_ = services.AddEventSourcingCryptoShredding();
 
-		var provider = services.BuildServiceProvider();
+		var provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateScopes = true,
+			ValidateOnBuild = true,
+		});
 		// Resolving the encryption providers runs their registration factories, which SELF-register into
 		// the IEncryptionProviderRegistry (AesGcmEncryptionProvider's factory calls
 		// registry.Register(providerId, provider)). The host normally triggers this via an
@@ -91,6 +97,28 @@ public sealed class EventStoreEncryptionWiringShould
 		var registry = provider.GetRequiredService<IEncryptionProviderRegistry>();
 		registry.SetPrimary("test");
 		return provider;
+	}
+
+	[Fact]
+	public async Task PreserveTheDefaultSingletonCryptoGraphAcrossOperationScopes()
+	{
+		await using var provider = BuildWiredStack();
+		var cryptor = provider.GetRequiredService<SubjectFieldCryptor>();
+		var store = provider.GetRequiredKeyedService<IEventStore>("default");
+		using (var first = provider.CreateScope())
+		{
+			first.ServiceProvider.GetRequiredService<SubjectFieldCryptor>().ShouldBeSameAs(cryptor);
+			first.ServiceProvider.GetRequiredKeyedService<IEventStore>("default").ShouldBeSameAs(store);
+			var evt = new SubjectRegistered { AggregateId = "scoped-1", Version = 0, SubjectId = SubjectId, FullName = Pii };
+			_ = await store.AppendAsync("scoped-1", "Subject", [evt], -1, CancellationToken.None);
+		}
+		using var second = provider.CreateScope();
+		second.ServiceProvider.GetRequiredService<SubjectFieldCryptor>().ShouldBeSameAs(cryptor);
+		second.ServiceProvider.GetRequiredKeyedService<IEventStore>("default").ShouldBeSameAs(store);
+		var loaded = await store.LoadAsync("scoped-1", "Subject", CancellationToken.None);
+		loaded.Count.ShouldBe(1);
+		var serializer = second.ServiceProvider.GetRequiredService<IEventSerializer>();
+		((SubjectRegistered)serializer.DeserializeEvent(loaded[0].EventData, typeof(SubjectRegistered))).FullName.ShouldBe(Pii);
 	}
 
 	[Fact]

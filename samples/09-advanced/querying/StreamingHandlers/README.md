@@ -206,8 +206,8 @@ public async IAsyncEnumerable<T> HandleAsync(
 
 ## Related Samples
 
-- [01-getting-started/WebApiQuickStart](../../01-getting-started/WebApiQuickStart/) - Basic handler patterns
-- [04-reliability/OutboxPattern](../../04-reliability/OutboxPattern/) - Reliable message processing
+- [01-getting-started/WebApiQuickStart](../../../01-getting-started/WebApiQuickStart/) - Basic handler patterns
+- [04-reliability/OutboxPattern](../../../04-reliability/OutboxPattern/) - Reliable message processing
 
 ---
 

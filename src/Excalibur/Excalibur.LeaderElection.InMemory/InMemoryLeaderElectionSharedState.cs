@@ -21,24 +21,35 @@ namespace Excalibur.LeaderElection.InMemory;
 /// </remarks>
 public sealed class InMemoryLeaderElectionSharedState
 {
-	/// <summary>
-	/// Gets the default shared state instance for production use.
-	/// </summary>
-	public static InMemoryLeaderElectionSharedState Default { get; } = new();
+    /// <summary>
+    /// Gets the default shared state instance for production use.
+    /// </summary>
+    public static InMemoryLeaderElectionSharedState Default { get; } = new();
 
-	/// <summary>
-	/// Gets the dictionary of current leaders per resource name.
-	/// </summary>
-	internal ConcurrentDictionary<string, string?> Leaders { get; } = new(StringComparer.Ordinal);
+    /// <summary>
+    /// Gets the dictionary of current leaders per resource name.
+    /// </summary>
+    internal ConcurrentDictionary<string, string?> Leaders { get; } = new(StringComparer.Ordinal);
 
-	/// <summary>
-	/// Gets the dictionary of candidate health data per resource name.
-	/// </summary>
-	internal ConcurrentDictionary<string, ConcurrentDictionary<string, CandidateHealth>> Candidates { get; } = new(StringComparer.Ordinal);
+    /// <summary>
+    /// Gets the dictionary of candidate health data per resource name.
+    /// </summary>
+    internal ConcurrentDictionary<string, ConcurrentDictionary<string, CandidateHealth>> Candidates { get; } = new(StringComparer.Ordinal);
+    // One gate serializes joins, member mutation and retirement; no permanent per-resource lock map.
+    internal object CandidateGate { get; } = new();
 
-	/// <summary>
-	/// Gets the monotonic fencing-token counter per resource name, minted by
-	/// <see cref="InMemoryFencingTokenProvider"/>.
-	/// </summary>
-	internal ConcurrentDictionary<string, long> FencingTokens { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, CandidateBucket> CandidateBuckets { get; } = new(StringComparer.Ordinal);
+
+    internal sealed class CandidateBucket(ConcurrentDictionary<string, CandidateHealth> members)
+    {
+        internal ConcurrentDictionary<string, CandidateHealth> Members { get; } = members;
+
+        internal int Owners { get; set; }
+    }
+
+    /// <summary>
+    /// Gets the monotonic fencing-token counter per resource name, minted by
+    /// <see cref="InMemoryFencingTokenProvider"/>.
+    /// </summary>
+    internal ConcurrentDictionary<string, long> FencingTokens { get; } = new(StringComparer.Ordinal);
 }

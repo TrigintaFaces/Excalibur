@@ -15,6 +15,40 @@ dotnet add package Excalibur.Data.DataProcessing
 - Data transformation
 - Bulk operations
 
+## The queue table is transient
+
+`AddDataTaskForRecordTypeAsync` writes one row and returns its identifier. That row does not stay:
+
+| outcome | the row |
+|---|---|
+| the processor completed the task | **deleted** |
+| the processor failed | kept, with its attempt count raised |
+| the attempt count reached the maximum | kept, and no longer selected — a failed backfill stays visible |
+
+So **an absent row is not evidence that the enqueue failed.** With a drain running — a background
+service, or a scheduled job — a task whose processor succeeds can be gone within one polling interval.
+Query by the returned identifier to tell an enqueue that never happened from one already processed.
+
+Each enqueue logs, at `Information`, the identifier it wrote, the schema-qualified table, the database
+the write actually landed in, and whether an ambient transaction was in scope. That line is the fastest
+way to settle where a task went:
+
+```text
+Queued data task 0190c3f1-… for record type 'Orders' into [DataProcessor].[DataTaskRequests]
+on database 'AppDb'. Ambient transaction: none.
+```
+
+Two further reasons a row can appear missing, both of which the enqueue reports no error for:
+
+- **It is in another schema than the one you are looking at.** The default is
+  `[DataProcessor].[DataTaskRequests]`, not the connection's default schema — and it is written on the
+  connection you supplied to the registration, which need not be the database the rest of the
+  application uses.
+- **An ambient transaction rolled it back.** The enqueue participates in `Transaction.Current` on
+  purpose, so queueing work can be part of the business transaction that decided to queue it. A scope
+  disposed without being completed therefore discards the row. The drain refuses an ambient transaction
+  instead, because processing must not be undone by one.
+
 ## Tenancy
 
 The data task queue is a global, type-wide sweep: it runs outside any tenant scope, and its enqueue and

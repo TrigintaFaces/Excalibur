@@ -130,6 +130,7 @@ internal sealed class FencedReserveOutboxMessages : DataRequest<IEnumerable<IOut
 		                  is_multi_transport AS IsMultiTransport,
 		                  occurred_on AS CreatedAt,
 		                  attempts AS Attempts,
+		                   error_message AS LastError,
 		                  dispatcher_id AS DispatcherId,
 		                  dispatcher_timeout AS DispatcherTimeout
 		           FROM {outboxTableName}

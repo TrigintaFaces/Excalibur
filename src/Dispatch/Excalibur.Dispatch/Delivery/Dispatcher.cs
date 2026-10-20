@@ -22,7 +22,7 @@ using MR = Excalibur.Dispatch.MessageResult;
 namespace Excalibur.Dispatch.Delivery;
 
 /// <summary>
-/// High-performance dispatcher optimized for 1M+ msg/sec throughput and &lt;1μs P50 latency. Uses cached type metadata, direct field
+/// Dispatcher tuned for low per-message overhead. Uses cached type metadata, direct field
 /// access, and minimizes heap allocations in hot paths.
 /// </summary>
 /// <remarks>
@@ -1808,6 +1808,8 @@ internal sealed class Dispatcher(
 	/// repeated type checks and middleware applicability queries with one
 	/// <see cref="ConcurrentDictionary{TKey,TValue}"/> access.
 	/// </summary>
+	private bool RequiresLiveHandlerContext(Type messageType) => localMessageBus?.RequiresLiveHandlerContext(messageType) ?? false;
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[RequiresUnreferencedCode("Dispatch info resolution uses reflection for type analysis and fast-path invoker construction.")]
 	[RequiresDynamicCode("Dispatch info resolution uses MakeGenericType/MakeGenericMethod for typed invoker construction.")]
@@ -1873,7 +1875,8 @@ internal sealed class Dispatcher(
 					directLocalNoResponseEligible,
 					directLocalTypedEligible,
 					directLocalNoResponseInvoker,
-					directLocalWithResponseInvoker);
+					directLocalWithResponseInvoker,
+					() => state.RequiresLiveHandlerContext(type));
 			},
 			this);
 
@@ -1923,7 +1926,8 @@ internal sealed class Dispatcher(
 		bool directLocalNoResponseEligible,
 		bool directLocalTypedEligible,
 		Func<IDispatchAction, CancellationToken, ValueTask>? directLocalNoResponseInvoker,
-		Func<IDispatchAction, CancellationToken, ValueTask<object?>>? directLocalWithResponseInvoker)
+		Func<IDispatchAction, CancellationToken, ValueTask<object?>>? directLocalWithResponseInvoker,
+		Func<bool> requiresLiveContext)
 	{
 		/// <summary>Gets a value indicating whether middleware can be bypassed for this message type.</summary>
 		public bool CanBypassMiddleware { get; } = canBypassMiddleware;
@@ -1940,12 +1944,12 @@ internal sealed class Dispatcher(
 		/// <summary>
 		/// Gets a value indicating whether the message type can use the pre-validated direct-local no-response path.
 		/// </summary>
-		public bool DirectLocalNoResponseEligible { get; } = directLocalNoResponseEligible;
+		public bool DirectLocalNoResponseEligible => directLocalNoResponseEligible && !requiresLiveContext();
 
 		/// <summary>
 		/// Gets a value indicating whether the message type can use the pre-validated direct-local typed path.
 		/// </summary>
-		public bool DirectLocalTypedEligible { get; } = directLocalTypedEligible;
+		public bool DirectLocalTypedEligible => directLocalTypedEligible && !requiresLiveContext();
 
 		/// <summary>
 		/// Gets the prevalidated no-response direct-local invoker.

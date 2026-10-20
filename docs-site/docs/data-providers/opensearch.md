@@ -103,6 +103,45 @@ services.AddOpenSearchProjections("https://opensearch.example.com:9200", project
 });
 ```
 
+### From configuration
+
+Describe the cluster once in configuration and bind it. Each projection still keeps its own named
+options, so a per-projection index name does not leak across read models, and anything set in code runs
+after binding and wins.
+
+```json
+{
+  "OpenSearch": {
+    "NodeUris": [ "https://os01.example.com:9200", "https://os02.example.com:9200" ],
+    "IndexPrefix": "readmodels",
+    "NumberOfReplicas": 1
+  }
+}
+```
+
+```csharp
+services.AddOpenSearchProjections(
+    configuration.GetSection("OpenSearch"),
+    projections => projections
+        .Add<OrderSummary>(opts => opts.IndexName = "order-summaries")
+        .Add<CustomerProfile>(opts => opts.IndexName = "customers"));
+
+// One projection, same binding
+services.AddOpenSearchProjectionStore<OrderSummary>(
+    configuration.GetSection("OpenSearch"),
+    opts => opts.IndexName = "order-summaries");
+```
+
+:::warning No node default
+
+There is no default node address. A section that names none -- a misnamed key, a missing environment
+variable, a JSON object where an array was meant -- is refused when the host starts, rather than
+silently running the whole application against one unconfigured node.
+
+The node address is only a fallback for the registrations that build a client. When you supply the
+client yourself via `clientFactory`, no node address is read and none is required.
+:::
+
 ### Retries and Timeouts
 
 Retry, timeout, and connection-pool behaviour belong to `OpenSearch.Client` and are configured on the

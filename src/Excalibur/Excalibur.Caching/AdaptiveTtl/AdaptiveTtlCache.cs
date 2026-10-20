@@ -479,27 +479,24 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 	/// </summary>
 	private sealed class CacheEntryMetadata
 	{
-		/// <summary>
-		/// Cleanup runs at most once per this interval to avoid cleanup on every cache hit.
-		/// </summary>
-		private const int CleanupIntervalSeconds = 60;
-
 		private readonly Lock _lockObj = new();
-		private readonly Queue<DateTimeOffset> _recentAccesses = new();
+		private readonly Queue<(long Minute, long Count)> _recentAccesses = new();
 		private readonly TimeProvider _timeProvider;
+		private long _currentMinute;
+		private long _currentMinuteCount;
+		private long _recentAccessCount;
 
 		// Performance optimization: use Interlocked for hot counters
 		private long _accessCount;
 		private long _hitCount;
 		private long _lastAccessTicks;
-		private long _lastCleanupTicks;
 
 		public CacheEntryMetadata(TimeProvider timeProvider)
 		{
 			_timeProvider = timeProvider;
 			var now = timeProvider.GetUtcNow();
 			_lastAccessTicks = now.UtcTicks;
-			_lastCleanupTicks = now.UtcTicks;
+			_currentMinute = now.UtcTicks / TimeSpan.TicksPerMinute;
 			LastUpdate = now;
 		}
 
@@ -522,22 +519,12 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 				Interlocked.Increment(ref _hitCount);
 			}
 
-			// Enqueue the access timestamp (lock required for Queue<T>)
+			// One aggregate per nonempty minute bounds history independently of access rate.
 			lock (_lockObj)
 			{
-				_recentAccesses.Enqueue(now);
-			}
-
-			// Only run cleanup periodically, not on every access.
-			// Use Interlocked.CompareExchange to ensure only one thread runs cleanup.
-			var lastCleanup = Interlocked.Read(ref _lastCleanupTicks);
-			var elapsed = now.UtcTicks - lastCleanup;
-			if (elapsed > CleanupIntervalSeconds * TimeSpan.TicksPerSecond)
-			{
-				if (Interlocked.CompareExchange(ref _lastCleanupTicks, now.UtcTicks, lastCleanup) == lastCleanup)
-				{
-					CleanupStaleEntries(now);
-				}
+				AdvanceHistory(now.UtcTicks / TimeSpan.TicksPerMinute);
+				_currentMinuteCount++;
+				_recentAccessCount++;
 			}
 		}
 
@@ -551,23 +538,43 @@ public sealed partial class AdaptiveTtlCache : IDistributedCache, IDisposable, I
 
 		public double GetAccessFrequency()
 		{
+			var now = _timeProvider.GetUtcNow();
 			lock (_lockObj)
 			{
-				// Return accesses per minute based on recent history
-				return _recentAccesses.Count / 60.0;
+				AdvanceHistory(now.UtcTicks / TimeSpan.TicksPerMinute);
+				return _recentAccessCount / 60.0;
 			}
 		}
 
-		private void CleanupStaleEntries(DateTimeOffset now)
+		// Called only under _lockObj. Late samples and backward clock adjustments do
+		// not rewind the window. No clock, callback or other user code runs under it.
+		private void AdvanceHistory(long minute)
 		{
-			lock (_lockObj)
+			if (minute <= _currentMinute)
 			{
-				var cutoff = now.AddHours(-1);
-				while (_recentAccesses.Count > 0 && _recentAccesses.Peek() < cutoff)
+				return;
+			}
+
+			var cutoff = minute - 60;
+			while (_recentAccesses.TryPeek(out var oldest) && oldest.Minute < cutoff)
+			{
+				_recentAccessCount -= _recentAccesses.Dequeue().Count;
+			}
+
+			if (_currentMinuteCount > 0)
+			{
+				if (_currentMinute >= cutoff)
 				{
-					_ = _recentAccesses.Dequeue();
+					_recentAccesses.Enqueue((_currentMinute, _currentMinuteCount));
+				}
+				else
+				{
+					_recentAccessCount -= _currentMinuteCount;
 				}
 			}
+
+			_currentMinute = minute;
+			_currentMinuteCount = 0;
 		}
 	}
 

@@ -125,8 +125,8 @@ public static class DispatchServiceCollectionExtensions
 		// Configure handler invocation based on AOT requirements
 		services.ConfigureHandlerInvoker();
 
-		// The activator and the event serializer each have a reflection-based default and a
-		// reflection-free alternative. Select on what the runtime can actually do, the way
+		// The activator and event serializer have alternatives compatible with Native AOT.
+		// Select on what the runtime can actually do, the way
 		// ConfigureHandlerInvoker already selects the invoker -- rather than registering the reflective
 		// one unconditionally and then annotating this method to say so.
 		if (RuntimeFeature.IsDynamicCodeSupported)
@@ -135,8 +135,8 @@ public static class DispatchServiceCollectionExtensions
 		}
 		else
 		{
-			// Resolves handlers from the container and applies context through IMessageContextAware:
-			// no expression compilation, and no reflection over handler members.
+			// Resolves from the container; interface/registered context binding is preferred, with
+			// preserved property metadata as a fallback. No expression compilation is required.
 			services.TryAddSingleton<IHandlerActivator, AotHandlerActivator>();
 		}
 
@@ -302,8 +302,9 @@ public static class DispatchServiceCollectionExtensions
 	/// <para>
 	/// This overload scans no assemblies. It builds <c>IHandlerRegistry</c> from the DI descriptor set,
 	/// so it discovers exactly the handlers already registered -- by source-generated registration, or by
-	/// hand. It is the ahead-of-time compatible entry point: nothing here reads a type that the container
-	/// does not already reference, so trimming and native compilation preserve everything it needs.
+	/// hand. For Native AOT, use source-generated registration or the typed action, event and document
+	/// registration helpers. Ordinary DI descriptors preserve constructor metadata but do not guarantee
+	/// the property metadata needed for reflective context binding.
 	/// </para>
 	/// <para>
 	/// To discover handlers by scanning an assembly instead, call
@@ -315,9 +316,10 @@ public static class DispatchServiceCollectionExtensions
 		"Trimming",
 		"IL2072:Target parameter of 'HandlerRegistry.Register' has DynamicallyAccessedMemberTypes requirements.",
 		Justification =
-			"The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of "
-			+ "them is already referenced by the registration that put it in the collection, so trimming keeps it and its "
-			+ "constructors: this method reads types the composition root named, never types it discovered.")]
+			"Typed handler descriptors carry annotated constructor/property metadata and bypass this compatibility branch. "
+			+ "Ordinary descriptors remain supported for managed applications and generated compositions that preserve their "
+			+ "own metadata. Ordinary DI registration alone does not preserve context properties under trimming; Native AOT "
+			+ "consumers must use typed/source-generated registration or explicitly annotated registry registration.")]
 	public static IServiceCollection AddDispatchHandlers(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -337,6 +339,15 @@ public static class DispatchServiceCollectionExtensions
 
 			foreach (var descriptor in services)
 			{
+				if (descriptor is PreservedHandlerServiceDescriptor preserved)
+				{
+					var serviceType = preserved.ServiceType;
+					var expectsResponse = serviceType.GetGenericTypeDefinition() == typeof(IActionHandler<,>);
+					var arguments = serviceType.GetGenericArguments();
+					registry.Register(arguments[0], preserved.HandlerType, expectsResponse, expectsResponse ? arguments[1] : null);
+					continue;
+				}
+
 				if (descriptor.ServiceType.IsGenericType)
 				{
 					var genericDef = descriptor.ServiceType.GetGenericTypeDefinition();

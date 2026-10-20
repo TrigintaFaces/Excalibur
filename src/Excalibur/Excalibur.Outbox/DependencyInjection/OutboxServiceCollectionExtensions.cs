@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Options.Delivery;
+using Excalibur.Dispatch.Resilience;
 
 using Excalibur.Outbox;
 using Excalibur.Outbox.DependencyInjection;
@@ -19,6 +21,11 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class OutboxServiceCollectionExtensions
 {
+    internal const string MissingDeadLetterQueueMessage =
+        "The default inbox/outbox processor requires an explicitly registered IDeadLetterQueue. " +
+        "Register AddSqlServerDeadLetterQueue/WithSqlServerDeadLetterQueue or your queue implementation, " +
+        "or explicitly register NullDeadLetterQueue.Instance to choose discard.";
+
 	/// <summary>
 	/// Adds Excalibur outbox services using a fluent builder configuration.
 	/// </summary>
@@ -148,7 +155,7 @@ public static class OutboxServiceCollectionExtensions
 		// If background processing is enabled, register the hosted service
 		if (options.EnableBackgroundProcessing)
 		{
-			_ = services.AddHostedService<OutboxBackgroundService>();
+			_ = services.AddHostedService<OutboxBackgroundService>(OutboxBackgroundService.Create);
 			services.TryAddSingleton<OutboxDrainMarker>();
 		}
 
@@ -252,7 +259,11 @@ public static class OutboxServiceCollectionExtensions
 		{
 			var store = sp.GetService<Excalibur.Dispatch.IOutboxStore>()
 				?? throw new InvalidOperationException(OutboxStorePrerequisite.MissingStoreMessage);
-			return ActivatorUtilities.CreateInstance<Excalibur.Dispatch.Delivery.OutboxProcessor>(sp, store);
+			var deadLetterQueue = sp.GetService<Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()
+				?? throw new InvalidOperationException(MissingDeadLetterQueueMessage);
+			var backoff = sp.GetService<IBackoffCalculator>()
+				?? new FixedBackoffCalculator(sp.GetRequiredService<OutboxOptions>().Retry.RetryDelay);
+			return ActivatorUtilities.CreateInstance<Excalibur.Dispatch.Delivery.OutboxProcessor>(sp, store, backoff, deadLetterQueue);
 		});
 
 		// MessageOutbox (Singleton) must win even when A3 audit registered its fail-fast
@@ -281,34 +292,33 @@ public static class OutboxServiceCollectionExtensions
 			_ = services.AddOptions<OutboxStorePrerequisiteValidationOptions>().ValidateOnStart();
 		}
 
-		// bridge the consumer-facing parallel knob (OutboxOptions in this package) onto the degree
-		// the OutboxProcessor actually reads (core OutboxDeliveryOptions.BatchProcessing.ParallelProcessingDegree).
-		// They are separate option types in separate packages with no prior translation, so the advertised
-		// EnableParallelProcessing(N) builder was inert. Options-composition resolves OutboxOptions at
-		// configure-time (no stale snapshot); Excalibur.Outbox -> Excalibur.Dispatch core is a downward
-		// reference. No-op unless the consumer enabled parallel processing on the outbox builder.
-		_ = services.AddOptions<Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptions>()
-			.Configure<OutboxOptions>((delivery, outbox) =>
-			{
-				if (outbox.EnableParallelProcessing)
-				{
-					delivery.BatchProcessing.ParallelProcessingDegree = outbox.MaxDegreeOfParallelism;
-				}
-			});
+		// Framework defaults run once and BEFORE consumer Configure callbacks in either registration
+		// order. Do not use PostConfigure or compare values to defaults: both would erase explicit choices.
+		_ = services.AddOptions<OutboxDeliveryOptions>();
+		_ = services.AddOptions<OutboxProcessingOptions>();
+		if (!services.Any(static descriptor => descriptor.ServiceType == typeof(IConfigureOptions<OutboxDeliveryOptions>)
+			&& !descriptor.IsKeyedService && descriptor.GetImplementationType() == typeof(OutboxDeliveryOptionsDefaults)))
+		{
+			services.Insert(0, ServiceDescriptor.Singleton<IConfigureOptions<OutboxDeliveryOptions>, OutboxDeliveryOptionsDefaults>());
+		}
+		if (!services.Any(static descriptor => descriptor.ServiceType == typeof(IConfigureOptions<OutboxProcessingOptions>)
+			&& !descriptor.IsKeyedService && descriptor.GetImplementationType() == typeof(OutboxProcessingOptionsDefaults)))
+		{
+			services.Insert(0, ServiceDescriptor.Singleton<IConfigureOptions<OutboxProcessingOptions>, OutboxProcessingOptionsDefaults>());
+		}
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<OutboxDeliveryOptions>, Excalibur.Dispatch.Options.Delivery.OutboxDeliveryOptionsValidator>());
 
-		// The same bridge for the poll interval. WithPollingInterval(...) lands on OutboxOptions, while the
-		// drain loop and every provider's failure-floor validator read OutboxProcessingOptions -- a type
-		// nothing bound, so it always yielded its own 5-second default. Two consequences, and the second is
-		// the worse one: the loop polled at 5 s whatever the operator asked for, and the F > poll invariant
-		// was CHECKED against 5 s rather than against the interval the operator actually configured, so a
-		// configuration whose real backoff floor sat below its real poll interval passed startup. A
-		// validator holding an invariant against a value the system does not use cannot fail on the case it
-		// exists for.
-		//
-		// Composition rather than a snapshot: OutboxOptions is resolved when OutboxProcessingOptions is
-		// first materialised, so a later Configure on either type is still seen.
-		_ = services.AddOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions>()
-			.Configure<OutboxOptions>((processing, outbox) => processing.PollingInterval = outbox.PollingInterval);
+        // Validate the final composed value, including consumer Configure and PostConfigure callbacks.
+        // Identify our implementation so consumer validators cannot suppress these runtime checks.
+        if (!services.Any(static descriptor =>
+            descriptor.ServiceType == typeof(IValidateOptions<OutboxProcessingOptions>)
+            && !descriptor.IsKeyedService
+            && descriptor.GetImplementationType() == typeof(OutboxProcessingOptionsValidator)))
+        {
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<
+                IValidateOptions<OutboxProcessingOptions>, OutboxProcessingOptionsValidator>());
+            _ = services.AddOptions<OutboxProcessingOptions>().ValidateOnStart();
+        }
 	}
 
 	/// <summary>
@@ -403,7 +413,7 @@ public static class OutboxServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		_ = services.AddHostedService<OutboxBackgroundService>();
+		_ = services.AddHostedService<OutboxBackgroundService>(OutboxBackgroundService.Create);
 		services.TryAddSingleton<OutboxDrainMarker>();
 
 		return services;
@@ -453,7 +463,12 @@ public static class OutboxServiceCollectionExtensions
 		_ = services.AddDispatchPipeline();
 
 		services.TryAddSingleton<Excalibur.Dispatch.Serialization.DispatchJsonSerializer>();
-		services.TryAddTransient<Excalibur.Dispatch.IInboxProcessor, Excalibur.Dispatch.Delivery.InboxProcessor>();
+		services.TryAddTransient<Excalibur.Dispatch.IInboxProcessor>(static sp =>
+		{
+			var deadLetterQueue = sp.GetService<Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>()
+				?? throw new InvalidOperationException(MissingDeadLetterQueueMessage);
+			return ActivatorUtilities.CreateInstance<Excalibur.Dispatch.Delivery.InboxProcessor>(sp, deadLetterQueue);
+		});
 		services.TryAddSingleton<Excalibur.Dispatch.IInbox, Excalibur.Dispatch.Delivery.MessageInbox>();
 
 		_ = services.AddHostedService<InboxService>();

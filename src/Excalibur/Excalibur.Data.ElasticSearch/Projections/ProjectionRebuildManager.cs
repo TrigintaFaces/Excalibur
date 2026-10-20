@@ -20,11 +20,17 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <summary>
 /// Manages projection rebuild operations for ElasticSearch-backed projections.
 /// </summary>
-public sealed class ProjectionRebuildManager : IProjectionRebuildManager
+/// <remarks>
+/// Internal by default, per the internal-first standard: consumers reach rebuilds through the public
+/// <see cref="IProjectionRebuildManager"/> contract, and nothing outside this package named the
+/// implementation. That also keeps its constructor free to take the dependencies it needs.
+/// </remarks>
+internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 {
 	private readonly ElasticsearchClient _client;
 	private readonly IIndexAliasManager _aliasManager;
-	private readonly ProjectionOptions _settings;
+	private readonly ElasticSearchProjectionManagementOptions _settings;
+	private readonly IOptionsMonitor<ElasticSearchProjectionStoreOptions> _storeOptions;
 	private readonly ILogger<ProjectionRebuildManager> _logger;
 	private readonly string _operationsIndexName;
 
@@ -36,18 +42,23 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 	/// </summary>
 	/// <param name="client"> The Elasticsearch client. </param>
 	/// <param name="aliasManager"> The alias manager for zero-downtime swaps. </param>
-	/// <param name="options"> Projection settings. </param>
+	/// <param name="options"> Projection settings -- names this subsystem's own sidecar indexes. </param>
+	/// <param name="storeOptions">
+	/// The per-projection store options, which are where a projection's OWN index name comes from.
+	/// </param>
 	/// <param name="logger"> Logger instance. </param>
 	public ProjectionRebuildManager(
 		ElasticsearchClient client,
 		IIndexAliasManager aliasManager,
-		IOptions<ProjectionOptions> options,
+		IOptions<ElasticSearchProjectionManagementOptions> options,
+		IOptionsMonitor<ElasticSearchProjectionStoreOptions> storeOptions,
 		ILogger<ProjectionRebuildManager> logger)
 	{
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_aliasManager = aliasManager ?? throw new ArgumentNullException(nameof(aliasManager));
 		ArgumentNullException.ThrowIfNull(options);
 		_settings = options.Value ?? throw new ArgumentNullException(nameof(options));
+		_storeOptions = storeOptions ?? throw new ArgumentNullException(nameof(storeOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_operationsIndexName = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-rebuild-operations";
@@ -255,7 +266,12 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 			};
 		}
 
-		var projectionIndex = $"{IndexNameNormalizer.Normalize(_settings.IndexPrefix)}-{projectionType.ToLowerInvariant()}";
+		// THE SAME FUNCTION THE STORE USES, against the SAME named options bucket. Composing the name
+		// here instead -- from this subsystem's own IndexPrefix, and without IndexName -- is what made
+		// validation report a consumer's existing index as missing the moment either setting was used.
+		var projectionIndex = ElasticSearchProjectionIndexConvention.GetIndexName(
+			_storeOptions.Get(projectionType),
+			projectionType);
 		var existsResponse = await _client.Indices.ExistsAsync(projectionIndex, cancellationToken)
 			.ConfigureAwait(false);
 

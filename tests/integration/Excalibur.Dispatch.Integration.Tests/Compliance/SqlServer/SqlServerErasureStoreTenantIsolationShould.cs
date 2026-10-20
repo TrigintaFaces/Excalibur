@@ -45,10 +45,17 @@ namespace Excalibur.Dispatch.Integration.Tests.Compliance.SqlServer;
 [Trait("Infrastructure", TestInfrastructure.SqlServer)]
 public sealed class SqlServerErasureStoreTenantIsolationShould : IntegrationTestBase
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task RecoverDestructionEvidenceUsingFreshStoresAndServices(bool deferred) =>
+        global::Excalibur.Dispatch.Integration.Tests.Compliance.ErasureRecoveryControls.RecoverAsync(
+            () => CreateStore(OwningTenant), new PassThroughDataSubjectHasher(), OwningTenant, deferred, TestCancellationToken);
 	private const string OwningTenant = "erasure-tenant-owning";
 	private const string ForeignTenant = "erasure-tenant-foreign-owns-nothing";
 
 	private readonly SqlServerFixture _fixture;
+	private readonly string _suffix = Guid.NewGuid().ToString("N")[..8];
 
 	public SqlServerErasureStoreTenantIsolationShould(SqlServerFixture fixture) => _fixture = fixture;
 
@@ -227,6 +234,64 @@ public sealed class SqlServerErasureStoreTenantIsolationShould : IntegrationTest
 			"the row belongs to the tenant that filed it and must be readable by them.");
 	}
 
+
+	/// <summary>
+	/// Background discovery crosses tenant partitions without widening ordinary consumer listing.
+	/// Equal request times exercise the provider's own stable tie-break, not .NET Guid ordering.
+	/// </summary>
+	[Fact]
+	public async Task DiscoverAwaitingOwnersAcrossStablePagesWithoutWideningConsumerListing()
+	{
+		var owner = CreateStore(OwningTenant);
+		var foreign = CreateStore(ForeignTenant);
+		var requestedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+		var ownRequest = CreateRequest("background-owning") with { RequestedAt = requestedAt };
+		var foreignRequest = CreateRequest("background-foreign") with { RequestedAt = requestedAt };
+		var scheduled = CreateRequest("background-scheduled") with { RequestedAt = requestedAt };
+		await owner.SaveRequestAsync(ownRequest, requestedAt, TestCancellationToken);
+		await foreign.SaveRequestAsync(foreignRequest, requestedAt, TestCancellationToken);
+		await owner.SaveRequestAsync(scheduled, requestedAt, TestCancellationToken);
+		(await owner.UpdateStatusAsync(ownRequest.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, null, TestCancellationToken)).ShouldBeTrue();
+		(await foreign.UpdateStatusAsync(foreignRequest.RequestId, ErasureRequestStatus.AwaitingKeyDestruction, null, TestCancellationToken)).ShouldBeTrue();
+
+		var background = owner.GetService(typeof(IErasureBackgroundQueryStore))
+			.ShouldBeAssignableTo<IErasureBackgroundQueryStore>();
+		var first = (await background.GetAwaitingKeyDestructionRequestsAsync(1, 1, TestCancellationToken)).ShouldHaveSingleItem();
+		var second = (await background.GetAwaitingKeyDestructionRequestsAsync(2, 1, TestCancellationToken)).ShouldHaveSingleItem();
+		first.RequestId.ShouldNotBe(second.RequestId);
+		var expectedOwners = new Dictionary<Guid, string>
+		{
+			[ownRequest.RequestId] = OwningTenant,
+			[foreignRequest.RequestId] = ForeignTenant,
+		};
+		expectedOwners.Keys.ShouldContain(first.RequestId);
+		expectedOwners.Keys.ShouldContain(second.RequestId);
+		first.TenantId.ShouldBe(expectedOwners[first.RequestId]);
+		second.TenantId.ShouldBe(expectedOwners[second.RequestId]);
+		first.RequestedAt.ShouldBe(requestedAt);
+		second.RequestedAt.ShouldBe(requestedAt);
+		first.Status.ShouldBe(ErasureRequestStatus.AwaitingKeyDestruction);
+		second.Status.ShouldBe(ErasureRequestStatus.AwaitingKeyDestruction);
+		(await background.GetAwaitingKeyDestructionRequestsAsync(3, 1, TestCancellationToken)).ShouldBeEmpty();
+		(await background.GetAwaitingKeyDestructionRequestsAsync(1, 1, TestCancellationToken))
+			.ShouldHaveSingleItem().RequestId.ShouldBe(first.RequestId);
+		(await background.GetAwaitingKeyDestructionRequestsAsync(2, 1, TestCancellationToken))
+			.ShouldHaveSingleItem().RequestId.ShouldBe(second.RequestId);
+
+		var consumer = await owner.ListRequestsAsync(
+			ErasureRequestStatus.AwaitingKeyDestruction, null, null, null, 1, 100, TestCancellationToken);
+		consumer.ShouldHaveSingleItem().RequestId.ShouldBe(ownRequest.RequestId);
+		consumer.ShouldAllBe(row => row.TenantId == OwningTenant);
+		(await owner.ListRequestsAsync(null, ForeignTenant, null, null, 1, 100, TestCancellationToken)).ShouldBeEmpty();
+		(await background.GetAwaitingKeyDestructionRequestsAsync(int.MaxValue, 1000, TestCancellationToken)).ShouldBeEmpty();
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+			() => background.GetAwaitingKeyDestructionRequestsAsync(0, 1, TestCancellationToken));
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+			() => background.GetAwaitingKeyDestructionRequestsAsync(1, 0, TestCancellationToken));
+		_ = await Should.ThrowAsync<ArgumentOutOfRangeException>(
+			() => background.GetAwaitingKeyDestructionRequestsAsync(1, 1001, TestCancellationToken));
+	}
+
 	// The data subject is the CALLING ARM's name so every arm seeds a row no other arm can match. Sharing
 	// one identifier across arms makes a row seeded by one arm indistinguishable from the row another arm
 	// exists to detect, which reads exactly like a leak that has not happened.
@@ -248,8 +313,8 @@ public sealed class SqlServerErasureStoreTenantIsolationShould : IntegrationTest
 		{
 			ConnectionString = _fixture.ConnectionString,
 			SchemaName = "compliance",
-			RequestsTableName = "ErasureRequestsTenantIsolation",
-			CertificatesTableName = "ErasureCertificatesTenantIsolation",
+			RequestsTableName = $"ErasureRequestsTenantIsolation_{_suffix}",
+			CertificatesTableName = $"ErasureCertificatesTenantIsolation_{_suffix}",
 			AutoCreateSchema = true,
 		}),
 		new PassThroughDataSubjectHasher(),

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Reflection;
+using System.Text.Json;
+
+using Amazon.DynamoDBv2.DocumentModel;
 
 using StreamsAttributeValue = Amazon.DynamoDBStreams.Model.AttributeValue;
 using DynamoDbAttributeValue = Amazon.DynamoDBv2.Model.AttributeValue;
@@ -14,11 +17,12 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// <remarks>
 /// Sprint 514 (S514.4): DynamoDB unit tests.
 /// Tests verify attribute value conversion between Streams and DynamoDB SDK types.
-/// Note: DynamoDbAttributeValueConverter is internal, so we use reflection to test it.
+/// The converter is public; new SDK serialization controls exercise it directly.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
 [Trait("Feature", "Converter")]
+[Trait("Pattern", "SERIALIZATION")]
 public sealed class DynamoDbAttributeValueConverterShould
 {
 	private readonly Type _converterType;
@@ -259,6 +263,110 @@ public sealed class DynamoDbAttributeValueConverterShould
 	#endregion
 
 	#region Type Tests
+
+	[Fact]
+	public void PreserveNullEmptyAndNonemptyContainersThroughTheActualSdkJsonWriter()
+	{
+		var input = new Dictionary<string, StreamsAttributeValue>(StringComparer.Ordinal)
+		{
+			["null"] = new() { NULL = true },
+			["emptyMap"] = new() { M = new Dictionary<string, StreamsAttributeValue>() },
+			["emptyList"] = new() { L = [] },
+			["map"] = new() { M = new Dictionary<string, StreamsAttributeValue> { ["inside"] = new() { S = "map-value" } } },
+			["list"] = new() { L = [new() { S = "list-value" }] },
+		};
+		var converted = DynamoDbAttributeValueConverter.ToAttributeValueMap(input).ShouldNotBeNull();
+		using var json = JsonDocument.Parse(Document.FromAttributeMap(converted).ToJson());
+		json.RootElement.GetProperty("null").ValueKind.ShouldBe(JsonValueKind.Null);
+		json.RootElement.GetProperty("emptyMap").ValueKind.ShouldBe(JsonValueKind.Object);
+		json.RootElement.GetProperty("emptyMap").EnumerateObject().ShouldBeEmpty();
+		json.RootElement.GetProperty("emptyList").ValueKind.ShouldBe(JsonValueKind.Array);
+		json.RootElement.GetProperty("emptyList").GetArrayLength().ShouldBe(0);
+		json.RootElement.GetProperty("map").GetProperty("inside").GetString().ShouldBe("map-value");
+		json.RootElement.GetProperty("list")[0].GetString().ShouldBe("list-value");
+	}
+
+	[Fact]
+	public void PreserveNestedEmptyContainersAndFalseBooleanThroughTheActualSdkJsonWriter()
+	{
+		var converted = DynamoDbAttributeValueConverter.ToAttributeValueMap(new Dictionary<string, StreamsAttributeValue>
+		{
+			["outer"] = new()
+			{
+				M = new Dictionary<string, StreamsAttributeValue>
+				{
+					["sequence"] = new() { L = [new() { M = new Dictionary<string, StreamsAttributeValue>() },
+						new() { L = [] }, new() { BOOL = false }] },
+				},
+			},
+		}).ShouldNotBeNull();
+		using var json = JsonDocument.Parse(Document.FromAttributeMap(converted).ToJson());
+		var sequence = json.RootElement.GetProperty("outer").GetProperty("sequence");
+		sequence.GetArrayLength().ShouldBe(3);
+		sequence[0].ValueKind.ShouldBe(JsonValueKind.Object);
+		sequence[0].EnumerateObject().ShouldBeEmpty();
+		sequence[1].ValueKind.ShouldBe(JsonValueKind.Array);
+		sequence[1].GetArrayLength().ShouldBe(0);
+		sequence[2].GetBoolean().ShouldBeFalse();
+	}
+
+	[Fact]
+	public void KeepUnsetContainersUnset()
+	{
+		var converted = DynamoDbAttributeValueConverter.ToAttributeValueMap(new Dictionary<string, StreamsAttributeValue>
+		{
+			["scalar"] = new() { S = "declared", M = null, L = null },
+		}).ShouldNotBeNull();
+		converted["scalar"].M.ShouldBeNull();
+		converted["scalar"].L.ShouldBeNull();
+		converted["scalar"].S.ShouldBe("declared");
+	}
+
+	[Fact]
+	public void RetainDeclaredScalarAndNonemptyKindsWhileIgnoringCompetingEmptyCollections()
+	{
+		var input = new Dictionary<string, StreamsAttributeValue>
+		{
+			["emptyString"] = WithEmptyCollections(new StreamsAttributeValue { S = string.Empty }),
+			["false"] = WithEmptyCollections(new StreamsAttributeValue { BOOL = false }),
+			["number"] = WithEmptyCollections(new StreamsAttributeValue { N = "123.50" }),
+			["stringSet"] = WithEmptyCollections(new StreamsAttributeValue { SS = ["member"] }),
+			["map"] = new() { M = new Dictionary<string, StreamsAttributeValue> { ["key"] = new() { S = "value" } }, L = [] },
+			["list"] = new() { M = new Dictionary<string, StreamsAttributeValue>(), L = [new() { S = "entry" }] },
+		};
+		var converted = DynamoDbAttributeValueConverter.ToAttributeValueMap(input).ShouldNotBeNull();
+		using var json = JsonDocument.Parse(Document.FromAttributeMap(converted).ToJson());
+		json.RootElement.GetProperty("emptyString").GetString().ShouldBe(string.Empty);
+		json.RootElement.GetProperty("false").GetBoolean().ShouldBeFalse();
+		json.RootElement.GetProperty("number").GetDecimal().ShouldBe(123.50m);
+		json.RootElement.GetProperty("stringSet")[0].GetString().ShouldBe("member");
+		json.RootElement.GetProperty("map").GetProperty("key").GetString().ShouldBe("value");
+		json.RootElement.GetProperty("list")[0].GetString().ShouldBe("entry");
+		converted["emptyString"].M.ShouldBeNull();
+		converted["emptyString"].L.ShouldBeNull();
+		converted["emptyString"].SS.ShouldBeNull();
+	}
+
+	[Fact]
+	public void RefuseAnUnidentifiedValueWithBothEmptyContainerKinds()
+	{
+		var input = new Dictionary<string, StreamsAttributeValue>
+		{
+			["ambiguous"] = WithEmptyCollections(new StreamsAttributeValue()),
+		};
+		Should.Throw<InvalidOperationException>(() => DynamoDbAttributeValueConverter.ToAttributeValueMap(input))
+			.Message.ShouldContain("AWSConfigs.InitializeCollections = false");
+	}
+
+	private static StreamsAttributeValue WithEmptyCollections(StreamsAttributeValue value)
+	{
+		value.M = new Dictionary<string, StreamsAttributeValue>();
+		value.L = [];
+		value.BS ??= [];
+		value.NS ??= [];
+		value.SS ??= [];
+		return value;
+	}
 
 	[Fact]
 	public void IsStatic()

@@ -25,8 +25,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddTimeAwareScheduling(this IServiceCollection services)
 	{
 		// Add TimePolicy services
@@ -55,8 +53,8 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configuration"> The configuration instance. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
+	[RequiresUnreferencedCode("Binding scheduling configuration may require members that trimming removes. Use action-based configuration for NativeAOT.")]
+	[RequiresDynamicCode("Binding scheduling configuration may require runtime code generation. Use action-based configuration for NativeAOT.")]
 	public static IServiceCollection AddTimeAwareScheduling(this IServiceCollection services, IConfiguration configuration)
 	{
 		// Add TimePolicy services with configuration
@@ -83,8 +81,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="configureScheduler"> Action to configure the time-aware scheduler options. </param>
 	/// <param name="configureTimePolicy"> Optional action to configure the time policy options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions> configureScheduler,
@@ -120,8 +116,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure additional scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddAdaptiveTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -154,8 +148,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure the scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddLightweightTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -188,8 +180,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// <param name="services"> The service collection. </param>
 	/// <param name="configureScheduler"> Optional action to configure additional scheduler options. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddThroughputTimeAwareScheduling(
 		this IServiceCollection services,
 		Action<TimeAwareSchedulerOptions>? configureScheduler = null)
@@ -237,8 +227,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The service collection for method chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection ReplaceWithTimeAwareScheduling(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -312,8 +300,6 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	/// </remarks>
 	/// <param name="services"> The service collection. </param>
 	/// <returns> The same <see cref="IServiceCollection" /> for chaining. </returns>
-	[RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
-	[RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	private static IServiceCollection AddScheduledDeliveryRuntime(IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);

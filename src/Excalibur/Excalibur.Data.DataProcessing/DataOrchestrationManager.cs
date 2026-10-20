@@ -106,18 +106,40 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 	public async Task<Guid> AddDataTaskForRecordTypeAsync(string recordType, CancellationToken cancellationToken)
 	{
 		var dataTaskId = Uuid7Extensions.GenerateGuid();
+		var options = _configuration.Value;
 
 		await ResiliencePolicy.ExecuteAsync(async () =>
 		{
 			var req = new InsertDataTask(
 				dataTaskId,
 				recordType,
-				_configuration.Value,
+				options,
 				DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken);
 
 			using var connection = _connectionFactory();
-			_ = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
+			var inserted = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
+
+			// Returning the identifier after an insert that affected nothing makes a task that was
+			// never queued indistinguishable from one that was. Suppressed counts report -1, which
+			// is not a refusal; only zero is.
+			if (inserted == 0)
+			{
+				throw new InvalidOperationException(
+					$"Queueing a data task for record type '{recordType}' affected no rows in "
+					+ $"{options.QualifiedTableName}, so nothing was queued.");
+			}
+
+			// The one line that distinguishes "it was never written" from "it was written somewhere
+			// else": a task that cannot be found afterwards is nearly always in another database, in
+			// another schema, or inside an uncommitted ambient transaction, and none of the three is
+			// visible to the caller.
+			LogDataTaskQueued(
+				dataTaskId,
+				recordType,
+				options.QualifiedTableName,
+				connection.Database,
+				Transaction.Current?.TransactionInformation.LocalIdentifier ?? "none");
 		}).ConfigureAwait(false);
 
 		return dataTaskId;

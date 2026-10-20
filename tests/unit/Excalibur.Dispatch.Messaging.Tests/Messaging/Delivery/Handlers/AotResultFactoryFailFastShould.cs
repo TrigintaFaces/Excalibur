@@ -22,6 +22,48 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 [Trait("Priority", "0")]
 public sealed class AotResultFactoryFailFastShould
 {
+	private sealed record ConstructorOnlyResult(string Value);
+
+	[Theory]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	public void PreserveSuccessfulNullReferenceWithoutPayloadConstructor(bool dynamicCodeSupported, bool routed)
+	{
+		ResultFactoryRegistry.RegisterFactory<ConstructorOnlyResult>();
+		var context = new MessageContext();
+		if (routed)
+		{
+			context.CachedRoutingDecision = RoutingDecision.Local;
+		}
+
+		var result = FinalDispatchHandler.CreateTypedResult(context, typeof(ConstructorOnlyResult), dynamicCodeSupported);
+		result.Succeeded.ShouldBeTrue();
+		result.ShouldBeAssignableTo<IMessageResult<ConstructorOnlyResult>>().ReturnValue.ShouldBeNull();
+		if (routed)
+		{
+			result.ShouldNotBeOfType<SimpleSuccessMessageResultOfT<ConstructorOnlyResult>>();
+		}
+		else
+		{
+			result.ShouldBeOfType<SimpleSuccessMessageResultOfT<ConstructorOnlyResult>>();
+		}
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void PreserveExistingConstructorOnlyPayload(bool dynamicCodeSupported)
+	{
+		ResultFactoryRegistry.RegisterFactory<ConstructorOnlyResult>();
+		var payload = new ConstructorOnlyResult("present");
+		var context = new MessageContext { Result = payload, CachedRoutingDecision = RoutingDecision.Local };
+		var result = FinalDispatchHandler.CreateTypedResult(context, typeof(ConstructorOnlyResult), dynamicCodeSupported);
+		result.Succeeded.ShouldBeTrue();
+		result.ShouldBeAssignableTo<IMessageResult<ConstructorOnlyResult>>().ReturnValue.ShouldBeSameAs(payload);
+	}
+
 	/// <summary>
 	/// Never appears as a type argument of <c>MessageResult&lt;T&gt;</c>, <c>IDispatchAction&lt;T&gt;</c>,
 	/// or <c>IActionHandler&lt;,&gt;</c> anywhere in this assembly, so the source generator cannot discover

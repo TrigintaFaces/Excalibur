@@ -42,8 +42,8 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	private readonly ConcurrentDictionary<string, Receipt> _receipts = new(StringComparer.Ordinal);
 
 	/// <summary>
-	/// Maximum unsettled messages tracked in the receipt cache.
-	/// Prevents unbounded memory growth if messages are received but never settled.
+	/// Warning threshold for the unsettled receipt cache.
+	/// This logs growth; it does not enforce a cache limit.
 	/// </summary>
 	private const int MaxUnsettledMessages = 10_000;
 
@@ -52,7 +52,13 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	/// generation the delivery was made under. The generation is what stops an acknowledgment produced
 	/// before a rebalance from settling the position of whoever owns the partition now.
 	/// </summary>
-	private readonly record struct Receipt(TopicPartition Partition, long Offset, long Generation);
+	private sealed class Receipt(TopicPartition partition, long offset, long generation)
+	{
+		public TopicPartition Partition { get; } = partition;
+		public long Offset { get; } = offset;
+		public long Generation { get; } = generation;
+		public string Handle { get; } = $"{partition.Topic}:{partition.Partition.Value}:{offset}:{generation}";
+	}
 
 	private volatile bool _disposed;
 	private readonly int _maxBatchSize;
@@ -141,7 +147,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 		// caller, yet they are recorded as dispatched and so are filtered out of a later poll: without
 		// this, a mid-batch failure would leave them owed by nobody and stall the partition's commit
 		// position permanently. The catch below hands them back.
-		var delivered = new List<(TopicPartition Partition, long Offset, long Generation)>();
+		var delivered = new List<Receipt>();
 
 		try
 		{
@@ -150,57 +156,69 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 			for (var i = 0; i < boundedMaxMessages && !cancellationToken.IsCancellationRequested; i++)
 			{
 				var pollTimeout = i == 0 ? DefaultMaxBatchWait : TimeSpan.Zero;
-				var consumeResult = _consumer.Consume(pollTimeout);
-				if (consumeResult?.Message == null)
+				global::Confluent.Kafka.ConsumeResult<string, byte[]>? consumeResult;
+				KafkaDeliveryDecision decision;
+				long generation;
+				Receipt delivery;
+				lock (_progress.OperationGate)
 				{
-					break;
-				}
-
-				// A requeue seeks the partition backwards, so a poll after one replays offsets that already
-				// reached a terminal state. Those must not be handed out a second time.
-				var decision = _progress.BeginDelivery(consumeResult.TopicPartition, consumeResult.Offset.Value);
-				if (decision.AbandonedOffset is { } abandoned)
-				{
-					LogOwedOffsetAbandoned(Source, consumeResult.Partition.Value, abandoned);
-				}
-
-				if (decision.SeekTo is { } seekTo)
-				{
-					// The fetch position passed an owed offset. Seek back before fetching further. A seek that throws
-					// is not fatal to this batch: the next record fetched past the owed offset asks for it again.
-					LogOwedOffsetReseek(Source, consumeResult.Partition.Value, seekTo);
-					try
+					consumeResult = _consumer.Consume(pollTimeout);
+					if (consumeResult?.Message == null)
 					{
-						_consumer.Seek(new TopicPartitionOffset(consumeResult.TopicPartition, new Offset(seekTo)));
-
-						// Reported only once the seek returned: the binding waits for it and throws on any failure.
-						_progress.NoteSeekIssued(consumeResult.TopicPartition, seekTo);
-					}
-					catch (KafkaException ex)
-					{
-						LogUndeliveredBatchSeekFailed(Source, consumeResult.Partition.Value, seekTo, ex);
+						break;
 					}
 
-					continue;
-				}
+					// A requeue seeks the partition backwards, so a poll after one replays offsets that already
+					// reached a terminal state. Those must not be handed out a second time.
+					decision = _progress.BeginDelivery(consumeResult.TopicPartition, consumeResult.Offset.Value);
+					if (decision.AbandonedOffset is { } abandoned)
+					{
+						LogOwedOffsetAbandoned(Source, consumeResult.Partition.Value, abandoned);
+					}
 
-				var generation = decision.Generation;
-				if (!decision.Deliver)
-				{
-					LogRedeliveryOfSettledOffsetSkipped(Source, consumeResult.Partition.Value, consumeResult.Offset.Value);
-					continue;
-				}
+					if (decision.SeekTo is { } seekTo)
+					{
+						// The fetch position passed an owed offset. Seek back before fetching further. A seek that throws
+						// is not fatal to this batch: the next record fetched past the owed offset asks for it again.
+						LogOwedOffsetReseek(Source, consumeResult.Partition.Value, seekTo);
+						try
+						{
+							_consumer.Seek(new TopicPartitionOffset(consumeResult.TopicPartition, new Offset(seekTo)));
 
-				// Recorded the moment delivery begins, before anything else can throw: an offset the tracker holds as
-				// dispatched but this batch has not recorded would never be handed back if the batch fails, and would
-				// stay owed for the rest of the tenure.
-				var delivery = (consumeResult.TopicPartition, consumeResult.Offset.Value, generation);
-				delivered.Add(delivery);
+							// Reported only once the seek returned: the binding waits for it and throws on any failure.
+							_progress.NoteSeekIssued(consumeResult.TopicPartition, seekTo);
+						}
+						catch (KafkaException ex)
+						{
+							LogUndeliveredBatchSeekFailed(Source, consumeResult.Partition.Value, seekTo, ex);
+						}
+
+						continue;
+					}
+
+					generation = decision.Generation;
+					if (!decision.Deliver)
+					{
+						LogRedeliveryOfSettledOffsetSkipped(Source, consumeResult.Partition.Value, consumeResult.Offset.Value);
+						continue;
+					}
+
+					// Recorded the moment delivery begins, before anything else can throw: an offset the tracker holds as
+					// dispatched but this batch has not recorded would never be handed back if the batch fails, and would
+					// stay owed for the rest of the tenure.
+					delivery = new Receipt(consumeResult.TopicPartition, consumeResult.Offset.Value, generation);
+					_receipts[delivery.Handle] = delivery;
+					delivered.Add(delivery);
+
+				}
 
 				TransportReceivedMessage received;
 				try
 				{
-					received = ConvertToReceivedMessage(consumeResult, generation);
+					lock (_progress.OperationGate)
+					{
+						received = ConvertToReceivedMessage(consumeResult, delivery);
+					}
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)
 				{
@@ -219,8 +237,18 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 					}
 
 					await _poison.RouteAsync(consumeResult, ex, cancellationToken).ConfigureAwait(false);
-					_ = delivered.Remove(delivery);
-					SettleTerminal(consumeResult.TopicPartition, consumeResult.Offset.Value, generation);
+					lock (_progress.OperationGate)
+					{
+						// Poison remains batch-owned through routing and native settlement.
+						// A native failure leaves the original entry available to the batch recovery path.
+						if (_receipts.TryGetValue(delivery.Handle, out var current) && ReferenceEquals(current, delivery))
+						{
+							_ = SettleTerminal(consumeResult.TopicPartition, consumeResult.Offset.Value, generation);
+							_ = _receipts.TryRemove(new KeyValuePair<string, Receipt>(delivery.Handle, delivery));
+						}
+
+						_ = delivered.Remove(delivery);
+					}
 					continue;
 				}
 
@@ -242,142 +270,117 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	public Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
-
-		var receiptHandle = GetReceiptHandle(message);
-		if (!_receipts.TryGetValue(receiptHandle, out var receipt))
+		lock (_progress.OperationGate)
 		{
-			throw new TransportSettlementException(
-				$"Kafka cannot acknowledge message with receipt handle '{receiptHandle}': it is not in the receipt "
-				+ "cache. It may already have been settled, or its partition may have been reassigned.")
+			try
 			{
-				TransportName = "Kafka",
-
-				// The receipt is gone, so this consumer cannot say what became of the offset: if the
-				// partition was reassigned it belongs to whoever owns it now.
-				RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
-				Retryability = SettlementRetryability.Permanent,
-			};
-		}
-
-		try
-		{
-			// A stale-generation acknowledgment is dropped rather than committed, and must not be reported
-			// as an acknowledgment: the work it refers to belongs to whoever owns the partition now.
-			if (SettleTerminal(receipt.Partition, receipt.Offset, receipt.Generation))
-			{
+				var receiptHandle = GetReceiptHandle(message);
+				var receipt = GetSettlementReceipt(message, receiptHandle);
+				SettlePublicTerminal(receiptHandle, receipt);
 				LogMessageAcknowledged(message.Id, Source);
+				return Task.CompletedTask;
 			}
-
-			_ = _receipts.TryRemove(receiptHandle, out _);
+			catch (TransportSettlementException)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogAcknowledgeError(message.Id, Source, ex);
+				throw NativeSettlementFailure("acknowledge", ex);
+			}
 		}
-		catch (Exception ex)
-		{
-			// The receipt stays cached: the commit position is recomputed from what is still owed on the next
-			// settle, and a Kafka commit names an absolute position, so a retry subsumes this failure.
-			LogAcknowledgeError(message.Id, Source, ex);
-			throw;
-		}
-
-		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />
 	public Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
-
-		var receiptHandle = GetReceiptHandle(message);
-		if (!_receipts.TryGetValue(receiptHandle, out var receipt))
+		lock (_progress.OperationGate)
 		{
-			// MATCHES AcknowledgeAsync ABOVE, WHICH ALREADY GOT THIS RIGHT.
-			// Returning normally here reported a rejection that did not happen: with no receipt there is no
-			// offset to hold or seek, so neither outcome was delivered. The asymmetry meant the same missing
-			// receipt raised on the acknowledge path and was silently swallowed on the reject path.
-			throw new TransportSettlementException(
-				$"Kafka cannot reject message with receipt handle '{receiptHandle}': it is not in the receipt "
-				+ "cache. It may already have been settled, or its partition may have been reassigned.")
+			try
 			{
-				TransportName = "Kafka",
-				RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
-				Retryability = SettlementRetryability.Permanent,
-			};
-		}
+				var receiptHandle = GetReceiptHandle(message);
+				var receipt = GetSettlementReceipt(message, receiptHandle);
+				if (requeue)
+				{
+					var outcome = _progress.TryRequeue(receipt.Partition, receipt.Offset, receipt.Generation, out var seekOffset);
+					if (outcome == KafkaRequeueOutcome.NotOutstanding)
+					{
+						// A failed commit can leave terminal local progress with an uncertain broker outcome.
+						// Keep the receipt so a terminal retry can still commit the absolute position.
+						throw SettlementRefusal($"Kafka cannot requeue receipt '{receiptHandle}': the offset is already terminal locally.");
+					}
 
-		if (requeue)
-		{
-			// The offset stays owed — it moves to the redelivery set, so the commit position cannot pass it —
-			// and the partition is sought back to it so this same healthy consumer replays it on the next
-			// poll. Waiting for a session timeout, as this path used to, makes no progress at all while the
-			// consumer stays healthy, which is the case a retry is for.
-			//
-			// The decision comes FIRST and the receipt is dropped only once it is made, the same order the
-			// requeue: false branch below uses. Dropping it first turned a refusal into a normal return:
-			// the caller asked for redelivery, none was arranged, and it was told the call succeeded.
-			var outcome = _progress.TryRequeue(receipt.Partition, receipt.Offset, receipt.Generation, out var seekOffset);
-			if (outcome == KafkaRequeueOutcome.NotOutstanding)
-			{
-				// This receiver already settled the offset (a retried settle after a commit that threw leaves
-				// the receipt cached). Settling a message this receiver knows it settled is an idempotent
-				// success, and redelivering it would hand settled work out a second time.
-				_ = _receipts.TryRemove(receiptHandle, out _);
-				LogRequeueOfSettledOffsetIgnored(Source, receipt.Partition.Partition.Value, receipt.Offset);
+					if (outcome != KafkaRequeueOutcome.Requeued)
+					{
+						_ = _receipts.TryRemove(new KeyValuePair<string, Receipt>(receiptHandle, receipt));
+						throw SettlementRefusal($"Kafka cannot requeue receipt '{receiptHandle}': the delivery is not owned by the current assignment.");
+					}
+
+					// Native failure keeps both the receipt and the owed offset available for retry.
+					_consumer.Seek(new TopicPartitionOffset(receipt.Partition, new Offset(seekOffset)));
+					_ = _receipts.TryRemove(new KeyValuePair<string, Receipt>(receiptHandle, receipt));
+					LogMessageRequeueSeek(Source, receipt.Partition.Partition.Value, seekOffset);
+					LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
+				}
+				else
+				{
+					SettlePublicTerminal(receiptHandle, receipt);
+					LogMessageRejected(message.Id, Source, reason ?? "no reason");
+				}
+
 				return Task.CompletedTask;
 			}
-
-			if (outcome == KafkaRequeueOutcome.NeverDelivered)
+			catch (TransportSettlementException)
 			{
-				// The receipt names an offset this tenure never handed out. It cannot be settled here, and
-				// saying it was would report a redelivery nobody arranged.
-				_ = _receipts.TryRemove(receiptHandle, out _);
-				throw new TransportSettlementException(
-					$"Kafka cannot requeue message with receipt handle '{receiptHandle}': its offset was not delivered "
-					+ "by this consumer in the partition's current assignment, so there is nothing here to redeliver.")
-				{
-					TransportName = "Kafka",
-					RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
-					Retryability = SettlementRetryability.Permanent,
-				};
+				throw;
 			}
-
-			if (outcome == KafkaRequeueOutcome.StaleGeneration)
+			catch (Exception ex)
 			{
-				// This receipt belongs to a tenure that has ended, so this consumer can no longer seek the
-				// partition and a retry of this call would fail the same way. The work is not lost -- the
-				// offset was never marked terminal, so the partition's new owner resumes before it -- but
-				// this call did not arrange that, and the interface forbids reporting it as though it had.
-				LogStaleGenerationSettleIgnored(Source, receipt.Partition.Partition.Value, receipt.Offset);
-				_ = _receipts.TryRemove(receiptHandle, out _);
-				throw new TransportSettlementException(
-					$"Kafka cannot requeue message with receipt handle '{receiptHandle}': its partition was "
-					+ "reassigned after the message was received, so this consumer can no longer seek it. The "
-					+ "offset was never committed, so the partition's current owner is expected to deliver it.")
-				{
-					TransportName = "Kafka",
-					RedeliveryExpectation = TransportRedeliveryExpectation.Expected,
-					Retryability = SettlementRetryability.Permanent,
-				};
+				throw NativeSettlementFailure("reject", ex);
 			}
-
-			// A seek that throws leaves the receipt cached, so the caller's retry can find it.
-			_consumer.Seek(new TopicPartitionOffset(receipt.Partition, new Offset(seekOffset)));
-			_ = _receipts.TryRemove(receiptHandle, out _);
-			LogMessageRequeueSeek(Source, receipt.Partition.Partition.Value, seekOffset);
-			LogMessageRejectedRequeue(message.Id, Source, reason ?? "no reason");
 		}
-		else
-		{
-			// Terminal without requeue (DLQ routing handled by decorator): settle it, but as above the
-			// position only advances if nothing earlier is still owed.
-			if (SettleTerminal(receipt.Partition, receipt.Offset, receipt.Generation))
-			{
-				LogMessageRejected(message.Id, Source, reason ?? "no reason");
-			}
-
-			_ = _receipts.TryRemove(receiptHandle, out _);
-		}
-
-		return Task.CompletedTask;
 	}
+
+	private Receipt GetSettlementReceipt(TransportReceivedMessage message, string receiptHandle)
+	{
+		if (!message.ProviderData.TryGetValue("kafka.receipt_entry", out var capability)
+			|| capability is not Receipt receipt
+			|| !_receipts.TryGetValue(receiptHandle, out var current)
+			|| !ReferenceEquals(receipt, current))
+		{
+			throw SettlementRefusal($"Kafka cannot settle receipt '{receiptHandle}': it is not in the receipt cache.");
+		}
+
+		return receipt;
+	}
+
+	private void SettlePublicTerminal(string receiptHandle, Receipt receipt)
+	{
+		if (!SettleTerminal(receipt.Partition, receipt.Offset, receipt.Generation))
+		{
+			_ = _receipts.TryRemove(new KeyValuePair<string, Receipt>(receiptHandle, receipt));
+			throw SettlementRefusal($"Kafka cannot settle receipt '{receiptHandle}': its assignment has ended.");
+		}
+
+		_ = _receipts.TryRemove(new KeyValuePair<string, Receipt>(receiptHandle, receipt));
+	}
+
+	private static TransportSettlementException SettlementRefusal(string message) => new(message)
+	{
+		TransportName = "Kafka",
+		RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+		Retryability = SettlementRetryability.Permanent,
+	};
+
+	private static TransportSettlementException NativeSettlementFailure(string operation, Exception cause) =>
+		new($"Kafka could not {operation} the message.", cause)
+		{
+			TransportName = "Kafka",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			Retryability = SettlementRetryability.Unspecified,
+		};
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)
@@ -411,29 +414,41 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	}
 
 	/// <summary>
-	/// Hands back offsets that were recorded as dispatched by a batch which then failed before returning,
+	/// Hands back still-outstanding original deliveries from a batch that failed before returning,
 	/// so the next poll redelivers them instead of the partition stalling on work nobody holds.
 	/// </summary>
 	/// <remarks>
 	/// Best-effort by construction: this runs while an exception is in flight, and a seek that fails here
-	/// must not replace the original fault. The offsets stay un-terminal either way, so the worst outcome
-	/// is that redelivery waits for the next rebalance or restart — never a lost message.
+	/// must not replace the original fault. Already-terminal progress is not rolled back; recovery only
+	/// attempts to requeue deliveries that remain outstanding and owned by this failed batch.
 	/// </remarks>
-	private void ReturnUndeliveredBatch(List<(TopicPartition Partition, long Offset, long Generation)> delivered)
+	private void ReturnUndeliveredBatch(List<Receipt> delivered)
 	{
-		foreach (var (partition, offset, generation) in delivered)
+		lock (_progress.OperationGate)
 		{
-			try
+			foreach (var receipt in delivered)
 			{
-				_ = _receipts.TryRemove($"{partition.Topic}:{partition.Partition.Value}:{offset}:{generation}", out _);
-				if (_progress.TryRequeue(partition, offset, generation, out var seekOffset) == KafkaRequeueOutcome.Requeued)
+				var partition = receipt.Partition;
+				var offset = receipt.Offset;
+				var generation = receipt.Generation;
+				try
 				{
-					_consumer.Seek(new TopicPartitionOffset(partition, new Offset(seekOffset)));
+					if (!_receipts.TryGetValue(receipt.Handle, out var current) || !ReferenceEquals(current, receipt))
+					{
+						// Only the exact original cache entry proves this failed batch still owns the delivery.
+						continue;
+					}
+
+					_ = _receipts.TryRemove(new KeyValuePair<string, Receipt>(receipt.Handle, receipt));
+					if (_progress.TryRequeue(partition, offset, generation, out var seekOffset) == KafkaRequeueOutcome.Requeued)
+					{
+						_consumer.Seek(new TopicPartitionOffset(partition, new Offset(seekOffset)));
+					}
 				}
-			}
-			catch (KafkaException ex)
-			{
-				LogUndeliveredBatchSeekFailed(Source, partition.Partition.Value, offset, ex);
+				catch (KafkaException ex)
+				{
+					LogUndeliveredBatchSeekFailed(Source, partition.Partition.Value, offset, ex);
+				}
 			}
 		}
 	}
@@ -460,15 +475,14 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 
 	private TransportReceivedMessage ConvertToReceivedMessage(
 		global::Confluent.Kafka.ConsumeResult<string, byte[]> consumeResult,
-		long generation)
+		Receipt receipt)
 	{
 		// Defense-in-depth DoS guard: reject an oversized payload BEFORE it is copied into the
 		// materialized message below. Fail-closed — throws PayloadTooLargeException, which the receive
 		// loop catches to commit past (skip) the poison message; it never truncates or silently drops.
 		PayloadSizeGuard.EnsureWithinLimit(consumeResult.Message.Value?.Length ?? 0, _maxPayloadBytes);
 
-		var receiptHandle = $"{consumeResult.Topic}:{consumeResult.Partition.Value}:{consumeResult.Offset.Value}:{generation}";
-		_receipts[receiptHandle] = new Receipt(consumeResult.TopicPartition, consumeResult.Offset.Value, generation);
+		var receiptHandle = receipt.Handle;
 
 		// Warn if unsettled message count is growing beyond expected bounds.
 		if (_receipts.Count > MaxUnsettledMessages)
@@ -516,6 +530,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 				["kafka.partition"] = consumeResult.Partition.Value,
 				[TransportOrderingMetadata.KafkaOffsetKey] = consumeResult.Offset.Value,
 				["kafka.receipt_handle"] = receiptHandle,
+				["kafka.receipt_entry"] = receipt,
 			},
 		};
 	}
@@ -527,7 +542,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 			return handleStr;
 		}
 
-		throw new InvalidOperationException("Message does not contain a Kafka receipt handle in ProviderData.");
+		throw SettlementRefusal("Message does not contain a Kafka receipt handle in ProviderData.");
 	}
 
 	[LoggerMessage(KafkaEventId.TransportReceiverMessageReceived, LogLevel.Debug,

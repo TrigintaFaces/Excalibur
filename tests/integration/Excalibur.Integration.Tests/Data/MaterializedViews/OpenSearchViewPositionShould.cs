@@ -34,6 +34,9 @@ public sealed class OpenSearchViewPositionContainerFixture : ContainerFixtureBas
 	/// <summary>Gets the OpenSearch client, built with default settings.</summary>
 	public OpenSearchClient Client { get; private set; } = null!;
 
+	/// <summary>Gets the actual container endpoint used by the client.</summary>
+	public Uri NodeUri { get; private set; } = null!;
+
 	/// <summary>Gets the unique views index name for this fixture.</summary>
 	public string ViewsIndexName { get; } = $"views-test-{Guid.NewGuid():N}";
 
@@ -74,8 +77,8 @@ public sealed class OpenSearchViewPositionContainerFixture : ContainerFixtureBas
 
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 
-		var uri = new Uri($"http://{_container.Hostname}:{_container.GetMappedPublicPort(9200)}");
-		Client = new OpenSearchClient(new ConnectionSettings(uri));
+		NodeUri = new Uri($"http://{_container.Hostname}:{_container.GetMappedPublicPort(9200)}");
+		Client = new OpenSearchClient(new ConnectionSettings(NodeUri));
 	}
 
 	/// <inheritdoc/>
@@ -121,6 +124,7 @@ public sealed class OpenSearchViewPositionShould(OpenSearchViewPositionContainer
 
 		var options = Options.Create(new OpenSearchMaterializedViewStoreOptions
 		{
+			NodeUri = fixture.NodeUri.AbsoluteUri,
 			ViewsIndexName = fixture.ViewsIndexName,
 			PositionsIndexName = fixture.PositionsIndexName,
 			RefreshPolicy = "true",

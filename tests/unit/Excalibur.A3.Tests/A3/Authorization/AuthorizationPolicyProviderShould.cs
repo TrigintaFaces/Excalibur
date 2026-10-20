@@ -101,14 +101,11 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 	}
 
 	/// <summary>
-	/// Regression lock for Excalibur.Dispatch-irgznt: ASP.NET Core evaluates <c>HandleRequirementAsync</c>
-	/// once per requirement, so a request checking more than one activity/resource previously reloaded
-	/// grants and activity groups from the distributed cache and re-deserialized them on every call within
-	/// the same scope -- even though the answer cannot change within one request. The provider is
-	/// registered scoped, so memoizing on the instance is per-request memoization.
+	/// A store without authoritative revisions must refresh each acquisition rather than
+	/// retain an unversioned policy for the whole request scope.
 	/// </summary>
 	[Fact]
-	public async Task MemoizePolicyWithinOneScope_CallingTheStoresOnlyOnce()
+	public async Task RefreshUnversionedStoresWithinOneScope()
 	{
 		// Arrange -- distributed cache always misses, forcing every call through to the stores, so a
 		// second GetPolicyAsync() call is only cheap if the provider itself memoized the first result.
@@ -144,11 +141,10 @@ public sealed class AuthorizationPolicyProviderShould : IDisposable
 		var first = await sut.GetPolicyAsync();
 		var second = await sut.GetPolicyAsync();
 
-		// Assert -- SAFETY: no second round-trip to either store.
-		A.CallTo(() => queryStore.FindUserGrantsAsync("user-1", A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => activityGroupStore.FindActivityGroupsAsync(A<string>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => queryStore.FindUserGrantsAsync("user-1", A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
+		A.CallTo(() => activityGroupStore.FindActivityGroupsAsync(A<string>._, A<CancellationToken>._)).MustHaveHappenedTwiceExactly();
 
 		// LIVENESS -- the memoized result is still the SAME, correctly-built policy, not a stale/empty stand-in.
-		second.ShouldBeSameAs(first);
+		second.ShouldNotBeSameAs(first);
 	}
 }

@@ -8,11 +8,13 @@ using Excalibur.Dispatch.Observability.Metrics;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddDispatchExceptionHandler();
 builder.Services.AddSingleton<InMemoryOrderStore>();
 
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+    dispatch.UseValidation().WithDataAnnotationsValidation();
 #if (UseKafka)
     dispatch.UseKafka(kafka =>
     {
@@ -48,10 +50,8 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
+// Dispatch maps exceptions to ProblemDetails and protects private details in production.
+app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
@@ -59,10 +59,10 @@ app.UseHttpsRedirection();
 // correct HTTP response automatically — no controller, no manual result-unwrapping:
 //   validation failure -> 400 ProblemDetails, authorization failure -> 403, success -> 200.
 // (Pass a responseHandler argument if you want 201 Created or a custom mapping.)
-app.DispatchPostAction<CreateOrderAction, CreateOrderResult>("/api/orders");
+app.DispatchPostBodyAction<CreateOrderAction, CreateOrderResult>("/api/orders");
 
 // A route-bound query reads naturally as a plain MapGet (404-on-not-found is a query concern the
-// generic result bridge does not model); the command path above shows the DispatchPostAction bridge.
+// generic result bridge does not model); the command path above shows the DispatchPostBodyAction bridge.
 app.MapGet("/api/orders/{id:guid}", async (Guid id, IDispatcher dispatcher, CancellationToken cancellationToken) =>
 {
     var result = await dispatcher.DispatchAsync<GetOrderAction, OrderResult?>(new GetOrderAction(id), cancellationToken).ConfigureAwait(false);

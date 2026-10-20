@@ -15,6 +15,69 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore;
 /// </summary>
 public static class EndpointRouteBuilderExtensions
 {
+
+	/// <summary>
+	/// Registers a POST endpoint that binds a required JSON body, builds an action from it, and dispatches that action for a typed response.
+	/// </summary>
+	/// <remarks>
+	/// With no <paramref name="responseHandler"/> the result is converted by <see cref="MessageResultExtensions.ToHttpResult{TResult}(Excalibur.Dispatch.IMessageResult{TResult})"/>, so the
+	/// status code comes from the dispatch result rather than from this registration. The body is bound
+	/// before dispatch, so a request that fails model binding is rejected without the action running and
+	/// without reaching the pipeline. This overload is <b>not</b> Native AOT or trimming safe: minimal-API
+	/// registration binds parameters reflectively, which is what the two attributes below declare.
+	/// </remarks>
+	/// <typeparam name="TRequest">The type of the request DTO from which the action is created.</typeparam>
+	/// <typeparam name="TAction">The type of the action to dispatch, must implement <see cref="IDispatchAction{TResponse}"/>.</typeparam>
+	/// <typeparam name="TResponse">The type of the response returned by the action handler.</typeparam>
+	/// <param name="endpoints">The endpoint route builder to register the route with.</param>
+	/// <param name="route">The route pattern for the endpoint.</param>
+	/// <param name="actionFactory">A function that creates the action from the request DTO and HTTP context.</param>
+	/// <param name="responseHandler">Optional custom response handler. If null, uses default result-to-HTTP conversion.</param>
+	/// <returns>A <see cref="RouteHandlerBuilder"/> for further endpoint configuration.</returns>
+	[RequiresUnreferencedCode(
+		"Minimal API registration uses reflection for dependency injection and parameter binding which may reference types not preserved during trimming.")]
+	[RequiresDynamicCode(
+		"ASP.NET Core minimal API endpoint registration requires dynamic code generation for request/response handling and dependency injection.")]
+	public static RouteHandlerBuilder DispatchPostBodyAction<TRequest, TAction, TResponse>(
+		this IEndpointRouteBuilder endpoints,
+		string route,
+		Func<TRequest, HttpContext, TAction> actionFactory,
+		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
+		where TRequest : class
+		where TAction : class, IDispatchAction<TResponse>
+		=>
+		endpoints.MapPost(route, RouteMessageHandlerFactory.CreateBodyMessageHandler(
+			actionFactory, responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
+	/// <summary>
+	/// Registers a POST endpoint that binds the action itself from a required JSON body and dispatches it for a typed response.
+	/// </summary>
+	/// <remarks>
+	/// Use this overload when the action type is also the request contract, so no factory is needed; prefer
+	/// the <typeparamref name="TResponse"/> factory overload when the wire contract and the action should
+	/// stay separate types. With no <paramref name="responseHandler"/> the result is converted by
+	/// <see cref="MessageResultExtensions.ToHttpResult{TResult}(Excalibur.Dispatch.IMessageResult{TResult})"/>, so the status code comes from the dispatch result rather than from this
+	/// registration. This overload is <b>not</b> Native AOT or trimming safe: minimal-API registration binds
+	/// parameters reflectively, which is what the two attributes below declare.
+	/// </remarks>
+	/// <typeparam name="TAction">The type of the action to dispatch, must implement <see cref="IDispatchAction{TResponse}"/>.</typeparam>
+	/// <typeparam name="TResponse">The type of the response returned by the action handler.</typeparam>
+	/// <param name="endpoints">The endpoint route builder to register the route with.</param>
+	/// <param name="route">The route pattern for the endpoint.</param>
+	/// <param name="responseHandler">Optional custom response handler. If null, uses default result-to-HTTP conversion.</param>
+	/// <returns>A <see cref="RouteHandlerBuilder"/> for further endpoint configuration.</returns>
+	[RequiresDynamicCode(
+		"ASP.NET Core minimal API endpoint registration requires dynamic code generation for request/response handling and dependency injection.")]
+	[RequiresUnreferencedCode(
+		"Minimal API registration uses reflection for dependency injection and parameter binding which may reference types not preserved during trimming.")]
+	public static RouteHandlerBuilder DispatchPostBodyAction<TAction, TResponse>(
+		this IEndpointRouteBuilder endpoints,
+		string route,
+		Func<HttpContext, IMessageResult<TResponse>, IResult>? responseHandler = null)
+		where TAction : class, IDispatchAction<TResponse>
+		=>
+		endpoints.MapPost(route, RouteMessageHandlerFactory.CreateBodyMessageHandler<TAction, TResponse>(
+			responseHandler ?? (static (_, messageResult) => messageResult.ToHttpResult())));
+
 	/// <summary>
 	/// Registers a POST endpoint that dispatches an action to the Dispatch pipeline from a request DTO.
 	/// </summary>

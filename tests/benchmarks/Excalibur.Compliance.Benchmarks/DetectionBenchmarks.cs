@@ -16,7 +16,7 @@ namespace Excalibur.Compliance.Benchmarks;
 /// Per AD-253-3, IsFieldEncrypted uses EXCR magic bytes (0x45 0x58 0x43 0x52).
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class DetectionBenchmarks
 {
 	private byte[] _encryptedData = null!;

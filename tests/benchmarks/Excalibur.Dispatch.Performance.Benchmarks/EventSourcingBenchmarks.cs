@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// provider-specific benchmark classes that inherit from this pattern.
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class EventSourcingBenchmarks
 {
 	private InMemoryBenchmarkEventStore _eventStore = null!;

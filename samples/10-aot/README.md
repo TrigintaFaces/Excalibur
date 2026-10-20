@@ -7,6 +7,7 @@ Demonstrates Native AOT compilation with Excalibur.Dispatch using source generat
 | Project | Description |
 |---------|-------------|
 | [Excalibur.Dispatch.Aot.Sample](Excalibur.Dispatch.Aot.Sample/) | Full AOT sample with `PublishAot=true`, source-generated handlers, and `JsonSerializerContext` |
+| [Excalibur.Dispatch.Scheduling.Aot.Sample](Excalibur.Dispatch.Scheduling.Aot.Sample/) | Public scheduled action and document delivery with source-generated metadata, tenant and correlation preservation, and NativeAOT runtime checks |
 
 ## What You'll Learn
 

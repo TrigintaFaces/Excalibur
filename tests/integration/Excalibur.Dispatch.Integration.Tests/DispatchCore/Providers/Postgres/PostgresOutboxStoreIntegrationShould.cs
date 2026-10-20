@@ -181,18 +181,24 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 		// Arrange
 		await InitializeOutboxTableAsync();
 		var (store, _) = CreateOutboxStore();
-		var message = CreateTestOutboxMessage();
+		var message = CreateTestOutboxMessage("tenant-dead-letter");
 
 		_ = await store.SaveMessagesAsync(new[] { message }, TestCancellationToken);
 
 		// Increase attempts first
 		_ = await store.IncreaseAttempts(message.MessageId, TestCancellationToken);
 
+
+		await using var sourceConnection = new NpgsqlConnection(_pgFixture.ConnectionString);
+		await sourceConnection.OpenAsync(TestCancellationToken);
+		var originalCreatedAt = await sourceConnection.ExecuteScalarAsync<DateTime>(
+			"SELECT occurred_on FROM outbox WHERE message_id = @id", new { id = message.MessageId });
+
 		// Act - Move to dead letter
 		var moved = await store.MoveToDeadLetter(message.MessageId, TestCancellationToken);
 
-		// Assert - ExecuteAsync returns total affected rows (1 INSERT + 1 DELETE = 2)
-		moved.ShouldBe(2);
+		// Count messages transferred, not SQL commands executed.
+		moved.ShouldBe(1);
 
 		// Verify moved to dead letter table
 		await using var connection = new NpgsqlConnection(_pgFixture.ConnectionString);
@@ -203,6 +209,21 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 
 		outboxCount.ShouldBe(0);
 		deadLetterCount.ShouldBe(1);
+
+		var retained = await connection.QuerySingleAsync<(string MessageId, string MessageType, string? Metadata, byte[] Payload, string TenantId, DateTime CreatedAt, int Attempts)>(
+			"SELECT message_id, message_type, message_metadata, message_body, tenant_id, occurred_on, attempts FROM outbox_dead_letters WHERE message_id = @id",
+			new { id = message.MessageId });
+		retained.MessageId.ShouldBe(message.MessageId);
+		retained.MessageType.ShouldBe(message.MessageType);
+		retained.Metadata.ShouldBe(message.MessageMetadata);
+		retained.Payload.ShouldBe(message.MessageBody.ToArray());
+		retained.TenantId.ShouldBe(message.TenantId);
+		retained.CreatedAt.ShouldBe(originalCreatedAt);
+		retained.Attempts.ShouldBe(1);
+
+		(await store.MoveToDeadLetter(message.MessageId, TestCancellationToken)).ShouldBe(0);
+		(await connection.ExecuteScalarAsync<int>(
+			"SELECT COUNT(*) FROM outbox_dead_letters WHERE message_id = @id", new { id = message.MessageId })).ShouldBe(1);
 	}
 
 	/// <summary>
@@ -405,14 +426,14 @@ public sealed class PostgresOutboxStoreIntegrationShould : IntegrationTestBase
 		return message;
 	}
 
-	private static OutboxMessage CreateTestOutboxMessage()
+	private static OutboxMessage CreateTestOutboxMessage(string? tenantId = null)
 	{
 		return new OutboxMessage(
 			Guid.NewGuid().ToString(),
 			"TestMessage",
 			"{\"correlationId\": \"test-123\"}",
 			System.Text.Encoding.UTF8.GetBytes("{\"data\": \"test payload\"}"),
-			DateTimeOffset.UtcNow);
+			DateTimeOffset.UtcNow) { TenantId = tenantId };
 	}
 
 	private (PostgresOutboxStore store, IDb db) CreateOutboxStore()

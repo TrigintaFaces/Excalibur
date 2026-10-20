@@ -446,7 +446,7 @@ public sealed class InboxProcessorDrainInvariantsShould
 				NullLogger<InboxProcessor>.Instance,
 				circuitBreakerRegistry: circuitBreaker is null
 					? PassThroughCircuitBreakerRegistry.Instance
-					: new SingleBreakerRegistry(circuitBreaker));
+					: new SingleBreakerRegistry(circuitBreaker), deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 			processor.Init("dispatcher-drain-invariants");
 

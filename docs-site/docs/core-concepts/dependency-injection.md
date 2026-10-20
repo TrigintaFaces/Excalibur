@@ -135,8 +135,9 @@ who expressed no preference.
 
 :::note Handlers with scoped dependencies are fully supported
 A handler whose dependencies reach a **scoped** service is resolved from a dependency-injection
-**scope**, never the root container — whatever lifetime the handler itself is registered with, and
-including the context-less `dispatcher.DispatchAsync(message, ct)` overload.
+**scope**, never the root container, for transient and scoped handler registrations, including the
+context-less `dispatcher.DispatchAsync(message, ct)` overload. An explicit singleton registration remains
+the consumer's responsibility to keep free of scoped dependencies, as described above.
 
 - **ASP.NET Core:** the handler shares the **active request scope** (the same `IUnitOfWork` / `IDb` /
   `DbContext` as the rest of the request). This is wired automatically by
@@ -155,6 +156,29 @@ close over anything, so Dispatch cannot prove the closure is free of scoped serv
 rather than assume. The same applies to a type whose constructors have been removed by trimming. The cost
 is one scope per dispatch for that handler; the alternative would be a captive dependency that no error
 ever reports.
+
+Scope availability does not change the handler's lifetime requirement. A custom provider without an
+`IServiceScopeFactory` can still supply a scope through an `IDispatchAmbientScopeAccessor`. A context's
+`RequestServices` is borrowed only when it passes the framework's scope and root-provider checks;
+the local bus currently requires that provider to implement `IServiceScope` and excludes its captured
+root provider. A custom scoped provider without that marker should use the ambient accessor. Borrowed
+scopes are never disposed by Dispatch. A scope
+created by Dispatch is disposed asynchronously after completion, including handler faults and cancellation.
+
+Missing lifetime registration metadata is treated conservatively as requiring a scope. If neither a
+borrowed scope nor a scope factory is available, Dispatch refuses the scoped or uncertain handler with
+an `InvalidOperationException` before invocation. Custom providers that previously resolved such handlers
+from root must supply scope support or the framework's registration metadata; known root-safe handlers
+with complete metadata keep their cached fast path.
+
+Middleware composition also needs a safe probe scope when it must activate an instance to read metadata.
+Without a scope factory or active ambient scope, required scoped or uncertain middleware is refused
+before its factory runs; optional entries are skipped with a warning. `UseDeferred<TMiddleware>` provides
+explicit stage and message-kind metadata without startup activation. The stock builder resolves the real
+middleware only from a valid dispatch scope; a missing scope fails before activation. Custom pipeline
+builders remain responsible for supplying valid request services to their deferred entries.
+For the stock builder, `ForMessageKinds` narrows the explicit kinds supplied to `UseDeferred`; it cannot
+widen them. A message outside that intersection skips deferred activation and scope acquisition.
 :::
 
 :::note Your registered lifetime is honoured

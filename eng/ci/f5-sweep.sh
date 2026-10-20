@@ -20,10 +20,13 @@
 #   1  un-triaged sibling hits found (gate fail — triage each per the F-5 rule)
 #   2  usage / environment error
 #   3  --self-test failed (the gate itself is broken / vacuous)
+#   4  committed base resolves to HEAD (no committed change can be examined)
 #
 # Usage:
 #   f5-sweep.sh [--base <ref>] [--staged] [--working] [--all] [--report-only]
 #   f5-sweep.sh --self-test
+# Committed mode defaults to HEAD~1. Choose a parent or earlier change boundary;
+# a ref that has advanced to HEAD after a push is refused, including --report-only.
 #
 set -uo pipefail
 
@@ -233,6 +236,24 @@ run_sweep() {
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         echo "f5-sweep: error — not inside a git work tree" >&2
         return 2
+    fi
+
+    if [ "$mode" = committed ]; then
+        local base_commit head_commit
+        if ! base_commit="$(git rev-parse --verify "$base^{commit}" 2>/dev/null)"; then
+            echo "f5-sweep: error — base '$base' does not resolve to a commit" >&2
+            return 2
+        fi
+        if ! head_commit="$(git rev-parse --verify 'HEAD^{commit}' 2>/dev/null)"; then
+            echo "f5-sweep: error — HEAD does not resolve to a commit" >&2
+            return 2
+        fi
+        if [ "$base_commit" = "$head_commit" ]; then
+            echo "f5-sweep: REFUSE — committed base '$base' resolves to HEAD; no committed change was examined. Use HEAD~1 or an earlier change boundary." >&2
+            return 4
+        fi
+        # Use the boundary just validated even if a remote-tracking ref advances during the run.
+        base="$base_commit"
     fi
 
     local changed_src

@@ -37,24 +37,39 @@ public sealed class CachingTestResult
 
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
-public sealed class CachingTestQueryHandler : IActionHandler<CachingTestQuery, CachingTestResult>
+public sealed class CachingTestQueryHandler(CachingHandlerCallTracker<CachingTestQueryHandler> tracker) : IActionHandler<CachingTestQuery, CachingTestResult>
 {
-	private static int _callCount;
-
-	public static int CallCount
-	{
-		get => Volatile.Read(ref _callCount);
-		set => Volatile.Write(ref _callCount, value);
-	}
-
-	public Task<CachingTestResult> HandleAsync(
+	public async Task<CachingTestResult> HandleAsync(
 		CachingTestQuery message,
 		CancellationToken cancellationToken = default)
 	{
-		Interlocked.Increment(ref _callCount);
+		tracker.Record();
+		if (tracker.Gate is { } gate)
+		{
+			gate.Entered.TrySetResult();
+			await gate.Release.Task.WaitAsync(cancellationToken);
+		}
 		var result = new CachingTestResult { Value = message.Value * 2 };
-		return Task.FromResult(result);
+		return result;
 	}
+}
+
+public sealed class CachingHandlerCallTracker<THandler>
+{
+	private int _callCount;
+
+	public CachingHandlerGate? Gate { get; set; }
+
+	public int CallCount => Volatile.Read(ref _callCount);
+
+	public void Record() => Interlocked.Increment(ref _callCount);
+}
+
+public sealed class CachingHandlerGate
+{
+	public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
 // Public test types for policy and middleware tests (private nested types prevent HybridCache from working)
@@ -128,19 +143,11 @@ public sealed class OnlyIfSuccessQuery : QueryBase<TestResult>, IDispatchAction<
 [SuppressMessage("Performance", "CA1812", Justification = "Instantiated via DI")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
-public sealed class OnlyIfSuccessQueryHandler : IActionHandler<OnlyIfSuccessQuery, TestResult>
+public sealed class OnlyIfSuccessQueryHandler(CachingHandlerCallTracker<OnlyIfSuccessQueryHandler> tracker) : IActionHandler<OnlyIfSuccessQuery, TestResult>
 {
-	private static int _callCount;
-
-	public static int CallCount
-	{
-		get => Volatile.Read(ref _callCount);
-		set => Volatile.Write(ref _callCount, value);
-	}
-
 	public Task<TestResult> HandleAsync(OnlyIfSuccessQuery message, CancellationToken cancellationToken = default)
 	{
-		Interlocked.Increment(ref _callCount);
+		tracker.Record();
 		var result = new TestResult { Value = message.Value };
 		return Task.FromResult(result);
 	}
@@ -161,19 +168,11 @@ public sealed class NullResultQuery : QueryBase<TestResult>, IDispatchAction<Tes
 [SuppressMessage("Performance", "CA1812", Justification = "Instantiated via DI")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
-public sealed class NullResultQueryHandler : IActionHandler<NullResultQuery, TestResult>
+public sealed class NullResultQueryHandler(CachingHandlerCallTracker<NullResultQueryHandler> tracker) : IActionHandler<NullResultQuery, TestResult>
 {
-	private static int _callCount;
-
-	public static int CallCount
-	{
-		get => Volatile.Read(ref _callCount);
-		set => Volatile.Write(ref _callCount, value);
-	}
-
 	public Task<TestResult> HandleAsync(NullResultQuery message, CancellationToken cancellationToken = default)
 	{
-		Interlocked.Increment(ref _callCount);
+		tracker.Record();
 		return Task.FromResult<TestResult>(null!);
 	}
 }
@@ -233,11 +232,64 @@ public sealed class InvalidateCacheCommandHandler : IActionHandler<InvalidateCac
 /// <summary>
 /// Integration tests for the caching functionality.
 /// </summary>
-[Collection("CachingIntegrationTests")] // Disable parallel execution to avoid shared static CallCount issues
+[Collection("CachingIntegrationTests")]
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 public sealed class CachingIntegrationShould : IntegrationTestBase
 {
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public async Task KeepHandlerCountsIndependentAcrossProviders()
+	{
+		var firstServices = new ServiceCollection();
+		var secondServices = new ServiceCollection();
+		firstServices.AddSingleton(typeof(CachingHandlerCallTracker<>));
+		firstServices.AddTransient<CachingTestQueryHandler>();
+		firstServices.AddTransient<OnlyIfSuccessQueryHandler>();
+		firstServices.AddTransient<NullResultQueryHandler>();
+		secondServices.AddSingleton(typeof(CachingHandlerCallTracker<>));
+		secondServices.AddTransient<CachingTestQueryHandler>();
+		secondServices.AddTransient<OnlyIfSuccessQueryHandler>();
+		secondServices.AddTransient<NullResultQueryHandler>();
+		await using var firstProvider = firstServices.BuildServiceProvider();
+		await using var secondProvider = secondServices.BuildServiceProvider();
+		var firstTracker = firstProvider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>();
+		var secondTracker = secondProvider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>();
+		firstTracker.Gate = new CachingHandlerGate();
+		secondTracker.Gate = new CachingHandlerGate();
+		var tasks = new[]
+		{
+			firstProvider.GetRequiredService<CachingTestQueryHandler>().HandleAsync(new CachingTestQuery { Value = 11 }),
+			secondProvider.GetRequiredService<CachingTestQueryHandler>().HandleAsync(new CachingTestQuery { Value = 22 }),
+		};
+		try
+		{
+			await Task.WhenAll(firstTracker.Gate.Entered.Task, secondTracker.Gate.Entered.Task)
+				.WaitAsync(TimeSpan.FromSeconds(30));
+			tasks.All(static task => !task.IsCompleted).ShouldBeTrue();
+		}
+		finally
+		{
+			firstTracker.Gate.Release.TrySetResult();
+			secondTracker.Gate.Release.TrySetResult();
+			await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
+		}
+		var results = await Task.WhenAll(tasks);
+		results[0].Value.ShouldBe(22);
+		results[1].Value.ShouldBe(44);
+		await Task.WhenAll(
+			firstProvider.GetRequiredService<OnlyIfSuccessQueryHandler>().HandleAsync(new OnlyIfSuccessQuery { Value = 11 }),
+			secondProvider.GetRequiredService<OnlyIfSuccessQueryHandler>().HandleAsync(new OnlyIfSuccessQuery { Value = 22 }),
+			firstProvider.GetRequiredService<NullResultQueryHandler>().HandleAsync(new NullResultQuery { Value = 11 }),
+			secondProvider.GetRequiredService<NullResultQueryHandler>().HandleAsync(new NullResultQuery { Value = 22 }));
+		firstProvider.GetRequiredService<CachingHandlerCallTracker<OnlyIfSuccessQueryHandler>>().CallCount.ShouldBe(1);
+		secondProvider.GetRequiredService<CachingHandlerCallTracker<OnlyIfSuccessQueryHandler>>().CallCount.ShouldBe(1);
+		firstProvider.GetRequiredService<CachingHandlerCallTracker<NullResultQueryHandler>>().CallCount.ShouldBe(1);
+		secondProvider.GetRequiredService<CachingHandlerCallTracker<NullResultQueryHandler>>().CallCount.ShouldBe(1);
+		firstProvider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1, "the first provider owns only its handler invocation");
+		secondProvider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1, "the second provider owns only its handler invocation");
+	}
+
 	// The window ExpireEntriesAfterDefaultExpiration measures against. UNCHANGED value (300 ms), merely
 	// hoisted so that test's inconclusive guard can name the exact window it is measuring against.
 	// Lengthening it is deliberately NOT the fix: that would make the arm pass more often without fixing
@@ -264,6 +316,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		// Add required services
 		_ = services.AddLogging();
@@ -297,8 +350,6 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		var query = new CachingTestQuery { Value = 123 };
 
-		// Reset handler call count to ensure clean state
-		CachingTestQueryHandler.CallCount = 0;
 
 		// Act - First call should execute handler
 		var testMessage = new TestDispatchAction();
@@ -319,7 +370,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		result1.ReturnValue.Value.ShouldBe(result2.ReturnValue.Value);
 
 		// Verify handler was called only once
-		CachingTestQueryHandler.CallCount.ShouldBe(1);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1);
 	}
 
 	[Fact]
@@ -327,6 +378,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -357,15 +409,11 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		var query = new CachingTestQuery { Value = 456 };
 
-		// Reset handler call count to ensure clean state
-		CachingTestQueryHandler.CallCount = 0;
 
 		// Act - First call caches result
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, context, CancellationToken.None)
 			;
 
-		// Reset handler call count
-		CachingTestQueryHandler.CallCount = 0;
 
 		// Act - Second call should use cache
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, context, CancellationToken.None)
@@ -373,7 +421,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Assert HybridCache returns different instances due to serialization - compare values instead of references
 		result1.ReturnValue.Value.ShouldBe(result2.ReturnValue.Value);
-		CachingTestQueryHandler.CallCount.ShouldBe(0); // Handler not called again
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1); // Handler not called again
 	}
 
 	[Fact]
@@ -381,6 +429,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -409,7 +458,6 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		// Act - Query with MessageId < 100 should not be cached
-		CachingTestQueryHandler.CallCount = 0;
 		var query1 = new CachingTestQuery { Value = 50 };
 		var result1a = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query1, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 		var result1b = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query1, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
@@ -420,7 +468,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var result2b = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query2, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert - handler should be called 3 times: 2 for query1 (not cached), 1 for query2 (cached on second call)
-		CachingTestQueryHandler.CallCount.ShouldBe(3);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(3);
 
 		// Non-cached: both calls execute handler, returning fresh results
 		result1a.ReturnValue.Value.ShouldBe(100); // 50 * 2
@@ -437,6 +485,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -471,7 +520,6 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var query = new CachingTestQuery { Value = 789 };
 
 		// Act
-		CachingTestQueryHandler.CallCount = 0;
 		_ = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
 			;
 		_ = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
@@ -479,7 +527,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		// Assert
 		trackingMiddleware.CallCount.ShouldBe(2); // Middleware called twice
-		CachingTestQueryHandler.CallCount.ShouldBe(1); // Handler called once (cached)
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1); // Handler called once (cached)
 	}
 
 	[Fact]
@@ -487,6 +535,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -517,7 +566,6 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var query = new CachingTestQuery { Value = 321 };
 
 		// Act - first call caches the result
-		CachingTestQueryHandler.CallCount = 0;
 
 		// Mark BEFORE the first dispatch. The entry's expiry is stamped when the caching middleware WRITES
 		// the entry *during* that first round trip, i.e. at or after this mark — so elapsed-from-here is a
@@ -540,7 +588,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// which case the entry legitimately expired, a miss on the second dispatch is CORRECT behaviour, and
 		// this arm would be reporting a defect that does not exist. When the measurement cannot tell those
 		// apart, say so instead of accusing the product.
-		var servedFromCache = CachingTestQueryHandler.CallCount == 1 && result2.Disposition == MessageDisposition.ServedFromCache;
+		var servedFromCache = provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount == 1 && result2.Disposition == MessageDisposition.ServedFromCache;
 		if (!servedFromCache && elapsedCacheToObservation >= ShortestPossibleEntryLifetime)
 		{
 			Assert.Fail(
@@ -552,10 +600,10 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				+ $"under load and by a cache that never served the entry at all. The arm cannot discriminate; "
 				+ $"re-run on a less loaded host. Deliberately NOT fixed by lengthening the expiration — that "
 				+ $"would only make this rarer, not correct. (handler calls: "
-				+ $"{CachingTestQueryHandler.CallCount}, result2.Disposition: {result2.Disposition})");
+				+ $"{provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount}, result2.Disposition: {result2.Disposition})");
 		}
 
-		CachingTestQueryHandler.CallCount.ShouldBe(
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(
 			1,
 			$"the second dispatch must be served from cache, so the handler runs exactly once (measured "
 			+ $"cache-write→observation elapsed: {elapsedCacheToObservation.TotalMilliseconds:F0} ms — "
@@ -578,7 +626,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 			TimeSpan.FromSeconds(5));
 
 		// Assert
-		CachingTestQueryHandler.CallCount.ShouldBe(2);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(2);
 		result3.Disposition.ShouldBe(MessageDisposition.Handled);
 		result3.ReturnValue.Timestamp.ShouldNotBe(result1.ReturnValue.Timestamp);
 	}
@@ -588,6 +636,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -622,12 +671,11 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var context2 = new MessageContext(testMessage2, provider);
 		Excalibur.Dispatch.MessageContextExtensions.ValidationResult(context2, SerializableValidationResult.Failed("bad"));
 
-		OnlyIfSuccessQueryHandler.CallCount = 0;
 		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context1, cancellationToken: default);
 		_ = await dispatcher.DispatchAsync<OnlyIfSuccessQuery, TestResult>(query, context2, cancellationToken: default);
 
 		// Assert
-		OnlyIfSuccessQueryHandler.CallCount.ShouldBe(2);
+		provider.GetRequiredService<CachingHandlerCallTracker<OnlyIfSuccessQueryHandler>>().CallCount.ShouldBe(2);
 	}
 
 	[Fact]
@@ -635,6 +683,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -661,7 +710,6 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 
 		var query = new NullResultQuery { Value = 5 };
 
-		NullResultQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 		var result2 = await dispatcher.DispatchAsync<NullResultQuery, TestResult>(query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
@@ -694,16 +742,20 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		//
 		// The lower bound still carries the load-bearing claim: the null result did NOT short-circuit
 		// dispatch, so the handler really was consulted for each call rather than served from cache.
-		NullResultQueryHandler.CallCount.ShouldBeGreaterThanOrEqualTo(
+		provider.GetRequiredService<CachingHandlerCallTracker<NullResultQueryHandler>>().CallCount.ShouldBeGreaterThanOrEqualTo(
 			3,
 			"a non-cached result must reach the handler on every dispatch");
 	}
 
-	[Fact]
-	public async Task OnlyInvokeHandlerOnceForConcurrentCalls()
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	[Trait("Pattern", "Regression")]
+	public async Task CollapseConcurrentCallsOnlyWhenCachingIsEnabled(bool cachingEnabled)
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -721,7 +773,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				.UseCaching()
 				.WithCachingOptions(o =>
 				{
-					o.Enabled = true;
+					o.Enabled = cachingEnabled;
 					o.UseDistributedCache = false;
 
 					// Long enough that expiry cannot participate in the outcome. The subject here is
@@ -737,19 +789,27 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		var query = new CachingTestQuery { Value = 654 };
-
-		CachingTestQueryHandler.CallCount = 0;
-
-		// Materialised deliberately: Select is lazy, so without ToList the dispatches are not started
-		// until WhenAll enumerates them, and on a loaded machine they begin far enough apart that the
-		// first can complete before the last begins -- which is not the concurrency this test claims
-		// to exercise.
-		var tasks = Enumerable.Range(0, 5)
-			.Select(_ => dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
-				query,
-				new MessageContext(new TestDispatchAction(), provider), cancellationToken: default))
-			.ToList();
-
+		var tracker = provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>();
+		var gate = new CachingHandlerGate();
+		tracker.Gate = gate;
+		// Every actual handler entry increments before waiting. The gate holds work open without
+		// coalescing it; disabling caching below must expose all five invocations.
+		var tasks = new List<Task<IMessageResult<CachingTestResult>>>();
+		try
+		{
+			for (var index = 0; index < 5; index++)
+			{
+				tasks.Add(dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
+					query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default));
+			}
+			await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+			tasks.All(static task => !task.IsCompleted).ShouldBeTrue();
+		}
+		finally
+		{
+			gate.Release.TrySetResult();
+			await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
+		}
 		var results = await Task.WhenAll(tasks);
 
 		foreach (var r in results)
@@ -758,6 +818,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 			// True") while discarding the one field that explains why.
 			r.Succeeded.ShouldBeTrue(
 				"a concurrent dispatch must not fail; ErrorMessage: " + (r.ErrorMessage ?? "(none)"));
+			r.ReturnValue.Value.ShouldBe(1308);
 		}
 
 		// Exactly one dispatch reaches the handler; the rest are collapsed by single-flight. Asserting the
@@ -768,9 +829,13 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// to `r.CacheHit == r.CacheHit`, true for either outcome, and for the others it demanded a cache hit
 		// that a collapsed follower does not necessarily report. It could not fail in the interesting
 		// direction, so it was removed rather than kept as decoration.
-		CachingTestQueryHandler.CallCount.ShouldBe(
-			1,
-			"5 concurrent dispatches of the same query must collapse to a single handler invocation");
+		tracker.CallCount.ShouldBe(cachingEnabled ? 1 : 5);
+		var laterResult = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
+			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
+		laterResult.Succeeded.ShouldBeTrue(laterResult.ErrorMessage);
+		laterResult.ReturnValue.Value.ShouldBe(1308);
+		tracker.CallCount.ShouldBe(cachingEnabled ? 1 : 6);
+		laterResult.Disposition.ShouldBe(cachingEnabled ? MessageDisposition.ServedFromCache : MessageDisposition.Handled);
 	}
 
 	[Fact]
@@ -778,6 +843,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
@@ -816,7 +882,6 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		var context = new MessageContext(new TestDispatchAction(), provider);
 
 		// Act - first call caches the result
-		CachingTestQueryHandler.CallCount = 0;
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
 			query, context, CancellationToken.None);
 		var result2 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
@@ -825,7 +890,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Assert cached
 		result1.Succeeded.ShouldBeTrue();
 		result2.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
-		CachingTestQueryHandler.CallCount.ShouldBe(1);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1);
 
 		// Invalidate
 		var invalidate = new InvalidateCacheCommand { TagsToInvalidate = ["test-tag"] };
@@ -839,7 +904,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 			dispatcher, query, provider, baselineCallCount: 1, timeout: TimeSpan.FromSeconds(10));
 
 		// Assert - handler should be called twice: first call + third call after invalidation
-		CachingTestQueryHandler.CallCount.ShouldBe(2);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(2);
 		result3.Disposition.ShouldBe(MessageDisposition.Handled);
 	}
 
@@ -860,7 +925,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 				new MessageContext(new TestDispatchAction(), provider),
 				CancellationToken.None);
 
-			if (CachingTestQueryHandler.CallCount > baselineCallCount)
+			if (provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount > baselineCallCount)
 			{
 				return lastResult;
 			}
@@ -869,7 +934,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		}
 
 		lastResult.ShouldNotBeNull();
-		CachingTestQueryHandler.CallCount.ShouldBeGreaterThan(baselineCallCount);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBeGreaterThan(baselineCallCount);
 		return lastResult!;
 	}
 }

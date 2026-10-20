@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// 2. Caching factory delegates for typed MessageResult creation
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 [GroupBenchmarksBy(BenchmarkDotNet.Configs.BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
 public class Sprint451OptimizationBenchmarks

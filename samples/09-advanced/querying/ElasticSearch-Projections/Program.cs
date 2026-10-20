@@ -30,7 +30,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddElasticsearchServices(builder.Configuration, registry: null);
 
 // Step 2: Register ElasticSearch projection infrastructure (error handler, rebuild manager, etc.)
-builder.Services.AddElasticsearchProjections(builder.Configuration);
+builder.Services.AddElasticSearchProjectionManagement(builder.Configuration);
 
 // Step 3: Register projection stores with named options per projection type.
 // Each projection type gets its own ElasticSearchProjectionStoreOptions keyed by typeof(T).Name.

@@ -1,7 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Text;
+
+using Amazon.SQS;
 using Amazon.SQS.Model;
+
+using Excalibur.Dispatch.Transport;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using Tests.Shared.Infrastructure;
 
 using Tests.Shared.Fixtures;
 
@@ -117,73 +126,16 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 	public async Task DeleteMessage_RemovesFromQueue()
 	{
 		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
-
-		// Arrange
-		var queueUrl = await CreateStandardQueueAsync().ConfigureAwait(false);
-		await SendMessageAsync(queueUrl, "delete-me").ConfigureAwait(false);
-
-		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
-		{
-			QueueUrl = queueUrl,
-			MaxNumberOfMessages = 1,
-			WaitTimeSeconds = 5,
-		}).ConfigureAwait(false);
-
-		receiveResponse.Messages.ShouldNotBeEmpty();
-		var receiptHandle = receiveResponse.Messages[0].ReceiptHandle;
-
-		// Act — delete the message
-		await _fixture.SqsClient.DeleteMessageAsync(queueUrl, receiptHandle).ConfigureAwait(false);
-
-		// Assert — queue should be empty now
-		var afterDelete = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
-		{
-			QueueUrl = queueUrl,
-			MaxNumberOfMessages = 1,
-			WaitTimeSeconds = 0,
-		}).ConfigureAwait(false);
-
-		(afterDelete.Messages ?? []).ShouldBeEmpty();
+		await VerifySettlementAsync(requeue: false, noOp: false).ConfigureAwait(false);
+		await VerifySettlementAsync(requeue: false, noOp: true).ConfigureAwait(false);
 	}
 
 	[Fact]
 	public async Task ChangeVisibility_MakesMessageReappear()
 	{
 		Assert.SkipUnless(_fixture.DockerAvailable, "Docker is not available");
-
-		// Arrange — create a queue with a long default visibility timeout
-		var queueUrl = await CreateStandardQueueAsync(visibilityTimeout: 30).ConfigureAwait(false);
-		await SendMessageAsync(queueUrl, "visibility-test").ConfigureAwait(false);
-
-		// Receive the message (it becomes invisible for 30s)
-		var receiveResponse = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
-		{
-			QueueUrl = queueUrl,
-			MaxNumberOfMessages = 1,
-			WaitTimeSeconds = 5,
-		}).ConfigureAwait(false);
-
-		receiveResponse.Messages.ShouldNotBeEmpty();
-		var receiptHandle = receiveResponse.Messages[0].ReceiptHandle;
-
-		// Act — change visibility timeout to 0 to make it immediately visible again
-		await _fixture.SqsClient.ChangeMessageVisibilityAsync(new ChangeMessageVisibilityRequest
-		{
-			QueueUrl = queueUrl,
-			ReceiptHandle = receiptHandle,
-			VisibilityTimeout = 0,
-		}).ConfigureAwait(false);
-
-		// Assert — message should be receivable again
-		var reReceive = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
-		{
-			QueueUrl = queueUrl,
-			MaxNumberOfMessages = 1,
-			WaitTimeSeconds = 5,
-		}).ConfigureAwait(false);
-
-		reReceive.Messages.ShouldNotBeEmpty();
-		reReceive.Messages[0].Body.ShouldBe("visibility-test");
+		await VerifySettlementAsync(requeue: true, noOp: false).ConfigureAwait(false);
+		await VerifySettlementAsync(requeue: true, noOp: true).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -314,5 +266,69 @@ public sealed class AwsSqsTransportReceiverIntegrationShould
 			.Concat(messages1.Select(m => m.MessageId))
 			.ToList();
 		allIds.Distinct().Count().ShouldBe(allIds.Count);
+	}
+
+	private async Task VerifySettlementAsync(bool requeue, bool noOp)
+	{
+		var queueUrl = await CreateStandardQueueAsync(visibilityTimeout: requeue ? 30 : 0).ConfigureAwait(false);
+		using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+		try
+		{
+			var body = $"settlement-{Guid.NewGuid():N}";
+			var sent = await _fixture.SqsClient.SendMessageAsync(new SendMessageRequest
+			{
+				QueueUrl = queueUrl,
+				MessageBody = body,
+			}, bounded.Token).ConfigureAwait(false);
+			var services = new ServiceCollection().AddLogging();
+			services.AddKeyedSingleton<IAmazonSQS>(queueUrl, _fixture.SqsClient);
+			services.AddAwsSqsTransport(queueUrl, sqs => sqs.ConfigureQueue(queue =>
+				queue.VisibilityTimeout(TimeSpan.FromSeconds(requeue ? 30 : 0)).ReceiveWaitTimeSeconds(1)));
+			await using var provider = services.BuildServiceProvider();
+			var realReceiver = provider.GetRequiredKeyedService<ITransportReceiver>(queueUrl);
+			ITransportReceiver receiver = noOp ? new NoOpSettlementReceiver(realReceiver) : realReceiver;
+			var received = await WaitHelpers.WaitForValueAsync(async () =>
+				(await receiver.ReceiveAsync(1, bounded.Token).ConfigureAwait(false)).SingleOrDefault(),
+				TimeSpan.FromSeconds(5), cancellationToken: bounded.Token).ConfigureAwait(false);
+			received.ShouldNotBeNull();
+			received.Id.ShouldBe(sent.MessageId);
+			received.Source.ShouldBe(queueUrl);
+			Encoding.UTF8.GetString(received.Body.Span).ShouldBe(body);
+
+			if (requeue)
+				await receiver.RejectAsync(received, "retry", true, bounded.Token).ConfigureAwait(false);
+			else
+				await receiver.AcknowledgeAsync(received, bounded.Token).ConfigureAwait(false);
+
+			// Five seconds cannot expire the requeue control's original 30-second visibility window.
+			var observed = await WaitHelpers.WaitForValueAsync(async () =>
+			{
+				var probe = await _fixture.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+				{
+					QueueUrl = queueUrl,
+					MaxNumberOfMessages = 1,
+					WaitTimeSeconds = 0,
+				}, bounded.Token).ConfigureAwait(false);
+				return probe.Messages?.SingleOrDefault();
+			}, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(100), bounded.Token).ConfigureAwait(false);
+			if (requeue != noOp)
+			{
+				observed.ShouldNotBeNull();
+				observed.MessageId.ShouldBe(sent.MessageId);
+				observed.Body.ShouldBe(body);
+			}
+			else
+				observed.ShouldBeNull();
+		}
+		finally
+		{
+			await _fixture.SqsClient.DeleteQueueAsync(queueUrl, CancellationToken.None).ConfigureAwait(false);
+		}
+	}
+
+	private sealed class NoOpSettlementReceiver(ITransportReceiver inner) : DelegatingTransportReceiver(inner)
+	{
+		public override Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
+		public override Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken) => Task.CompletedTask;
 	}
 }

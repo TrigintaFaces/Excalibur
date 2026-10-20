@@ -108,17 +108,16 @@ public sealed class HandlerScopeResolverScopeRequirementShould
         resolver.RequiresScope(typeof(ScopedHandler)).ShouldBeTrue();
     }
 
-    // ---- EC-A2: with no scope capability the bus must behave exactly as before (resolve from root). ----
+    // Missing lifetime metadata cannot prove that resolving a handler from root is safe.
 
     [Fact]
-    public void WhenNoScopeCanBeCreated_DoesNotRequireScope()
+    public void MissingLifetimeMetadataRequiresScopeEvenWhenNoFactoryIsAvailable()
     {
-        // No IServiceScopeFactory and no IDispatchAmbientScopeAccessor -> CanCreateScope == false -> the resolver
-        // must short-circuit to FALSE (never throw, never recurse) so the singleton bus resolves from root.
+        // An absent factory does not justify capturing an unknown handler lifetime at root.
         var root = A.Fake<IServiceProvider>(); // every GetService(...) returns null by default.
         var resolver = new HandlerScopeResolver(root);
 
-        resolver.RequiresScope(typeof(TransitivelyScopedHandler)).ShouldBeFalse();
+        resolver.RequiresScope(typeof(TransitivelyScopedHandler)).ShouldBeTrue();
     }
 
     // ---- EC-A1: a handler whose constructors the walk cannot inspect → Scope (uncertain, not proven safe). ----

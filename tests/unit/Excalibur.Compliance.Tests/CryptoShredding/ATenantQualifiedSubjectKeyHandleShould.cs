@@ -79,8 +79,8 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
 
         // Non-vacuity: both round-trip before anything is destroyed, so a later null cannot be a broken
         // fixture or a provider that has simply stopped decrypting.
-        (await host.DecryptAsync(tenantAEnvelope)).ShouldBe(tenantAData);
-        (await host.DecryptAsync(tenantBEnvelope)).ShouldBe(tenantBData);
+        (await host.DecryptAsync(tenantAEnvelope, TenantA)).ShouldBe(tenantAData);
+        (await host.DecryptAsync(tenantBEnvelope, TenantB)).ShouldBe(tenantBData);
 
         // Tenant A erases subject 42, through the real erasure service, under tenant A's own scope.
         host.Tenant.TenantId = TenantA;
@@ -93,7 +93,7 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
         // LOAD-BEARING. Tenant B was not party to this erasure and holds its own key, so its personal
         // fields must still decrypt. Under the defect this returned null: a tombstone asserting a lawful
         // erasure over data that was never erased and can no longer be recovered.
-        (await host.DecryptAsync(tenantBEnvelope)).ShouldBe(
+        (await host.DecryptAsync(tenantBEnvelope, TenantB)).ShouldBe(
             tenantBData,
             "tenant A's erasure of ITS subject 42 must leave tenant B's subject 42 readable. A null here is "
             + "this framework asserting a lawful erasure over another tenant's live personal data, which is "
@@ -142,7 +142,7 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
         // the write -- an erasure reading ambient state instead of its own request's tenant, or collapsing
         // an absent tenant differently -- would destroy a key nothing was written under and leave this
         // readable, while reporting a completed erasure.
-        (await host.DecryptAsync(tenantAEnvelope)).ShouldBeNull(
+        (await host.DecryptAsync(tenantAEnvelope, TenantA)).ShouldBeNull(
             "tenant A's own fields must be a tombstone after tenant A's erasure. Live data here means the "
             + "erasure destroyed a key nothing was ever written under and reported success.");
     }
@@ -187,37 +187,43 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
             + "share a key and either one's erasure destroys it for both.");
     }
 
-    /// <summary>
-    /// THE UNTENANTED-SPELLING ARM, which is the mirror defect rather than the original one.
-    /// </summary>
-    /// <remarks>
-    /// A single-tenant write resolves the ambient tenant to the framework default identity, while an
-    /// erasure request filed with no tenant is PERSISTED as the reserved untenanted sentinel. Two
-    /// spellings of "no tenant" would derive two handles, so the erasure would destroy a key nothing was
-    /// written under — destroying nothing while reporting a completed erasure. Both must collapse onto one
-    /// identity.
-    /// </remarks>
-    [Fact]
-    public void DeriveOneHandle_ForEverySpellingOfAnAbsentTenant()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task KeepDefaultAndUntenantedOwnersIndependent(bool eraseDefault)
     {
-        var hasher = TestDataSubjectHasher.Instance;
-        var subjectHash = hasher.HashDataSubjectId(SharedSubjectId);
-
-        var fromDefaultIdentity = SubjectKeyHandle.ForSubjectHash(
-            new TenantId(TenantDefaults.DefaultTenantId), subjectHash, hasher);
-
-        foreach (var spelling in new string?[] { null, "", "   ", TenantScope.UntenantedSentinel })
+        await using var host = await BuildAsync();
+        var defaultOwner = TenantDefaults.DefaultTenantId;
+        var untenantedOwner = KeyedTenantPartition.Untenanted.TenantId;
+        host.Tenant.TenantId = defaultOwner;
+        var first = await host.EncryptAsync(SharedSubjectId, "default-data"u8.ToArray());
+        host.Tenant.TenantId = untenantedOwner;
+        var second = await host.EncryptAsync(SharedSubjectId, "untenanted-data"u8.ToArray());
+        first.KeyId.ShouldNotBe(second.KeyId);
+        first.TenantId.ShouldBe(defaultOwner);
+        second.TenantId.ShouldBe(untenantedOwner);
+        (await host.DecryptAsync(first, defaultOwner)).ShouldBe("default-data"u8.ToArray());
+        (await host.DecryptAsync(second, untenantedOwner)).ShouldBe("untenanted-data"u8.ToArray());
+        host.Tenant.TenantId = eraseDefault ? defaultOwner : untenantedOwner;
+        (await host.EraseAsync(SharedSubjectId)).KeysDeleted.ShouldBeGreaterThan(0);
+        if (eraseDefault)
         {
-            SubjectKeyHandle
-                .ForSubjectHash(SubjectKeyHandle.OwningTenant(spelling), subjectHash, hasher)
-                .ShouldBe(
-                    fromDefaultIdentity,
-                    $"the spelling '{spelling ?? "<null>"}' of an absent tenant must derive the same handle "
-                    + "as the framework default identity a single-tenant write uses. Two spellings is an "
-                    + "erasure that destroys nothing and reports success.");
+            (await host.DecryptAsync(first, defaultOwner)).ShouldBeNull();
+            (await host.DecryptAsync(second, untenantedOwner)).ShouldBe("untenanted-data"u8.ToArray());
+        }
+        else
+        {
+            (await host.DecryptAsync(second, untenantedOwner)).ShouldBeNull();
+            (await host.DecryptAsync(first, defaultOwner)).ShouldBe("default-data"u8.ToArray());
         }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RefuseAnUnresolvedOwner(string? owner) =>
+        Should.Throw<ArgumentException>(() => SubjectKeyHandle.OwningTenant(owner));
     /// <summary>
     /// A derivation with no tenant must be inexpressible, not defaulted.
     /// </summary>
@@ -292,8 +298,8 @@ public sealed class ATenantQualifiedSubjectKeyHandleShould
             provider.GetRequiredService<IFieldEncryptor>()
                 .EncryptAsync(subjectId, RetentionScope.NotInAnAggregate, plaintext, CancellationToken.None);
 
-        public ValueTask<byte[]?> DecryptAsync(EncryptedData envelope) =>
-            provider.GetRequiredService<IFieldEncryptor>().DecryptAsync(envelope, CancellationToken.None);
+        public ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, string expectedTenantId) =>
+            provider.GetRequiredService<IFieldEncryptor>().DecryptAsync(envelope, expectedTenantId, CancellationToken.None);
 
         /// <summary>Runs a real erasure for the ambient tenant, key-shred only.</summary>
         public async Task<ErasureExecutionResult> EraseAsync(string subjectId)

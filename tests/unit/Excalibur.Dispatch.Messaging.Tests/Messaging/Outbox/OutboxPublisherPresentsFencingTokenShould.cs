@@ -60,7 +60,7 @@ public sealed class OutboxPublisherPresentsFencingTokenShould
 
 		return new MessageBusOutboxPublisher(
 			store,
-			A.Fake<IPayloadSerializer>(),
+			OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(),
 			A.Fake<IMessageBusAdapter>(),
 			serviceProvider,
 			A.Fake<ILogger<MessageBusOutboxPublisher>>());
@@ -171,7 +171,7 @@ public sealed class OutboxPublisherPresentsFencingTokenShould
 	public async Task AbortWithNoFurtherWriteWhenTheFencedMarkSentIsRefused()
 	{
 		var store = A.Fake<IOutboxStore>(o => o.Implements<IFencedOutboxStore>()).WithHonestCapabilities();
-		var staged = new OutboundMessage("Test.Message", "payload"u8.ToArray(), "test-destination");
+		var staged = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, "payload"u8.ToArray(), "test-destination");
 
 		A.CallTo(() => ((IFencedOutboxStore)store).GetUnsentMessagesAsync(A<int>._, Tenure, A<CancellationToken>._))
 			.Returns(new ValueTask<IEnumerable<OutboundMessage>>([staged]));
@@ -188,7 +188,7 @@ public sealed class OutboxPublisherPresentsFencingTokenShould
 			.Returns(Task.FromResult(MessageResult.Success()));
 
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), messageBus, serviceProvider, A.Fake<ILogger<MessageBusOutboxPublisher>>());
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), messageBus, serviceProvider, A.Fake<ILogger<MessageBusOutboxPublisher>>());
 
 		_ = await publisher.PublishPendingMessagesAsync(CancellationToken.None);
 

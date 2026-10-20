@@ -371,10 +371,23 @@ part of the claim predicate. A consumer who read the earlier text and worked aro
 closed can stop doing so — running a single active dispatcher, or disabling `ProcessScheduledMessages` and
 `RetryFailedMessages`, is no longer required for this reason.
 
-**One qualification, so this is not read as broader than it is.** `IOutboxPublisher` has **no registration
-anywhere in this framework** — the background service is registered by default but cannot resolve until a
-consumer supplies a publisher. So this drain runs only in a host that completes it. That the framework calls
-this the default drain and never wires it is a separate defect, tracked separately.
+**One qualification, so this is not read as broader than it is.** This drain is **opt-in and is not
+registered by default**: a host starts it by calling `EnableBackgroundProcessing()` on the outbox builder,
+or `AddOutboxHostedService()` directly. A host that registers neither stages messages and drains them
+elsewhere — from a separate worker process, or by triggering `IOutboxProcessor` itself — and the
+`EnableBackgroundProcessing` option reports the builder opt-in. The hosted service prefers a supplied
+`IOutboxPublisher`; otherwise it uses the `IOutboxProcessor` registered by the outbox infrastructure,
+resolving and disposing each processor in an owned asynchronous scope. Consumers must configure an outbox
+store and Dispatch before starting the host. A custom publisher is optional, and no default publisher is
+registered. Processor cycles report activity and accepted deliveries; their failure percentage is marked
+unavailable because the processor does not expose a complete failure count.
+
+> **Superseded wording, quoted so a reader who inherited it recognises it.** This paragraph previously said
+> *"the background service is registered by default but cannot resolve until a consumer supplies a
+> publisher"*, and called the missing wiring "a separate defect, tracked separately". The **registered by
+> default** half was false: nothing registered it on the builder route, while the option defaulted to `true`
+> and reported that it had. The option now defaults to off, so the report and the registration agree.
+> The required-publisher half is also superseded: the existing processor supplies the fallback drain.
 
 **This drain now presents a fencing token, and an earlier revision of this document recorded that it did
 not.** Where a leadership tenure and a fencing-capable store are both present, the claim and the mark-sent
@@ -392,6 +405,31 @@ the consumer has declared `SingleActiveWriter`, the unfenced members remain the 
 
 Claim-disjointness (S1) was never affected by the earlier gap -- it rests on the per-message atomic claim,
 not on leadership, so no message was delivered to two dispatchers from a live lease.
+
+## Persisted retry ownership
+
+For framework dispatch reached with the same message and context, each persisted outbox attempt
+owns the retry budget. `OutboxProcessor` and `MessageBusOutboxPublisher` establish ownership around
+the actual dispatch or adapter send; nested framework retry middleware does not start another
+budget for that identity. Different nested messages or contexts retain their own policy. Each
+transport delivery receives a separate identity, and ownership ends before completion persistence.
+
+Caller cancellation observed before failure classification propagates without recording a new
+delivery failure, including adapters that wrap cancellation or return a failed result. An independent
+provider timeout with an uncancelled caller remains a delivery failure. Already-persisted successful
+transport deliveries are retained; broker acceptance followed by cancellation or a failed completion
+write can remain pending and replay. This is at-least-once delivery, and consumers must be idempotent.
+SDK retries, consumer-managed loops and adapters that substitute new identities are separate policies.
+
+The outbox facade's retry count excludes the initial attempt. It supplies native processor defaults
+without overriding explicit native options. A registered `IBackoffCalculator` takes precedence;
+otherwise the facade supplies the existing fixed calculator with its configured retry delay. The
+Polly adapter supports richer backoff and jitter without changing ownership.
+
+Evidence: `OutboxPersistedRetryOwnershipShould` exercises actual middleware and durable row attempts;
+`MessageBusOutboxPublisherShould` reproduces single- and multi-transport multiplication, distinguishes
+caller cancellation from independent timeouts, and verifies healthy sibling delivery. These controls
+do not certify all SDK or real-provider failure scenarios.
 
 ## Per-message backoff: `IBackoffSchedulableOutboxStore`
 
@@ -534,6 +572,22 @@ Skew remains part of the duplicate window on the **three change-feed providers' 
 the bound stated above. It is no longer part of it on the polling family.
 
 ### A row that cannot be decoded is a fault of the row, not of the transport
+
+The following first-encounter dead-letter behavior describes `OutboxProcessor`. The optional
+`MessageBusOutboxPublisher` restores its own `IPayloadSerializer` format before calling an adapter;
+invalid rows follow that publisher's existing failed-attempt reporting and are never marked sent or
+handed to an adapter. Healthy rows in the same batch continue.
+
+`MessageBusOutboxPublisher` accepts `IDispatchMessage` instances for staging and rejects other objects
+before serialization or storage. New rows prefer the declared `MessageName`; unnamed contracts retain
+the runtime type's full name and assembly name without the assembly version. This fallback survives version
+changes for non-generic contracts; constructed generic arguments can still embed versions, so durable
+generic contracts should declare their stable identity. Each transport
+delivery decodes a separate instance and requires the exact registered runtime type, preserving concrete
+message routing and preventing sibling adapters from sharing mutable message objects. Legacy names remain
+readable where the registry resolves them unambiguously. Worker startup must register durable message
+types independently of staging; NativeAOT also requires the selected serializer's generated metadata.
+Process-local registration during staging does not configure a different worker or a restarted process.
 
 The staged body is the serialized **message**, written by the outbox writer as the message's own runtime
 type. The identifier, the type name and the metadata travel beside it on the stored row rather than inside
@@ -1170,3 +1224,60 @@ subject-identifying data in outbox payloads.
 
 **Evidence.** `OutboxRetentionContributorShould` -- safety: a message past its retention bound is gone;
 liveness: a message still within the bound survives -- run against the real in-memory outbox store.
+
+## Persisted retry classification and cancellation
+
+Each persisted dispatch attempt owns the retry budget for its exact message and context.
+The pipeline carries established failure classification back to the outbox through an
+attempt-local ledger keyed by result reference. A copied or equal-valued result cannot
+borrow another result's classification, and a late report from an earlier attempt cannot
+change the current attempt. Re-reporting a result replaces all classification evidence
+together.
+
+A failed fanout is immediately terminal because of classification only when every failed destination has an established
+permanent or poison classification. A transient, uncertain or unclassified destination keeps the
+bounded persisted retry policy. Unclassified failed results remain explicitly unknown;
+the processor does not manufacture an exception and ask the classifier to infer their
+kind. Permanent faults retire as unhandled exceptions and poison faults as poison
+messages. The original established exception is retained for diagnostics.
+
+`MessageFailureKind.Uncertain` preserves the distinction between an established rejection
+and an acknowledgement that does not establish acceptance. Its default policy is bounded
+retry, subject to explicit retry exclusions. It can coexist with permanent fanout failures;
+the original transport faults remain available to diagnostics. Replay requires idempotent
+consumers because an uncertain send may already have been accepted.
+
+If dead-letter disposition faults, the processor persists the observed logical attempt count
+and versioned pending-disposition evidence in `LastError`, using the original claim authority.
+A recovered claim checks that evidence and the exhausted budget before decoding or sending.
+It retries disposition without another transport send. Invalid or unsupported disposition
+evidence remains retained for diagnosis. A normal fenced refusal does not trigger an
+unfenced fallback. Failed or ambiguous bookkeeping can still allow at-least-once redelivery.
+
+Retirement receives an explicit absolute attempt count. An applied transition records the
+maximum of that value and the stored count atomically; it never invents an extra send.
+Already terminal, missing or refused rows remain unchanged. Preparation failures can retire
+with zero sends, and an administrative archive preserves its existing count. These counts
+describe recorded logical delivery attempts, not SDK retries or an exact crash-proof physical
+request ceiling. Store implementations must persist `LastError` through claim projection
+and preserve their claim and fencing guards across archival. The existing token-only
+retirement capability protects leadership generations; it does not distinguish two claims
+within one generation. Processor identity alone likewise does not distinguish successive
+claims by the same processor. Per-claim retirement requires an atomically checked claim
+identity and a reported refusal outcome; this remains under repair.
+
+The result-aware circuit-breaker execution records each delivery outcome once. Caller
+cancellation observed at the dispatch boundary, including transport exceptions wrapping
+cancellation, does not consume the durable retry count or count as a breaker failure.
+An independent transport timeout remains a delivery failure. A successful delivery
+followed by a failed mark-sent write leaves the claim for recovery; it does not become a
+dead letter or a second delivery failure. Redelivery remains possible, so handlers must
+be idempotent.
+
+`OutboxPersistedRetryOwnershipShould` exercises permanent, poison, mixed fanout, unknown
+result, wrapped cancellation and independent timeout paths through the real persisted
+pipeline in single and batch modes. `RetryOwnershipClassificationShould` exercises
+result identity and attempt isolation. These are local controls, not cloud acceptance
+or a framework-wide proof of one physical request per attempt. An SDK can still perform
+hidden retries inside a transport call; complete physical retry-budget enforcement and
+telemetry across all transports remain unverified.

@@ -57,7 +57,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
             A.Fake<ITenantContext>());
 
         var refusal = await Should.ThrowAsync<EncryptionException>(
-            () => encryptor.DecryptAsync(Envelope(), CancellationToken.None).AsTask());
+            () => encryptor.DecryptAsync(Envelope(), global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).AsTask());
 
         refusal.ErrorCode.ShouldBe(
             EncryptionErrorCode.KeyNotFound,
@@ -81,7 +81,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
             LedgerStating(destroyed: true),
             A.Fake<ITenantContext>());
 
-        var plaintext = await encryptor.DecryptAsync(Envelope(), CancellationToken.None);
+        var plaintext = await encryptor.DecryptAsync(Envelope(), global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None);
 
         plaintext.ShouldBeNull("a key the provider states is destroyed is a lawful crypto-shred tombstone");
     }
@@ -132,7 +132,8 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
         var failure = await Should.ThrowAsync<EncryptionException>(
             () => provider.DecryptAsync(
                 Envelope(),
-                new EncryptionContext { KeyId = KeyId, KeyVersion = KeyVersion },
+                new EncryptionContext { KeyId = KeyId,
+		TenantId = TenantDefaults.DefaultTenantId, KeyVersion = KeyVersion },
                 CancellationToken.None));
 
         failure.ErrorCode.ShouldBe(EncryptionErrorCode.KeyNotFound);
@@ -142,6 +143,7 @@ public sealed class AnAbsentKeyIsNotAnErasureTombstoneShould
     {
         Ciphertext = new byte[32],
         KeyId = KeyId,
+		TenantId = TenantDefaults.DefaultTenantId,
         KeyVersion = KeyVersion,
         KeyGeneration = KeyGeneration,
         Algorithm = EncryptionAlgorithm.Aes256Gcm,

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Serialization;
+using Excalibur.Dispatch.Delivery.Registry;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 
@@ -17,6 +19,30 @@ namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 // absence path (e.g. WhenAdapterMissing_Throws), which must keep answering null for the unimplemented capability.
 internal static class OutboxFakeCapabilityExtensions
 {
+	public static string RegisteredMessageType
+	{
+		get
+		{
+			MessageTypeRegistry.RegisterType<FixtureEvent>();
+			return typeof(FixtureEvent).AssemblyQualifiedName!;
+		}
+	}
+
+	// This fixture models decoding only; codec round trips are proved separately through a real adapter.
+	public static IPayloadSerializer CreateRegisteredSerializer()
+	{
+		_ = RegisteredMessageType;
+		var serializer = A.Fake<IPayloadSerializer>();
+		A.CallTo(() => serializer.DeserializeObject(A<byte[]>._, typeof(FixtureEvent)))
+			.ReturnsLazily((byte[] payload, Type _) => new FixtureEvent { Payload = payload });
+		return serializer;
+	}
+
+	internal sealed class FixtureEvent : IDispatchEvent
+	{
+		public byte[] Payload { get; init; } = [];
+	}
+
 	public static IOutboxStore WithHonestCapabilities(this IOutboxStore fake)
 	{
 		A.CallTo(() => fake.GetService(A<Type>._))

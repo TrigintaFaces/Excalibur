@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.Dispatch;
 
@@ -21,6 +24,8 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 	private readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.Ordinal);
 	private readonly DaxCacheOptions _options;
 	private readonly ILogger<InMemoryDaxCacheProvider> _logger;
+	private readonly JsonSerializerOptions _jsonOptions;
+	private readonly TimeProvider _timeProvider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryDaxCacheProvider"/> class.
@@ -30,9 +35,38 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 	public InMemoryDaxCacheProvider(
 		IOptions<DaxCacheOptions> options,
 		ILogger<InMemoryDaxCacheProvider> logger)
+		: this(options, logger, TimeProvider.System)
+	{
+	}
+
+	internal InMemoryDaxCacheProvider(
+		IOptions<DaxCacheOptions> options,
+		ILogger<InMemoryDaxCacheProvider> logger,
+		TimeProvider timeProvider)
 	{
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+		var resolver = _options.JsonTypeInfoResolver;
+		_jsonOptions = resolver is JsonSerializerContext context
+			? new JsonSerializerOptions(context.Options)
+			: new JsonSerializerOptions();
+		if (resolver is null)
+		{
+			if (RuntimeFeature.IsDynamicCodeSupported && JsonSerializer.IsReflectionEnabledByDefault)
+			{
+#pragma warning disable IL2026 // Reflection metadata is reachable only when dynamic code and JSON reflection are enabled; Native AOT uses consumer metadata or the empty resolver.
+				resolver = new DefaultJsonTypeInfoResolver();
+#pragma warning restore IL2026
+			}
+			else
+			{
+				resolver = JsonTypeInfoResolver.Combine();
+			}
+		}
+
+		_jsonOptions.TypeInfoResolver = resolver;
+		_jsonOptions.MakeReadOnly();
 	}
 
 	/// <inheritdoc />
@@ -50,17 +84,15 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 
 		if (_cache.TryGetValue(key, out var entry))
 		{
-			if (entry.ExpiresAt > DateTimeOffset.UtcNow)
+			if (entry.ExpiresAt > _timeProvider.GetUtcNow())
 			{
 				LogCacheHit(tableName, partitionKey);
-#pragma warning disable IL2026, IL3050
-				var item = JsonSerializer.Deserialize<T>(entry.SerializedValue);
-#pragma warning restore IL2026, IL3050
+				var item = JsonSerializer.Deserialize(entry.SerializedValue, GetTypeInfo<T>());
 				return Task.FromResult(item);
 			}
 
-			// Expired -- remove it
-			_ = _cache.TryRemove(key, out _);
+			// Remove only the expired instance observed above; a concurrent put publishes a new instance.
+			_ = _cache.TryRemove(new KeyValuePair<string, CacheEntry>(key, entry));
 		}
 
 		LogCacheMiss(tableName, partitionKey);
@@ -90,14 +122,32 @@ internal sealed partial class InMemoryDaxCacheProvider : IDaxCacheProvider
 
 		var entry = new CacheEntry
 		{
-#pragma warning disable IL2026, IL3050
-			SerializedValue = JsonSerializer.Serialize(item),
-#pragma warning restore IL2026, IL3050
-			ExpiresAt = DateTimeOffset.UtcNow.Add(_options.CacheItemTtl)
+			SerializedValue = JsonSerializer.Serialize(item, GetTypeInfo<T>()),
+			ExpiresAt = _timeProvider.GetUtcNow().Add(_options.CacheItemTtl)
 		};
 
 		_cache[key] = entry;
 		return Task.CompletedTask;
+	}
+
+	private JsonTypeInfo<T> GetTypeInfo<T>()
+	{
+		try
+		{
+			if (_jsonOptions.GetTypeInfo(typeof(T)) is JsonTypeInfo<T> typeInfo)
+			{
+				return typeInfo;
+			}
+		}
+		catch (NotSupportedException exception)
+		{
+			throw new NotSupportedException(
+				$"JSON metadata for cached type '{typeof(T)}' is unavailable. Configure DaxCacheOptions.JsonTypeInfoResolver with source-generated metadata for this type and its members.",
+				exception);
+		}
+
+		throw new NotSupportedException(
+			$"JSON metadata for cached type '{typeof(T)}' is unavailable. Configure DaxCacheOptions.JsonTypeInfoResolver with source-generated metadata for this type and its members.");
 	}
 
 	/// <inheritdoc />

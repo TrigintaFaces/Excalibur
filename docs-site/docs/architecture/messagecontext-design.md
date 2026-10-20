@@ -116,26 +116,39 @@ context.Items["ce.source"] = "/my-service";
 
 See [MessageContext Items Usage](./messagecontext-items-usage.md) for complete documentation.
 
+The concrete `MessageContext` defers its item dictionary until it is needed.
+`ContainsItem`, both `GetItem<T>` overloads and `RemoveItem` can use the deferred
+representation without creating that dictionary. Reading `Items` materializes it.
+Custom implementations and derived contexts retain their own dictionary behavior.
+
+Message-type metadata belongs to the same logical item bag. Calling
+`SetMessageType(null)` creates a present entry with a null value; use `ContainsItem`
+to distinguish that from an absent entry. Once materialized, `Items` is authoritative:
+removing or clearing metadata does not restore an earlier value from a backing field.
+Message type and its routing-default marker are independent entries. `Reset` clears
+the concrete context's metadata and item state for reuse.
+
 ## Context Propagation
 
 When dispatching child messages, cross-cutting concerns propagate automatically:
 
 ```csharp
 var childContext = context.CreateChildContext();
-// Propagated: CorrelationId, IMessageIdentityFeature, IMessageRoutingFeature.Source
+// Propagated: CorrelationId, IMessageIdentityFeature, IMessageRoutingFeature.Source, Items entries
 // Set automatically: CausationId = parent.MessageId, new MessageId
-// NOT copied: Items dictionary, processing/validation/timeout features
+// Items entries are shallow-copied into an independent dictionary.
+// NOT copied: processing/validation/timeout features
 ```
 
 This enables distributed tracing without manual plumbing.
 
 ## Thread Safety
 
-`MessageContext` is designed to be thread-safe:
-
-- Property setters use standard CLR mechanisms
-- Items dictionary can be accessed from middleware on different threads
-- The context is scoped to a single message processing operation
+The same context can flow across asynchronous continuations. Its `Items` and
+`Features` collections are ordinary dictionaries; do not mutate them concurrently.
+Coordinate parallel work or create child contexts. Child dictionaries are independent,
+but their values are shallow copies and can still refer to shared mutable objects.
+Return a pooled context only after all work using it has finished.
 
 ## Lifetime & Pooling
 

@@ -73,58 +73,44 @@ nothing to recover, and adding it would place a second retry loop around one tha
 
 ## Settlement semantics
 
-**The settlement contract is stated and it picks one of the two possible shapes.** `ITransportReceiver`
-declares `AcknowledgeAsync` and `RejectAsync` returning plain `Task`, and its remarks say why:
+`ITransportReceiver.AcknowledgeAsync` and `RejectAsync` return `Task`. Normal completion means the
+provider completed its supported operation without an observed failure or refusal through its available
+response. Confirmation depends on the provider: completion does not universally prove durable broker
+acceptance or prevent redelivery. An observed failure, refusal, or unsupported disposition must throw.
 
-> *Returning normally means the broker accepted the acknowledgement. An implementation that cannot
-> complete the settlement **throws** rather than returning, because a caller cannot distinguish a
-> settled message from an unsettled one by any other means.*
+An exception also does not prove that settlement failed at the broker. A request can be accepted before
+its response is lost. `TransportSettlementException` carries two independent axes:
 
-**Stated falsifiably: a settlement call that returns normally means the broker accepted it. A
-settlement call that throws means it did not.** Every provider MUST keep that; a provider that
-swallows a failed settle and returns normally reports a message as settled that the broker will
-redeliver, and the consumer sees an unexplained duplicate.
+| Property | Meaning |
+|---|---|
+| `RedeliveryExpectation` | What the receiver knows about delivery of the message. `Unspecified` means redelivery remains possible; it does not prove the broker refused settlement. |
+| `Retryability` | Whether repeating this settlement call could succeed. `Permanent` includes a consumed local handle; `Unspecified` gives no basis for an unbounded retry loop. |
 
-### The gap this contract does not close
+Provider exceptions remain available as `InnerException`. Already classified portable exceptions retain
+their identity. Callers must remain idempotent and distinguish retrying a settlement from processing a
+later redelivery.
 
-**`Task` has room for two outcomes and settlement has three.** An exception says *"not settled"*. It
-cannot say *"I do not know whether this settled"* — and that third outcome is reachable on every
-broker: a token cancelled between the handler succeeding and the ack being sent, a connection lost
-mid-settle, a receipt that expired while the handler ran.
+### Bounded source observations
 
-**Those two cases require different consumer behaviour**, which is why collapsing them matters:
+These rows describe the inspected receiver paths, not a complete implementation census or a live-broker
+certification. Deterministic tests of client seams establish local exception and ownership behavior;
+they cannot establish broker durability, failover, or eventual redelivery.
 
-| the receiver observed | the message will be | what the consumer must do |
-|---|---|---|
-| the broker REFUSED the settle | redelivered | may retry the settle; the broker is reachable |
-| the outcome is UNKNOWN | redelivered **or not** | must be idempotent; retrying the settle may double-settle |
+| Receiver | Supported operation and observed failure classification |
+|---|---|
+| RabbitMQ | Calls native ack/nack with an independent timeout. Its receipt claim is consumed before I/O; native failures report `Unspecified` redelivery and `Permanent` retryability. Callback completion supplies no separate broker acceptance response. |
+| Azure Service Bus | Retains the native receipt for every returned delivery and calls complete, abandon, or dead-letter with an independent timeout. The local claim is consumed; failures report `Unspecified` / `Permanent`. More than 10,000 outstanding receipts produces a warning, not a settlement cutoff or memory bound. Retained native messages keep their payload and metadata alive; consumers must control outstanding processing and settle deliveries promptly. |
+| SQS | Calls delete or changes visibility to zero with an independent timeout. Native failures report `Unspecified` / `Unspecified`; missing or malformed receipt data is `Unspecified` / `Permanent`. The receipt remains on the message. |
+| gRPC | Checks the settlement RPC response. Explicit server refusal reports `Expected` / `Unspecified`; native RPC failures report `Unspecified` / `Unspecified`. It uses an independent token and the configured RPC deadline. |
+| Pulsar | Serializes settlement for the original delivery receipt and forwards the caller token; a retired receipt cannot settle a later delivery with the same native message ID. Native failures report `Unspecified` / `Unspecified`; invalid or already settled receipts are permanent. Exact requested caller cancellation remains cancellation. |
+| Google Pub/Sub | Calls acknowledge or modifies the ack deadline to zero with an independent timeout. Native failures report `Unspecified` / `Unspecified`; missing or malformed ack IDs are permanent. |
+| Kafka | Settles partition offsets through shared progress state and binds settlement to the original delivery receipt; retired receipts cannot settle a repeated offset. Native failures report `Unspecified` / `Unspecified`; stale or invalid delivery state is permanent. A shared operation gate serializes local progress and native operations, with bounded subscriber polling. Receiver and subscriber regressions pass; these controls do not certify remote ownership fencing. |
+| MQTT | Completes the native acknowledgement callback, or withholds acknowledgement for requeue when the delivery's captured connection settings request a retained session. Clean sessions allow acknowledgment and rejection without requeue; unavailable requeue is refused before claiming the receipt (`Unspecified` / `Permanent`), leaving those alternatives usable. Callback failures report `Unspecified` / `Permanent` after the local claim is consumed. Exact requested caller cancellation remains cancellation and does not restore the claim. Captured settings do not prove broker retention; redelivery requires reconnecting to the retained session. |
+| IBM MQ | Uses a unique delivery receipt, preserving the public MQMD message ID, to commit or back out the claimed unit of work; reject without requeue moves to a backout queue before commit. Native failures consume the local handle and are permanent. Commit or backout failure leaves redelivery unspecified; only an observed successful rollback before any commit attempt supports `Expected`. Cleanup attempts are independent of settlement classification. |
 
-Today both arrive as an exception and the consumer cannot tell them apart. **Consumers must therefore
-treat every settlement exception as the UNKNOWN case — the conservative reading — and be idempotent
-regardless.** That is a consumer obligation created by the contract's shape, and it is stated here
-rather than left to be discovered.
-
-### Cancellation during ack is the adversarial case
-
-**A token cancelled between "handler succeeded" and "ack sent" is the single most common way an
-at-least-once system silently becomes at-most-once.** Any conformance arm for settlement MUST include
-it. A provider that treats that cancellation as a successful settle has converted a delivery
-guarantee into its opposite, silently.
-
-### A provider that cannot support an outcome must say so at registration
-
-**Not emulate it.** An emulated settlement is a guarantee this framework advertises and the broker
-does not keep — and it fails in the direction the consumer cannot see.
-
-### UNVERIFIED — the per-provider table is NOT in this document
-
-**Whether each transport actually keeps the contract above is UNMEASURED.** No per-provider
-settlement table exists here and none should be inferred from this section. One provider is known to
-carry a two-valued settle internally (`GrpcTransportSubscriber.SettleAsync` returns `bool`), which
-means a conversion to the throw-or-return contract happens at its boundary and has not been reviewed.
-
-**There is no conformance arm binding any of the above.** Until one exists, this section states the
-intended contract and the measured interface shape — not observed provider behaviour.
+Cancellation behavior follows each provider's operation. A canceled caller token does not identify an
+unrelated internal timeout, particularly where settlement uses an independent token. An implementation
+must not report a failed or unsupported disposition as successful completion.
 
 ## Evidence
 
@@ -150,6 +136,16 @@ so for those two the table names a gap, not a feature.
 
 **The IBM MQ row is undecided, not pending.** It stays undecided until its subscription-recovery
 behaviour is established against a real queue manager rather than from documentation.
+
+**The per-transport settlement table above is largely UNEVIDENCED, and the Evidence section does not
+cover it.** A shared conformance kit supplies six settlement arms — refusal, native failure, repeated
+settlement, cancellation, competing settlements, and batch retry — but each transport's suite chooses
+which of them to call, and nothing required the full set. Measured 2026-10-19: of the eight transports
+with a settlement suite, **one (RabbitMQ) exercises all six; Pulsar exercises one**. Every other row in
+that table therefore states redelivery and retryability axes that no arm checks for that transport. The
+rows are not known to be wrong — they are read from each provider's implementation rather than observed,
+which is the same standing as the reconnection guarantee above. A structural guard now records the
+uncovered arms per transport and fails if that set grows, so the gap can shrink but not silently widen.
 
 ## Consumer obligations
 

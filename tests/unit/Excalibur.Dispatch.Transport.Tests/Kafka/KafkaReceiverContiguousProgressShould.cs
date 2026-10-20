@@ -5,6 +5,7 @@
 
 using Confluent.Kafka;
 
+using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -259,7 +260,11 @@ public sealed class KafkaReceiverContiguousProgressShould
 		commits.ShouldBe([1L]);
 
 		// The straggler: offset 1, acknowledged under the tenure that ended.
-		await receiver.AcknowledgeAsync(beforeRebalance[1], CancellationToken.None);
+		var refusal = await Should.ThrowAsync<TransportSettlementException>(
+			() => receiver.AcknowledgeAsync(beforeRebalance[1], CancellationToken.None));
+		refusal.TransportName.ShouldBe("Kafka");
+		refusal.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		refusal.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
 
 		commits.ShouldBe([1L]); // unchanged — the new owner still owes offset 1
 	}
@@ -298,13 +303,14 @@ public sealed class KafkaReceiverContiguousProgressShould
 			.ReturnsLazily(() => queue.Count > 0 ? queue.Dequeue() : null);
 
 		var failFirst = true;
+		var cause = new KafkaException(ErrorCode.Local_Transport);
 		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._))
 			.Invokes((IEnumerable<TopicPartitionOffset> offsets) =>
 			{
 				if (failFirst)
 				{
 					failFirst = false;
-					throw new KafkaException(ErrorCode.Local_Transport);
+					throw cause;
 				}
 
 				commits.AddRange(offsets.Select(o => o.Offset.Value));
@@ -313,8 +319,12 @@ public sealed class KafkaReceiverContiguousProgressShould
 		var receiver = CreateReceiver(consumer);
 		var messages = await receiver.ReceiveAsync(10, CancellationToken.None);
 
-		_ = await Should.ThrowAsync<KafkaException>(
+		var failure = await Should.ThrowAsync<TransportSettlementException>(
 			() => receiver.AcknowledgeAsync(messages[0], CancellationToken.None));
+		failure.TransportName.ShouldBe("Kafka");
+		failure.Retryability.ShouldBe(SettlementRetryability.Unspecified);
+		failure.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		failure.InnerException.ShouldBeSameAs(cause);
 
 		await receiver.AcknowledgeAsync(messages[1], CancellationToken.None);
 
@@ -384,4 +394,66 @@ public sealed class KafkaReceiverContiguousProgressShould
 
 		receiver.GetService(typeof(KafkaPartitionProgress)).ShouldBeSameAs(progress);
 	}
+	[Fact]
+	public async Task SerializeNativeCommits_SoAnOlderPositionCannotOvertakeANewerOne()
+	{
+		var commits = new System.Collections.Concurrent.ConcurrentQueue<long>();
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var release = new ManualResetEventSlim();
+		var higherStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var higherEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var consumer = FakeConsumer([Record("m7", 7), Record("m8", 8), null], []);
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).Invokes((IEnumerable<TopicPartitionOffset> offsets) =>
+		{
+			var position = offsets.Single().Offset.Value;
+			if (position == 8)
+			{
+				entered.TrySetResult();
+				if (!release.Wait(TimeSpan.FromSeconds(10)))
+				{
+					throw new TimeoutException("The paused native operation was not released by its test owner.");
+				}
+			}
+			else
+			{
+				higherEntered.TrySetResult();
+			}
+			commits.Enqueue(position);
+		});
+		var receiver = CreateReceiver(consumer);
+		var messages = await receiver.ReceiveAsync(2, CancellationToken.None);
+		var lower = Task.Factory.StartNew(() => receiver.AcknowledgeAsync(messages[0], CancellationToken.None),
+			CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+		Task? higher = null;
+		try
+		{
+			await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			higher = Task.Factory.StartNew(() =>
+			{
+				higherStarted.TrySetResult();
+				return receiver.AcknowledgeAsync(messages[1], CancellationToken.None);
+			}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+			await higherStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			try
+			{
+				await higherEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+				throw new InvalidOperationException("The higher commit entered native I/O while the lower commit still owned it.");
+			}
+			catch (TimeoutException)
+			{
+				// The competing worker started, but native entry must wait for the current owner.
+			}
+		}
+		finally
+		{
+			release.Set();
+			await lower.WaitAsync(TimeSpan.FromSeconds(5));
+			if (higher is not null)
+			{
+				await higher.WaitAsync(TimeSpan.FromSeconds(5));
+			}
+		}
+		commits.ToArray().ShouldBe([8L, 9L]);
+	}
+
 }

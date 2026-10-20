@@ -16,9 +16,6 @@ public class ProductRepository : ElasticRepositoryBase<Product>, IProductReposit
     {
     }
 
-    public override Task InitializeAsync(CancellationToken cancellationToken)
-        => InitializeIndexAsync(cancellationToken);
-
     public override async Task InitializeIndexAsync(CancellationToken cancellationToken)
     {
         // Create index with explicit mappings for our Product document

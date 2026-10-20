@@ -109,7 +109,7 @@ options.RetentionPeriod = TimeSpan.FromHours(24);
 ```
 
 ### 5. Performance Optimizations
-- Zero-allocation design using pooled buffers
+- Pooled buffers reduce buffer allocations; complete operations can still allocate
 - Stream-based operations
 - Connection pooling
 - Parallel chunk processing

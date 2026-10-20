@@ -29,20 +29,16 @@ namespace Excalibur.A3.Authorization;
 /// partition from here, so there is no state in which the partition is undecided. A single-tenant host
 /// receives the framework default context and operates as the one canonical tenant.
 /// </param>
+/// <param name="timeProvider">Clock used to reject expired grants during acquisition.</param>
 internal sealed class CoreAuthorizationPolicyProvider(
 	ActivityGroups activityGroups,
 	UserGrants userGrants,
 	IAuthenticationToken currentUser,
-	ITenantContext tenantContext
+	ITenantContext tenantContext,
+	TimeProvider? timeProvider = null
 ) : IAuthorizationPolicyProvider
 {
-	/// <summary>
-	/// The policy built for this scope, memoized after the first call. This type is registered scoped, so
-	/// one instance already lives for exactly one request/dispatch -- caching here is per-request
-	/// memoization without introducing any new lifetime or shared state, and it is free: it costs nothing
-	/// beyond what the scope already pays for evaluating more than one activity or resource.
-	/// </summary>
-	private Task<IAuthorizationPolicy>? _cachedPolicy;
+	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
 	/// <exception cref="InvalidOperationException">
@@ -68,20 +64,49 @@ internal sealed class CoreAuthorizationPolicyProvider(
 				"Establish the ambient tenant (TenantContextHolder.BeginScope / tenant middleware) before evaluating authorization.");
 		}
 
-		return await (_cachedPolicy ??= BuildPolicyAsync(currentUser.UserId, tenantContext.TenantId)).ConfigureAwait(false);
-	}
+		var userId = currentUser.UserId;
+		var tenantId = tenantContext.TenantId;
+		for (var attempt = 0; attempt < 3; attempt++)
+		{
+			var revision = await userGrants.RevisionAsync(userId, CancellationToken.None).ConfigureAwait(false);
+			IDictionary<string, object> grants;
+			if (revision is null)
+			{
+				grants = await userGrants.ValueAsync(userId, CancellationToken.None).ConfigureAwait(false);
+			}
+			else
+			{
+				var snapshot = await userGrants.SnapshotAsync(userId, CancellationToken.None).ConfigureAwait(false)
+					?? throw new InvalidOperationException("The grant store did not return an authoritative snapshot.");
+				if (!string.Equals(snapshot.UserId, userId, StringComparison.Ordinal))
+				{
+					throw new InvalidOperationException("The grant snapshot belongs to a different subject.");
+				}
+				if (snapshot.Revision != revision)
+				{
+					continue;
+				}
+				var now = _timeProvider.GetUtcNow();
+				grants = snapshot.Grants.Where(g => g.IsActive(now)).ToDictionary(
+					g => SegmentedKey.Compose(g.TenantId, g.GrantType, g.Qualifier),
+					g => (object)g,
+					StringComparer.Ordinal);
+			}
 
-	private async Task<IAuthorizationPolicy> BuildPolicyAsync(string userId, string tenantId)
-	{
-		var grantsTask = userGrants.ValueAsync(userId, CancellationToken.None);
-		var activityGroupsTask = activityGroups.ValueAsync(tenantId, CancellationToken.None);
-
-		await Task.WhenAll(grantsTask, activityGroupsTask).ConfigureAwait(false);
-
-		return new AuthorizationPolicy(
-			await grantsTask.ConfigureAwait(false),
-			await activityGroupsTask.ConfigureAwait(false),
-			tenantContext,
-			userId);
+			// A relational store can share the scoped connection with the catalogue store.
+			// Finish the coherent grant read before issuing the catalogue query.
+			var groups = await activityGroups.ValueAsync(tenantId, CancellationToken.None).ConfigureAwait(false);
+			if (revision is not null && revision != await userGrants.RevisionAsync(userId, CancellationToken.None).ConfigureAwait(false))
+			{
+				continue;
+			}
+			if (!string.Equals(currentUser.UserId, userId, StringComparison.Ordinal)
+				|| !string.Equals(tenantContext.TenantId, tenantId, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException("Authorization identity changed while acquiring a policy.");
+			}
+			return new AuthorizationPolicy(grants, groups, tenantContext, userId);
+		}
+		throw new InvalidOperationException("Authorization grants changed repeatedly while acquiring a policy. Retry authorization.");
 	}
 }

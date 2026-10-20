@@ -64,12 +64,16 @@
     DELETES them and nothing can restore them from the scan. Prefer editing the file
     for a small change; diff the result before committing a large one.
 
-    Refuses outright when -SrcPath is overridden without an explicit -BaselinePath,
-    which is the shape that writes a fixture scan over the repository baseline.
+    Refuses generation from any source population other than the repository's full
+    src/ tree into a repository baseline, including explicitly supplied paths.
+    Use an explicit scratch baseline for fixture generation. Reparse-point paths
+    require their actual filesystem paths for generation; read-only audits are unaffected.
 
 .EXAMPLE
     ./Invoke-AotSuppressionAudit.ps1
     ./Invoke-AotSuppressionAudit.ps1 -GenerateBaseline
+    ./Invoke-AotSuppressionAudit.ps1 -SrcPath ./fixtures/src -BaselinePath ./scratch/baseline.json -OutputPath ./scratch/audit -GenerateBaseline
+    ./Invoke-AotSuppressionAudit.PathGuard.Tests.ps1
 #>
 [CmdletBinding()]
 param(
@@ -91,7 +95,7 @@ if (-not $BaselinePath) {
     $BaselinePath = Join-Path $repoRoot 'eng' 'ci' 'aot-suppression-baseline.json'
 }
 
-# ---- REFUSE a fixture scan that would write the REPOSITORY baseline ----------------------------
+# ---- REFUSE a fixture scan that would write a REPOSITORY baseline ------------------------------
 # -BaselinePath defaults to the repo file. -SrcPath does not have to be overridden for that to be
 # fine, but the COMBINATION "scan somewhere else, write the real baseline" has no legitimate use:
 # a scan of a fixture tree cannot produce a baseline for this repository, and writing one destroys
@@ -100,17 +104,63 @@ if (-not $BaselinePath) {
 # hand-authored fields (verdict / classifiedBy / note) that -GenerateBaseline does not emit and a
 # regeneration therefore cannot restore.
 #
-# Deliberately narrow: it fires only when BOTH conditions hold. A normal full regeneration (both
-# paths defaulted) is untouched, and an explicit -BaselinePath is always honoured.
-if ($GenerateBaseline -and $PSBoundParameters.ContainsKey('SrcPath') -and -not $PSBoundParameters.ContainsKey('BaselinePath')) {
-    Write-Host "REFUSING to generate a baseline." -ForegroundColor Red
-    Write-Host "  -SrcPath was overridden but -BaselinePath was not, so this run would scan" -ForegroundColor Yellow
-    Write-Host "    $SrcPath" -ForegroundColor Yellow
-    Write-Host "  and write the result over the REPOSITORY baseline at" -ForegroundColor Yellow
-    Write-Host "    $BaselinePath" -ForegroundColor Yellow
-    Write-Host "  A scan of one tree cannot produce a baseline for another. Pass -BaselinePath" -ForegroundColor Yellow
-    Write-Host "  explicitly (a scratch file for a fixture run), or omit -SrcPath for a real one." -ForegroundColor Yellow
-    exit 2
+# The relation between the actual paths matters, not which arguments were explicitly supplied.
+# Check before creating output or writing anything. Missing target files are checked through their
+# nearest existing ancestor. A link could redirect an apparently external target into the repository;
+# generation refuses such uncertain paths rather than guessing. Ordinary read-only audits keep their
+# existing path behavior.
+if ($GenerateBaseline) {
+    function Get-GenerationPath {
+        param([string]$Path)
+        $full = [IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
+        $pathComparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+        $ancestor = $full
+        while ($true) {
+            $entry = $null
+            try { $entry = Get-Item -LiteralPath $ancestor -Force -ErrorAction Stop }
+            catch [System.Management.Automation.ItemNotFoundException] {
+                # A dangling link can be absent to Test-Path yet remain a filesystem entry.
+                $parent = [IO.Path]::GetDirectoryName($ancestor)
+                if ($parent -and (Test-Path -LiteralPath $parent -PathType Container)) {
+                    $leaf = [IO.Path]::GetFileName($ancestor)
+                    $entry = Get-ChildItem -LiteralPath $parent -Force -ErrorAction Stop |
+                        Where-Object { $_.Name.Equals($leaf, $pathComparison) } | Select-Object -First 1
+                }
+            }
+            if ($null -ne $entry) { break }
+            $parent = [IO.Path]::GetDirectoryName($ancestor)
+            if (-not $parent -or $parent -eq $ancestor) { throw "Cannot resolve generation path: $Path" }
+            $ancestor = $parent
+        }
+        while ($ancestor) {
+            $entry = Get-Item -LiteralPath $ancestor -Force
+            if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Generation path contains a link at $ancestor. Supply its actual filesystem path."
+            }
+            $parent = [IO.Path]::GetDirectoryName($ancestor)
+            if (-not $parent -or $parent -eq $ancestor) { break }
+            $ancestor = $parent
+        }
+        return $full.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    }
+    try {
+        $comparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+        $generationRepo = Get-GenerationPath $repoRoot
+        $generationSource = Get-GenerationPath $SrcPath
+        $repositorySource = Get-GenerationPath (Join-Path $repoRoot 'src')
+        $generationBaseline = Get-GenerationPath $BaselinePath
+        $repositoryPrefix = $generationRepo + [IO.Path]::DirectorySeparatorChar
+        $insideRepository = $generationBaseline.Equals($generationRepo, $comparison) -or
+            $generationBaseline.StartsWith($repositoryPrefix, $comparison)
+        if ($insideRepository -and -not $generationSource.Equals($repositorySource, $comparison)) {
+            throw "Source $SrcPath is not the full repository src tree; it cannot generate repository baseline $BaselinePath. Supply an explicit scratch -BaselinePath."
+        }
+    }
+    catch {
+        Write-Host 'REFUSING to generate a baseline.' -ForegroundColor Red
+        Write-Host "  $($_.Exception.Message)" -ForegroundColor Yellow
+        exit 2
+    }
 }
 
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
@@ -119,160 +169,190 @@ New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 # Scan source for [UnconditionalSuppressMessage] attributes
 # ============================================================================
 
-function Get-SourceSuppressions {
-    param([string]$SourceRoot)
-
-    $suppressions = @()
-    $csFiles = Get-ChildItem -Path $SourceRoot -Filter '*.cs' -Recurse -File |
-        Where-Object { $_.FullName -notmatch '(\\|/)obj(\\|/)' -and $_.FullName -notmatch '(\\|/)bin(\\|/)' }
-
-    $script:ParseFailures = @()
-
-    foreach ($file in $csFiles) {
-        $content = Get-Content -Path $file.FullName -Raw -ErrorAction SilentlyContinue
-        if ($null -eq $content) { continue }
-
-        $relativePath = $file.FullName.Replace($repoRoot, '').TrimStart('\', '/')
-        # Normalize to forward slashes for cross-platform consistency
-        $relativePath = $relativePath -replace '\\', '/'
-
-        $lines = $content -split "`n"
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match 'UnconditionalSuppressMessage') {
-
-                # IS THIS AN ATTRIBUTE, OR A STRING THAT CONTAINS ONE?
-                #
-                # A source generator emits the attribute as C# text:
-                #     sb.AppendLine("[UnconditionalSuppressMessage(\"AOT\", \"IL2026:...\",")
-                # and an analyzer names it as a plain string in a list of attribute names it
-                # searches for. Neither line suppresses anything in THIS compilation -- the
-                # first produces a suppression only in a consumer's compilation, the second
-                # produces none anywhere. Counted as suppressions they are phantom rows, and
-                # because their escaped quotes also defeat justification parsing they report
-                # NEW and STALE forever (see the header).
-                #
-                # The discriminator is quote parity: an occurrence preceded on its line by an
-                # ODD number of unescaped double quotes is inside a string literal.
-                # Path-based exclusion was rejected -- it would also hide a REAL suppression
-                # written inside a generator's own code, which is a false negative in a gate.
-                #
-                # Ceiling: an escaped backslash immediately before a quote (\\") would be
-                # miscounted. No such line exists in this tree; if one appears, the row lands
-                # in REFUSE rather than being silently mis-scored.
-                $col = $lines[$i].IndexOf('UnconditionalSuppressMessage')
-                $prefix = $lines[$i].Substring(0, $col)
-                if (([regex]::Matches($prefix, '(?<!\\)"')).Count % 2 -eq 1) {
-                    continue
-                }
-
-                # Collect the full attribute text (may span multiple lines).
-                #
-                # The terminator is ')]', NOT a bare ']'. A bare ']' is satisfied by any
-                # array or indexer inside the attribute's own string arguments -- e.g. a
-                # diagnostic message quoting 'MakeGenericType(params Type[])' -- which ended
-                # the scan on the FIRST line and discarded the Justification sitting on the
-                # second. That row then fingerprinted on an empty justification, which is the
-                # exact silent failure this script now refuses.
-                #
-                # Bounded, so a malformed attribute cannot run the scan to end-of-file: an
-                # attribute that does not terminate within the bound is a REFUSE, not a guess.
-                $attrText = $lines[$i]
-                $j = $i + 1
-                $joinBudget = 10
-                while ($j -lt $lines.Count -and $attrText -notmatch '\)\s*\]' -and $joinBudget -gt 0) {
-                    $attrText += $lines[$j]
-                    $j++
-                    $joinBudget--
-                }
-
-                $refuseReason = ''
-                if ($attrText -notmatch '\)\s*\]') {
-                    $refuseReason = "attribute never terminated within $joinBudget joined lines"
-                }
-
-                # Extract warning ID (IL2xxx or IL3xxx)
-                $warningId = 'unknown'
-                if ($attrText -match '"(IL[23]\d{3})') {
-                    $warningId = $matches[1]
-                }
-                elseif (-not $refuseReason) {
-                    $refuseReason = 'no IL2xxx/IL3xxx diagnostic id could be read from the attribute'
-                }
-
-                # Extract justification -- BOTH spellings the language allows.
-                # A quoted literal, and a reference to a constant (Justification = AotJustification),
-                # which a quote-only pattern cannot see. The constant's NAME is a stable,
-                # distinguishable fingerprint value; resolving its text would require symbol
-                # resolution this script does not have, and is not needed for NEW/STALE matching.
-                $justification = ''
-                $justificationParsed = $false
-                if ($attrText -match 'Justification\s*=\s*"([^"]*)"') {
-                    $justification = $matches[1]
-                    $justificationParsed = $true
-                }
-                elseif ($attrText -match 'Justification\s*=\s*([A-Za-z_][A-Za-z0-9_.]*)') {
-                    $justification = $matches[1]
-                    $justificationParsed = $true
-                }
-
-                # A Justification argument that is PRESENT but unreadable is the refusable case.
-                # An attribute with no Justification argument at all is a different thing --
-                # parsed correctly, genuinely absent -- and is reported, not refused.
-                if (-not $refuseReason -and -not $justificationParsed -and $attrText -match 'Justification') {
-                    $refuseReason = 'a Justification argument is present but is in a form this script cannot read'
-                }
-
-                if ($refuseReason) {
-                    $script:ParseFailures += @{
-                        File   = $relativePath
-                        Line   = $i + 1
-                        Reason = $refuseReason
-                    }
-                    continue
-                }
-
-                $suppressions += @{
-                    File          = $relativePath
-                    Line          = $i + 1
-                    WarningId     = $warningId
-                    Justification = $justification
-                }
+$parserAssemblies = @('Microsoft.CodeAnalysis.dll','Microsoft.CodeAnalysis.CSharp.dll') | ForEach-Object { Join-Path $PSHOME $_ }
+foreach ($path in $parserAssemblies) { [void][Reflection.Assembly]::LoadFrom($path) }
+$references = @($parserAssemblies) + @('System.Runtime.dll','System.Collections.dll','System.Collections.Immutable.dll','System.Linq.dll','System.Text.RegularExpressions.dll') | ForEach-Object {
+    if ([IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path "$PSHOME/ref" $_ }
+}
+Add-Type -ReferencedAssemblies $references -CompilerOptions '/nowarn:1701' -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+namespace Excalibur.CI {
+public sealed class AuditRow { public int Line; public string WarningId; public string Justification; }
+public sealed class AuditScan {
+    public List<AuditRow> Rows = new List<AuditRow>();
+    public List<string> Refusals = new List<string>();
+}
+public static class AuditSyntax {
+    static int Line(SyntaxNode n) => n.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+    static string Terminal(NameSyntax n) {
+        if (n is QualifiedNameSyntax q) return Terminal(q.Right);
+        if (n is AliasQualifiedNameSyntax a) return Terminal(a.Name);
+        return n is SimpleNameSyntax s ? s.Identifier.ValueText : "";
+    }
+    static bool Candidate(string n) => n == "UnconditionalSuppressMessage" || n == "UnconditionalSuppressMessageAttribute";
+    static string Field(TypeDeclarationSyntax scope, string name, HashSet<SyntaxNode> seen, int depth) {
+        var fields = scope.Members.OfType<FieldDeclarationSyntax>().SelectMany(f => f.Declaration.Variables).Where(v => v.Identifier.ValueText == name).ToArray();
+        if (fields.Length != 1 || !(fields[0].Parent.Parent is FieldDeclarationSyntax field)
+            || !field.Modifiers.Any(m => m.IsKind(SyntaxKind.ConstKeyword)) || fields[0].Initializer == null)
+            throw new InvalidOperationException("missing, ambiguous or non-constant field");
+        if (!seen.Add(fields[0])) throw new InvalidOperationException("cyclic constant");
+        try { return Resolve(fields[0].Initializer.Value, seen, depth + 1); }
+        finally { seen.Remove(fields[0]); }
+    }
+    static string Resolve(ExpressionSyntax e, HashSet<SyntaxNode> seen, int depth) {
+        if (depth > 32) throw new InvalidOperationException("constant recursion bound exceeded");
+        string value;
+        if (e is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression)) value = literal.Token.ValueText;
+        else if (e is ParenthesizedExpressionSyntax paren) value = Resolve(paren.Expression, seen, depth + 1);
+        else if (e is BinaryExpressionSyntax binary && binary.IsKind(SyntaxKind.AddExpression)) value = Resolve(binary.Left, seen, depth + 1) + Resolve(binary.Right, seen, depth + 1);
+        else if (e is IdentifierNameSyntax id) {
+            foreach (var scope in e.Ancestors().OfType<TypeDeclarationSyntax>()) {
+                if (scope.Members.OfType<FieldDeclarationSyntax>().SelectMany(f => f.Declaration.Variables).Any(v => v.Identifier.ValueText == id.Identifier.ValueText))
+                    return Field(scope, id.Identifier.ValueText, seen, depth);
+                if (scope.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.ValueText == id.Identifier.ValueText)) throw new InvalidOperationException("shadowed constant");
+                if (scope.BaseList != null) throw new InvalidOperationException("inherited constant requires semantic resolution");
             }
-
-            # THE SECOND SUPPRESSION CHANNEL.
-            #
-            # `#pragma warning disable IL2026` silences the analyzer at the call site just as
-            # completely as the attribute above, and until this loop existed the audit could not
-            # see it: the script scanned for UnconditionalSuppressMessage and nothing else. That
-            # is why a build with TreatWarningsAsErrors can report zero trim diagnostics while a
-            # real ILC publish reports thousands -- the analyzer had already been told not to look,
-            # through a channel with no baseline, no justification and no ratchet.
-            #
-            # Both channels now feed one list, so the same NEW/STALE comparison governs both.
-            elseif ($lines[$i] -match '#\s*pragma\s+warning\s+disable\s+(.+)$') {
-                $codes = $matches[1]
-                foreach ($m in [regex]::Matches($codes, 'IL[23]\d{3}')) {
-                    # A trailing comment is the closest thing a pragma has to a justification.
-                    $pragmaJustification = ''
-                    if ($lines[$i] -match '//\s*(.+?)\s*$') { $pragmaJustification = $matches[1] }
-
-                    $suppressions += @{
-                        File          = $relativePath
-                        Line          = $i + 1
-                        WarningId     = $m.Value
-                        Justification = $pragmaJustification
-                    }
+            throw new InvalidOperationException("unresolved constant");
+        } else if (e is MemberAccessExpressionSyntax member && member.Expression is IdentifierNameSyntax owner) {
+            var scopes = e.Ancestors().OfType<TypeDeclarationSyntax>().Where(t => t.Identifier.ValueText == owner.Identifier.ValueText).ToArray();
+            if (scopes.Length != 1) throw new InvalidOperationException("external or ambiguous qualified constant");
+            return Field(scopes[0], member.Name.Identifier.ValueText, seen, depth);
+        } else throw new InvalidOperationException("unsupported constant expression");
+        if (value.Length > 65536) throw new InvalidOperationException("constant output bound exceeded");
+        return value;
+    }
+    public static AuditScan Parse(string content, string path) {
+        var result = new AuditScan();
+        var tree = CSharpSyntaxTree.ParseText(content, new CSharpParseOptions(LanguageVersion.Preview), path);
+        var root = tree.GetRoot();
+        foreach (var error in tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error))
+            result.Refusals.Add((error.Location.GetLineSpan().StartLinePosition.Line + 1) + ": " + error.Id + " syntax error");
+        var aliases = root.DescendantNodes().OfType<UsingDirectiveSyntax>().Where(u => u.Alias != null && u.Name != null && Candidate(Terminal(u.Name))).ToArray();
+        foreach (var alias in aliases.Where(u => !u.GlobalKeyword.IsKind(SyntaxKind.None))) result.Refusals.Add(Line(alias) + ": global suppression alias requires compilation-wide resolution");
+        foreach (var disabled in root.DescendantTrivia(descendIntoTrivia: true).Where(t => t.IsKind(SyntaxKind.DisabledTextTrivia))) {
+            var text = disabled.ToString();
+            if (text.Contains("UnconditionalSuppressMessage") || text.Contains("#pragma") || aliases.Any(a => text.Contains(a.Alias.Name.Identifier.ValueText)))
+                result.Refusals.Add((disabled.GetLocation().GetLineSpan().StartLinePosition.Line + 1) + ": conditional candidate requires configuration review");
+        }
+        foreach (var attribute in root.DescendantNodes().OfType<AttributeSyntax>()) {
+            var name = Terminal(attribute.Name);
+            if (!Candidate(name)) {
+                var matching = aliases.Where(u => u.Alias.Name.Identifier.ValueText == name && (u.Parent is CompilationUnitSyntax || attribute.Ancestors().Contains(u.Parent))).ToArray();
+                if (matching.Length == 0) continue;
+                if (matching.Length != 1) { result.Refusals.Add(Line(attribute) + ": ambiguous alias"); continue; }
+            }
+            try {
+                var args = attribute.ArgumentList == null ? new AttributeArgumentSyntax[0] : attribute.ArgumentList.Arguments.ToArray();
+                var constructor = args.Where(a => a.NameEquals == null).ToArray();
+                var parameters = new Dictionary<string, AttributeArgumentSyntax>(StringComparer.Ordinal);
+                var parameterNames = new[] { "category", "checkId" };
+                for (var index = 0; index < constructor.Length; index++) {
+                    var argument = constructor[index];
+                    if (index >= parameterNames.Length) throw new InvalidOperationException("too many constructor arguments");
+                    var parameter = argument.NameColon == null ? parameterNames[index] : argument.NameColon.Name.Identifier.ValueText;
+                    if (!parameterNames.Contains(parameter) || parameters.ContainsKey(parameter)) throw new InvalidOperationException("unknown or duplicate constructor argument");
+                    parameters.Add(parameter, argument);
                 }
+                parameters.TryGetValue("checkId", out var diagnostic);
+                if (diagnostic == null) throw new InvalidOperationException("missing diagnostic id");
+                var warning = Resolve(diagnostic.Expression, new HashSet<SyntaxNode>(), 0);
+                if (!System.Text.RegularExpressions.Regex.IsMatch(warning, @"^IL[23]\d{3}(?:$|:)")) throw new InvalidOperationException("no IL diagnostic id");
+                var reasons = args.Where(a => a.NameEquals != null && a.NameEquals.Name.Identifier.ValueText == "Justification").ToArray();
+                if (reasons.Length != 1) throw new InvalidOperationException("missing or duplicate Justification");
+                var expression = reasons[0].Expression;
+                var decoded = Resolve(expression, new HashSet<SyntaxNode>(), 0);
+                if (String.IsNullOrWhiteSpace(decoded)) throw new InvalidOperationException("empty Justification");
+                var fingerprint = decoded;
+                if (expression is LiteralExpressionSyntax literal && literal.Token.Text.StartsWith("\"") && !literal.Token.Text.StartsWith("\"\"\"")) fingerprint = literal.Token.Text.Substring(1, literal.Token.Text.Length - 2);
+                else if (expression is IdentifierNameSyntax || expression is MemberAccessExpressionSyntax) fingerprint = expression.ToString();
+                result.Rows.Add(new AuditRow { Line=Line(attribute), WarningId=warning.Substring(0,6), Justification=fingerprint });
+            } catch (InvalidOperationException ex) { result.Refusals.Add(Line(attribute) + ": " + ex.Message); }
+        }
+        foreach (var trivia in root.DescendantTrivia(descendIntoTrivia: true)) {
+            var pragma = trivia.GetStructure() as PragmaWarningDirectiveTriviaSyntax;
+            if (pragma == null || !pragma.DisableOrRestoreKeyword.IsKind(SyntaxKind.DisableKeyword)) continue;
+            if (pragma.ErrorCodes.Count == 0) { result.Refusals.Add(Line(pragma) + ": blanket warning disable includes IL diagnostics"); continue; }
+            foreach (var code in pragma.ErrorCodes) {
+                var warning = code.ToString();
+                if (!System.Text.RegularExpressions.Regex.IsMatch(warning, @"^IL[23]\d{3}$")) continue;
+                var comments = pragma.DescendantTrivia(descendIntoTrivia: true).Where(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia)).ToArray();
+                var reason = comments.Length == 1 ? comments[0].ToString().Substring(2).Trim() : "";
+                if (String.IsNullOrWhiteSpace(reason)) result.Refusals.Add(Line(pragma) + ": missing IL pragma justification");
+                else result.Rows.Add(new AuditRow { Line=Line(pragma), WarningId=warning, Justification=reason });
             }
         }
+        return result;
     }
-
-    return $suppressions
 }
-
+}
+'@
+$script:ParserEvidence = @($parserAssemblies | ForEach-Object { @{ Path=$_; Version=[Reflection.AssemblyName]::GetAssemblyName($_).Version.ToString(); Sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash } })
+$script:ParsedSources = @()
+function Get-AuditSourceFiles {
+    param([string]$SourceRoot)
+    return @(Get-ChildItem -LiteralPath $SourceRoot -Filter '*.cs' -Recurse -File |
+        Where-Object { $_.FullName -notmatch '(\\|/)obj(\\|/)|(\\|/)bin(\\|/)' } | Sort-Object FullName)
+}
+function Get-AuditBytesHash {
+    param([byte[]]$Bytes)
+    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($Bytes))
+}
+function Test-AuditSourceManifest {
+    param([string]$SourceRoot)
+    $current = @(Get-AuditSourceFiles $SourceRoot)
+    if ((@($current | ForEach-Object FullName) -join "`n") -cne ($script:SourceManifest -join "`n")) {
+        $script:ParseFailures += @{ File=$SourceRoot; Line=1; Reason='source file manifest changed during audit' }
+    }
+    foreach ($source in $script:ParsedSources) {
+        try { $hash = Get-AuditBytesHash ([IO.File]::ReadAllBytes($source.Path)) }
+        catch { $hash = '' }
+        if ($hash -cne $source.Sha256) { $script:ParseFailures += @{ File=$source.File; Line=1; Reason='source bytes changed after parsing' } }
+    }
+}
+function Assert-AuditSourceManifest {
+    Test-AuditSourceManifest -SourceRoot $SrcPath
+    if ($script:ParseFailures.Count -gt 0) {
+        @{ Outcome='REFUSE'; ParserAssemblies=$script:ParserEvidence; SourceManifest=$script:SourceManifest; ParsedSources=$script:ParsedSources; CandidateAssumption=$script:CandidateAssumption; Refusals=$script:ParseFailures } |
+            ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputPath 'aot-suppression-audit.json') -Encoding utf8
+        Write-Host 'REFUSE: source candidate changed during audit; see provenance report.' -ForegroundColor Red
+        exit 3
+    }
+}
+# The audit evaluates an immutable candidate. Revalidation detects observed drift;
+# it cannot lock the tree or detect an ABA edit restored between observations.
+$script:CandidateAssumption = 'Source tree must remain immutable through audit publication; manifest/hash revalidation does not detect ABA edits restored between observations.'
+function Get-SourceSuppressions {
+    param([string]$SourceRoot)
+    $script:ParseFailures = @()
+    $rows = @()
+    $files = @(Get-AuditSourceFiles $SourceRoot)
+    $script:SourceManifest = @($files | ForEach-Object FullName)
+    foreach ($file in $files) {
+        $relative = $file.FullName.Replace($repoRoot, '').TrimStart('\','/') -replace '\\','/'
+        $bytes = [IO.File]::ReadAllBytes($file.FullName)
+        $hash = Get-AuditBytesHash $bytes
+        $stream = [IO.MemoryStream]::new($bytes, $false)
+        $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8, $true)
+        try { $content = $reader.ReadToEnd() }
+        finally { $reader.Dispose(); $stream.Dispose() }
+        $scan = [Excalibur.CI.AuditSyntax]::Parse($content, $file.FullName)
+        $script:ParsedSources += @{ File=$relative; Path=$file.FullName; Sha256=$hash }
+        foreach ($reason in $scan.Refusals) {
+            $parts = $reason -split ': ', 2
+            $script:ParseFailures += @{ File=$relative; Line=[int]$parts[0]; Reason=$parts[1] }
+        }
+        foreach ($row in $scan.Rows) { $rows += @{ File=$relative; Line=$row.Line; WarningId=$row.WarningId; Justification=$row.Justification } }
+    }
+    return $rows
+}
 Write-Host "Scanning source for suppressions -- [UnconditionalSuppressMessage] attributes AND #pragma warning disable of IL2xxx/IL3xxx..." -ForegroundColor Cyan
 $sourceSuppressions = @(Get-SourceSuppressions -SourceRoot $SrcPath)
-Write-Host "  Found $($sourceSuppressions.Count) suppression(s) in source" -ForegroundColor Green
+Test-AuditSourceManifest -SourceRoot $SrcPath
 
 # REFUSE gate -- runs BEFORE the baseline is loaded, because an unparsed row makes the
 # population itself untrustworthy and there is nothing honest to compare against. A green
@@ -287,10 +367,11 @@ if ($script:ParseFailures.Count -gt 0) {
     Write-Host "  Nothing was asserted about the suppression population. This is NOT a pass, and it is" -ForegroundColor Yellow
     Write-Host "  NOT 'no new suppressions'. Either write the suppression in a form this script reads" -ForegroundColor Yellow
     Write-Host "  (a quoted justification, or a constant reference), or teach the extractor the new form." -ForegroundColor Yellow
-    Write-Host "  Do NOT clear it by deleting the justification -- an empty one fingerprints as NEW and" -ForegroundColor Yellow
-    Write-Host "  STALE on every run forever." -ForegroundColor Yellow
+    Write-Host "  Missing or decoded-empty justifications also REFUSE; deleting a reason cannot clear this gate." -ForegroundColor Yellow
+    @{ Outcome='REFUSE'; ParserAssemblies=$script:ParserEvidence; SourceManifest=$script:SourceManifest; ParsedSources=$script:ParsedSources; CandidateAssumption=$script:CandidateAssumption; Refusals=$script:ParseFailures } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputPath 'aot-suppression-audit.json') -Encoding utf8
     exit 3
 }
+Write-Host "  Found $($sourceSuppressions.Count) suppression(s) in source" -ForegroundColor Green
 
 # ============================================================================
 # Generate baseline mode
@@ -315,7 +396,10 @@ if ($GenerateBaseline) {
         suppressions  = $baselineEntries
     }
 
+    Assert-AuditSourceManifest
     $baseline | ConvertTo-Json -Depth 5 | Out-File -FilePath $BaselinePath -Encoding utf8
+    @{ Outcome='GENERATED'; SourceSuppressions=$sourceSuppressions.Count; ParserAssemblies=$script:ParserEvidence; SourceManifest=$script:SourceManifest; ParsedSources=$script:ParsedSources; CandidateAssumption=$script:CandidateAssumption } |
+        ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputPath 'aot-suppression-audit.json') -Encoding utf8
     Write-Host "Baseline written to $BaselinePath ($($baselineEntries.Count) entries)" -ForegroundColor Green
     exit 0
 }
@@ -356,6 +440,7 @@ function Get-FingerprintCounts {
     return $counts
 }
 
+Assert-AuditSourceManifest
 $baselineCounts = Get-FingerprintCounts -Items $baselineSuppressions -FileKey 'file' -WarningKey 'warningId' -JustificationKey 'justification'
 $sourceCounts = Get-FingerprintCounts -Items $sourceSuppressions -FileKey 'File' -WarningKey 'WarningId' -JustificationKey 'Justification'
 
@@ -388,6 +473,10 @@ foreach ($b in $baselineSuppressions) {
 # ============================================================================
 
 $reportJson = @{
+    SourceManifest = $script:SourceManifest
+    CandidateAssumption = $script:CandidateAssumption
+    ParserAssemblies = $script:ParserEvidence
+    ParsedSources = $script:ParsedSources
     Timestamp          = (Get-Date -Format 'o')
     SourceSuppressions = $sourceSuppressions.Count
     BaselineEntries    = $baselineSuppressions.Count
@@ -401,6 +490,7 @@ $reportJson = @{
     })
 }
 
+Assert-AuditSourceManifest
 $reportJsonPath = Join-Path $OutputPath 'aot-suppression-audit.json'
 $reportJson | ConvertTo-Json -Depth 5 | Out-File -FilePath $reportJsonPath -Encoding utf8
 

@@ -1,12 +1,12 @@
 ---
 title: Conformance kits gained arms, and your suite must wire them
 sidebar_label: Conformance kits gained arms
-description: Two shipped conformance kits gained new arms. If your suite wires the completeness guard it now fails; if it does not, the new arms silently never run. Both cases need the same one-line fix.
+description: Shipped conformance kits gained new arms. Wire the completeness guard and expose the required checks in your test suite.
 ---
 
 # Conformance kits gained arms, and your suite must wire them
 
-Two of the shipped conformance kits gained arms in this release:
+The following shipped conformance kits gained arms in this release:
 
 | Kit | Arms added |
 | --- | --- |
@@ -20,7 +20,7 @@ wrote stopped compiling, and the packages you reference are the same ones. What 
 checks a kit expects your suite to expose — so the effect lands in *your* test project, on the next run
 after the upgrade.
 
-If you do not derive from either kit, nothing here applies to you.
+If you do not derive from a listed kit, these completeness-guard changes do not apply to you.
 
 ## Which of the two populations you are in
 
@@ -297,6 +297,16 @@ member and skip it in your runner, so the gap stays in your test output where yo
 public Task Rebuild_repairs_a_row_that_carries_no_position_Test() =>
     Rebuild_repairs_a_row_that_carries_no_position();
 ```
+
+## Receiver settlement helpers
+
+`Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests` adds optional helpers for refusal, native failure, repeated settlement, cancellation, competing settlements, and batch retry. Existing derived fixtures keep their two factory and seeding overrides; these helpers add no abstract members.
+
+Wire each applicable helper into a test and declare the provider's expected outcome. A repeated settlement may complete for a stateless provider or refuse a consumed receipt. Cancellation may stop an operation or allow an already-started native operation to complete. The helper checks the selected policy rather than imposing one policy on every transport.
+
+Supply independent effect observers, actual receipt transitions, and passive boundary signals as described in the [consumer conformance toolkit](../testing/conformance-toolkit.md). Verify the observers with a no-op or deliberately incorrect receiver. These optional helpers do not participate in the separate `ConformanceTestKit` completeness guard; inheriting the receiver fixture alone does not attest settlement coverage.
+
+MQTT clean sessions support acknowledgement and drop, while requeue refuses before consuming the receipt. Session-retention eligibility is pinned to the receiver's first connection request, including a failed connection attempt. Create a new receiver when changing that eligibility. See [MQTT transport](../transports/mqtt.md) for configuration and the limits of local verification.
 
 ## Related
 

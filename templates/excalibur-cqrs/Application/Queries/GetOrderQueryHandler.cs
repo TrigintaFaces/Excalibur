@@ -1,5 +1,4 @@
 ﻿using Company.ExcaliburCqrs.ReadModel;
-using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.EventSourcing;
 
@@ -8,7 +7,7 @@ namespace Company.ExcaliburCqrs.Application.Queries;
 /// <summary>
 /// Handles <see cref="GetOrderQuery"/> by reading from the order projection store (CQRS read side).
 /// </summary>
-public sealed class GetOrderQueryHandler : IActionHandler<GetOrderQuery>
+public sealed class GetOrderQueryHandler : IActionHandler<GetOrderQuery, OrderReadModel?>
 {
     private readonly IProjectionStore<OrderReadModel> _projectionStore;
     private readonly ILogger<GetOrderQueryHandler> _logger;
@@ -22,7 +21,7 @@ public sealed class GetOrderQueryHandler : IActionHandler<GetOrderQuery>
     }
 
     /// <inheritdoc />
-    public async Task HandleAsync(GetOrderQuery action, CancellationToken cancellationToken)
+    public async Task<OrderReadModel?> HandleAsync(GetOrderQuery action, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Querying order read model for {OrderId}", action.OrderId);
 
@@ -32,7 +31,7 @@ public sealed class GetOrderQueryHandler : IActionHandler<GetOrderQuery>
         if (readModel is null)
         {
             _logger.LogWarning("Order {OrderId} not found in projection store", action.OrderId);
-            return;
         }
+        return readModel;
     }
 }

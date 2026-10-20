@@ -146,7 +146,7 @@ public sealed class OutboxBatchDeadLetterTenantShould
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 			=> ValueTask.CompletedTask;
 
-		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
-			=> ValueTask.CompletedTask;
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 	}
 }

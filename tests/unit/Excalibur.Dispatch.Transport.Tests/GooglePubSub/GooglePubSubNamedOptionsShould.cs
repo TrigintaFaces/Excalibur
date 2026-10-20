@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Transport.Tests.GooglePubSub;
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Transport")]
+[Trait("Pattern", "Regression")]
 public sealed class GooglePubSubNamedOptionsShould
 {
 	private static GooglePubSubOptions Resolve(IServiceProvider provider, string name)
@@ -46,18 +47,32 @@ public sealed class GooglePubSubNamedOptionsShould
 	}
 
 	[Fact]
-	public void RejectAConfigurationWithNoSubscription()
+	public void RejectAConfigurationWithNoProject()
 	{
 		var services = new ServiceCollection();
 
 		_ = services.AddGooglePubSubTransport("nameless", pubsub => pubsub
 			.ProjectId("some-project")
 			.TopicId("some-topic"));
+		_ = services.Configure<GooglePubSubOptions>("nameless", options => options.Connection.ProjectId = string.Empty);
 
 		using var provider = services.BuildServiceProvider();
 
 		// Liveness's counterpart: naming the options must not stop them being validated. A registration
 		// that quietly bypassed validation would pass every "the value arrives" assertion above.
 		_ = Should.Throw<OptionsValidationException>(() => Resolve(provider, "nameless"));
+	}
+
+	[Fact]
+	public void AllowPublisherConfigurationWithoutASubscription()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddGooglePubSubTransport("publisher", pubsub => pubsub
+			.ProjectId("some-project").TopicId("some-topic"));
+		using var provider = services.BuildServiceProvider();
+		var options = Resolve(provider, "publisher");
+		options.Connection.ProjectId.ShouldBe("some-project");
+		options.Connection.TopicId.ShouldBe("some-topic");
+		string.IsNullOrEmpty(options.Connection.SubscriptionId).ShouldBeTrue();
 	}
 }

@@ -779,15 +779,25 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 	private byte[] SerializeEvent(IDomainEvent evt, string? aggregateId, string? aggregateType)
 	{
-#pragma warning disable IL2026, IL3050
+#pragma warning disable IL2026, IL3050 // When JSON reflection is disabled, construction requires a consumer resolver; event serialization uses its type information. Reflection fallback supports reflection-enabled hosts.
 		return _hasEventTypeInfoResolver
 			? ResolvedEventPayload.Serialize(evt, _jsonOptions, aggregateId, aggregateType)
 			: JsonSerializer.SerializeToUtf8Bytes(evt, evt.GetType(), _jsonOptions);
 #pragma warning restore IL2026, IL3050
 	}
 
-	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
-		new(
+	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent)
+	{
+		var parts = global::Excalibur.Dispatch.SegmentedKey.Split(cloudEvent.PartitionKeyValue, 4);
+		if (!string.Equals(parts[0], "t", StringComparison.Ordinal)
+			|| string.IsNullOrWhiteSpace(parts[1])
+			|| !string.Equals(parts[2], cloudEvent.AggregateType, StringComparison.Ordinal)
+			|| !string.Equals(parts[3], cloudEvent.AggregateId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("Stored event partition ownership does not match its stream.");
+		}
+
+		return new StoredEvent(
 			cloudEvent.EventId,
 			cloudEvent.AggregateId,
 			cloudEvent.AggregateType,
@@ -795,7 +805,11 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			cloudEvent.EventData,
 			cloudEvent.Metadata,
 			cloudEvent.Version,
-			cloudEvent.Timestamp);
+			cloudEvent.Timestamp)
+		{
+			TenantId = parts[1],
+		};
+	}
 
 	/// <summary>
 	/// Builds the deterministic idempotency token for one append attempt.
@@ -978,7 +992,7 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			["version"] = new AttributeValue { N = version.ToString() },
 			["timestamp"] = new AttributeValue { S = evt.OccurredAt.ToString("O") },
 			["eventData"] = new AttributeValue { S = Convert.ToBase64String(SerializeEvent(evt, aggregateId, aggregateType)) },
-#pragma warning disable IL2026, IL3050
+#pragma warning disable IL2026, IL3050 // When JSON reflection is disabled, construction requires a consumer resolver; metadata serialization uses its type information. Reflection fallback supports reflection-enabled hosts.
 			["metadata"] = evt.Metadata != null
 				? new AttributeValue { S = Convert.ToBase64String(SerializeMetadata(evt.Metadata)) }
 				: new AttributeValue { NULL = true }

@@ -4,6 +4,8 @@ namespace Company.ExcaliburOutbox.Messages;
 
 /// <summary>
 /// Integration event raised when an order is placed.
-/// Published reliably through the outbox to ensure at-least-once delivery.
+/// Staged through the framework outbox for at-least-once delivery.
+/// Crash durability depends on the selected storage provider.
 /// </summary>
-public sealed record OrderPlacedEvent(Guid OrderId, string ProductId, int Quantity, decimal TotalAmount, DateTimeOffset PlacedAt) : IDispatchEvent;
+[MessageName("Company.ExcaliburOutbox.OrderPlaced")]
+public sealed record OrderPlacedEvent(Guid OrderId, string ProductId, int Quantity, decimal TotalAmount, DateTimeOffset PlacedAt) : IIntegrationEvent;

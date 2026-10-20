@@ -5,10 +5,14 @@ using Excalibur.Dispatch;
 
 namespace OutboxPattern.Messages;
 
+/// <summary>Requests an order event to be staged for eventual delivery.</summary>
+public sealed record PlaceOrderCommand(string OrderId, string CustomerId, decimal TotalAmount) : IDispatchAction<string>;
+
 /// <summary>
 /// Event published when an order is placed.
 /// This event will be stored in the outbox for reliable delivery.
 /// </summary>
+[MessageName("samples.outbox.order-placed")]
 public sealed class OrderPlacedEvent : IDispatchEvent
 {
 	/// <summary>
@@ -41,6 +45,7 @@ public sealed class OrderPlacedEvent : IDispatchEvent
 /// Event published when payment is processed.
 /// Demonstrates chained events in outbox.
 /// </summary>
+[MessageName("samples.outbox.payment-processed")]
 public sealed class PaymentProcessedEvent : IDispatchEvent
 {
 	/// <summary>
@@ -73,6 +78,7 @@ public sealed class PaymentProcessedEvent : IDispatchEvent
 /// Event published when inventory is reserved.
 /// Demonstrates outbox deduplication.
 /// </summary>
+[MessageName("samples.outbox.inventory-reserved")]
 public sealed class InventoryReservedEvent : IDispatchEvent
 {
 	/// <summary>
@@ -105,6 +111,7 @@ public sealed class InventoryReservedEvent : IDispatchEvent
 /// Event published when an order fails.
 /// Demonstrates retry handling in outbox.
 /// </summary>
+[MessageName("samples.outbox.order-failed")]
 public sealed class OrderFailedEvent : IDispatchEvent
 {
 	/// <summary>

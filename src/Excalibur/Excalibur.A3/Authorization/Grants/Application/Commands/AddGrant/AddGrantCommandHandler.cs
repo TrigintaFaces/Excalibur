@@ -6,25 +6,21 @@ using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
 using Excalibur.Dispatch.Delivery;
 
-using Excalibur.Dispatch.Caching;
-
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Excalibur.A3.Authorization.Grants;
 
 /// <summary>
 /// Handles the execution of the <see cref="AddGrantCommand" />, which adds a new grant to a user.
 /// </summary>
 /// <remarks>
-/// This handler checks for existing grants, ensures the request is valid, and updates the repository with the new grant. It also
-/// manages caching to ensure grant changes are reflected immediately.
+/// This handler checks for existing grants, ensures the request is valid, and updates the repository with the new grant. It takes
+/// no cache dependency: the store advances the user's monotonic grant revision inside the same commit, and reads address the cache
+/// by a key carrying that revision, so a read following this grant composes a different key and cannot serve the stale entry.
 /// </remarks>
 /// <param name="grantRepository"> The repository for managing grants. </param>
-/// <param name="cache"> The distributed cache for caching grant data. </param>
-internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, [FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache)
+internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository)
 	: IActionHandler<AddGrantCommand, AuditableResult<bool>>
 {
+
 	/// <inheritdoc />
 	public async Task<AuditableResult<bool>> HandleAsync(AddGrantCommand request, CancellationToken cancellationToken)
 	{
@@ -80,8 +76,11 @@ internal sealed class AddGrantCommandHandler(IGrantRepository grantRepository, [
 		await grantRepository.SaveAsync(grant, cancellationToken).ConfigureAwait(false);
 #pragma warning restore IL2026, IL3050
 
-		// Remove the relevant cache entry to reflect changes.
-		await cache.RemoveAsync(AuthorizationCacheKey.ForGrants(request.UserId), cancellationToken).ConfigureAwait(false);
+		// No cache removal here, deliberately. Reads address the cache by a key carrying the user's
+		// monotonic grant revision, which the store advances inside this same commit, so a read that
+		// follows this grant composes a different key and cannot serve the pre-grant entry.
+		// The removal that used to sit here passed the bare key while the writer composes
+		// key + "revision-v1" + revision, so it could never name the entry it claimed to evict.
 
 		// Return a success result with an audit message.
 		return new AuditableResult<bool>(

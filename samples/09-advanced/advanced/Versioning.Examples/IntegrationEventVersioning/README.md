@@ -62,4 +62,4 @@ IntegrationEventVersioning/
 
 - [EcommerceOrderVersioning](../EcommerceOrderVersioning/) -- Domain event versioning
 - [UserProfileVersioning](../UserProfileVersioning/) -- GDPR-aware profile versioning
-- [EventUpcasting](../../EventUpcasting/) -- Full event sourcing upcasting with aggregates
+- [EventUpcasting](../EventUpcasting/) -- Full event sourcing upcasting with aggregates

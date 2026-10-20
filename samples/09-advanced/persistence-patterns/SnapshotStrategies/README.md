@@ -15,6 +15,7 @@ This sample demonstrates **aggregate snapshot strategies** for optimizing event 
 Event sourcing stores all events for an aggregate. Rehydrating an aggregate means replaying all events, which can be slow for aggregates with many events:
 
 ```
+Illustrative timings only; not verified sample/framework measurements:
 Without Snapshots:
 Load aggregate (1000 events) → ~100ms
 
@@ -151,12 +152,14 @@ Version 11: ShouldCreateSnapshot = False
 
 ### When to Snapshot
 
+This earlier table is an unverified planning illustration, not measured thresholds or a requirement to snapshot at a given event count. Measure replay cost, snapshot size and your latency budget before choosing a policy.
+
 | Event Count | Rehydration Time | Recommendation |
 |-------------|------------------|----------------|
 | < 50 | < 10ms | No snapshot needed |
 | 50-200 | 10-50ms | Consider snapshots |
 | 200-1000 | 50-200ms | Snapshots recommended |
-| > 1000 | > 200ms | Snapshots required |
+| > 1000 | > 200ms | Earlier illustration suggests snapshots; validate for your workload |
 
 ### Storage Trade-offs
 
@@ -193,5 +196,5 @@ SnapshotStrategies/
 ## Related Samples
 
 - [SqlServerEventStore](../SqlServerEventStore/) - SQL Server persistence
-- [EventUpcasting](../EventUpcasting/) - Event schema evolution
-- [EventSourcingIntro](../../01-getting-started/EventSourcingIntro/) - Basic event sourcing
+- [EventUpcasting](../../advanced/Versioning.Examples/EventUpcasting/) - Event schema evolution
+- [EventSourcingIntro](../../../01-getting-started/EventSourcingIntro/) - Basic event sourcing

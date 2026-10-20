@@ -163,7 +163,7 @@ public sealed class SqlServerOutboxTerminalMarkTenantAgnosticShould : IClassFixt
 
 		// This path DISCARDS the row count and logs "(terminal)" unconditionally — it reports a transition
 		// that did not happen. The row is the only witness.
-		await store.MarkDeadLetteredAsync(messageId, "poison", CancellationToken.None).ConfigureAwait(false);
+		await store.MarkDeadLetteredAsync(messageId, "poison", 0, CancellationToken.None).ConfigureAwait(false);
 
 		var row = await ReadRowAsync(messageId).ConfigureAwait(false);
 		row.Status.ShouldBe(

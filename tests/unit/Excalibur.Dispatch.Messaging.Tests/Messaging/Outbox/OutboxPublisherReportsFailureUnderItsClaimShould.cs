@@ -95,7 +95,7 @@ public sealed class OutboxPublisherReportsFailureUnderItsClaimShould
 			.WithHonestCapabilities();
 		var claimScoped = store.ShouldBeAssignableTo<IClaimScopedOutboxStore>();
 
-		var message = new OutboundMessage("OrderCreated", [9, 9], "orders-default")
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [9, 9], "orders-default")
 		{
 			DispatcherId = StampedClaim,
 		};
@@ -119,7 +119,7 @@ public sealed class OutboxPublisherReportsFailureUnderItsClaimShould
 
 		var publisher = new MessageBusOutboxPublisher(
 			store,
-			A.Fake<IPayloadSerializer>(),
+			OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(),
 			messageBus,
 			A.Fake<IServiceProvider>(),
 			A.Fake<ILogger<MessageBusOutboxPublisher>>());

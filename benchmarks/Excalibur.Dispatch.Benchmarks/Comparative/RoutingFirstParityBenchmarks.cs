@@ -4,8 +4,8 @@
 using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Benchmarks.Infrastructure;
 using Excalibur.Dispatch.Delivery;
-using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Transport;
 
@@ -643,89 +643,18 @@ public class RoutingFirstParityBenchmarks
 			.ConfigureAwait(false);
 	}
 
-	private async Task<IMessageResult> DispatchWithRouteAsync<TMessage>(
+	private Task<IMessageResult> DispatchWithRouteAsync<TMessage>(
 		TMessage message,
 		RoutingDecision decision,
 		Action<IMessageContext>? configureContext = null)
-		where TMessage : IDispatchMessage
-	{
-		ArgumentNullException.ThrowIfNull(_dispatcher);
-		ArgumentNullException.ThrowIfNull(_contextFactory);
+		where TMessage : IDispatchMessage =>
+		RoutingBenchmarkDispatch.DispatchAsync(_dispatcher, _contextFactory, message, decision, configureContext);
 
-		var context = _contextFactory.CreateContext();
-		context.GetOrCreateRoutingFeature().RoutingDecision = decision;
-		configureContext?.Invoke(context);
-		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_contextFactory.Return(context);
-			}
-		}
-
-		return await AwaitAndReturnContextAsync(dispatchTask, _contextFactory, context).ConfigureAwait(false);
-	}
-
-	private async Task<IMessageResult<TResponse>> DispatchWithRouteAsync<TMessage, TResponse>(
+	private Task<IMessageResult<TResponse>> DispatchWithRouteAsync<TMessage, TResponse>(
 		TMessage message,
 		RoutingDecision decision)
-		where TMessage : IDispatchAction<TResponse>
-	{
-		ArgumentNullException.ThrowIfNull(_dispatcher);
-		ArgumentNullException.ThrowIfNull(_contextFactory);
-
-		var context = _contextFactory.CreateContext();
-		context.GetOrCreateRoutingFeature().RoutingDecision = decision;
-		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			try
-			{
-				return dispatchTask.Result;
-			}
-			finally
-			{
-				_contextFactory.Return(context);
-			}
-		}
-
-		return await AwaitAndReturnTypedContextAsync(dispatchTask, _contextFactory, context).ConfigureAwait(false);
-	}
-
-	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
-		Task<IMessageResult> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
-	}
-
-	private static async Task<IMessageResult<TResponse>> AwaitAndReturnTypedContextAsync<TResponse>(
-		Task<IMessageResult<TResponse>> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
-	}
+		where TMessage : IDispatchAction<TResponse> =>
+		RoutingBenchmarkDispatch.DispatchAsync<TMessage, TResponse>(_dispatcher, _contextFactory, message, decision);
 }
 
 internal enum ProviderParityScenario

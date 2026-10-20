@@ -100,7 +100,8 @@ public sealed class OutboxProcessingOptions
 /// </remarks>
 internal sealed partial class OutboxBackgroundService : BackgroundService
 {
-	private readonly IOutboxPublisher _publisher;
+	private readonly IOutboxPublisher? _publisher;
+	private readonly string _processorId = $"background-{Guid.NewGuid():N}";
 	private readonly IOptions<OutboxProcessingOptions> _options;
 	private readonly IProcessingGate? _gate;
 	private readonly BackgroundServiceHealthState? _healthState;
@@ -129,8 +130,20 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 		IProcessingGate? gate = null,
 		IOutboxPartitioner? partitioner = null,
 		IOptions<Partitioning.OutboxPartitionOptions>? partitionOptions = null)
+		: this(options, serviceProvider, logger, healthState, gate, partitioner, partitionOptions)
 	{
 		_publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+	}
+
+	private OutboxBackgroundService(
+		IOptions<OutboxProcessingOptions> options,
+		IServiceProvider serviceProvider,
+		ILogger<OutboxBackgroundService> logger,
+		BackgroundServiceHealthState? healthState,
+		IProcessingGate? gate,
+		IOutboxPartitioner? partitioner,
+		IOptions<Partitioning.OutboxPartitionOptions>? partitionOptions)
+	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -138,6 +151,20 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 		_gate = gate;
 		_partitioner = partitioner;
 		_partitionOptions = partitionOptions;
+	}
+
+	internal static OutboxBackgroundService Create(IServiceProvider services)
+	{
+		var options = services.GetRequiredService<IOptions<OutboxProcessingOptions>>();
+		var logger = services.GetRequiredService<ILogger<OutboxBackgroundService>>();
+		var health = services.GetService<BackgroundServiceHealthState>();
+		var gate = services.GetService<IProcessingGate>();
+		var partitioner = services.GetService<IOutboxPartitioner>();
+		var partitionOptions = services.GetService<IOptions<Partitioning.OutboxPartitionOptions>>();
+		var publisher = services.GetService<IOutboxPublisher>();
+		return publisher is null
+			? new OutboxBackgroundService(options, services, logger, health, gate, partitioner, partitionOptions)
+			: new OutboxBackgroundService(publisher, options, services, logger, health, gate, partitioner, partitionOptions);
 	}
 
 	/// <inheritdoc/>
@@ -322,6 +349,12 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 	[RequiresDynamicCode("Outbox stores serialize the message payload reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task ProcessOutboxAsync(CancellationToken cancellationToken)
 	{
+		if (_publisher is null)
+		{
+			await ProcessWithProcessorAsync(cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
 		var stopwatch = ValueStopwatch.StartNew();
 		var totalSuccess = 0;
 		var totalFailure = 0;
@@ -416,6 +449,41 @@ internal sealed partial class OutboxBackgroundService : BackgroundService
 
 		// Update health state
 		_healthState?.RecordCycle(totalSuccess, totalFailure);
+	}
+
+	[RequiresUnreferencedCode("Outbox processors deserialize registered message payloads reflectively.")]
+	[RequiresDynamicCode("Outbox processors deserialize registered message payloads reflectively.")]
+	private async Task ProcessWithProcessorAsync(CancellationToken cancellationToken)
+	{
+		var stopwatch = ValueStopwatch.StartNew();
+		await using var scope = _serviceProvider.CreateAsyncScope();
+		var processor = scope.ServiceProvider.GetRequiredService<IOutboxProcessor>();
+		processor.Init(_processorId);
+		var totalProcessed = 0;
+
+		async Task DrainAsync(string operation)
+		{
+			var dispatched = await processor.DispatchPendingMessagesAsync(cancellationToken).ConfigureAwait(false);
+			totalProcessed += dispatched;
+			BackgroundServiceMetrics.RecordMessagesProcessed(BackgroundServiceTypes.Outbox, operation, dispatched);
+		}
+
+		await DrainAsync(BackgroundServiceOperations.Pending).ConfigureAwait(false);
+		if (_options.Value.ProcessScheduledMessages)
+		{
+			await DrainAsync(BackgroundServiceOperations.Scheduled).ConfigureAwait(false);
+		}
+
+		if (_options.Value.RetryFailedMessages)
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative(_options.Value.MaxRetries);
+			await DrainAsync(BackgroundServiceOperations.Retry).ConfigureAwait(false);
+		}
+
+		// The processor exposes successful deliveries only, not the number of failed claims.
+		// Preserve that distinction instead of certifying an empty or failure-free cycle.
+		BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
+		_healthState?.RecordProcessorCycle(totalProcessed);
 	}
 
 	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceDisabled, LogLevel.Information,

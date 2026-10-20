@@ -25,6 +25,9 @@ public class BackgroundServiceHealthState
 	private long _totalCycles;
 	private long _lastActivityTicks;
 	private int _isRunning;
+	private int _failureCountsComplete = 1;
+
+	internal bool FailureCountsComplete => Volatile.Read(ref _failureCountsComplete) == 1;
 
 	/// <summary>
 	/// Gets the total number of messages processed since the service started.
@@ -90,6 +93,22 @@ public class BackgroundServiceHealthState
 	public void MarkStarted()
 	{
 		_ = Interlocked.Exchange(ref _isRunning, 1);
+		_ = Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
+	}
+
+	/// <summary>
+	/// Records processor activity and known successes when the processor does not expose failure counts.
+	/// </summary>
+	internal void RecordProcessorCycle(int processedCount)
+	{
+		// Once success-only cycles participate, the lifetime totals cannot certify a failure percentage.
+		_ = Interlocked.Exchange(ref _failureCountsComplete, 0);
+		if (processedCount > 0)
+		{
+			_ = Interlocked.Add(ref _totalProcessed, processedCount);
+		}
+
+		_ = Interlocked.Increment(ref _totalCycles);
 		_ = Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.Ticks);
 	}
 

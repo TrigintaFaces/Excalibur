@@ -266,9 +266,8 @@ a precise 0.2.
 choosing a feature extension over `Items` for speed, that reason does not hold -- choose on type
 safety and intent instead.
 
-**The gap that is real is the first row against all the others** -- roughly 30x, not the 10-20x
-previously stated here. Everything below the first row costs single-digit nanoseconds and
-allocates nothing.
+**A reliable speedup ratio is not established** because the direct-property denominator is below resolution. The 10-20x ratio
+previously stated here is also unverified. Choose typed access for intent and type safety. The historical rows below the first measured single-digit nanoseconds with zero reported allocation.
 :::
 
 ## Next Steps

@@ -23,6 +23,7 @@ public static class PipelineBuilderDeferredExtensions
 	/// Factory activation is validated at dispatch time, not startup. Custom pipeline builders must supply
 	/// a valid <see cref="IMessageContext.RequestServices"/>. Instances created outside DI remain the
 	/// factory owner's disposal responsibility. Stage and kinds supplied here override instance metadata.
+	/// The stock builder intersects its message-kind filter with these explicit kinds; it never widens them.
 	/// </remarks>
 	public static IPipelineBuilder UseDeferred<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMiddleware>(
 		this IPipelineBuilder builder,
@@ -38,7 +39,9 @@ public static class PipelineBuilderDeferredExtensions
 			throw new ArgumentException("Deferred middleware requires an exact concrete middleware type.", nameof(middlewareFactory));
 		}
 		var metadata = new DeferredMiddleware<TMiddleware>(middlewareFactory, stage, messageKinds);
-		return builder.Use(_ => metadata);
+		return builder is PipelineBuilder stockBuilder
+			? stockBuilder.UseDeferredMetadata(typeof(TMiddleware), metadata)
+			: builder.Use(_ => metadata);
 	}
 
 	private sealed class DeferredMiddleware<TMiddleware>(Func<IServiceProvider, TMiddleware> factory,

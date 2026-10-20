@@ -95,6 +95,12 @@ public sealed partial class FinalDispatchHandler(
 		ArgumentNullException.ThrowIfNull(context);
 
 		var routingDecision = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
+		if (RetryOwnershipScope.Owns(message, context) &&
+			(message is IDispatchAction || routingDecision?.Endpoints is not { Count: > 1 }) &&
+			message is IDispatchAction or IDispatchEvent or IDispatchDocument)
+		{
+			return HandleOwnedSingleTargetAsync(message, context, routingDecision, cancellationToken);
+		}
 		if (message is IDispatchAction actionMessage && routingDecision?.Endpoints is not { Count: > 0 })
 		{
 			return HandleLocalActionFastPathAsync(actionMessage, context, routingDecision, cancellationToken);
@@ -154,6 +160,78 @@ public sealed partial class FinalDispatchHandler(
 			validationResult,
 			authorizationResult,
 			ToDisposition(cacheHit));
+	}
+
+	[RequiresUnreferencedCode("Action dispatch uses reflection for typed result construction.")]
+	[RequiresDynamicCode("Action dispatch uses reflection for typed result construction.")]
+	private async ValueTask<IMessageResult> HandleOwnedSingleTargetAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		IMessageBus? bus;
+		if (routingDecision?.Endpoints is { Count: > 0 } endpoints)
+		{
+			var name = endpoints[0];
+			if (_singleTransportBus is { } single && string.Equals(name, single.Name, StringComparison.OrdinalIgnoreCase))
+			{
+				bus = single.Bus;
+			}
+			else if (_resolvedBusCache.TryGetValue(name, out var cached))
+			{
+				bus = cached.Bus;
+			}
+			else
+			{
+				if (!busProvider.TryGet(name, out bus))
+				{
+					bus = null;
+				}
+			}
+			if (bus is null)
+			{
+				return MR.Failed(new MessageProblemDetails
+				{
+					Type = ProblemDetailsTypes.Routing,
+					Title = "Routing failed",
+					Status = 404,
+					Detail = $"No message bus registered for '{name}'",
+					Instance = Guid.NewGuid().ToString(),
+				}, context.ValidationResult() as IValidationResult, context.AuthorizationResult() as IAuthorizationResult);
+			}
+		}
+		else if (!TryGetLocalBus(out bus) || bus is null)
+		{
+			return CreateNoLocalBusResult(routingDecision, context);
+		}
+
+		// The enclosing middleware owns this failure's budget and classifier. Publish once and
+		// preserve the original exception; a generic 500 would erase permanent/cancellation semantics.
+		if (message is IDispatchAction action)
+		{
+			var hadResult = HasContextResult(context);
+			var actionType = action.GetType();
+			if (!hadResult)
+			{
+				if (bus is LocalMessageBus local && !local.HasHandlerFor(actionType))
+				{
+					throw LocalMessageBus.CreateMissingHandlerException(actionType);
+				}
+				await bus.PublishAsync(action, context, cancellationToken).ConfigureAwait(false);
+			}
+			return CreateActionDispatchResult(context, routingDecision, GetActionResultType(actionType), hadResult);
+		}
+		if (message is IDispatchEvent dispatchEvent)
+		{
+			await bus.PublishAsync(dispatchEvent, context, cancellationToken).ConfigureAwait(false);
+		}
+		else if (message is IDispatchDocument document)
+		{
+			await bus.PublishAsync(document, context, cancellationToken).ConfigureAwait(false);
+		}
+		return CreateSuccessResult(context, routingDecision);
 	}
 
 	private static List<IRouteResult> GetTargetRoutes(RoutingDecision? routingDecision)
@@ -290,15 +368,8 @@ public sealed partial class FinalDispatchHandler(
 			}
 		}
 
-		if (result is null && resultType.GetConstructor(Type.EmptyTypes) is null && resultType.IsClass)
-		{
-			throw new InvalidOperationException(
-				string.Format(
-					CultureInfo.CurrentCulture,
-					Resources.FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat,
-					resultType.FullName));
-		}
-
+		// Factories wrap the handler's value; they never construct the response payload.
+		// A successful null reference response therefore needs no payload constructor.
 		// Read cache hit flag from context
 		var disposition = ToDisposition(IsCacheHit(context));
 		var routing = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
@@ -635,9 +706,39 @@ public sealed partial class FinalDispatchHandler(
 			Func<IMessageBus, TMessage, IMessageContext, CancellationToken, Task> publish)
 		{
 			var failures = new List<string>();
+			var owner = RetryOwnershipScope.GetOwner(message, context);
+			var retryAttempt = owner?.CaptureAttempt();
+			var retryableFailure = false;
+			var allFailuresKnownNonRetryable = true;
+			var hasPoisonFailure = false;
+			var hasUncertainFailure = false;
+			List<Exception>? typedFaults = null;
 
 			foreach (var target in targets)
 			{
+				if (owner is not null)
+				{
+					var outcome = await owner.PublishDestinationAsync(retryAttempt!, target.Route.MessageBusName,
+						() => publish(target.Bus, payload, context, cancellationToken), cancellationToken).ConfigureAwait(false);
+					if (outcome.Fault is { SourceException: var fault })
+					{
+						target.Route.DeliveryStatus = RouteDeliveryStatus.Failed;
+						target.Route.Failure = RouteFailure.FromException(fault);
+						failures.Add($"{target.Route.MessageBusName}: {fault.Message}");
+						retryableFailure |= outcome.Retryable;
+						allFailuresKnownNonRetryable &= outcome.FailureKind is MessageFailureKind.Permanent or MessageFailureKind.Poison;
+						hasPoisonFailure |= outcome.FailureKind == MessageFailureKind.Poison;
+						hasUncertainFailure |= outcome.FailureKind == MessageFailureKind.Uncertain;
+						(typedFaults ??= []).Add(fault);
+						LogUnhandledExceptionDuringDispatch(_logger, message.GetType().Name, fault);
+					}
+					else
+					{
+						target.Route.DeliveryStatus = RouteDeliveryStatus.Succeeded;
+						target.Route.Failure = null;
+					}
+					continue;
+				}
 				_ = busOptionsMap.TryGetValue(target.Route.MessageBusName, out var options);
 				var policy = options?.EnableRetries == true && retryPolicy != null
 					? retryPolicy
@@ -674,10 +775,20 @@ public sealed partial class FinalDispatchHandler(
 					Detail = $"Failed to publish to {failures.Count} bus(es): {string.Join("; ", failures)}",
 					Instance = Guid.NewGuid().ToString(),
 				};
-				return MR.Failed(
+				var failed = MR.Failed(
 					problemDetails,
 					context.ValidationResult() as IValidationResult,
 					context.AuthorizationResult() as IAuthorizationResult);
+				if (retryAttempt is not null)
+				{
+					RetryOwnershipScope.ReportFanout(retryAttempt, failed, retryableFailure,
+						hasUncertainFailure ? MessageFailureKind.Uncertain
+							: allFailuresKnownNonRetryable ? hasPoisonFailure ? MessageFailureKind.Poison : MessageFailureKind.Permanent : null,
+						hasUncertainFailure || allFailuresKnownNonRetryable
+							? typedFaults!.Count == 1 ? typedFaults[0] : new AggregateException(typedFaults)
+							: null);
+				}
+				return failed;
 			}
 
 			return MR.Success(

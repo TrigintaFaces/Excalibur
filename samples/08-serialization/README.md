@@ -4,11 +4,15 @@ High-performance serialization alternatives for throughput and cross-language in
 
 ## Choosing a Serializer
 
+The speed and size figures in this earlier table have no verified matched sample
+payload/API/runtime provenance. They are retained as unverified historical claims,
+not current rankings or guarantees. Compare the actual workload before choosing.
+
 | Serializer | Best For | Speed | Size | Cross-Language | Native AOT |
 |------------|----------|-------|------|----------------|------------|
 | **[Protobuf](Protobuf/)** | Cross-language systems, schema contracts | 2-3x JSON | ~60% smaller | Yes (all languages) | Yes |
 | **[MessagePack](MessagePackSample/)** | High throughput, .NET + other languages | 3-5x JSON | ~55% smaller | Yes (many languages) | Yes |
-| **[MemoryPack](MemoryPackSample/)** | Maximum .NET performance | 10-100x JSON | ~65% smaller | No (.NET only) | Yes |
+| **[MemoryPack](MemoryPackSample/)** | .NET binary communication | 10-100x JSON | ~65% smaller | No (.NET only) | Yes |
 
 ## Samples Overview
 
@@ -16,7 +20,7 @@ High-performance serialization alternatives for throughput and cross-language in
 |--------|---------------------|-----------------|
 | [Protobuf](Protobuf/) | protobuf-net attributes, schema evolution, cross-language | Yes |
 | [MessagePack](MessagePackSample/) | LZ4 compression, union types, polymorphism | Yes |
-| [MemoryPack](MemoryPackSample/) | Zero-allocation, immutable types, source generation | Yes |
+| [MemoryPack](MemoryPackSample/) | Span input, immutable types, source generation | Yes |
 
 ## Quick Start
 
@@ -38,16 +42,19 @@ dotnet run
 
 Good balance of performance and cross-language support.
 
-### MemoryPack (Maximum .NET Performance)
+### MemoryPack (.NET Binary Serialization)
 
 ```bash
 cd samples/08-serialization/MemoryPackSample
 dotnet run
 ```
 
-Fastest option for .NET-to-.NET communication.
+An option for source-generated .NET-to-.NET binary serialization.
 
 ## Performance Benchmarks
+
+This historical illustration is not verified measurement evidence for these
+samples. Its units and size column do not establish a matched 1 KB workload.
 
 | Serializer | Serialize (ns/1KB) | Deserialize (ns/1KB) | Size (bytes) |
 |------------|--------------------|--------------------- |--------------|
@@ -57,7 +64,9 @@ Fastest option for .NET-to-.NET communication.
 | MessagePack+LZ4 | 4,500 | 4,000 | 85 |
 | **MemoryPack** | **150** | **120** | **86** |
 
-*Benchmarks are approximate and vary by data shape and environment.*
+The [October envelope verification report](../../docs/performance/memorypack-2026-10-16.md)
+records scoped observations, nonzero allocations and unresolved failures for
+different framework benchmark payloads/APIs. It does not validate this table's ratios.
 
 ## When to Use Each
 
@@ -66,7 +75,7 @@ Fastest option for .NET-to-.NET communication.
 | Default / development | JSON (human-readable) |
 | Cross-language (Python, Go, Java) | **Protobuf** |
 | High throughput + some cross-language | **MessagePack** |
-| Maximum .NET performance | **MemoryPack** |
+| .NET binary communication | Compare MemoryPack with alternatives using the actual workload |
 | Schema contracts / versioning | **Protobuf** |
 | Bandwidth-constrained | MessagePack+LZ4 or MemoryPack |
 | NativeAOT deployment | MemoryPack (zero reflection) |
@@ -119,7 +128,7 @@ public class OrderPlacedEvent
 public interface IOrderEvent { }
 ```
 
-### MemoryPack: Zero-Allocation Deserialization
+### MemoryPack: Source-Generated Deserialization
 
 ```csharp
 [MemoryPackable]

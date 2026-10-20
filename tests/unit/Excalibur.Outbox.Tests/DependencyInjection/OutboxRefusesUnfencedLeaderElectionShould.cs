@@ -173,6 +173,7 @@ public sealed class OutboxRefusesUnfencedLeaderElectionShould
 		// ILogger<OutboxProcessor> as a REQUIRED constructor parameter, so the DI-resolved
 		// IOutboxProcessor the drain arms exercise cannot be constructed without it.
 		_ = services.AddLogging();
+        services.AddSingleton<Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>(Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		_ = services.AddExcalibur(x =>
 			x.AddOutbox(o =>

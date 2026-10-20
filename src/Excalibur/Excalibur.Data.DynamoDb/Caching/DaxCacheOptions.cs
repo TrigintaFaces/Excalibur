@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Excalibur.Data.DynamoDb.Caching;
 
@@ -10,6 +12,19 @@ namespace Excalibur.Data.DynamoDb.Caching;
 /// </summary>
 public sealed class DaxCacheOptions
 {
+	/// <summary>
+	/// Gets or sets the metadata resolver used to serialize cached items.
+	/// </summary>
+	/// <remarks>
+	/// Supply a source-generated <see cref="JsonSerializerContext"/> for Native AOT.
+	/// Context naming policies and converters are retained. A supplied resolver is authoritative:
+	/// missing metadata never falls back to reflection. With no resolver, reflection is used only
+	/// when supported and enabled; otherwise the first operation needing metadata fails clearly.
+	/// Cache misses and capacity skips do not require metadata.
+	/// </remarks>
+	/// <value>The consumer's resolver, or <see langword="null"/> for supported reflection defaults.</value>
+	public IJsonTypeInfoResolver? JsonTypeInfoResolver { get; set; }
+
 	/// <summary>
 	/// Gets or sets the DAX cluster endpoint URL.
 	/// </summary>

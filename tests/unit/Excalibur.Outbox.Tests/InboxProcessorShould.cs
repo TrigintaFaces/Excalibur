@@ -81,7 +81,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -100,7 +100,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			null!,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -138,7 +138,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			null!,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -170,7 +170,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -190,14 +190,14 @@ public sealed class InboxProcessorShould : UnitTestBase
 			serviceProvider,
 			serializer,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public async Task Constructor_UsesNullObjectPatternDefaults_WhenOptionalDependenciesNotProvided()
+	public async Task Constructor_AcceptsExplicitDiscard_WhenOtherOptionalDependenciesNotProvided()
 	{
 		// Arrange
 		var options = CreateValidOptions();
@@ -215,7 +215,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			logger,
 
 			envelopeDeserializer: null,
-			deadLetterQueue: null,
+			deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: null,
 			deliveryGuaranteeOptions: null);
@@ -911,7 +911,7 @@ public sealed class InboxProcessorShould : UnitTestBase
 			logger ?? NullLogger<InboxProcessor>.Instance,
 
 			envelopeDeserializer: envelopeDeserializer,
-			deadLetterQueue: deadLetterQueue,
+			deadLetterQueue: deadLetterQueue ?? Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator,
 			deduplicationStore: deduplicationStore);

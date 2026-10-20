@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// 3. Before/After decomposition benefits for middleware inlining
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class StaticPipelineBenchmarks
 {
 	private IServiceProvider _serviceProvider = null!;

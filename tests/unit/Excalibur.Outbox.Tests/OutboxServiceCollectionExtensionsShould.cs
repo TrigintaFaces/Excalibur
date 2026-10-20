@@ -327,7 +327,8 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 		_ = services.AddOutboxHostedService();
 
 		// Assert
-		services.Any(s => s.ImplementationType == typeof(Excalibur.Outbox.Outbox.OutboxBackgroundService)).ShouldBeTrue();
+		services.Any(s => s.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+			&& s.ImplementationFactory?.Method.ReturnType == typeof(Excalibur.Outbox.Outbox.OutboxBackgroundService)).ShouldBeTrue();
 	}
 
 	[Fact]

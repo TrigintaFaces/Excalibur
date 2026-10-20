@@ -6,72 +6,117 @@ description: Performance characteristics and optimization strategies for Dispatc
 
 # Performance Overview
 
-> **The non-MediatR comparisons below predate the 2026-09-05 correlation fix and are being re-measured.** Restoring correlation on the default fast path cost about 10-11 ns on the Dispatch side of every in-process comparison, so any ratio on this page that was not re-measured overstates Dispatch's lead. The MediatR rows have been re-measured; the Wolverine and MassTransit rows have not. Treat them as an upper bound on our favour until they are.
+Dispatch is built for low allocation and predictable latency on the local dispatch path. This
+page gives the current measured figures, the conditions they were taken under, and the tuning
+levers that matter. These are measurements on one machine, not guarantees.
+
+## Local dispatch overhead
+
+Median of independent processes: commands and queries measured 19 October 2026. BenchmarkDotNet 0.15.8, adaptive
+warm-path job, in-process emit toolchain; .NET 10.0.12, SDK 10.0.401, x64 RyuJIT; Intel Core
+i9-14900K, Windows 11 build 26300.9711. Rounded to the precision the between-process spread
+supports.
+
+Each row comes from three separate original-observation processes. Query rows use
+the current selected runtime after the fixture rental-lifecycle repair. They do
+not certify the entire rebuilt checkout or actual NativeAOT performance. The
+earlier isolated-marker query experiment remains dated history.
+
+| Path | Latency | Allocation |
+|---|---:|---:|
+| Single command | **~65 ns** | **96 B** |
+| Typed query, default pipeline | **~136 ns** | **288 B** |
+| Typed query, context-less overload | ~146 ns | 288 B |
+| Typed query, singleton promotion configured | ~149 ns | 288 B |
+
+The command handler is a no-op; query handlers double the input ID. These fixtures
+measure dispatch and completion overhead rather than application work. Query timing
+increased from the earlier isolated experiment on both peers; its cause remains unresolved.
+
+Full records, with per-process figures and the retained distribution warnings, are in the
+[benchmark results](./competitor-comparison.md).
+
+Separately dated [MassTransit Mediator query observations](./competitor-comparison.md#masstransit-mediator-query-observations)
+cover three original warm-path processes on 19 October. Their fixture and variance limits are
+distinct from the local-overhead table above.
+
+:::info Comparative coverage is incomplete
+
+The figures above measure Dispatch overhead and establish no general competitive ranking.
+Specific dated observations retain their own verification scope; other comparative fixtures in
+`benchmarks/Excalibur.Dispatch.Benchmarks` remain unverified. A published comparison must match completed semantic work, runtime and job settings on
+the same machine, disclose library versions and configurations, and retain failures, unavailable
+results and warnings. Framework overhead and end-to-end broker work answer different questions.
+
+We disclose our project affiliation and provide the methodology and raw results for reproduction
+and independent review. Measure your own workload before choosing a framework.
+:::
+
+:::note Reading the dated local-overhead observations
+
+Allocation in that table was byte-identical across processes. Its latency figures are indicative.
+The October 19 command observations ranged from 58.10 to 65.27 ns between processes (about 12.3% maximum/minimum spread), exceeding BenchmarkDotNet's reported error
+-- that error describes spread *within* one process, not reproducibility *between* processes. A
+difference inside that band is not a finding.
+
+The October 19 query process ranges were 134–141 ns for the default profile,
+144–147 ns for context-less and 143–153 ns with promotion configured. Effective
+singleton promotion was not verified. These are warm, in-process, single-operation
+fixtures. No sustained-throughput,
+percentile SLO or cold-start claim follows from them.
+
+The separately dated MassTransit query observations retain their own allocation ranges and
+distribution warnings.
+:::
 
 
-Excalibur.Dispatch is designed for low-latency messaging with explicit performance profiles for local and transport paths.
-
-## Before You Start
-
-- **.NET 10.0** (benchmarks validated on .NET 10.0.11, SDK 10.0.400, BenchmarkDotNet 0.15.8)
-- Familiarity with [pipeline profiles](../pipeline/profiles.md) and [middleware](../middleware/index.md)
-
-## Key Performance Metrics
-
-Source: the WarmPath comparison epoch of 2026-09-05, committed at
-`benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`.
-
-| Metric | Value | Source |
-|--------|-------|--------|
-| Single command, caller-supplied context | 45.6 ns / 96 B | `MediatRWarmPathComparisonBenchmarks` |
-| Single command, context-less 2-arg overload | 53.0 ns / 96 B | `MediatRWarmPathComparisonBenchmarks` |
-| Singleton-promoted handler | 53.9 ns / 96 B | `MediatRWarmPathComparisonBenchmarks` |
-| Query with return value | 63.7 ns / 192 B | `MediatRWarmPathComparisonBenchmarks` |
-| Notification to 3 handlers | 135.0 ns / 96 B | `MediatRWarmPathComparisonBenchmarks` |
-| Three-middleware pipeline | 71.7 ns / 240 B | `PipelineWarmPathComparisonBenchmarks` |
-| 100 concurrent commands | 5,584 ns / 12,160 B | `MediatRWarmPathComparisonBenchmarks` |
-| Dispatch vs Wolverine `InvokeAsync` | 47.0 ns / 96 B vs 179.1 ns / 584 B (**3.8x faster, 6.1x less memory**) | `WolverineInProcessWarmPathComparisonBenchmarks` |
-
-:::info The allocation figure is a floor
+## What the allocation buys
 
 Every dispatch publishes an ambient message context, so a nested dispatch inherits causation,
-correlation, tenant and user rather than starting a fresh root. That costs one `ExecutionContext`
-copy-on-write, and the copy is of the whole async-local value map — so what you pay scales with how
-many `AsyncLocal` values *your* application keeps live: 72 of the 96 bytes when there are none,
-roughly 160 B with one other, roughly 992 B with fifteen. A production host usually carries several
-before it reaches this framework, and the framework itself declares two. Budget from your own
-async-local density, not from the floor.
+correlation, tenant and user rather than starting a fresh root. That costs one
+`ExecutionContext` copy-on-write, and the copy covers the whole async-local value map: 72 of
+the 96 bytes on a command dispatch, measured with no other async-local values present. With one
+other value present it measured roughly 160 B; with fifteen, roughly 992 B.
+
+**That figure scales with your application's async-local density, not ours.** Measure it in your
+own process before budgeting for it. `LightMode` disables AsyncLocal context flow and
+correlation-ID generation for applications that do not need the ambient context.
+
+## Before you start
+
+- **.NET 10.0.** Current figures: runtime 10.0.12 / SDK 10.0.401. Historical figures below:
+  runtime 10.0.11 / SDK 10.0.400. BenchmarkDotNet 0.15.8 throughout.
+- Familiarity with [pipeline profiles](../pipeline/profiles.md) and [middleware](../middleware/index.md).
+
+## Earlier measurements, and what has not been re-measured
+
+The figures above replace the command and query rows of a September 5, 2026 comparison epoch,
+which measured a single command at 45.6 ns before a correction that restored default correlation
+and causation initialization. That epoch is not a baseline for the current source.
+
+The remaining September comparison rows are preserved below. **They describe that epoch's
+code.** Later, separately scoped October observations do not refresh these comparisons.
+
+| Scenario (September 5, 2026 epoch) | Measurement |
+|---|---|
+| Notification to 3 handlers | 135.0 ns / 96 B |
+| Three-middleware pipeline | 71.7 ns / 240 B |
+| 100 concurrent commands | 5,584 ns / 12,160 B |
+
+Source: `benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`. Full tables and
+methodology notes: [Benchmark Results](./competitor-comparison.md).
+
+:::warning Do not cross-diff across the April 2026 methodology boundary
+
+Baselines from before April 2026 used BenchmarkDotNet 0.15.4, which auto-tuned `InvocationCount`
+and produced numerically different, qualitatively equivalent ns-scale figures. Individual Mean
+values are not comparable across that boundary; ratios within each report remain so. See
+`benchmarks/RUNBOOK.md` for the methodology shift.
 :::
 
-:::caution Read latency as indicative, allocation as exact
+> MediatR is a trademark of its owner. It is named in these docs only to describe API
+> compatibility; no affiliation or endorsement is implied.
 
-Allocation is byte-identical between runs. Latency is not: the same arm varied about 4% run to run
-for Dispatch and about 8.6% for MediatR, which is several times BenchmarkDotNet's reported error —
-that error measures spread *within* one process, not reproducibility *between* processes. Do not read
-a latency ratio inside that band as a finding, in either direction.
-:::
-
-:::warning Epoch boundary
-
-These numbers are from the **September 5, 2026 epoch**. Baselines from before April 2026 used
-BenchmarkDotNet 0.15.4, which auto-tuned `InvocationCount` and produced numerically different (but
-qualitatively equivalent) ns-scale numbers. **Do not cross-diff individual Mean values across that
-boundary** — ratios within each report remain apples-to-apples. See `benchmarks/RUNBOOK.md` for the
-methodology shift.
-:::
-
-## Comparison Snapshot
-
-| Track | Summary |
-|------|---------|
-| MediatR in-process parity | MediatR is ~1.40x faster on a single command; **Dispatch allocates 1.58x less** on that row. Fan-out and pipeline rows have not been re-measured since the correlation fix |
-| Wolverine in-process parity | **Dispatch ~3.8x faster on command, ~4.0x on query, ~1.66x on notification fan-out**, allocating 2.7-6.3x less |
-| MassTransit in-memory parity | **Dispatch leads every in-process tier** by two orders of magnitude against the bus and by ~17-22x against its mediator |
-| Pipeline parity (3 middleware) | **Dispatch leads every framework measured** — 1.74x over MediatR, 3.30x over Wolverine, 29.7x over MassTransit, at 2.83x, 2.83x and 19.0x less allocation |
-
-See [Competitor Comparison](./competitor-comparison.md) for full tables and methodology notes. On the
-100-concurrent-command tier Dispatch allocates 12,160 B against MediatR's 17,064 B, with the two
-within run-to-run variance on latency.
 
 ## Quick Wins
 
@@ -112,7 +157,7 @@ context.ProcessingAttempts++;
 | [Migrating off IDirectLocalDispatcher](./ultra-local-dispatch.md) | The removed explicit local API, and what to call instead |
 | [Auto-Freeze](./auto-freeze.md) | Automatic cache optimization |
 | [MessageContext Best Practices](./messagecontext-best-practices.md) | Hot-path optimization patterns |
-| [Competitor Comparison](./competitor-comparison.md) | Multi-track benchmarks vs MediatR/Wolverine/MassTransit |
+| [Benchmark Results](./competitor-comparison.md) | Measured dispatch overhead, methodology and how to run it |
 
 ## Hot-Path Optimizations
 
@@ -148,7 +193,7 @@ Dispatch reduces allocations through:
 pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild
 
 # In-process parity track
-pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild -Classes MediatRComparisonBenchmarks,WolverineInProcessComparisonBenchmarks,MassTransitMediatorComparisonBenchmarks
+pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild -Classes PipelineComparisonBenchmarks
 
 # Queued/bus end-to-end parity track
 pwsh ./eng/run-benchmark-matrix.ps1 -NoRestore -NoBuild -Classes TransportQueueParityComparisonBenchmarks
@@ -158,6 +203,6 @@ Results default to `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`.
 
 ## See Also
 
-- [Competitor Comparison](./competitor-comparison.md)
+- [Benchmark Results](./competitor-comparison.md)
 - [Migrating off IDirectLocalDispatcher](./ultra-local-dispatch.md)
 - [MessageContext Best Practices](./messagecontext-best-practices.md)

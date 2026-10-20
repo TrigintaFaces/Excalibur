@@ -92,10 +92,8 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
-// Unhandled exceptions become a generic RFC 9457 Problem Details 500; the exception message is
-// not written to the response. (Excalibur.Hosting.Web's AddGlobalExceptionHandler() adds status-code
-// mapping for framework exceptions, such as 404 for ResourceNotFoundException.)
-builder.Services.AddProblemDetails();
+// Framework status mapping and production-safe problem details from the Dispatch web integration.
+builder.Services.AddDispatchExceptionHandler();
 
 var app = builder.Build();
 

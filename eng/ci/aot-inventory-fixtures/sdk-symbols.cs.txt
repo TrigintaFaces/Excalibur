@@ -1,0 +1,21 @@
+using System.Diagnostics.CodeAnalysis;
+namespace SymbolControls;
+public class Control
+{
+#if NET10_0
+    [RequiresDynamicCode("net10 exact framework arm")]
+    public void Net10() { }
+#endif
+#if NETSTANDARD2_0
+    [RequiresDynamicCode("netstandard2 exact framework arm")]
+    public void NetStandard2() { }
+#endif
+#if NET10_0_OR_GREATER
+    [RequiresUnreferencedCode("net10 compatible arm")]
+    public void Net10Compatible() { }
+#endif
+#if NETSTANDARD2_0_OR_GREATER
+    [RequiresUnreferencedCode("netstandard2 compatible arm")]
+    public void NetStandard2Compatible() { }
+#endif
+}

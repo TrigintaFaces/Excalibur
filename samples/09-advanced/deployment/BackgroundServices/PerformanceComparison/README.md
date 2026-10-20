@@ -4,14 +4,16 @@ This example explains the performance trade-offs between the delivery guarantee 
 
 ## Performance Summary
 
+The percentages and timings below are unverified historical illustrations. Their matched workload, runtime and source-epoch provenance has not been established; they are not current measurements or guarantees.
+
 | Level | DB Round-Trips | Throughput | Failure Window |
 |-------|----------------|------------|----------------|
-| **AtLeastOnce** | 1 per batch | Highest | Entire batch |
-| **MinimizedWindow** | N per batch | ~50% lower | Single message |
+| **AtLeastOnce** | 1 per batch | Unverified ranking | Entire batch |
+| **MinimizedWindow** | N per batch | Earlier unverified ~50% lower estimate | Single message |
 
 ## Benchmark Results
 
-From benchmark suite (`DeliveryGuaranteeBenchmarks.cs`):
+Earlier figures attributed to `DeliveryGuaranteeBenchmarks.cs`, without verified matched provenance:
 
 | Scenario | AtLeastOnce | MinimizedWindow |
 |----------|-------------|-----------------|

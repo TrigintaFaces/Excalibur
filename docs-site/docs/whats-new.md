@@ -51,6 +51,17 @@ change is delivered by changing the create script, so that a new consumer never 
 that undo each other.
 :::
 
+### SQL schema script paths corrected in 10.0.0-alpha.15
+
+Some earlier 10.x packages placed SQL schema files at `scripts//<name>.sql` instead of
+`scripts/<name>.sql`. The malformed ZIP path can prevent tooling from finding or accepting the scripts.
+The affected range differs by package: AuditLogging.SqlServer starts at `10.0.0-alpha.4`, Cdc.SqlServer at
+`10.0.0-alpha.6`, and Data.SqlServer, Compliance.Postgres and Outbox.Postgres at `10.0.0-alpha.9`; all end
+at `10.0.0-alpha.14`. All five `10.0.0-alpha.15` packages contain the corrected paths.
+
+Upgrade to `10.0.0-alpha.15` or a later fixed release rather than depending on malformed paths or
+modifying the package. See the [measured affected ranges and upgrade guidance](./migration/version-upgrades.md#sql-schema-script-paths-in-earlier-alpha-packages).
+
 These stores do not create their own tables, so provisioning that skips them fails at runtime rather than at startup.
 
 | Store | What to add |
@@ -467,7 +478,7 @@ Related correctness work: **persisted Cosmos documents are serializer-agnostic**
 - **MQTT sessions are durable**, and the Google Pub/Sub emulator endpoint is honoured on both paths rather
   than one.
 
-- **A settlement that fails is no longer reported as success.** `ITransportReceiver.AcknowledgeAsync` and `RejectAsync` now document that returning normally means the broker accepted the settlement, and a new `TransportSettlementException` reports the cases where it did not. It carries `RedeliveryExpectation`, which is the part you act on — `Expected` means the broker still owns the message and the work may arrive again, so the handler must be idempotent. **IBM MQ is the implementation corrected in this release**: it caught the queue manager's error, logged it, and returned, so a caller was told a message was settled when it was not and the redelivery that followed looked like an unexplained duplicate. Catching the new type is optional — it derives from `InvalidOperationException`, which is what these methods already threw, so existing handlers keep working; catch it specifically to tell a settlement failure apart from an unrelated invalid operation in the same `try`.
+- **Observed settlement failures must be reported.** `ITransportReceiver.AcknowledgeAsync` and `RejectAsync` require the supported requested operation to complete without an observed failure or refusal. Confirmation guarantees depend on the transport; normal return does not universally confirm durable broker acceptance or prevent redelivery. `TransportSettlementException` reports failure or an uncertain outcome. Its `RedeliveryExpectation` describes anticipated redelivery, so handlers must remain idempotent. **IBM MQ was corrected to report queue-manager errors** instead of logging them and returning success. The exception derives from `InvalidOperationException`, preserving handlers for that base type; unconverted receivers may still expose native SDK exceptions that the base handler does not catch. See [settlement behavior](./transports/index.md#settlement-acknowledge-and-reject).
 - **A payload-size guard covers every transport.** A configurable maximum inbound payload is enforced at the receive ingress of all six transports **before the body is deserialized** — an over-limit message is rejected at the boundary and never deserialized, so one oversized message cannot exhaust memory, poison-loop, or strand a batch. Each transport ships a bounded default; `MaxPayloadBytes = null` opts out. See the [payload size contract](./operations/runtime-contract.md#payload-size-contract).
 - **Two named registrations of one transport no longer overwrite each other's options.** Registering, say, two AWS SQS transports under different names wrote both configurations to the same unnamed options instance, so whichever registered last silently supplied the settings for both — different queues, regions, or KMS keys collapsed onto one. Each registration now writes a **named** options instance, and the per-name value is what that transport reads. See [transport names](./transports/multi-transport.md#transport-names) for what is per-name and what is still shared.
 - **Kafka decodes Confluent Schema Registry framing on consume** — the 5-byte header is stripped before the canonical deserializer sees the payload. Previously the framed bytes were passed downstream and failed to deserialize.
@@ -558,7 +569,7 @@ Absent subsystems **fail open** (report "not configured") rather than erroring. 
 ## Developer experience
 
 - **Native AOT** — 160 of 195 shipped projects declare AOT compatibility; the remainder are blocked by external SDK dependencies rather than by framework code. A consumer-facing AOT sample publishes and runs with `dotnet publish -p:PublishAot=true`.
-- **Performance** — a standard command dispatch measures about 46 ns and allocates a floor of 96 bytes, and a three-middleware pipeline about 72 ns at 240 bytes. The 96 bytes is a floor rather than a fixed cost: 72 of it is one `ExecutionContext` copy-on-write for the ambient message context, and the copy is of the whole async-local value map, so the real figure scales with how many `AsyncLocal` values your own application keeps live. `UseLightMode = true` disables correlation-id generation for maximum throughput.
+- **Historical performance measurements** — September WarmPath reports measured about 46 ns / 96 B for a command before the default correlation/causation correction, and about 72 ns / 240 B for the three-middleware fixture. These are separate historical cases; current-source measurements remain under verification. See the [performance overview](./performance/index.md) for provenance and limitations. The 96 bytes is a floor rather than a fixed cost: 72 of it is one `ExecutionContext` copy-on-write for the ambient message context, and the copy is of the whole async-local value map, so the real figure scales with how many `AsyncLocal` values your own application keeps live. `UseLightMode = true` disables correlation-id generation for maximum throughput.
 - **A canonical builder pattern** across every SQL Server, PostgreSQL, MongoDB, Cosmos DB, and Redis subsystem package — one `subsystem.UseProvider(Action<IBuilder>)` entry point, with consistent connection overloads per provider and `ValidateOnStart` on every builder.
 - **Roslyn analyzers** for common mistakes, **source generators** for AOT-compatible registration, and **`dotnet new` templates** for dispatch, event-sourcing, and saga projects.
 - **A container deployment guide** covering Dockerfile recipes for JIT, ReadyToRun and AOT, Kubernetes probes, GC tuning, graceful shutdown, and Azure Container Apps.

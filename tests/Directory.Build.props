@@ -17,6 +17,10 @@
     <IsPackable>false</IsPackable>
     <ProjectClassification>Test</ProjectClassification>
     <RepositoryRoot>$(MSBuildThisFileDirectory)..\</RepositoryRoot>
+    <!-- Match the declared compiler-warning policy without importing unrelated root generation,
+         restore and IDE settings. Test-specific NoWarn/style exemptions below still apply;
+         an explicit command-line property remains an intentional override. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup>

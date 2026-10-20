@@ -8,7 +8,7 @@ description: Choose the right Excalibur packages for your application architectu
 
 :::tip Framework Maturity
 
-**55,000+ automated tests** | **197 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
+**55,000+ automated tests** | **194 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
 :::
 
 :::info Dispatch Stands Alone

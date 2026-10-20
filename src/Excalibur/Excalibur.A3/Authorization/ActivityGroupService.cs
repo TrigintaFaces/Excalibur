@@ -26,7 +26,12 @@ namespace Excalibur.A3.Authorization;
 /// <summary>
 /// Provides services for managing activity groups.
 /// </summary>
-/// <remarks> Initializes a new instance of the <see cref="ActivityGroupService" /> class. </remarks>
+/// <remarks>
+/// Initializes a new instance of the <see cref="ActivityGroupService" /> class.
+/// An application-scoped cache is required. The parameter default allows dependency injection to report
+/// the corrective registration diagnostic when it is missing; it does not provide a cache fallback.
+/// </remarks>
+/// <exception cref="InvalidOperationException">The application-scoped cache is missing.</exception>
 public sealed partial class ActivityGroupService(
 	HttpClient httpClient,
 	ICorrelationId correlationId,
@@ -35,8 +40,10 @@ public sealed partial class ActivityGroupService(
 	IActivityGroupGrantStore activityGroupGrantStore,
 	IOptions<ActivityGroupSyncOptions> syncOptions,
 	ILogger<ActivityGroupService> logger,
-	[FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache) : IActivityGroupService
+	[FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache? cache = null) : IActivityGroupService
 {
+	private readonly IDistributedCache _cache = AuthorizationCachePrerequisiteValidator.RequireCache(cache);
+
 	/// <inheritdoc />
 	public async Task<bool> ExistsAsync(string tenantId, string activityGroupName, CancellationToken cancellationToken)
 	{
@@ -382,7 +389,7 @@ public sealed partial class ActivityGroupService(
 	}
 
 	private Task InvalidateAsync(IEnumerable<string> keys, CancellationToken cancellationToken) =>
-		Task.WhenAll(keys.Distinct(StringComparer.Ordinal).Select(key => cache.RemoveAsync(key, cancellationToken)));
+		Task.WhenAll(keys.Distinct(StringComparer.Ordinal).Select(key => _cache.RemoveAsync(key, cancellationToken)));
 
 	private HttpRequestMessage CreateMessage(string endpoint)
 	{

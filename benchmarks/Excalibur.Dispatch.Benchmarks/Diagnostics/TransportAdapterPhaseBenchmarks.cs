@@ -111,6 +111,14 @@ public class TransportAdapterPhaseBenchmarks
 		return _serializationChecksum;
 	}
 
+	// Isolate retained messages outside timing; adaptive invocation batches would grow the store.
+	[IterationSetup(Target = nameof(PublishToInMemoryAdapter))]
+	public void SetupPublishIteration() => _adapter!.ClearSentMessages();
+
+	[IterationCleanup(Target = nameof(PublishToInMemoryAdapter))]
+	public void CleanupPublishIteration() => _adapter!.ClearSentMessages();
+
+	[InvocationCount(1, 1)]
 	[Benchmark(Description = "Publish to in-memory adapter")]
 	public async Task<int> PublishToInMemoryAdapter()
 	{

@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Messaging;
 using FakeItEasy;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
 
@@ -84,12 +85,17 @@ public sealed class ForeignHandlerRegistryShould
 		// bus then cannot cast to the declared handler type -- an InvalidCastException from the FIXTURE
 		// that looks exactly like the one this arm exists to detect. Two different defects with the same
 		// exception type is precisely how an arm stops discriminating, so the double is pinned here.
+		var handler = new ForeignHandler();
+		var services = new ServiceCollection().AddSingleton(handler);
+		var provider = A.Fake<IServiceProvider>();
+		A.CallTo(() => provider.GetService(typeof(HandlerLifetimeRegistry)))
+			.Returns(new HandlerLifetimeRegistry(services));
 		var activator = A.Fake<IHandlerActivator>();
 		A.CallTo(() => activator.ActivateHandler(typeof(ForeignHandler), A<IMessageContext>._, A<IServiceProvider>._))
-			.Returns(new ForeignHandler());
+			.Returns(handler);
 
 		return new LocalMessageBus(
-			A.Fake<IServiceProvider>(),
+			provider,
 			registry,
 			activator,
 			A.Fake<IHandlerInvoker>(),

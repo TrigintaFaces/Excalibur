@@ -139,15 +139,20 @@ public sealed class KafkaLostSeekRecoveryShould
 		var queue = new Queue<KafkaConsumeResult?>([Record(10), Record(11), Record(12), Record(13), Record(14), Record(15)]);
 		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() => queue.Count > 0 ? queue.Dequeue() : null);
-		A.CallTo(() => consumer.Seek(A<TopicPartitionOffset>._)).Throws(new KafkaException(ErrorCode.Local_State));
+		var cause = new KafkaException(ErrorCode.Local_State);
+		A.CallTo(() => consumer.Seek(A<TopicPartitionOffset>._)).Throws(cause);
 
 		var progress = new KafkaPartitionProgress();
 		progress.OnPartitionsAssigned([Partition0]);
 		var receiver = new KafkaTransportReceiver(consumer, Topic, NullLogger<KafkaTransportReceiver>.Instance, 1024, false, progress);
 
 		var first = await receiver.ReceiveAsync(2, CancellationToken.None);
-		_ = await Should.ThrowAsync<KafkaException>(
+		var failure = await Should.ThrowAsync<TransportSettlementException>(
 			() => receiver.RejectAsync(first[0], "retry", requeue: true, CancellationToken.None));
+		failure.TransportName.ShouldBe("Kafka");
+		failure.Retryability.ShouldBe(SettlementRetryability.Unspecified);
+		failure.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		failure.InnerException.ShouldBeSameAs(cause);
 
 		var next = await receiver.ReceiveAsync(10, CancellationToken.None);
 
@@ -165,6 +170,7 @@ public sealed class KafkaLostSeekRecoveryShould
 	{
 		var seeks = new List<long>();
 		var failSeek = true;
+		var cause = new KafkaException(ErrorCode.Local_State);
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var queue = new Queue<KafkaConsumeResult?>([Record(10), Record(11), Record(12)]);
 		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
@@ -175,7 +181,7 @@ public sealed class KafkaLostSeekRecoveryShould
 				if (failSeek)
 				{
 					failSeek = false;
-					throw new KafkaException(ErrorCode.Local_State);
+					throw cause;
 				}
 
 				seeks.Add(tpo.Offset.Value);
@@ -187,8 +193,12 @@ public sealed class KafkaLostSeekRecoveryShould
 
 		var first = await receiver.ReceiveAsync(2, CancellationToken.None);
 		first.Count.ShouldBe(2);
-		_ = await Should.ThrowAsync<KafkaException>(
+		var failure = await Should.ThrowAsync<TransportSettlementException>(
 			() => receiver.RejectAsync(first[0], "retry", requeue: true, CancellationToken.None));
+		failure.TransportName.ShouldBe("Kafka");
+		failure.Retryability.ShouldBe(SettlementRetryability.Unspecified);
+		failure.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		failure.InnerException.ShouldBeSameAs(cause);
 
 		var next = await receiver.ReceiveAsync(10, CancellationToken.None);
 

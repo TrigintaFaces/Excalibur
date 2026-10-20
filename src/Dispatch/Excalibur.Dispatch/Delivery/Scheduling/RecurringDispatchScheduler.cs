@@ -35,12 +35,6 @@ internal sealed partial class RecurringDispatchScheduler(
 	private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
 	public async Task ScheduleOnceAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			DateTimeOffset executeAtUtc, TMessage message,
 			CancellationToken cancellationToken)
@@ -85,12 +79,6 @@ internal sealed partial class RecurringDispatchScheduler(
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 		string cronExpression, TMessage message,
 		CancellationToken cancellationToken)
@@ -109,8 +97,6 @@ internal sealed partial class RecurringDispatchScheduler(
 	/// <param name="message"> The message to schedule. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			string cronExpression, TimeZoneInfo timeZone, TMessage message,
 			CancellationToken cancellationToken)
@@ -153,12 +139,6 @@ internal sealed partial class RecurringDispatchScheduler(
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code.")]
-	[RequiresDynamicCode("JSON serialization with a runtime type requires runtime code generation.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2046",
-			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
-	[UnconditionalSuppressMessage("AOT", "IL3051",
-			Justification = "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.")]
 	public async Task ScheduleRecurringAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TMessage>(
 			TimeSpan interval,
 			TMessage message,
@@ -202,6 +182,8 @@ internal sealed partial class RecurringDispatchScheduler(
 	/// <returns> True if the schedule was cancelled; otherwise, false. </returns>
 	public async Task<bool> CancelScheduleAsync(Guid scheduleId, CancellationToken cancellationToken)
 	{
+		// The configured store is the authority. A capable store invalidates pending admission and
+		// stale progress atomically; already-admitted handler effects cannot be recalled here.
 		await scheduleStore.CompleteAsync(scheduleId, cancellationToken).ConfigureAwait(false);
 		return true;
 	}

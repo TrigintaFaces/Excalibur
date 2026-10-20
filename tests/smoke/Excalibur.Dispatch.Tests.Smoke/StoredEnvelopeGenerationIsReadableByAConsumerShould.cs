@@ -189,7 +189,7 @@ public sealed class StoredEnvelopeGenerationIsReadableByAConsumerShould
 				Iv = [],
 			});
 
-		public ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, CancellationToken cancellationToken) =>
+		public ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, string expectedTenantId, CancellationToken cancellationToken) =>
 			ValueTask.FromResult<byte[]?>(envelope.Ciphertext);
 	}
 

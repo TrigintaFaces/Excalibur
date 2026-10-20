@@ -237,6 +237,57 @@ public sealed class RedisOutboxStoreConformanceShould : OutboxStoreConformanceTe
 	}
 
 
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	[InlineData("   ")]
+	public async Task KeepOneGeneratedOwnerAcrossConcurrentClaimsAndTerminalCompletion(string? processorId)
+	{
+		_fixture.DockerAvailable.ShouldBeTrue("This regression requires real Redis.");
+		_ = await CreateStoreAsync().ConfigureAwait(false);
+		var options = new RedisOutboxOptions
+		{
+			ConnectionString = _fixture.ConnectionString,
+			KeyPrefix = _keyPrefix,
+			ProcessorId = processorId,
+		};
+		await using var owner = new RedisOutboxStore(_connection!, Options.Create(options), NullLogger<RedisOutboxStore>.Instance);
+		await using var peer = new RedisOutboxStore(_connection!, Options.Create(options), NullLogger<RedisOutboxStore>.Instance);
+		var messages = Enumerable.Range(0, 16).Select(_ => CreateTestMessage()).ToArray();
+		foreach (var message in messages)
+		{
+			await owner.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		var claims = await Task.WhenAll(Enumerable.Range(0, messages.Length)
+			.Select(_ => owner.GetUnsentMessagesAsync(1, CancellationToken.None).AsTask())).ConfigureAwait(false);
+		claims.SelectMany(batch => batch).Select(message => message.Id).Order()
+			.ShouldBe(messages.Select(message => message.Id).Order());
+		var database = _connection!.GetDatabase();
+		var owners = await Task.WhenAll(messages.Select(message =>
+			database.HashGetAsync($"{_keyPrefix}:msg:{message.Id}", "LeasedBy"))).ConfigureAwait(false);
+		owners.Select(value => value.ToString()).Distinct().Count().ShouldBe(1);
+		owners[0].ToString().ShouldNotBeNullOrWhiteSpace();
+
+		foreach (var message in messages)
+		{
+			var key = $"{_keyPrefix}:msg:{message.Id}";
+			var before = await database.HashGetAllAsync(key).ConfigureAwait(false);
+			await peer.MarkDeadLetteredAsync(message.Id, "foreign completion", 99, CancellationToken.None).ConfigureAwait(false);
+			var after = await database.HashGetAllAsync(key).ConfigureAwait(false);
+			after.OrderBy(entry => entry.Name.ToString()).ShouldBe(before.OrderBy(entry => entry.Name.ToString()));
+			await owner.MarkDeadLetteredAsync(message.Id, "owner completion", 1, CancellationToken.None).ConfigureAwait(false);
+			((string?)await database.HashGetAsync(key, "Status").ConfigureAwait(false))
+				.ShouldBe(((int)OutboxStatus.DeadLettered).ToString(System.Globalization.CultureInfo.InvariantCulture));
+			((string?)await database.HashGetAsync(key, "LastError").ConfigureAwait(false)).ShouldBe("owner completion");
+			((int)await database.HashGetAsync(key, "RetryCount").ConfigureAwait(false)).ShouldBe(1);
+			await owner.MarkDeadLetteredAsync(message.Id, "duplicate completion", 100, CancellationToken.None).ConfigureAwait(false);
+			((string?)await database.HashGetAsync(key, "LastError").ConfigureAwait(false)).ShouldBe("owner completion");
+			((int)await database.HashGetAsync(key, "RetryCount").ConfigureAwait(false)).ShouldBe(1);
+		}
+		(await owner.GetUnsentMessagesAsync(100, CancellationToken.None).ConfigureAwait(false)).ShouldBeEmpty();
+	}
+
 	// ---------------------------------------------------------------------------------------------------
 	// Conformance arm wiring.
 	//

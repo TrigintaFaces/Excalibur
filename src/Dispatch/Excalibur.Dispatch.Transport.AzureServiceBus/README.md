@@ -292,7 +292,7 @@ public class ServiceBusHealthCheck(ITransportHealthChecker healthChecker) : IHea
 #### Storage Queues
 
 - Simple horizontal scaling with multiple consumers
-- Lower throughput than Service Bus (~2000 messages/sec per queue)
+- Azure Queue Storage documents a [target of up to 2,000 messages/sec per queue for 1 KiB messages](https://learn.microsoft.com/en-us/azure/storage/queues/scalability-targets). Achieved throughput depends on the workload; this service target is not a framework measurement or a comparison with Service Bus.
 - Cost-effective for simple queue scenarios
 
 ### Performance Tuning

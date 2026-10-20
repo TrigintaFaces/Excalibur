@@ -4,6 +4,8 @@
 using Excalibur.Data;
 using Excalibur.Dispatch;
 
+using Dapper;
+
 using FakeItEasy;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -453,4 +455,41 @@ public sealed class OracleOutboxStoreConformanceShould : OutboxStoreConformanceT
 
 	[Fact]
 	public Task UntenantedPartition_MustRoundTripItsOwnMessage_Test() => UntenantedPartition_MustRoundTripItsOwnMessage();
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Conformance")]
+	public async Task MoveToDeadLetter_ShouldReportCommittedMoveCount(bool useBatch)
+	{
+		var store = (OracleOutboxStore)await CreateStoreAsync().ConfigureAwait(false);
+		try
+		{
+			var message = CreateTenantedTestMessage("oracle-move-count-owner");
+			var missingId = Guid.NewGuid().ToString();
+			Task<int> MoveAsync() => useBatch
+				? store.MoveToDeadLetterBatchAsync([message.Id, missingId], CancellationToken.None)
+				: store.MoveToDeadLetter(message.Id, CancellationToken.None);
+
+			(await MoveAsync().ConfigureAwait(false)).ShouldBe(0);
+			await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+			(await MoveAsync().ConfigureAwait(false)).ShouldBe(1);
+			(await MoveAsync().ConfigureAwait(false)).ShouldBe(0);
+
+			await using var connection = _fixture.CreateConnection();
+			(await connection.QuerySingleAsync<int>(
+				"SELECT COUNT(*) FROM OUTBOX WHERE message_id = :MessageId",
+				new { MessageId = message.Id }).ConfigureAwait(false)).ShouldBe(0);
+			(await connection.QuerySingleAsync<int>(
+				"SELECT COUNT(*) FROM OUTBOX_DEAD_LETTERS WHERE message_id = :MessageId",
+				new { MessageId = message.Id }).ConfigureAwait(false)).ShouldBe(1);
+			(await connection.QuerySingleAsync<string>(
+				"SELECT tenant_id FROM OUTBOX_DEAD_LETTERS WHERE message_id = :MessageId",
+				new { MessageId = message.Id }).ConfigureAwait(false)).ShouldBe(message.TenantId);
+		}
+		finally
+		{
+			store.Dispose();
+		}
+	}
 }

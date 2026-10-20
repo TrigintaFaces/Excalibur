@@ -197,13 +197,64 @@ public sealed partial class FirestoreSagaStore : ISagaStore, IAsyncDisposable
 	}
 
 	/// <inheritdoc/>
+	/// <remarks>
+	/// Translates Firestore's transaction-contention status into this store's own concurrency signal, so a
+	/// caller that loses the write race needs neither this package nor Grpc.Core to recognise it. A losing
+	/// writer is rejected with <see cref="ConcurrencyException"/> exactly as it is on the version-gated
+	/// path, which is the contract every other provider already honors; previously the transport exception
+	/// crossed the abstraction and made a lost race indistinguishable from a broken store.
+	/// </remarks>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("The saga state is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	public async Task SaveAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
 		where TSagaState : SagaState
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentNullException.ThrowIfNull(sagaState);
+
+		try
+		{
+			await SaveCoreAsync(sagaState, cancellationToken).ConfigureAwait(false);
+		}
+		catch (RpcException rpc) when (IsTransactionContention(rpc))
+		{
+			// The version is read back rather than reported as unknown, for diagnostic parity with the
+			// version-gated path and with the other providers. The read is ownership-filtered, so a document
+			// belonging to another tenant yields null and discloses no version through the exception.
+			var current = await LoadAsync<TSagaState>(sagaState.SagaId, cancellationToken).ConfigureAwait(false);
+			throw new ConcurrencyException(
+				nameof(SagaState),
+				sagaState.SagaId.ToString(),
+				sagaState.Version,
+				current?.Version ?? -1L);
+		}
+	}
+
+	/// <summary>
+	/// Classifies a gRPC failure as Firestore transaction contention -- the write lost the race and applied
+	/// nothing.
+	/// </summary>
+	/// <param name="exception">The failure raised by the Firestore client.</param>
+	/// <returns><see langword="true"/> when the failure means a concurrent writer won; otherwise <see langword="false"/>.</returns>
+	/// <remarks>
+	/// ABORTED is the only status that carries this meaning. The remaining statuses this provider's retry
+	/// policy treats as transient -- UNAVAILABLE, DEADLINE_EXCEEDED, RESOURCE_EXHAUSTED, INTERNAL -- are
+	/// transport or capacity failures in which no version race took place, so reporting them as a
+	/// concurrency conflict would tell the caller it lost a race it never entered and invite a reload that
+	/// cannot help.
+	/// </remarks>
+	internal static bool IsTransactionContention(RpcException exception)
+	{
+		ArgumentNullException.ThrowIfNull(exception);
+
+		return exception.StatusCode == StatusCode.Aborted;
+	}
+
+	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
+	[RequiresDynamicCode("The saga state is serialized with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
+	private async Task SaveCoreAsync<TSagaState>(TSagaState sagaState, CancellationToken cancellationToken)
+		where TSagaState : SagaState
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 

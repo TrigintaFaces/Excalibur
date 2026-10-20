@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Hosting.AspNetCore\Excalibur.Dispatch.Hosting.AspNetCore.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
   </ItemGroup>
@@ -28,6 +29,7 @@
   </ItemGroup>
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Hosting.AspNetCore" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>

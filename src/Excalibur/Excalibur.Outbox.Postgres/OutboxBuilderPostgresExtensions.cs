@@ -4,6 +4,7 @@
 using Excalibur.Data;
 using Excalibur.Dispatch;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -98,6 +99,21 @@ public static class OutboxBuilderPostgresExtensions
 			})
 			.ValidateOnStart();
 
+		var configurationPath = postgresBuilder.BindConfigurationPath;
+		if (configurationPath is not null)
+		{
+			var overrides = postgresBuilder.ConfigurationOverrides;
+			_ = builder.Services.AddOptions<PostgresOutboxStoreOptions>()
+				.BindConfiguration(configurationPath)
+				.Configure(options =>
+				{
+					foreach (var apply in overrides)
+					{
+						apply(options);
+					}
+				});
+		}
+
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<PostgresOutboxStoreOptions>, PostgresOutboxStoreOptionsValidator>());
 
@@ -154,6 +170,17 @@ public static class OutboxBuilderPostgresExtensions
 					sp.GetRequiredService<ILogger<PostgresOutboxStore>>(),
 					sp.GetService<PostgresOutboxStoreMetrics>()));
 		}
+		else if (postgresBuilder.ConnectionStringNameValue is not null || configurationPath is not null ||
+			postgresBuilder.DataSourceInstance is not null || postgresBuilder.DataSourceFactoryFunc is not null)
+		{
+			RegisterConnectionOwner(builder.Services, postgresBuilder);
+			builder.Services.AddTenantAwareStore<IOutboxStore, PostgresOutboxStore>(
+				static sp => new PostgresOutboxStore(
+					sp.GetRequiredService<PostgresOutboxConnectionOwner>().Db,
+					sp.GetRequiredService<IOptions<PostgresOutboxStoreOptions>>(),
+					sp.GetRequiredService<ILogger<PostgresOutboxStore>>(),
+					sp.GetService<PostgresOutboxStoreMetrics>()));
+		}
 		else
 		{
 			throw new InvalidOperationException(
@@ -173,5 +200,37 @@ public static class OutboxBuilderPostgresExtensions
 		builder.Services.TryAddSingleton<ITransactionalOutboxWriter>(sp => sp.GetRequiredService<PostgresOutboxStore>());
 
 		return builder;
+	}
+
+	private static void RegisterConnectionOwner(IServiceCollection services, PostgresOutboxBuilder postgresBuilder)
+	{
+		var configurationPath = postgresBuilder.BindConfigurationPath;
+		var connectionName = postgresBuilder.ConnectionStringNameValue;
+		var borrowedSource = postgresBuilder.DataSourceInstance;
+		var sourceFactory = postgresBuilder.DataSourceFactoryFunc;
+		services.AddSingleton<PostgresOutboxConnectionOwner>(sp =>
+		{
+			if (borrowedSource is not null)
+			{
+				return PostgresOutboxConnectionOwner.Create(borrowedSource, ownsSource: false);
+			}
+
+			if (sourceFactory is not null)
+			{
+				var source = sourceFactory(sp) ?? throw new InvalidOperationException("The Postgres outbox data source factory returned null.");
+				return PostgresOutboxConnectionOwner.Create(source, ownsSource: true);
+			}
+
+			var configuration = sp.GetRequiredService<IConfiguration>();
+			var connectionString = connectionName is not null
+				? configuration.GetConnectionString(connectionName)
+				: configuration[$"{configurationPath}:ConnectionString"];
+			if (string.IsNullOrWhiteSpace(connectionString))
+			{
+				throw new InvalidOperationException($"The Postgres outbox connection string '{connectionName ?? configurationPath}' is missing or empty.");
+			}
+
+			return PostgresOutboxConnectionOwner.Create(NpgsqlDataSource.Create(connectionString), ownsSource: true);
+		});
 	}
 }

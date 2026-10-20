@@ -420,12 +420,26 @@ public sealed class OpenSearchProjectionStore<TProjection>
 
 		if (!exists.Exists)
 		{
-			await _client.Indices.CreateAsync(
+			var createResponse = await _client.Indices.CreateAsync(
 				_indexName,
 				c => c.Settings(s => s
 					.NumberOfShards(_options.NumberOfShards)
 					.NumberOfReplicas(_options.NumberOfReplicas)),
 				cancellationToken).ConfigureAwait(false);
+
+			// Raise rather than serve: the shard and replica counts live in this request, so a store that
+			// carried on after a failed create would have the first write auto-create the index without
+			// them. A refusal because the index already exists is not a failure -- two instances starting
+			// together both see it absent and both attempt it, and the loser wanted that state.
+			if (!createResponse.IsValid
+				&& !string.Equals(
+					createResponse.ServerError?.Error?.Type,
+					"resource_already_exists_exception",
+					StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException(
+					$"Failed to create index '{_indexName}': {createResponse.DebugInformation}");
+			}
 
 			_logger.LogInformation("Created OpenSearch index {IndexName}", _indexName);
 		}

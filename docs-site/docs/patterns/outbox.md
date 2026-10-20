@@ -22,6 +22,39 @@ What you get is that a message cannot be *lost*: it commits with your state chan
 
 ## Before You Start
 
+When using the optional `MessageBusOutboxPublisher`, stage an `IDispatchMessage` instance. The publisher
+restores the original concrete type before sending it, preserving adapter message-kind selection and
+type-based transport routing. Each transport gets a separate decoded instance. Unknown, corrupt or
+mismatched payloads remain visible as failed deliveries and never become sent; other healthy rows continue.
+New rows prefer a declared `[MessageName("contoso.order-placed")]` identity. Without a declaration, they
+use the full type name and assembly name without the assembly version. That fallback is version-independent
+for non-generic contracts; constructed generic type names can embed argument versions, so declare a stable
+name on generic messages intended for durable storage. Ambiguous names are refused rather than guessed.
+If a declared identity changes, retain its previous value with `[MessageNameAlias("contoso.old-order-placed")]`.
+Register the current type at worker startup so old rows resolve to it. Aliases share the same registry
+namespace as primary and CLR names: an alias that conflicts with another type is refused. A generic alias
+shared by several closed constructions is ambiguous and cannot identify one of them.
+
+Register durable message types at worker startup with `MessageTypeRegistry.RegisterType<T>()` from
+`Excalibur.Dispatch.Delivery.Registry`. Registration during staging applies only to that process.
+NativeAOT workers also need generated serialization metadata for the chosen codec; type registration alone
+does not provide it. The core `OutboxProcessor` uses its own writer/serializer path and dead-letter policy.
+
+An outbox worker composed without `AddDispatch()` must explicitly select its payload serializer.
+`AddPluggableSerialization()` registers the registry and facade; it does not select a format by itself.
+For a reflection-based JSON worker, use the existing registration API:
+
+```csharp
+using Excalibur.Dispatch.Serialization;
+
+services.AddPluggableSerializer(
+    SerializerIds.SystemTextJson,
+    new SystemTextJsonSerializer(),
+    setAsCurrent: true);
+```
+
+For NativeAOT, select a codec with generated metadata for the worker's message types instead.
+
 - **.NET 10.0**
 - Install the required packages:
   ```bash
@@ -115,8 +148,21 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox
     .EnableBackgroundProcessing()));
 ```
 
-`EnableParallelProcessing` takes the degree of parallelism directly and defaults to `4`. To drain
-sequentially, leave it off rather than passing `1`.
+`EnableParallelProcessing` takes the degree of parallelism directly and defaults to `4`. A degree of
+`1` is valid and processes sequentially; leaving it off also retains the sequential processor default.
+
+`BatchSize` supplies producer and consumer batch defaults. `MaxRetryCount` counts retries after the
+initial attempt, so three retries means four total attempts and zero retries means one. `RetryDelay`
+supplies the processor's default fixed backoff calculator. A registered `IBackoffCalculator`, including
+the Polly adapter, overrides it. Backoff-capable providers persist the later of the requested retry time
+and their own failure floor; an earlier request cannot weaken that floor.
+
+Explicit `Configure` and `PostConfigure` callbacks for `OutboxDeliveryOptions` or
+`OutboxProcessingOptions` override builder defaults in either registration order. The immutable
+`OutboxOptions` reports builder defaults; inspect the resolved delivery/background options for effective
+settings. `int.MaxValue` retries plus the initial attempt cannot fit in the total-attempt field: choose
+fewer retries or explicitly configure a positive `OutboxDeliveryOptions.MaxAttempts` total. A custom
+publisher can own a separate policy without consuming the default processor's delivery options.
 
 ### Suggested profiles
 
@@ -613,7 +659,7 @@ tenant is still implied by your own operational records.
 
 ## Background Processing
 
-### Hosted Service (Default)
+### Hosted Service (Recommended)
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
@@ -625,6 +671,18 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 
 `EnableBackgroundProcessing()` registers the outbox background service for you. If you prefer to
 register it as a separate step, `services.AddOutboxHostedService()` registers the same service.
+
+:::info The drain is opt-in — it is not registered unless you ask for it
+Neither the background service nor any other drain is registered by `AddOutbox(...)` alone. A host that
+calls neither `EnableBackgroundProcessing()` nor `AddOutboxHostedService()` will stage messages and
+publish nothing, which is a valid topology if you drain from a separate worker process or by triggering
+`IOutboxProcessor` yourself — and a silent mistake if you did not intend it. The
+`EnableBackgroundProcessing` option reports the builder opt-in.
+
+Both opt-ins use the registered `IOutboxProcessor` unless you supply a custom `IOutboxPublisher`.
+Configure Dispatch and an outbox store before starting the host. See
+[Publisher Configuration](#publisher-configuration) below for the default processing path and custom extension point.
+:::
 
 ### Quartz Job (Scheduled Processing)
 
@@ -738,118 +796,41 @@ and unfenced by design, emitting a one-time startup **info** log (`OutboxRunning
 
 ## Publisher Configuration
 
-### Default Publisher
+### Framework Processor
 
-The outbox uses the configured `IOutboxPublisher` to send messages. The default behavior dispatches through the registered message bus:
-
-```csharp
-services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
-    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
-
-// Messages are dispatched through IDispatcher by default
-```
-
-### Transport-Specific Publisher
+Background processing uses the registered `IOutboxProcessor` when no custom `IOutboxPublisher` is supplied. The processor deserializes registered messages and dispatches them through `IDispatcher`, retaining failed work for the configured retry policy.
 
 ```csharp
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    dispatch.UseKafka(kafka =>
-    {
-        kafka.BootstrapServers("localhost:9092");
-        kafka.DefaultTopic("dispatch.events");
-    });
+    dispatch.UseOutbox();
 });
 
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
-    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
-
-// Register Kafka publisher for outbox
-services.AddSingleton<IOutboxPublisher, KafkaOutboxPublisher>();
+    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
+          .EnableBackgroundProcessing()));
 ```
+
+Inject `IOutboxWriter` into a handler to buffer outbound events. Staging runs after a successful downstream result. This eventually consistent path does not make a separate business database write atomic with staging. For broker delivery, configure the Dispatch transport and event routing and verify the intended destination.
 
 ### Custom Publisher
 
-Implement `IOutboxPublisher` for custom message publishing:
+A registered `IOutboxPublisher` takes precedence over the processor fallback. This is an optional extension point for applications that need a different publication strategy. A custom implementation must implement the complete interface and preserve its delivery contract:
 
-```csharp
-public class WebhookOutboxPublisher : IOutboxPublisher
-{
-    private readonly HttpClient _httpClient;
-    private readonly IOutboxStore _store;
-    private int _publishedCount;
-    private int _failedCount;
+- Claim eligible rows before publishing and honor the store's claim ownership and fencing capabilities.
+- Respect scheduled eligibility, retry backoff and attempt accounting.
+- Mark a row sent only after the destination accepts delivery; an unsuccessful HTTP response is not acceptance.
+- Dispose transport responses and request content, and propagate caller cancellation.
+- Retain recoverable failures without claiming atomic or exactly-once delivery across a remote HTTP operation.
 
-    public WebhookOutboxPublisher(HttpClient httpClient, IOutboxStore store)
-    {
-        _httpClient = httpClient;
-        _store = store;
-    }
-
-    public async Task<OutboundMessage> PublishAsync(
-        object message,
-        string destination,
-        DateTimeOffset? scheduledAt,
-        CancellationToken cancellationToken)
-    {
-        // Create and stage outbound message
-        var payload = JsonSerializer.SerializeToUtf8Bytes(message);
-        var outbound = new OutboundMessage(
-            message.GetType().Name,
-            payload,
-            destination) { ScheduledAt = scheduledAt };
-
-        await _store.StageMessageAsync(outbound, cancellationToken);
-        return outbound;
-    }
-
-    public async Task<PublishingResult> PublishPendingMessagesAsync(
-        CancellationToken cancellationToken)
-    {
-        var messages = await _store.GetUnsentMessagesAsync(100, cancellationToken);
-        var published = 0;
-        var failed = 0;
-
-        foreach (var message in messages)
-        {
-            try
-            {
-                await _httpClient.PostAsync(
-                    $"/webhooks/{message.Destination}",
-                    new ByteArrayContent(message.Payload),
-                    cancellationToken);
-
-                await _store.MarkSentAsync(message.Id, cancellationToken);
-                published++;
-            }
-            catch (Exception ex)
-            {
-                await _store.MarkFailedAsync(message.Id, ex.Message, 1, cancellationToken);
-                failed++;
-            }
-        }
-
-        Interlocked.Add(ref _publishedCount, published);
-        Interlocked.Add(ref _failedCount, failed);
-
-        return new PublishingResult { SuccessCount = published, FailureCount = failed };
-    }
-
-    // Implement other required methods...
-}
-
-services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
-    outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
-services.AddSingleton<IOutboxPublisher, WebhookOutboxPublisher>();
-```
-
+Prefer the framework processor and supported transports when they meet the application's needs. A custom publisher must be verified against the actual destination and store before enabling its hosted drain.
 ## Error Handling
 
 ### Retry Configuration
 
 ```csharp
-// Aggressive retries for critical workloads: 10 attempts, 15 minutes apart.
+// Aggressive retries: 10 retries after the initial attempt, 15 minutes apart.
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
@@ -858,7 +839,7 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
               .RetryDelay(TimeSpan.FromMinutes(15)));
 }));
 
-// Or a lighter policy: 7 attempts, 2 minutes apart.
+// Or a lighter policy: 7 retries after the initial attempt, 2 minutes apart.
 services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 {
     outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))
@@ -868,7 +849,19 @@ services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
 }));
 ```
 
+Each persisted attempt owns nested framework retries for the same message and context, so enabling
+retry middleware does not multiply the durable attempt budget. Different nested dispatch identities
+retain their own policies. Caller cancellation observed before failure accounting propagates without charging a new delivery failure;
+an independent provider timeout with an uncancelled caller remains a failure. SDK retry policies are
+separate. Broker acceptance followed by a failed completion write can still lead to redelivery.
+
 ### Dead Letter Handling
+
+The default outbox processor requires an explicitly registered `IDeadLetterQueue` before
+processing begins. Register a recovery queue separately from the outbox store; registering
+the store alone does not supply one. A queue can be registered after `AddOutbox` as long as
+it exists when the default processor is resolved. Store-only staging and consumer-provided
+processors do not acquire this default processor requirement.
 
 ```csharp
 services.AddSqlServerOutboxStore(options => options.ConnectionString = connectionString);
@@ -883,6 +876,31 @@ services.AddSqlServerDeadLetterQueue(opts =>
 });
 ```
 
+Apply the provider's packaged schema before use. This registration retains entries for
+inspection; automatic replay requires a separately configured replay handler. See
+[Dead Letter Queue](dead-letter.md) for replay readiness and tenant scope.
+
+To intentionally discard terminal failures, explicitly register
+`NullDeadLetterQueue.Instance` as `IDeadLetterQueue`. The processor logs this choice and
+reports terminal messages as discarded. It never supplies that choice implicitly. A
+nonnull queue alone does not establish durable storage or atomic transfer between the
+queue and outbox; verify the selected provider and recovery path.
+
+### Exhausted delivery during a dead-letter outage
+
+`MaxRetryCount` bounds the recorded logical delivery attempts, including the initial send.
+If dead-letter disposition fails, the polling processor records the observed count and
+pending disposition with the original claim authority. A recovered claim retries disposition
+before decoding or sending, so a queue outage does not reset an already exhausted budget.
+Permanent and poison failures likewise retain their pending disposition. A preparation
+failure performs no transport send and can have an attempt count of zero.
+
+Retirement stores preserve the greater of the persisted and supplied attempt counts. They
+do not add an attempt for moving a row to an archive. Cancellation and circuit-open admission
+do not charge a delivery attempt. Failed or ambiguous bookkeeping can still cause redelivery;
+these counts are not a crash-proof limit on physical SDK requests. Keep consumers idempotent
+and monitor both delivery failures and disposition failures.
+
 ## Ordering and Retry Scheduling
 
 ### Partition-Ordered Delivery
@@ -893,11 +911,18 @@ Each outbound message carries three ordering fields — `PartitionKey`, `GroupKe
 
 ### Retry Backoff Is Applied
 
-When delivery fails, the processor computes an exponential backoff delay and records the absolute next-attempt time on the row's `NextAttemptAt` column. The claim predicate excludes the message until that time elapses (`NextAttemptAt IS NULL OR NextAttemptAt <= @now`), so the configured retry delay **genuinely throttles re-delivery** rather than re-claiming the message as soon as its lease expires.
+When delivery fails, the processor uses its `IBackoffCalculator` to compute the next-attempt time.
+The facade default uses the configured fixed retry delay; a registered calculator, including the Polly
+adapter for exponential backoff and jitter, takes precedence. Backoff-capable stores retain that
+schedule and apply their failure floor. The claim predicate excludes the message until it is eligible.
 
 A **circuit-breaker-open** short-circuit is treated differently: because no delivery was actually attempted, no backoff is applied — the message stays immediately eligible and retries as soon as the breaker closes.
 
-Backoff scheduling requires a store that implements the optional `IBackoffSchedulableOutboxStore` capability (`MarkFailedWithBackoffAsync`). The **SQL Server and PostgreSQL** stores implement it (the Postgres implementation is signature-identical to SQL Server for cross-provider consistency). Other providers (Redis, MongoDB, Elasticsearch, DynamoDB, Cosmos DB) do not yet implement it and are unaffected: the processor falls back to the plain `MarkFailedAsync` path (immediate re-eligibility), so no store is broken — matching the fail-open pattern used by `IDeadLetterableOutboxStore`. The capability is forwarded transparently through the telemetry and encrypting outbox-store decorators, so it survives a decorated store chain.
+Backoff scheduling requires the optional `IBackoffSchedulableOutboxStore` capability
+(`MarkFailedWithBackoffAsync`). SQL Server, PostgreSQL, MongoDB, Redis, Oracle and in-memory stores
+implement it. The processor uses `MarkFailedAsync` when the capability is unavailable; that provider's
+own retry-visibility rules still apply, but the processor cannot promise its computed schedule was
+persisted. Telemetry and encrypting decorators forward the capability when their inner store offers it.
 
 ## Administrative operations reach every tenant
 

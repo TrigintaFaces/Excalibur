@@ -131,6 +131,12 @@
     {
       "modifiers": [
         {
+          "condition": "(Transport != \"inmemory\")",
+          "exclude": [
+            "Handlers/OrderPlacedHandler.cs"
+          ]
+        },
+        {
           "condition": "(!IncludeDocker)",
           "exclude": [
             "Dockerfile",

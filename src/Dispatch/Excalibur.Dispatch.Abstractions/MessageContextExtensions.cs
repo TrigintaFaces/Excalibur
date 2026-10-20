@@ -37,6 +37,8 @@ public static class MessageContextExtensions
 	/// </summary>
 	internal const string InboxTransactionScopeKey = "Excalibur.Dispatch.Inbox.TransactionScope";
 
+	private static readonly object RoutingDefaultMarker = true;
+
 	// ===== Items dictionary helpers (moved from IMessageContext methods) =====
 
 	/// <summary>
@@ -48,6 +50,11 @@ public static class MessageContextExtensions
 	public static bool ContainsItem(this IMessageContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		{
+			return messageContext.TryGetItemWithoutMaterializing(key, out _);
+		}
+
 		return context.Items.ContainsKey(key);
 	}
 
@@ -61,6 +68,11 @@ public static class MessageContextExtensions
 	public static T? GetItem<T>(this IMessageContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		{
+			return messageContext.TryGetItemWithoutMaterializing(key, out var item) && item is T result ? result : default;
+		}
+
 		return context.Items.TryGetValue(key, out var value) && value is T typed ? typed : default;
 	}
 
@@ -75,6 +87,11 @@ public static class MessageContextExtensions
 	public static T GetItem<T>(this IMessageContext context, string key, T defaultValue)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		{
+			return messageContext.TryGetItemWithoutMaterializing(key, out var item) && item is T result ? result : defaultValue;
+		}
+
 		return context.Items.TryGetValue(key, out var value) && value is T typed ? typed : defaultValue;
 	}
 
@@ -86,6 +103,12 @@ public static class MessageContextExtensions
 	public static void RemoveItem(this IMessageContext context, string key)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
+		{
+			messageContext.RemoveItemWithoutMaterializing(key);
+			return;
+		}
+
 		context.Items.Remove(key);
 	}
 
@@ -199,13 +222,13 @@ public static class MessageContextExtensions
 	/// <see cref="MessageContext"/> keeps this value in a dedicated field and is read from there,
 	/// mirroring how correlation and causation are already special-cased for that type: every dispatch
 	/// reads and writes the message type, and routing it through the Items dictionary cost a hash lookup
-	/// per read and per write on the hot path. An Items entry, if one exists, still wins — the
-	/// dictionary stays authoritative for anything that writes the key directly — and every other
-	/// <see cref="IMessageContext"/> implementation reads the dictionary exactly as before.
+	/// per read and per write on the hot path. Once Items is materialized, the dictionary is authoritative,
+	/// including removal of an entry. Other <see cref="IMessageContext"/> implementations and derived
+	/// contexts use their own dictionary.
 	/// </remarks>
 	public static string? GetMessageType(this IMessageContext context) =>
-		context is MessageContext messageContext
-			? messageContext.TryGetItemFast(MessageTypeKey, out var raw) ? raw as string : messageContext.MessageTypeName
+		context is MessageContext messageContext && context.GetType() == typeof(MessageContext)
+			? messageContext.GetMessageTypeFast()
 			: context.GetProperty<string>(MessageTypeKey);
 
 	/// <summary>
@@ -215,10 +238,12 @@ public static class MessageContextExtensions
 	/// See <see cref="GetMessageType"/> for why <see cref="MessageContext"/> stores this in a field.
 	/// The value is still surfaced through <see cref="IMessageContext.Items"/> for anything that
 	/// enumerates or reads the dictionary.
+	/// Passing <see langword="null"/> preserves an item with a null value. To remove the item instead,
+	/// remove its entry from <see cref="IMessageContext.Items"/>.
 	/// </remarks>
 	public static void SetMessageType(this IMessageContext context, string? value)
 	{
-		if (context is MessageContext messageContext)
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
 		{
 			messageContext.SetMessageTypeFast(value);
 			return;
@@ -251,13 +276,13 @@ public static class MessageContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		if (context is MessageContext messageContext)
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
 		{
 			messageContext.MarkMessageTypeAsRoutingDefaultFast();
 			return;
 		}
 
-		context.Items[MessageTypeIsRoutingDefaultKey] = true;
+		context.Items[MessageTypeIsRoutingDefaultKey] = RoutingDefaultMarker;
 	}
 
 	/// <summary>
@@ -275,11 +300,9 @@ public static class MessageContextExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		if (context is MessageContext messageContext)
+		if (context is MessageContext messageContext && context.GetType() == typeof(MessageContext))
 		{
-			return messageContext.TryGetItemFast(MessageTypeIsRoutingDefaultKey, out var item)
-				? item is true
-				: messageContext.MessageTypeIsRoutingDefault;
+			return messageContext.IsMessageTypeRoutingDefaultFast();
 		}
 
 		return context.Items.TryGetValue(MessageTypeIsRoutingDefaultKey, out var raw) && raw is true;

@@ -8,6 +8,7 @@ using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
 
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -74,6 +75,17 @@ public static class EventNotificationServiceCollectionExtensions
 		// reflection and stays AOT-safe. It costs nothing unless the host requires positioned writes.
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IPositionedProjectionProbe, PositionedProjectionProbe<TProjection>>());
+
+		// The same shape for the store itself, and NOT opt-in: a projection registered with nowhere to
+		// store it folds into nothing, which is wrong on every host. TryAddEnumerable de-duplicates on
+		// the implementation type, so the validator lands once however many projections are registered.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IProjectionStoreProbe>(
+				new ProjectionStoreProbe<TProjection>(projectionBuilder.Mode)));
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, ProjectionStoreValidator>());
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ProjectionStoreValidator>());
 
 		return builder;
 	}

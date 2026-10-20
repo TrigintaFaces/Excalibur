@@ -20,6 +20,12 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Infrastructure/RoutingBenchmarkDispatch.cs"
+             Link="Benchmarks/RoutingBenchmarkDispatch.cs" />
+    <Compile Include="../../../benchmarks/Excalibur.Dispatch.Benchmarks/Infrastructure/FreshContextBenchmarkDispatch.cs"
+             Link="Benchmarks/FreshContextBenchmarkDispatch.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />

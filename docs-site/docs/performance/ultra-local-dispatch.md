@@ -40,12 +40,11 @@ gone instead.
 
 ## Are you giving up performance?
 
-No -- you gain a little. The ultra-local fast path is an internal optimization, not an API, and it
-is unchanged: when a local action has no middleware applicable to its type, `DispatchAsync` takes
-the short path automatically, exactly as it did before. The explicit method was never the faster of
-the two. It measured *slower* than the standard call while doing strictly less work -- it created no
-message context and returned no `IMessageResult` -- so removing it makes the public call faster,
-not slower.
+The existing internal fast path remains available through `DispatchAsync`: when a local action has
+no middleware applicable to its type, dispatch takes the short path automatically. Removing the
+explicit API does not itself establish a latency improvement. The older methods performed different
+work, including context creation and result reporting, so their timings do not establish a matched
+comparison of the supported API before and after removal.
 
 ## Tuning the fast path
 

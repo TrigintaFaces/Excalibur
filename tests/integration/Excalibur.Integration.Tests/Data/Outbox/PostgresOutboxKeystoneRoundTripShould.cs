@@ -11,6 +11,10 @@ using FakeItEasy;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+using Npgsql;
 
 using Shouldly;
 
@@ -37,6 +41,81 @@ public sealed class PostgresOutboxKeystoneRoundTripShould : IClassFixture<Postgr
 	public PostgresOutboxKeystoneRoundTripShould(PostgresOutboxStoreContainerFixture fixture)
 	{
 		_fixture = fixture;
+	}
+
+	[Theory]
+	[InlineData("named")]
+	[InlineData("configuration")]
+	[InlineData("source")]
+	[InlineData("factory")]
+	public async Task RoundTrip_Through_Advertised_Connection_Mode_Without_Resolving_Unrelated_Db(string mode)
+	{
+		_fixture.DockerAvailable.ShouldBeTrue();
+		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
+		await _fixture.CleanupTableAsync().ConfigureAwait(false);
+		await using var borrowedSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+		NpgsqlDataSource? ownedSource = null;
+		var factoryCalls = 0;
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddSingleton<IDb>(_ => throw new InvalidOperationException("Unrelated IDb must not be used."));
+		services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox => outbox.UsePostgres(postgres =>
+		{
+			postgres.ConnectionFactory(_ => throw new InvalidOperationException("Earlier selector must not execute."));
+			switch (mode)
+			{
+				case "named":
+					postgres.ConnectionStringName("OutboxStore");
+					break;
+				case "configuration":
+					postgres.BindConfiguration("Outbox:Postgres");
+					break;
+				case "source":
+					postgres.DataSource(borrowedSource);
+					break;
+				case "factory":
+					postgres.DataSourceFactory(_ =>
+					{
+						factoryCalls++;
+						ownedSource = NpgsqlDataSource.Create(_fixture.ConnectionString);
+						return ownedSource;
+					});
+					break;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(mode));
+			}
+
+			postgres.SchemaName(_fixture.SchemaName).TableName(_fixture.OutboxTableName)
+				.DeadLetterTableName(_fixture.DeadLetterTableName);
+		})));
+		services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(
+			new Dictionary<string, string?>
+			{
+				["ConnectionStrings:OutboxStore"] = _fixture.ConnectionString,
+				["Outbox:Postgres:ConnectionString"] = _fixture.ConnectionString,
+			}).Build());
+		await using (var provider = services.BuildServiceProvider())
+		{
+			var store = provider.GetRequiredService<IOutboxStore>();
+			provider.GetRequiredService<IOutboxStore>().ShouldBeSameAs(store);
+			var message = new OutboundMessage("Builder.Mode", "builder-payload"u8.ToArray(), "builder-destination");
+			await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+			var reloaded = (await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false))
+				.Single(row => row.Id == message.Id);
+			reloaded.Payload.ShouldBe(message.Payload);
+			reloaded.Destination.ShouldBe(message.Destination);
+			factoryCalls.ShouldBe(mode == "factory" ? 1 : 0);
+		}
+
+		await using var survivingConnection = await borrowedSource.OpenConnectionAsync().ConfigureAwait(false);
+		survivingConnection.State.ShouldBe(System.Data.ConnectionState.Open);
+		if (ownedSource is not null)
+		{
+			await Should.ThrowAsync<ObjectDisposedException>(async () =>
+			{
+				await using var connection = await ownedSource.OpenConnectionAsync().ConfigureAwait(false);
+			}).ConfigureAwait(false);
+		}
 	}
 
 	[Fact]

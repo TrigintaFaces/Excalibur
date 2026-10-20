@@ -16,39 +16,64 @@ This guide covers performance optimization for event sourcing, outbox processing
 
 ## Performance Benchmarks
 
-### Dispatch Framework Overhead
+### Dispatch Measurements by Code Epoch
 
-The Dispatch messaging layer adds minimal overhead to your application:
+Current figures are the dated October 2026 measurements described in the
+[performance overview](../performance/index.md); rows marked as the September 2026 epoch
+have not been re-measured against the current source. None of these are production
+latencies -- the command handler is a no-op and query handlers double an input ID.
 
-| Operation | Latency | Allocated | Notes |
+The October 19 command and typed query rows each come from three
+separate original-observation processes. The query uses the selected current
+runtime after the fixture rental-lifecycle repair. Timing increased on both peers
+from the earlier isolated-marker experiment; its cause remains unresolved. These
+observations do not certify the entire rebuilt checkout or NativeAOT performance.
+
+| Operation | Mean | Allocated | Source |
 |-----------|---------|-----------|-------|
-| Single command dispatch | 45.6 ns | 96 B | Hot-path, no middleware |
-| Query with response | 63.7 ns | 192 B | Hot-path, no middleware |
-| Command with 3 middleware | 71.7 ns | 240 B | Typical production pipeline |
+| Single command dispatch | ~65 ns | 96 B | Current observation, 19 October 2026 |
+| Typed query dispatch, default pipeline | ~136 ns | 288 B | Current observation, 19 October 2026 |
+| Untyped query dispatch completion | 63.7 ns | 192 B | September 2026 epoch; returned-payload parity unverified |
+| Command with 3 middleware | 71.7 ns | 240 B | September 2026 epoch |
 
-From the WarmPath comparison epoch of 2026-09-05
-(`benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`). The first two rows
-are `MediatRWarmPathComparisonBenchmarks`, the third `PipelineWarmPathComparisonBenchmarks`.
+Only the untyped query and three-middleware rows come from the WarmPath comparison epoch of 2026-09-05
+(`benchmarks/baselines/net10.0/dispatch-comparative-20260905/results/`): respectively
+`MediatRWarmPathComparisonBenchmarks` and `PipelineWarmPathComparisonBenchmarks`.
 
-**Budget from a floor, not from these numbers.** Every dispatch publishes an ambient message context
+The untyped query result does not establish that the returned object carries the
+handler response. See the separate
+[current measurements](../performance/competitor-comparison.md#current-query-observations-19-october-2026)
+for payload-verified response APIs; their results do not replace this historical epoch.
+
+**Measure allocation in the consuming application.** Every dispatch publishes an ambient message context
 so a nested dispatch inherits causation, correlation, tenant and user rather than starting a fresh
 root. That costs one `ExecutionContext` copy-on-write, and the copy is of the whole async-local value
 map — so the real per-dispatch allocation scales with how many `AsyncLocal` values your application
-keeps live: 72 of the 96 bytes when there are none, roughly 160 B with one other, roughly 992 B with
-fifteen. A production host normally carries several before it reaches this framework, and the
-framework itself declares two. Size your allocation budget against your own async-local density.
+keeps live. A historical diagnostic attributed 72 of its 96 measured bytes to
+that copy with no other values, and observed roughly 160 B with one other value
+and 992 B with fifteen. These are observations from that code/runtime/configuration,
+not universal floors. Size the allocation budget from the application's own measurements.
 
-Latency here varied about 4% run to run; read the nanosecond figures as indicative and the byte
-figures as exact.
+Latency varied about 4% across the historical runs. Allocation figures describe that
+benchmark workload; measure the application's configuration before setting budgets.
 
 A long-run allocation figure of **64.88 MB per 100K dispatches** was measured on 2026-03-11 and has
 not been re-taken since. Treat it as historical rather than current: it measures a different workload
 (middleware and context included), and it should not be reconciled with the per-dispatch figure above
 by arithmetic.
 
-### Application-Level Baseline Expectations
+### Setting your own budgets
 
-| Operation | Target Latency | Target Throughput |
+:::caution These are planning placeholders, not measurements
+
+The figures below have **not** been measured against this framework. Every operation in this
+table is dominated by a storage round-trip -- your database, your network, your hardware -- and
+the dispatch overhead measured above is three to five orders of magnitude smaller than any of
+them. Treat the numbers as a starting shape for your own budget, replace each one with your
+measured p99 as soon as you have it, and do not quote them as characteristics of Excalibur.
+:::
+
+| Operation | Starting latency budget | Starting throughput budget |
 |-----------|----------------|-------------------|
 | Aggregate load (with snapshot) | `<10ms` | 1,000/s |
 | Aggregate load (100 events) | `<50ms` | 200/s |
@@ -221,10 +246,17 @@ public record OrderCreated(
 
 ### Using Inline Projection Handlers
 
+The October 17 repository report
+`docs/performance/projection-handlers-2026-10-17.md` measured 48 → 0 B/op for the
+warmed plain synchronous `Apply` path across three matched managed pairs. That
+observation does not guarantee zero allocations in user callbacks or establish a
+universal ranking against DI handlers. Native functional/allocation controls were
+separate from managed timing; no NativeAOT latency improvement was measured.
+
 Excalibur provides two approaches for inline projections. For simple cases, use `When<T>` lambdas. For complex logic needing DI, implement `IProjectionEventHandler<TProjection, TEvent>`:
 
 ```csharp
-// Tier 1: Simple lambda (zero allocation, fastest)
+// Simple synchronous lambda; measure the complete callback workload
 builder.AddProjection<OrderProjection>(p => p
     .Inline()
     .When<OrderCreated>((proj, e) =>

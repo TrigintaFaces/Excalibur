@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -273,6 +274,53 @@ class VerdictTests(unittest.TestCase):
             with self.subTest(payload=payload[:60]):
                 api.override = lambda args: payload
                 self.check(sha, api, 2)
+
+    def test_candidate_incomplete_run_is_waited_for_then_judged(self):
+        """The release and CI share a trigger, so the candidate's run is legitimately in flight."""
+        sha, run, jobs, api = self.full()
+        polls = 0
+        def pending(args):
+            nonlocal polls
+            if f"head_sha={sha}" in args[-1]:
+                polls += 1
+                if polls == 1:
+                    return json.dumps([{"total_count": 1, "workflow_runs":
+                                        [dict(run, status="in_progress", conclusion=None)]}])
+            return None
+        api.override = pending
+        # CONTROL: the identical fixture REFUSES with no budget, so this arm's pass is the wait's doing.
+        self.check(sha, api, 2)
+        polls = 0
+        api.override = pending
+        self.check(sha, api, 0, wait_minutes=0.02)
+        self.assertGreater(polls, 1, "the gate judged without ever re-reading the run")
+
+    def test_candidate_still_refuses_when_the_wait_expires(self):
+        """A budget is a bound on patience, never a verdict: incomplete is still not a pass."""
+        sha, run, jobs, api = self.full()
+        api.override = lambda args: (json.dumps([{"total_count": 1, "workflow_runs":
+                                     [dict(run, status="in_progress", conclusion=None)]}])
+                                     if f"head_sha={sha}" in args[-1] else None)
+        report = self.check(sha, api, 2, wait_minutes=0.02)
+        self.assertEqual("Latest eligible run is incomplete", report["reason"])
+
+    def test_the_wait_reaches_neither_the_ancestor_walk_nor_the_freshness_recheck(self):
+        """A wait applied per-lookup would multiply by the walk bound and could mask a re-run."""
+        parent, old, old_jobs, api = self.full()
+        sha = self.commit("docs/contributing.md")
+        run = run_record(sha, 20)
+        api.runs[sha] = [run]
+        api.jobs[(20, 1)] = job_records(run, docs=True)
+        # The ANCESTOR's run never completes. With the wait leaking into the walk this would burn the
+        # whole budget there; it must refuse immediately instead.
+        api.runs[parent] = [dict(old, status="in_progress", conclusion=None)]
+        started = time.monotonic()
+        self.check(sha, api, 2, wait_minutes=5)
+        self.assertLess(time.monotonic() - started, 60, "the wait leaked past the candidate")
+
+    def test_negative_wait_budget_refuses(self):
+        sha, run, jobs, api = self.full()
+        self.check(sha, api, 2, wait_minutes=-1)
 
     def test_candidate_rerun_during_ancestor_walk_refuses(self):
         parent, old, old_jobs, api = self.full()

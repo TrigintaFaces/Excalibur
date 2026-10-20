@@ -5,6 +5,7 @@ using Amazon.EventBridge;
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.Aws;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
@@ -94,16 +95,44 @@ public static class AwsCoreServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterSqsServices(IServiceCollection services)
 	{
+		services.TryAddSingleton<AwsSqsClientRegistration>();
 		services.TryAddSingleton<IAmazonSQS>(static sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<AwsProviderOptions>>().Value;
 			var config = new AmazonSQSConfig();
 			AwsClientConfiguration.Apply(config, options);
-			return options.Connection.Credentials is { } credentials
+			var credentials = options.Connection.Credentials;
+			var sendConfig = new AmazonSQSConfig();
+			AwsClientConfiguration.Apply(sendConfig, options);
+			sendConfig.MaxErrorRetry = 0;
+			sendConfig.MaxStaleConnectionRetries = 0;
+			sendConfig.DefaultAWSCredentials = config.DefaultAWSCredentials;
+			sendConfig.IdentityResolverConfiguration = config.IdentityResolverConfiguration;
+			var receive = credentials is not null
 				? new AmazonSQSClient(credentials, config)
 				: new AmazonSQSClient(config);
+			sp.GetRequiredService<AwsSqsClientRegistration>().Register(receive,
+				() => credentials is not null ? new AmazonSQSClient(credentials, sendConfig) : new AmazonSQSClient(sendConfig),
+				options.MaxRetryAttempts, options.RequestTimeout);
+			return receive;
 		});
-		services.TryAddSingleton<AwsSqsMessageBus>();
+		services.TryAddSingleton(static sp =>
+		{
+			var actual = sp.GetRequiredService<IAmazonSQS>();
+			var configured = sp.GetRequiredService<IOptions<AwsSqsOptions>>().Value;
+			var options = new AwsSqsOptions
+			{
+				QueueUrl = configured.QueueUrl,
+				MaxRetryAttempts = configured.MaxRetryAttempts,
+				RequestTimeout = configured.RequestTimeout,
+				RetryPolicy = configured.RetryPolicy,
+			};
+			var send = sp.GetRequiredService<AwsSqsClientRegistration>().Resolve(actual, options);
+			return new AwsSqsMessageBus(send, sp.GetRequiredService<IPayloadSerializer>(),
+				Microsoft.Extensions.Options.Options.Create(options), sp.GetRequiredService<IOptions<AwsSqsFifoOptions>>(),
+				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AwsSqsMessageBus>>(), ownsClient: false,
+				failureClassifier: sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>());
+		});
 		_ = services.AddRemoteMessageBus("sqs", static sp => sp.GetRequiredService<AwsSqsMessageBus>());
 	}
 
@@ -112,16 +141,42 @@ public static class AwsCoreServiceCollectionExtensions
 	/// </summary>
 	private static void RegisterSnsServices(IServiceCollection services)
 	{
+		services.TryAddSingleton<AwsSnsClientRegistration>();
 		services.TryAddSingleton<IAmazonSimpleNotificationService>(static sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<AwsProviderOptions>>().Value;
 			var config = new AmazonSimpleNotificationServiceConfig();
 			AwsClientConfiguration.Apply(config, options);
-			return options.Connection.Credentials is { } credentials
+			var sendConfig = new AmazonSimpleNotificationServiceConfig();
+			AwsClientConfiguration.Apply(sendConfig, options);
+			sendConfig.MaxErrorRetry = 0;
+			sendConfig.MaxStaleConnectionRetries = 0;
+			sendConfig.DefaultAWSCredentials = config.DefaultAWSCredentials;
+			sendConfig.IdentityResolverConfiguration = config.IdentityResolverConfiguration;
+			var credentials = options.Connection.Credentials;
+			var management = credentials is not null
 				? new AmazonSimpleNotificationServiceClient(credentials, config)
 				: new AmazonSimpleNotificationServiceClient(config);
+			sp.GetRequiredService<AwsSnsClientRegistration>().Register(management,
+				() => credentials is not null ? new AmazonSimpleNotificationServiceClient(credentials, sendConfig) : new AmazonSimpleNotificationServiceClient(sendConfig));
+			return management;
 		});
-		services.TryAddSingleton<AwsSnsMessageBus>();
+		services.TryAddSingleton(static sp =>
+		{
+			var configured = sp.GetRequiredService<IOptions<AwsSnsOptions>>().Value;
+			var options = new AwsSnsOptions
+			{
+				TopicArn = configured.TopicArn,
+				MaxRetryAttempts = configured.MaxRetryAttempts,
+				RequestTimeout = configured.RequestTimeout,
+				RetryPolicy = configured.RetryPolicy,
+			};
+			var actual = sp.GetRequiredService<IAmazonSimpleNotificationService>();
+			var send = sp.GetRequiredService<AwsSnsClientRegistration>().Resolve(actual);
+			return new AwsSnsMessageBus(send, sp.GetRequiredService<IPayloadSerializer>(), options,
+				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AwsSnsMessageBus>>(),
+				failureClassifier: sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>());
+		});
 		_ = services.AddRemoteMessageBus("sns", static sp => sp.GetRequiredService<AwsSnsMessageBus>());
 	}
 
@@ -135,6 +190,16 @@ public static class AwsCoreServiceCollectionExtensions
 			var options = sp.GetRequiredService<IOptions<AwsProviderOptions>>().Value;
 			var config = new AmazonEventBridgeConfig();
 			AwsClientConfiguration.Apply(config, options);
+
+			// This client only ever sends (PutEvents), so the dispatch pipeline owns retry outright and
+			// the SDK must own none of it. PutEventsRequestEntry carries no client token, so an SDK retry
+			// is a distinct event rather than a replay: stacking SDK retries under the outbox's own
+			// attempts multiplies duplicates by the product of the two budgets. SQS and SNS express the
+			// same rule through a separate zero-retry send client; EventBridge has no receive side, so
+			// the whole client is the send client.
+			config.MaxErrorRetry = 0;
+			config.MaxStaleConnectionRetries = 0;
+
 			return options.Connection.Credentials is { } credentials
 				? new AmazonEventBridgeClient(credentials, config)
 				: new AmazonEventBridgeClient(config);

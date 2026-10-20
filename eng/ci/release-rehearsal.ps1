@@ -31,7 +31,11 @@
     Output directory for rehearsal artifacts and report. Defaults to ReleaseRehearsalReport.
 
 .PARAMETER NoBuild
-    Skip restore and build steps (use if already built in Release configuration).
+    Skip the primary restore/build. Composition still rebuilds its own separate candidate feed.
+
+.PARAMETER Version
+    Candidate package version forwarded to every packaging validation. The default local placeholder
+    leaves publication unchecked and the overall report incomplete.
 
 .PARAMETER StopOnFirstFailure
     Stop execution at the first failing step instead of running all steps.
@@ -47,12 +51,14 @@
 #>
 param(
     [string]$OutDir = 'ReleaseRehearsalReport',
+    [string]$Version = '0.0.0-local',
     [switch]$NoBuild,
     [switch]$StopOnFirstFailure
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/release-publication-state.functions.ps1"
 
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $ShippingSlnf = Join-Path $RepoRoot 'eng/ci/shards/ShippingOnly.slnf'
@@ -82,15 +88,23 @@ function Run-Step {
 
     $result = [pscustomobject]@{
         Name = $Name
-        Status = 'skipped'
+        Status = 'passed'
         Duration = [TimeSpan]::Zero
         Error = $null
+        Details = $null
+    }
+
+    if ($StopOnFirstFailure -and $script:failureCount -gt 0) {
+        $result.Status = 'skipped'
+        $result.Error = 'Not run after an earlier failure.'
+        $script:steps += $result
+        return
     }
 
     try {
-        & $Action
-        $result.Status = 'passed'
-        Write-Host "  PASSED: $Name" -ForegroundColor Green
+        & $Action $result
+        if ($result.Status -notin @('passed', 'not_checked')) { throw 'Invalid step status.' }
+        Write-Host "  $($result.Status.ToUpperInvariant()): $Name"
     }
     catch {
         $result.Status = 'failed'
@@ -98,11 +112,7 @@ function Run-Step {
         $script:failureCount++
         Write-Host "  FAILED: $Name -- $($_.Exception.Message)" -ForegroundColor Red
 
-        if ($StopOnFirstFailure) {
-            $result.Duration = ([DateTime]::UtcNow - $stepStart)
-            $script:steps += $result
-            throw "Release rehearsal stopped at step '$Name': $($_.Exception.Message)"
-        }
+        # Later Run-Step calls skip their actions, so the report survives the first failure.
     }
 
     $result.Duration = ([DateTime]::UtcNow - $stepStart)
@@ -128,6 +138,7 @@ if (-not $NoBuild) {
 }
 else {
     Write-Host "Skipping restore/build steps (-NoBuild specified)." -ForegroundColor Yellow
+    $steps += [pscustomobject]@{ Name='Primary restore/build'; Status='skipped'; Duration=[TimeSpan]::Zero; Error='-NoBuild: primary build provenance not established by this rehearsal.'; Details=$null }
 }
 
 # --- Step 3: Pack ---
@@ -139,7 +150,7 @@ Run-Step 'Pack (local feed)' {
     # Splat a HASHTABLE, never an array: array splatting binds POSITIONALLY, so @('-Clean')
     # became the value of pack-local's first positional parameter ([string]$Version) and the
     # Clean switch never applied -- MinVer then rejected the version override '-Clean'.
-    $packArgs = @{ Clean = $true }
+    $packArgs = @{ Clean = $true; Version = $Version }
     if ($NoBuild) { $packArgs['NoBuild'] = $true }
     & $packScript @packArgs
     if ($LASTEXITCODE -ne 0) {
@@ -148,12 +159,12 @@ Run-Step 'Pack (local feed)' {
 }
 
 # --- Step 4: Validate package composition ---
-Run-Step 'Validate package composition' {
+Run-Step 'Validate package composition (independently rebuilt feed)' {
     $compScript = Join-Path $RepoRoot 'eng/validate-package-composition.ps1'
     if (-not (Test-Path $compScript)) {
         throw "validate-package-composition.ps1 not found at: $compScript"
     }
-    & $compScript
+    & $compScript -Version $Version
     if ($LASTEXITCODE -ne 0) {
         throw "validate-package-composition.ps1 failed (exit code $LASTEXITCODE)"
     }
@@ -165,7 +176,7 @@ Run-Step 'Validate NuSpec dependencies' {
     if (-not (Test-Path $nuspecScript)) {
         throw "validate-nuspec-dependencies.ps1 not found at: $nuspecScript"
     }
-    & $nuspecScript
+    & $nuspecScript -Version $Version
     if ($LASTEXITCODE -ne 0) {
         throw "validate-nuspec-dependencies.ps1 failed (exit code $LASTEXITCODE)"
     }
@@ -319,72 +330,19 @@ Run-Step 'Promotion contract: the release workflow cannot rebuild what it publis
 # tags, using the same classification the release itself performs. It never fails the rehearsal on a
 # collision -- a rehearsal is not a release, and a version being published is not an error here --
 # but it turns a surprise at tag time into a line in a report.
-Run-Step 'Publication state of the version this commit would ship' {
-    # Scoped to the FEED the pack step writes, never to artifacts/ as a whole. A recursive sweep of
-    # artifacts/ reaches the package-composition and package-archive gates' consumer-cache,
-    # producer-cache and feed directories, which hold every third-party dependency those gates
-    # restored. Measured in this tree: 11571 .nupkg beneath artifacts/, of which 4727 were ours, and
-    # $pkgs[0] resolved to cloudnative.cloudevents.2.8.0 -- so this step reported 2.8.0 as "the
-    # version this commit would ship", then asked nuget.org whether each of 11571 ids existed at
-    # 2.8.0. The verdict was computed over mostly foreign packages at a version nobody asked about,
-    # and a single third-party hit would have printed "releasing this version would be a re-run".
-    # Nothing in the output revealed the substitution, which is why the resolved path is now printed
-    # beside the version rather than left implicit.
-    $feed = Join-Path $RepoRoot 'artifacts/_packages'
-    if (-not (Test-Path -LiteralPath $feed)) {
-        Write-Host "  no pack feed at artifacts/_packages; skipping (pack step is the source of the version)"
-        return
+Run-Step 'Publication state of the requested candidate version' {
+    param($Step)
+    $observations = @(Get-ReleasePublicationState -Feed (Join-Path $RepoRoot 'artifacts/_packages') -Version $Version)
+    if ($observations.Count -ne 1 -or $observations[0].status -notin @('passed','not_checked')) {
+        throw 'Publication evaluator did not return exactly one valid result.'
     }
-    $pkgs = Get-ChildItem -LiteralPath $feed -Filter '*.nupkg' -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -notlike '*.symbols.nupkg' }
-    if (-not $pkgs) {
-        Write-Host "  no packed .nupkg found; skipping (pack step is the source of the version)"
-        return
-    }
-
-    # Version is whatever Pack actually produced -- read from the artifact, not recomputed, so this
-    # cannot disagree with the thing that would be published.
-    $sample = $pkgs[0].BaseName
-    if ($sample -notmatch '^(?<id>.+?)\.(?<ver>\d+\.\d+\.\d+.*)$') {
-        Write-Host "  could not parse a version from '$sample'; skipping"
-        return
-    }
-    $version = $Matches['ver']
-    Write-Host "  version this commit would ship: $version (read from $($pkgs[0].Name), $($pkgs.Count) package(s) in the feed)"
-
-    # A placeholder version can only ever 404, so the check would report 'fresh' no matter what the
-    # tree contained. Say that instead of printing a reassurance the run did not earn.
-    if ($version -eq '0.0.0-local') {
-        Write-Host "  publication state: NOT CHECKED -- the feed holds the local placeholder version, which cannot be published, so every query would 404 and 'fresh' would mean nothing. Re-run the pack step with a real -Version to exercise this." -ForegroundColor Yellow
-        return
-    }
-
-    $published = 0; $total = 0; $unknown = 0
-    foreach ($p in $pkgs) {
-        if ($p.BaseName -notmatch '^(?<id>.+?)\.(?<ver>\d+\.\d+\.\d+.*)$') { continue }
-        $total++
-        $id = $Matches['id'].ToLowerInvariant()
-        $url = "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg"
-        try {
-            $resp = Invoke-WebRequest -Uri $url -Method Head -SkipHttpErrorCheck -TimeoutSec 20
-            switch ($resp.StatusCode) {
-                200 { $published++ }
-                404 { }
-                default { $unknown++ }
-            }
-        } catch { $unknown++ }
-    }
-
-    $mode = if ($published -eq 0) { 'fresh' } elseif ($published -eq $total) { 'resumed' } else { 'partial' }
-    Write-Host "  publication state: $mode ($published of $total already on NuGet; $unknown unanswered)"
-    if ($mode -ne 'fresh') {
-        Write-Host "  NOTE: releasing this version would be a re-run, not a first publish." -ForegroundColor Yellow
-    }
-    if ($unknown -gt 0) {
-        Write-Host "  NOTE: $unknown package(s) could not be checked; treat this report as incomplete." -ForegroundColor Yellow
-    }
+    $state = $observations[0]
+    $state | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $OutDir 'publication-state.json') -Encoding utf8
+    $Step.Status = $state.status
+    $Step.Details = $state
+    Write-Host "  publication state: $($state.mode) ($($state.published) of $($state.packageCount) published; $($state.unknown) unanswered)"
+    if ($state.reason) { Write-Host "  $($state.reason)" -ForegroundColor Yellow }
 }
-
 Run-Step 'Validate governance stack' {
     $govScript = Join-Path $RepoRoot 'eng/ci/validate-governance-stack.ps1'
     if (-not (Test-Path $govScript)) {
@@ -401,7 +359,8 @@ $totalDuration = ([DateTime]::UtcNow - $StartTime)
 $passedCount = @($steps | Where-Object { $_.Status -eq 'passed' }).Count
 $failedCount = @($steps | Where-Object { $_.Status -eq 'failed' }).Count
 $skippedCount = @($steps | Where-Object { $_.Status -eq 'skipped' }).Count
-$overallStatus = if ($failedCount -eq 0) { 'PASSED' } else { 'FAILED' }
+$uncheckedCount = @($steps | Where-Object { $_.Status -eq 'not_checked' }).Count
+$overallStatus = if ($failedCount -gt 0) { 'FAILED' } elseif ($skippedCount + $uncheckedCount -gt 0) { 'INCOMPLETE' } else { 'PASSED' }
 
 $summaryPath = Join-Path $OutDir 'summary.md'
 $jsonPath = Join-Path $OutDir 'release-rehearsal-report.json'
@@ -413,7 +372,10 @@ $summary = @(
     "- **Date:** $($StartTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC",
     "- **Duration:** $($totalDuration.ToString('hh\:mm\:ss'))",
     "- **Shipping graph:** ShippingOnly.slnf",
-    "- **Steps:** $($steps.Count) total ($passedCount passed, $failedCount failed, $skippedCount skipped)",
+    "- **Candidate version:** $Version",
+    '- **Scope:** Local rehearsal only; full tests, hosted checks, staged validation and promotion admission remain separate requirements.',
+    '- **Composition:** Builds and verifies a separate candidate feed; this does not certify the primary feed bytes.',
+    "- **Steps:** $($steps.Count) total ($passedCount passed, $failedCount failed, $skippedCount skipped, $uncheckedCount not checked)",
     '',
     '## Step Results',
     '',
@@ -426,6 +388,7 @@ foreach ($step in $steps) {
         'passed' { 'PASS' }
         'failed' { 'FAIL' }
         'skipped' { 'SKIP' }
+        'not_checked' { 'NOT CHECKED' }
     }
     $summary += "| $($step.Name) | $icon | $($step.Duration.ToString('mm\:ss')) |"
 }
@@ -449,9 +412,14 @@ $report = [pscustomobject]@{
     date = $StartTime.ToString('o')
     durationSeconds = [int]$totalDuration.TotalSeconds
     shippingGraph = 'eng/ci/shards/ShippingOnly.slnf'
+    version = $Version
+    localRehearsalComplete = ($overallStatus -eq 'PASSED')
+    releaseReady = $false
+    primaryBuildRequested = (-not $NoBuild)
+    compositionVerifiesSeparateFeed = $true
     steps = $steps
 }
-$report | ConvertTo-Json -Depth 5 | Out-File -FilePath $jsonPath -Encoding UTF8
+$report | ConvertTo-Json -Depth 10 | Out-File -FilePath $jsonPath -Encoding UTF8
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor $(if ($overallStatus -eq 'PASSED') { 'Green' } else { 'Red' })
@@ -462,4 +430,7 @@ Write-Host "========================================" -ForegroundColor $(if ($ov
 
 if ($failedCount -gt 0) {
     exit 1
+}
+if ($Version -ne '0.0.0-local' -and $overallStatus -ne 'PASSED') {
+    exit 2
 }

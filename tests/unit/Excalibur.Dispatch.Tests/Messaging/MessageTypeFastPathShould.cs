@@ -21,6 +21,7 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
+[Trait(TraitNames.Pattern, "Regression")]
 public sealed class MessageTypeFastPathShould
 {
 	[Fact]
@@ -121,39 +122,69 @@ public sealed class MessageTypeFastPathShould
 		context.Items[MessageTypeItemsKey].ShouldBe("set-after-materialization");
 	}
 
-	[Fact]
-	public void ReportNoMessageType_WhenItIsSetToNull_WhicheverSideOfMaterializationTheCallLandsOn()
+	[Theory]
+	[InlineData("concrete", false, false)]
+	[InlineData("concrete", false, true)]
+	[InlineData("concrete", true, false)]
+	[InlineData("concrete", true, true)]
+	[InlineData("foreign", false, false)]
+	[InlineData("foreign", false, true)]
+	[InlineData("foreign", true, false)]
+	[InlineData("foreign", true, true)]
+	[InlineData("derived", false, false)]
+	[InlineData("derived", false, true)]
+	[InlineData("derived", true, false)]
+	[InlineData("derived", true, true)]
+	public void ReportNoMessageType_WhenItIsSetToNull_WhicheverSideOfMaterializationTheCallLandsOn(
+		string contextKind, bool materializeBeforeAssignment, bool replaceExistingType)
 	{
-		// Setting the type to null is reachable -- a context validator exercises exactly this -- and the
-		// hoisting made the two sides of materialization behave differently in the dictionary: before,
-		// every set went through Items and left the key present holding null; now an unmaterialized
-		// context leaves no key at all. GetMessageType answers null either way, and that is the part
-		// callers depend on, so it is asserted on BOTH sides rather than on whichever one the
-		// implementation happens to take.
-		var neverMaterialized = new MessageContext();
-		neverMaterialized.SetMessageType("replaced-by-null");
-		neverMaterialized.SetMessageType(null);
+		IMessageContext context = contextKind switch
+		{
+			"concrete" => new MessageContext(),
+			"foreign" => new TestMessageContext(),
+			"derived" => new DerivedMessageContext(),
+			_ => throw new ArgumentOutOfRangeException(nameof(contextKind)),
+		};
 
-		var alreadyMaterialized = new MessageContext();
-		_ = alreadyMaterialized.Items.Count;
-		alreadyMaterialized.SetMessageType("replaced-by-null");
-		alreadyMaterialized.SetMessageType(null);
+		context.GetMessageType().ShouldBeNull();
+		if (materializeBeforeAssignment)
+		{
+			context.Items.ContainsKey(MessageTypeItemsKey).ShouldBeFalse();
+		}
 
-		neverMaterialized.GetMessageType().ShouldBeNull();
-		alreadyMaterialized.GetMessageType().ShouldBeNull();
+		if (replaceExistingType)
+		{
+			context.SetMessageType("replaced-by-null");
+		}
 
-		// And the value must not come back when the dictionary is materialized later: the seed on first
-		// materialization is what surfaces the field to transports, so a null that seeded a stale value
-		// would put a message type back on the wire after it had been cleared.
-		neverMaterialized.Items.ContainsKey(MessageTypeItemsKey).ShouldBeFalse(
-			"a message type cleared to null must not reappear when Items is materialized afterwards");
+		context.SetMessageType(null);
+		context.GetMessageType().ShouldBeNull();
+
+		// Explicit null and absence are different dictionary states. Deferred Items must preserve the
+		// same present-null entry as the foreign-context SetProperty path, without reviving the old type.
+		context.Items.TryGetValue(MessageTypeItemsKey, out var value).ShouldBeTrue();
+		value.ShouldBeNull();
+		context.GetMessageType().ShouldBeNull();
+
+		context.Items[MessageTypeItemsKey] = "direct-override";
+		context.GetMessageType().ShouldBe("direct-override");
+		context.Items.Remove(MessageTypeItemsKey).ShouldBeTrue();
+		context.GetMessageType().ShouldBeNull();
+		context.Items.ContainsKey(MessageTypeItemsKey).ShouldBeFalse();
 	}
 
-	[Fact]
-	public void ClearTheMessageType_WhenTheContextIsReset()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ClearTheMessageType_WhenTheContextIsReset(bool materializeBeforeAssignment)
 	{
 		// Contexts are pooled. A stale type surviving Reset would mislabel the next message.
 		var context = new MessageContext();
+		if (materializeBeforeAssignment)
+		{
+			_ = context.Items.Count;
+		}
+
 		context.SetMessageType("stale");
 		context.MarkMessageTypeAsRoutingDefault();
 
@@ -161,6 +192,8 @@ public sealed class MessageTypeFastPathShould
 
 		context.GetMessageType().ShouldBeNull();
 		context.IsMessageTypeRoutingDefault().ShouldBeFalse();
+		context.Items.ContainsKey(MessageTypeItemsKey).ShouldBeFalse();
+		context.Items.ContainsKey(MessageTypeIsRoutingDefaultItemsKey).ShouldBeFalse();
 	}
 
 	[Fact]
@@ -194,6 +227,8 @@ public sealed class MessageTypeFastPathShould
 
 		return services.BuildServiceProvider();
 	}
+
+	private sealed class DerivedMessageContext : MessageContext;
 
 	private class BaseCommand : IDispatchAction;
 

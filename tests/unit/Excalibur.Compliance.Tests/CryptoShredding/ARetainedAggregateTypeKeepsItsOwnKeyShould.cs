@@ -75,16 +75,16 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		var erasedEnvelope = await encryptor.EncryptAsync(
 			Subject, RetentionScope.For("Customer"), asCustomer, TestContext.Current.CancellationToken);
 
-		(await encryptor.DecryptAsync(retainedEnvelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(retainedEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBe(asBuyer, "the arm is worthless unless both values genuinely round-tripped first");
-		(await encryptor.DecryptAsync(erasedEnvelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(erasedEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBe(asCustomer);
 
 		await EraseAsync(scope.ServiceProvider);
 
-		(await encryptor.DecryptAsync(erasedEnvelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(erasedEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBeNull("the unretained aggregate's personal fields must be unrecoverable");
-		(await encryptor.DecryptAsync(retainedEnvelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(retainedEnvelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBe(
 				asBuyer,
 				"the retained record must stay READABLE, including the buyer's identity inside it. A "
@@ -122,12 +122,12 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 			Salesperson, RetentionScope.For(SalesRecord), asSalesperson,
 			TestContext.Current.CancellationToken);
 
-		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBe(asSalesperson, "the arm is worthless unless the value genuinely round-tripped first");
 
 		await EraseAsync(scope.ServiceProvider, Salesperson);
 
-		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBe(
 				asSalesperson,
 				"the statute keeps the RECORD, and this subject is named on it. Erasing them out of it "
@@ -200,7 +200,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 
 		await EraseAsync(scope.ServiceProvider);
 
-		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBeNull(
 				"an aggregate type nobody declared a retention for is erased exactly as it was before "
 				+ "retentions existed");
@@ -226,7 +226,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 
 		await EraseAsync(scope.ServiceProvider);
 
-		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBeNull("no retention is declared, so the same type is erased with the subject");
 	}
 
@@ -253,7 +253,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 
 		await EraseAsync(scope.ServiceProvider);
 
-		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken)).ShouldBeNull();
+		(await encryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken)).ShouldBeNull();
 	}
 
 	/// <summary>
@@ -279,7 +279,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 		envelope.KeyId.ShouldNotBeNullOrEmpty();
 		await DestroyAndRecordAsync(scope.ServiceProvider, envelope.KeyId!);
 
-		(await encryptor.DecryptAsync(envelope, TestContext.Current.CancellationToken))
+		(await encryptor.DecryptAsync(envelope, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken))
 			.ShouldBeNull("the retention delays destruction; it does not put the record beyond erasure");
 	}
 

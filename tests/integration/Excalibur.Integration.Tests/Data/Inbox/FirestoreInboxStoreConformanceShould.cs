@@ -1,8 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+
 using Excalibur.Dispatch;
 using Excalibur.Inbox.Firestore;
+
+using Google.Api.Gax;
+using Google.Api.Gax.Grpc;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
+
+using Grpc.Net.Client;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -30,6 +41,9 @@ namespace Excalibur.Integration.Tests.Data.Inbox;
 public sealed class FirestoreInboxStoreConformanceShould : InboxStoreConformanceTestBase
 {
 	private readonly FirestoreInboxStoreContainerFixture _fixture;
+	private SeverableProxy? _proxy;
+	private GrpcChannel? _faultChannel;
+	private string? _canaryId;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FirestoreInboxStoreConformanceShould"/> class.
@@ -71,26 +85,178 @@ public sealed class FirestoreInboxStoreConformanceShould : InboxStoreConformance
 		await _fixture.CleanupCollectionAsync().ConfigureAwait(false);
 	}
 
-	/// <summary>
-	/// DECLARED EXEMPTION (47ruyr), not a skip: unlike <c>InMemoryInboxStoreConformanceShould</c>'s
-	/// exemption (that store has no external persistence layer to fault at all), Firestore HAS one but we
-	/// cannot currently fault it. The .NET client runs <c>EmulatorOnly</c>, which is an admin client that
-	/// bypasses security rules entirely, so no rules-based fault is observable; Firestore has no
-	/// rename/permission-revoke primitive at the collection/document level; and killing the emulator
-	/// container (measured: <c>StopAsync</c> then <c>StartAsync</c>, 30s poll) did not restore a reachable
-	/// gRPC channel within a workable test timeout. Tracked, not silently true: ARCHITECTURE.md's D0 row
-	/// records Firestore inbox durability as UNVERIFIED, and 47ruyr carries the next approach (a severable
-	/// TCP proxy in front of the container).
-	/// </summary>
-	public override Task ThrowNotNoOpOnPersistenceFailure()
+	/// <inheritdoc/>
+	public override async Task ThrowNotNoOpOnPersistenceFailure()
 	{
-		ConformanceSkip.CapabilityNotApplicable(
-			"Firestore cannot wire a real durability fault here: the .NET client "
-			+ "authenticates as emulator admin and bypasses security rules, Firestore offers no rename or "
-			+ "permission-revoke primitive, and killing the emulator container did not reliably restore "
-			+ "connectivity within a workable timeout. Reported SKIPPED rather than passed: this provider "
-			+ "verified nothing, and a run that verified nothing must not report what a run that verified "
-			+ "everything reports. The gap is recorded by name in Excalibur.Inbox/ARCHITECTURE.md's D0 row.");
-		return Task.CompletedTask;
+		try
+		{
+			await base.ThrowNotNoOpOnPersistenceFailure().ConfigureAwait(false);
+		}
+		finally
+		{
+			try
+			{
+				_faultChannel?.Dispose();
+			}
+			finally
+			{
+				if (_proxy is not null)
+				{
+					await _proxy.DisposeAsync().ConfigureAwait(false);
+				}
+			}
+		}
+	}
+
+	/// <inheritdoc/>
+	protected override async Task InjectPersistenceFaultAsync()
+	{
+		var endpoint = _fixture.EmulatorEndpoint;
+		var upstream = new Uri(endpoint.Contains("://", StringComparison.Ordinal) ? endpoint : $"http://{endpoint}");
+		_proxy = new SeverableProxy(upstream);
+		_faultChannel = GrpcChannel.ForAddress(_proxy.Address);
+		var settings = FirestoreSettings.GetDefault();
+		settings.CommitSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(5)))
+			.WithRetry(RetrySettings.FromConstantBackoff(1, TimeSpan.Zero, static _ => false));
+		// Streaming RPCs reject a Retry value in CallSettings, even a single-attempt policy.
+		settings.BatchGetDocumentsSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(5)));
+		var client = new FirestoreClientBuilder
+		{
+			CallInvoker = _faultChannel.CreateCallInvoker(),
+			Settings = settings,
+		}.Build();
+		Store = new FirestoreInboxStore(
+			FirestoreDb.Create(_fixture.ProjectId, client),
+			Options.Create(new FirestoreInboxOptions { ProjectId = _fixture.ProjectId, CollectionName = _fixture.CollectionName }),
+			NullLogger<FirestoreInboxStore>.Instance,
+			SingleTenantTestContext.Instance);
+		_canaryId = $"canary-{Guid.NewGuid():N}";
+		_ = await Store.CreateEntryAsync(_canaryId, "Canary", "Canary", [1],
+			new Dictionary<string, object>(StringComparer.Ordinal), CancellationToken.None).ConfigureAwait(false);
+		(await Store.GetEntryAsync(_canaryId, "Canary", CancellationToken.None).ConfigureAwait(false)).ShouldNotBeNull();
+		_proxy.Sever();
+	}
+
+	/// <inheritdoc/>
+	protected override async Task RemovePersistenceFaultAsync()
+	{
+		_proxy?.Restore();
+		var verification = await CreateVerificationStoreAsync().ConfigureAwait(false);
+		try
+		{
+			(await verification.GetEntryAsync(_canaryId!, "Canary", CancellationToken.None).ConfigureAwait(false))
+				.ShouldNotBeNull("severing the route must preserve existing emulator data");
+		}
+		finally
+		{
+			await ((IAsyncDisposable)verification).DisposeAsync().ConfigureAwait(false);
+		}
+	}
+
+	private sealed class SeverableProxy : IAsyncDisposable
+	{
+		private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+		private readonly CancellationTokenSource _lifetime = new();
+		private readonly ConcurrentBag<Task> _connections = [];
+		private readonly HashSet<TcpClient> _clients = [];
+		private readonly object _gate = new();
+		private readonly Uri _upstream;
+		private readonly Task _acceptLoop;
+		private bool _severed;
+
+		public SeverableProxy(Uri upstream)
+		{
+			_upstream = upstream;
+			_listener.Start();
+			Address = $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}";
+			_acceptLoop = AcceptAsync();
+		}
+
+		public string Address { get; }
+
+		public void Sever()
+		{
+			lock (_gate)
+			{
+				_severed = true;
+				foreach (var client in _clients) client.Dispose();
+			}
+		}
+
+		public void Restore()
+		{
+			lock (_gate) _severed = false;
+		}
+
+		public async ValueTask DisposeAsync()
+		{
+			try
+			{
+				await _lifetime.CancelAsync().ConfigureAwait(false);
+				_listener.Stop();
+				Sever();
+				try
+				{
+					await _acceptLoop.ConfigureAwait(false);
+				}
+				finally
+				{
+					await Task.WhenAll(_connections).ConfigureAwait(false);
+				}
+			}
+			finally
+			{
+				try { _listener.Dispose(); }
+				finally { _lifetime.Dispose(); }
+			}
+		}
+
+		private async Task AcceptAsync()
+		{
+			try
+			{
+				while (!_lifetime.IsCancellationRequested)
+				{
+					var client = await _listener.AcceptTcpClientAsync(_lifetime.Token).ConfigureAwait(false);
+					lock (_gate)
+					{
+						if (_severed) client.Dispose();
+						else
+						{
+							_clients.Add(client);
+							_connections.Add(ForwardAsync(client));
+						}
+					}
+				}
+			}
+			catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+			catch (SocketException) when (_lifetime.IsCancellationRequested) { }
+			catch (ObjectDisposedException) when (_lifetime.IsCancellationRequested) { }
+		}
+
+		private async Task ForwardAsync(TcpClient client)
+		{
+			using (client)
+			using (var upstream = new TcpClient())
+			using (var connection = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+			{
+				try
+				{
+					await upstream.ConnectAsync(_upstream.Host, _upstream.Port, connection.Token).ConfigureAwait(false);
+					var incoming = client.GetStream();
+					var outgoing = upstream.GetStream();
+					var send = incoming.CopyToAsync(outgoing, connection.Token);
+					var receive = outgoing.CopyToAsync(incoming, connection.Token);
+					await Task.WhenAny(send, receive).ConfigureAwait(false);
+					await connection.CancelAsync().ConfigureAwait(false);
+					await Task.WhenAll(send, receive).ConfigureAwait(false);
+				}
+				catch (Exception error) when (error is IOException or SocketException or OperationCanceledException or ObjectDisposedException) { }
+				finally
+				{
+					lock (_gate) _clients.Remove(client);
+				}
+			}
+		}
 	}
 }

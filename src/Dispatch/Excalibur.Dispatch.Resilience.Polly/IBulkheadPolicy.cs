@@ -23,6 +23,16 @@ public interface IBulkheadPolicy
 	/// <returns>A task that completes with the asynchronous result produced by the operation.</returns>
 	Task<T> ExecuteAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken);
 
+	/// <summary>Executes an operation that observes both caller cancellation and its execution timeout.</summary>
+	/// <typeparam name="T">The result type.</typeparam>
+	/// <param name="operation">The operation, which must observe the supplied strategy token.</param>
+	/// <param name="cancellationToken">The caller cancellation token.</param>
+	/// <returns>The operation result.</returns>
+	/// <exception cref="NotSupportedException">The implementation does not support token-aware execution.</exception>
+	/// <remarks>Existing implementations retain the original overload and may implement this capability explicitly.</remarks>
+	Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken) =>
+		throw new NotSupportedException("This bulkhead implementation does not support token-aware execution.");
+
 	/// <summary>
 	/// Gets the current bulkhead metrics.
 	/// </summary>

@@ -17,7 +17,7 @@ using Polly.Retry;
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// High-performance channel adapter for AWS SQS with optimized batching and long polling. Achieves 50K+ msgs/sec throughput with
+/// Channel adapter for AWS SQS using batching and long polling, with
 /// zero-allocation design.
 /// </summary>
 internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message>,

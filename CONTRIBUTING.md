@@ -7,9 +7,10 @@ Thank you for your interest in contributing to Excalibur! This document provides
 - [Code of Conduct](#code-of-conduct)
 - [Development Environment Setup](#development-environment-setup)
 - [Building the Project](#building-the-project)
-- [Running Tests](#running-tests)
+- [Running Tests](#running-tests-locally)
 - [Project Governance](#project-governance)
 - [Code Style Guidelines](#code-style-guidelines)
+- [Contribution Licensing](#contribution-licensing)
 - [Pull Request Process](#pull-request-process)
 - [Issue Triage Labels](#issue-triage-labels)
 - [Getting Help](#getting-help)
@@ -177,7 +178,7 @@ pwsh eng/audit-warnings.ps1 -ExportCsv warnings.csv
 
 Example:
 ```csharp
-// Sprint 329: CA1031 suppression - Quartz jobs must catch all exceptions
+// CA1031 suppression - Quartz jobs must catch all exceptions
 // to prevent the scheduler from terminating the job thread
 #pragma warning disable CA1031
 catch (Exception ex)
@@ -247,7 +248,7 @@ pwsh eng/validate-samples.ps1 -Detailed
 | Is this stateful persistence (event store, projections)? | Excalibur.EventSourcing.* |
 | Is this full-stack CQRS/ES infrastructure? | Excalibur.Hosting.* |
 
-### Ownership Quick Reference (Sprint 330-332)
+### Ownership Quick Reference
 
 | Package Category | Owner | Rationale |
 |-----------------|-------|-----------|
@@ -328,8 +329,13 @@ See the [main documentation](https://github.com/TrigintaFaces/Excalibur/docs).
 
 ## License
 
-This package is part of the Excalibur framework. See [LICENSE](LICENSE) for details.
+Excalibur is available under your choice of the Excalibur License 1.1, AGPL-3.0-or-later, or
+SSPL-1.0 — see [LICENSE](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE).
 ```
+
+The licence line states the **choice**, and the link is absolute. A package README renders on
+nuget.org, where a relative `LICENSE` link resolves to nothing — and a reader who is not told the
+terms are a choice will assume whichever one they happen to find first.
 
 ### Project Classifications
 
@@ -352,7 +358,7 @@ dotnet test -c Release
 
 ## Writing Tests
 
-All tests MUST follow the naming conventions and trait system established in Sprint 165.
+All tests MUST follow the naming conventions and trait system set out below.
 
 ### Test Naming Conventions
 
@@ -492,7 +498,7 @@ This project follows strict .NET coding standards.
 
 ### Namespace Conventions
 
-All namespaces must follow the W6 Namespace Modernization guidelines established in Sprint 310-317.
+All namespaces must follow the conventions set out below.
 
 #### DI Extension Classes
 
@@ -606,6 +612,32 @@ project offers consumers a choice of licences, and may offer commercial terms, a
 The governing text is the **Contribution Licensing** section of [LICENSE](LICENSE); this section
 summarises it and does not replace it. If the two ever disagree, LICENSE controls.
 
+### Notices you must not remove
+
+The licence requires that anyone receiving any part of the software also receives its terms, and
+that modified copies carry a prominent notice saying they were modified. So do not alter, remove or
+obscure the licensing and copyright notices already in a file you are editing, and keep them on any
+file you copy or move.
+
+### Adding a dependency
+
+A new dependency has to be compatible with **all three** outbound licences, not just the one you
+have in mind. Anything that cannot be carried into the Excalibur License 1.1, AGPL-3.0-or-later and
+SSPL-1.0 alike takes the choice away from consumers, so it will be declined however convenient it
+is. Copyleft terms reaching beyond the dependency itself are the usual blocker. Raise a dependency
+you are unsure about in the pull request, before it lands.
+
+When you add one, record the licence it actually ships in `eng/ci/package-licenses.json` and
+regenerate the notices file:
+
+```powershell
+pwsh ./eng/ci/notices-generate.ps1
+```
+
+The generator will not emit a row with an empty licence cell. A package you have not recorded fails
+the run with `No licence recorded for: <package>`, naming what to add. Read the licence in the
+package itself rather than the vendor's usual one — they differ more often than you would expect.
+
 ## Pull Request Process
 
 ### Before Submitting
@@ -623,7 +655,7 @@ summarises it and does not replace it. If the two ever disagree, LICENSE control
 ### PR Checklist
 
 - [ ] Tests pass locally
-- [ ] Code follows style guidelines (ADR-075)
+- [ ] Code follows the [style guidelines](#code-style-guidelines)
 - [ ] **Namespace conventions followed** - DI extensions in correct namespace, no blocked patterns
 - [ ] Documentation updated (if applicable)
 - [ ] Commit messages follow conventional format

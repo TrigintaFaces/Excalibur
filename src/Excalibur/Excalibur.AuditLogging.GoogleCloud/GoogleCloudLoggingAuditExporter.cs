@@ -69,7 +69,7 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 		{
 			var payload = BuildWriteRequest([auditEvent]);
 			var json = JsonSerializer.Serialize(payload, GoogleCloudAuditJsonContext.Default.CloudLoggingPayload);
-			var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+			using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -158,7 +158,7 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 					}
 				}
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
 				LogAuditExportBatchChunkError(ex);
 
@@ -198,7 +198,7 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 					Encoding.UTF8, "application/json")
 			};
 
-			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+			using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			var isHealthy = response.IsSuccessStatusCode;
 			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
@@ -296,7 +296,7 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 	{
 		var payload = BuildWriteRequest(events);
 		var json = JsonSerializer.Serialize(payload, GoogleCloudAuditJsonContext.Default.CloudLoggingPayload);
-		var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+		using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -314,7 +314,8 @@ public sealed partial class GoogleCloudLoggingAuditExporter : IAuditLogExporter
 		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
 		// resilience pipeline attached to the typed HttpClient in DI (GoogleCloudServiceCollectionExtensions),
 		// the same seam the Datadog/Elasticsearch/OpenSearch/Splunk audit exporters already use. The
-		// buffered StringContent is replayable, so the pipeline can safely re-send across attempts.
+		// buffered StringContent is replayable. Ambiguous server acceptance can still cause duplicate logs on retry;
+		// replayability does not provide idempotency.
 		var writeUri = new Uri("https://logging.googleapis.com/v2/entries:write");
 		using var request = new HttpRequestMessage(HttpMethod.Post, writeUri)
 		{

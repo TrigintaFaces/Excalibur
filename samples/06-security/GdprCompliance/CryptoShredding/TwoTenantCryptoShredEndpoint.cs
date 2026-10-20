@@ -61,10 +61,9 @@ internal static class TwoTenantCryptoShredEndpoint
 	/// <see cref="TenantContextHolder.BeginScope"/> for the tenant it belongs to. The ERASURE path reads the
 	/// tenant recorded against its own request, because a background processor's ambient scope is not
 	/// evidence of whose data a request was about — so an erasure must be FILED by the tenant that owns it,
-	/// and a tenant named in the request body is a declaration rather than the control. The READ path reads
-	/// neither: every field of the envelope, the tenant included, is rebuilt from the stored bytes, so a
-	/// projection rebuild or a background replay with no tenant scope at all still resolves the key its
-	/// writer used. Every read below is therefore taken outside any scope.
+	/// and a tenant named in the request body is a declaration rather than the control. The READ path receives the owner recorded independently alongside the stored record.
+	/// Envelope metadata is checked against that owner, rather than authorizing itself. Every read below
+	/// is taken outside any scope.
 	/// </para>
 	/// </remarks>
 	/// <param name="app">The route builder to map onto.</param>
@@ -95,7 +94,7 @@ internal static class TwoTenantCryptoShredEndpoint
 					tenantId, dataSubjectId, $"erin@{label}.example", cryptor, keyManager, ct)
 					.ConfigureAwait(false);
 
-				var before = await DecryptCopyAsync(note, cryptor, ct).ConfigureAwait(false);
+				var before = await DecryptCopyAsync(note, tenantId ?? KeyedTenantPartition.Untenanted.TenantId, cryptor, ct).ConfigureAwait(false);
 				written.Add(new WrittenNote(label, tenantId, handle, generation, note, before.EmailAddress));
 			}
 
@@ -156,7 +155,7 @@ internal static class TwoTenantCryptoShredEndpoint
 					.IsGenerationDestroyedAsync(row.Handle, row.Generation, ct)
 					.ConfigureAwait(false);
 
-				var after = await DecryptCopyAsync(row.Stored, cryptor, ct).ConfigureAwait(false);
+				var after = await DecryptCopyAsync(row.Stored, row.TenantId ?? KeyedTenantPartition.Untenanted.TenantId, cryptor, ct).ConfigureAwait(false);
 
 				outcomes.Add(new
 				{
@@ -236,8 +235,8 @@ internal static class TwoTenantCryptoShredEndpoint
 	/// <see cref="ISubjectKeyManager"/> takes the tenant as an argument, while
 	/// <see cref="SubjectFieldCryptor"/> resolves it from the ambient scope. Both are opened to the same
 	/// tenant here so they cannot disagree: a different tenant named in the argument would report a handle
-	/// the stored envelope does not name. A consumer who only encrypts and decrypts never names a tenant at
-	/// all — the argument is needed here solely to print the handle and ask the ledger about it.
+	/// the stored envelope does not name. A consumer passes the independently recorded tenant when decrypting; the argument here also
+	/// prints the handle and asks the ledger about it.
 	/// </para>
 	/// </remarks>
 	private static async Task<(string Handle, string Generation, SupportNote Stored)> WriteNoteAsync(
@@ -255,7 +254,7 @@ internal static class TwoTenantCryptoShredEndpoint
 			// silent default. This is the same value the ambient context resolves outside a scope.
 			var subjectKey = await keyManager
 				.GetOrCreateKeyAsync(
-					new TenantId(tenantId ?? TenantDefaults.DefaultTenantId),
+					new TenantId(tenantId ?? KeyedTenantPartition.Untenanted.TenantId),
 					dataSubjectId,
 					RetentionScope.NotInAnAggregate,
 					cancellationToken)
@@ -282,17 +281,18 @@ internal static class TwoTenantCryptoShredEndpoint
 	/// again after the erasure.
 	/// </summary>
 	/// <remarks>
-	/// Deliberately called outside any tenant scope. The read rebuilds the tenant from the envelope, so a
+	/// Deliberately called outside any tenant scope. The read receives the owner recorded by the sample, so a
 	/// background replay with no ambient tenant resolves the same key the write used — and a reader's ambient
 	/// tenant can never be mistaken for the one the data was written under.
 	/// </remarks>
 	private static async Task<SupportNote> DecryptCopyAsync(
 		SupportNote stored,
+		string expectedTenantId,
 		SubjectFieldCryptor cryptor,
 		CancellationToken cancellationToken)
 	{
 		var copy = stored with { };
-		await cryptor.DecryptFieldsAsync(copy, cancellationToken).ConfigureAwait(false);
+		await cryptor.DecryptFieldsAsync(copy, expectedTenantId, cancellationToken).ConfigureAwait(false);
 		return copy;
 	}
 }

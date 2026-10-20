@@ -123,7 +123,7 @@ public static class PoisonMessageServiceCollectionExtensions
 						+ "alongside the store. Poison-message handling itself does not require the admin facet."));
 		}
 
-		// Register cleanup service if auto-cleanup is enabled
+		// The worker polls alerts independently; age-based deletion requires explicit auto-cleanup opt-in.
 		_ = services.AddHostedService<PoisonMessageCleanupService>();
 
 		return services;

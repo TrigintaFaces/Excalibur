@@ -38,8 +38,9 @@ public sealed class CronScheduleOptions
 	public int MaxMissedExecutions { get; set; } = 10;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to automatically adjust for daylight saving time transitions. When true, schedules will
-	/// automatically adjust when DST changes occur.
+	/// Gets or sets a value indicating whether the explicit
+	/// <see cref="CronScheduler.HandleDaylightSavingTransition"/> helper adjusts invalid and ambiguous local times.
+	/// Parsed cron expressions use Cronos transition handling independently of this setting.
 	/// </summary>
 	/// <value>The current <see cref="AutoAdjustForDaylightSaving"/> value.</value>
 	public bool AutoAdjustForDaylightSaving { get; set; } = true;

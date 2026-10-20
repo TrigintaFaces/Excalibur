@@ -60,7 +60,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
-			() => encryptor.DecryptAsync(Envelope(generation: null), CancellationToken.None).AsTask());
+			() => encryptor.DecryptAsync(Envelope(generation: null), global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).AsTask());
 
 		refusal.ErrorCode.ShouldBe(
 			EncryptionErrorCode.InvalidCiphertext,
@@ -87,7 +87,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
-			() => encryptor.DecryptAsync(Envelope(generation: string.Empty), CancellationToken.None).AsTask());
+			() => encryptor.DecryptAsync(Envelope(generation: string.Empty), global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).AsTask());
 
 		refusal.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
 		A.CallTo(() => decryptor.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
@@ -113,7 +113,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 		};
 
 		var refusal = await Should.ThrowAsync<EncryptionException>(
-			() => encryptor.DecryptAsync(earlierLayout, CancellationToken.None).AsTask());
+			() => encryptor.DecryptAsync(earlierLayout, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).AsTask());
 
 		refusal.ErrorCode.ShouldBe(EncryptionErrorCode.InvalidCiphertext);
 		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, A<string>._, A<CancellationToken>._))
@@ -134,7 +134,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 
 		var encryptor = new FieldEncryptor(A.Fake<ISubjectKeyManager>(), registry, ledger, A.Fake<ITenantContext>());
 
-		var plaintext = await encryptor.DecryptAsync(Envelope(generation: LiveGeneration), CancellationToken.None);
+		var plaintext = await encryptor.DecryptAsync(Envelope(generation: LiveGeneration), global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None);
 
 		plaintext.ShouldBe(Plaintext);
 		A.CallTo(() => ledger.IsGenerationDestroyedAsync(A<string>._, LiveGeneration, A<CancellationToken>._))
@@ -221,6 +221,7 @@ public sealed class AnEnvelopeWithNoKeyGenerationIsRefusedShould
 	{
 		Ciphertext = new byte[32],
 		KeyId = KeyId,
+		TenantId = TenantDefaults.DefaultTenantId,
 		KeyVersion = KeyVersion,
 		KeyGeneration = generation,
 		Algorithm = EncryptionAlgorithm.Aes256Gcm,

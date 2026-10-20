@@ -157,10 +157,9 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var receiptHandle = GetReceiptHandle(message);
-
 		try
 		{
+			var receiptHandle = GetReceiptHandle(message);
 			var request = new DeleteMessageRequest
 			{
 				QueueUrl = Source,
@@ -173,10 +172,14 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 			await _sqsClient.DeleteMessageAsync(request, ackCts.Token).ConfigureAwait(false);
 			LogMessageAcknowledged(message.Id, Source);
 		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
 		catch (Exception ex)
 		{
 			LogAcknowledgeError(message.Id, Source, ex);
-			throw;
+			throw SettlementFailed(message.Id, "acknowledge", ex);
 		}
 	}
 
@@ -185,10 +188,9 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var receiptHandle = GetReceiptHandle(message);
-
 		try
 		{
+			var receiptHandle = GetReceiptHandle(message);
 			// Reject must complete even during shutdown to prevent redelivery;
 			// use dedicated timeout instead of caller's cancellation token
 			using var rejectCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -218,10 +220,14 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 				LogMessageRejected(message.Id, Source, reason ?? "no reason");
 			}
 		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
 		catch (Exception ex)
 		{
 			LogRejectError(message.Id, Source, ex);
-			throw;
+			throw SettlementFailed(message.Id, requeue ? "requeue" : "reject", ex);
 		}
 	}
 
@@ -358,6 +364,15 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 		};
 	}
 
+	private TransportSettlementException SettlementFailed(string messageId, string action, Exception exception) =>
+		new($"The SQS transport could not determine the outcome of {action} for message {messageId} on {Source}.", exception)
+		{
+			TransportName = "Sqs",
+			// The request may have reached SQS before its response was lost; the receipt is retained.
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			Retryability = SettlementRetryability.Unspecified,
+		};
+
 	private static string GetReceiptHandle(TransportReceivedMessage message)
 	{
 		if (message.ProviderData.TryGetValue("sqs.receipt_handle", out var handle) && handle is string handleStr)
@@ -365,7 +380,12 @@ internal sealed partial class SqsTransportReceiver : ITransportReceiver, ISqsVis
 			return handleStr;
 		}
 
-		throw new InvalidOperationException("Message does not contain an SQS receipt handle in ProviderData.");
+		throw new TransportSettlementException("Message does not contain an SQS receipt handle in ProviderData.")
+		{
+			TransportName = "Sqs",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			Retryability = SettlementRetryability.Permanent,
+		};
 	}
 
 	[LoggerMessage(AwsSqsEventId.TransportReceiverMessageReceived, LogLevel.Debug,

@@ -524,7 +524,6 @@ Excalibur.Dispatch.ICorrelationId.ToString() -> string!
 Excalibur.Dispatch.ICorrelationId.Value.get -> System.Guid
 Excalibur.Dispatch.ICorrelationId.Value.set -> void
 Excalibur.Dispatch.IDeadLetterableOutboxStore
-Excalibur.Dispatch.IDeadLetterableOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Dispatch.IDeduplicationStrategy
 Excalibur.Dispatch.IDeduplicationStrategy.DefaultExpiration.get -> System.TimeSpan
 Excalibur.Dispatch.IDeduplicationStrategy.GenerateDeduplicationId(string! messageBody, System.Collections.Generic.IDictionary<string!, object!>? messageAttributes = null) -> string!
@@ -578,7 +577,6 @@ Excalibur.Dispatch.IFailClosedException
 Excalibur.Dispatch.IFencedClaimScopedOutboxStore
 Excalibur.Dispatch.IFencedClaimScopedOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset? nextAttemptAt, Excalibur.Dispatch.OutboxWriteAuthority authority, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>
 Excalibur.Dispatch.IFencedDeadLetterableOutboxStore
-Excalibur.Dispatch.IFencedDeadLetterableOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>
 Excalibur.Dispatch.IFencedOutboxStore
 Excalibur.Dispatch.IFencedOutboxStore.GetUnsentMessagesAsync(int batchSize, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Dispatch.IFencedOutboxStore.MarkSentAsync(string! messageId, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -3213,3 +3211,110 @@ virtual Excalibur.Dispatch.OutboxStoreDecorator.GetUnsentMessagesAsync(int batch
 virtual Excalibur.Dispatch.OutboxStoreDecorator.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Dispatch.OutboxStoreDecorator.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Dispatch.OutboxStoreDecorator.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Delivery.IScheduleSpec
+Excalibur.Dispatch.Delivery.IScheduleSpec.CronExpression.get -> string!
+Excalibur.Dispatch.Delivery.IScheduleSpec.CronExpression.set -> void
+Excalibur.Dispatch.Delivery.IScheduleSpec.Enabled.get -> bool
+Excalibur.Dispatch.Delivery.IScheduleSpec.Enabled.set -> void
+Excalibur.Dispatch.Delivery.IScheduleSpec.Interval.get -> System.TimeSpan?
+Excalibur.Dispatch.Delivery.IScheduleSpec.Interval.set -> void
+Excalibur.Dispatch.Delivery.IScheduleSpec.NextExecutionUtc.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.IScheduleSpec.NextExecutionUtc.set -> void
+Excalibur.Dispatch.Delivery.IScheduleSpec.TimeZoneId.get -> string?
+Excalibur.Dispatch.Delivery.IScheduleSpec.TimeZoneId.set -> void
+Excalibur.Dispatch.Delivery.IScheduleStore
+Excalibur.Dispatch.Delivery.IScheduleStore.CompleteAsync(System.Guid scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.IScheduleStore.GetAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.IScheduledMessage!>!>!
+Excalibur.Dispatch.Delivery.IScheduleStore.StoreAsync(Excalibur.Dispatch.Delivery.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.IScheduledMessage
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.CorrelationId.get -> string?
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.CorrelationId.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.Id.get -> System.Guid
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.Id.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.MessageBody.get -> string!
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.MessageBody.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.MessageName.get -> string!
+Excalibur.Dispatch.Delivery.IScheduledMessageIdentity.MessageName.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.LastExecutionUtc.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.LastExecutionUtc.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.MissedExecutionBehavior.get -> Excalibur.Dispatch.Delivery.MissedExecutionBehavior?
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.MissedExecutionBehavior.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.TenantId.get -> string?
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.TenantId.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.TraceParent.get -> string?
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.TraceParent.set -> void
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.UserId.get -> string?
+Excalibur.Dispatch.Delivery.IScheduledMessageMetadata.UserId.set -> void
+Excalibur.Dispatch.Delivery.MissedExecutionBehavior
+Excalibur.Dispatch.Delivery.MissedExecutionBehavior.DisableSchedule = 3 -> Excalibur.Dispatch.Delivery.MissedExecutionBehavior
+Excalibur.Dispatch.Delivery.MissedExecutionBehavior.ExecuteAllMissed = 2 -> Excalibur.Dispatch.Delivery.MissedExecutionBehavior
+Excalibur.Dispatch.Delivery.MissedExecutionBehavior.ExecuteLatestMissed = 1 -> Excalibur.Dispatch.Delivery.MissedExecutionBehavior
+Excalibur.Dispatch.Delivery.MissedExecutionBehavior.SkipMissed = 0 -> Excalibur.Dispatch.Delivery.MissedExecutionBehavior
+Excalibur.Dispatch.Delivery.ScheduledMessage
+Excalibur.Dispatch.Delivery.ScheduledMessage.CorrelationId.get -> string?
+Excalibur.Dispatch.Delivery.ScheduledMessage.CorrelationId.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.CronExpression.get -> string!
+Excalibur.Dispatch.Delivery.ScheduledMessage.CronExpression.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.Enabled.get -> bool
+Excalibur.Dispatch.Delivery.ScheduledMessage.Enabled.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.Id.get -> System.Guid
+Excalibur.Dispatch.Delivery.ScheduledMessage.Id.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.Interval.get -> System.TimeSpan?
+Excalibur.Dispatch.Delivery.ScheduledMessage.Interval.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.LastExecutionUtc.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.ScheduledMessage.LastExecutionUtc.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.MessageBody.get -> string!
+Excalibur.Dispatch.Delivery.ScheduledMessage.MessageBody.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.MessageName.get -> string!
+Excalibur.Dispatch.Delivery.ScheduledMessage.MessageName.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.MissedExecutionBehavior.get -> Excalibur.Dispatch.Delivery.MissedExecutionBehavior?
+Excalibur.Dispatch.Delivery.ScheduledMessage.MissedExecutionBehavior.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.NextExecutionUtc.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.ScheduledMessage.NextExecutionUtc.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.ScheduledMessage() -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.TenantId.get -> string?
+Excalibur.Dispatch.Delivery.ScheduledMessage.TenantId.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.TimeZoneId.get -> string?
+Excalibur.Dispatch.Delivery.ScheduledMessage.TimeZoneId.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.TraceParent.get -> string?
+Excalibur.Dispatch.Delivery.ScheduledMessage.TraceParent.set -> void
+Excalibur.Dispatch.Delivery.ScheduledMessage.UserId.get -> string?
+Excalibur.Dispatch.Delivery.ScheduledMessage.UserId.set -> void
+Excalibur.Dispatch.IOutboxMessage.LastError.get -> string?
+Excalibur.Dispatch.IOutboxMessage.LastError.init -> void
+Excalibur.Dispatch.TenantContextHolder
+static Excalibur.Dispatch.TenantContextHolder.AmbientContext.get -> Excalibur.Dispatch.ITenantContext!
+static Excalibur.Dispatch.TenantContextHolder.BeginScope(string? tenantId) -> System.IDisposable!
+static Excalibur.Dispatch.TenantContextHolder.Current.get -> string?
+Excalibur.Dispatch.MessageFailureKind.Uncertain = 3 -> Excalibur.Dispatch.MessageFailureKind
+Excalibur.Dispatch.IFencedDeadLetterableOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, int attemptCount, long fencingToken, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>
+Excalibur.Dispatch.Delivery.IScheduleExecutionStore
+Excalibur.Dispatch.Delivery.IScheduleExecutionLeaseRenewal
+Excalibur.Dispatch.Delivery.IScheduleExecutionLeaseRenewal.LeaseDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Delivery.IScheduleExecutionLeaseRenewal.TryRenewExecutionAsync(Excalibur.Dispatch.Delivery.ScheduleExecutionLease! lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.ScheduleExecutionSnapshot
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult
+Excalibur.Dispatch.Delivery.IScheduleExecutionStore.GetExecutionSnapshotsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Delivery.ScheduleExecutionSnapshot!>!>!
+Excalibur.Dispatch.Delivery.IScheduleExecutionStore.TryAcquireExecutionAsync(System.Guid scheduleId, System.Guid generation, System.DateTimeOffset occurrenceUtc, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Delivery.ScheduleExecutionLease?>!
+Excalibur.Dispatch.Delivery.IScheduleExecutionStore.TryUpdateProgressAsync(Excalibur.Dispatch.Delivery.ScheduleExecutionLease! lease, Excalibur.Dispatch.Delivery.ScheduleExecutionResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.IScheduleExecutionStore.ReleaseExecutionAsync(Excalibur.Dispatch.Delivery.ScheduleExecutionLease! lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.ScheduleExecutionSnapshot.ScheduleExecutionSnapshot(System.Guid generation, Excalibur.Dispatch.Delivery.IScheduledMessage! message) -> void
+Excalibur.Dispatch.Delivery.ScheduleExecutionSnapshot.Generation.get -> System.Guid
+Excalibur.Dispatch.Delivery.ScheduleExecutionSnapshot.Message.get -> Excalibur.Dispatch.Delivery.IScheduledMessage!
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease.ScheduleExecutionLease(System.Guid storeId, System.Guid scheduleId, System.Guid generation, System.DateTimeOffset occurrenceUtc, System.Guid ownerToken) -> void
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease.StoreId.get -> System.Guid
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease.ScheduleId.get -> System.Guid
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease.Generation.get -> System.Guid
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease.OccurrenceUtc.get -> System.DateTimeOffset
+Excalibur.Dispatch.Delivery.ScheduleExecutionLease.OwnerToken.get -> System.Guid
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.ScheduleExecutionResult(System.DateTimeOffset? LastExecutionUtc, System.DateTimeOffset? NextExecutionUtc, bool Disable = false) -> void
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.LastExecutionUtc.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.LastExecutionUtc.init -> void
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.NextExecutionUtc.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.NextExecutionUtc.init -> void
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.Disable.get -> bool
+Excalibur.Dispatch.Delivery.ScheduleExecutionResult.Disable.init -> void
+Excalibur.Dispatch.IDeadLetterableOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, int attemptCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>

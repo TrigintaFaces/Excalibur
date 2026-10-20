@@ -48,7 +48,7 @@ public sealed class MultiTransportRetryIsolationShould
 	private const string HealthyTransport = "healthy-transport";
 	private const string SickTransport = "sick-transport";
 
-	private readonly IPayloadSerializer _serializer = A.Fake<IPayloadSerializer>();
+	private readonly IPayloadSerializer _serializer = OutboxFakeCapabilityExtensions.CreateRegisteredSerializer();
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
 	private readonly ILogger<MessageBusOutboxPublisher> _logger = A.Fake<ILogger<MessageBusOutboxPublisher>>();
 
@@ -92,7 +92,7 @@ public sealed class MultiTransportRetryIsolationShould
 
 		var publisher = new MessageBusOutboxPublisher(storeBase, _serializer, registry, _serviceProvider, _logger);
 
-		var message = new OutboundMessage("OrderCreated", [1, 2, 3], "orders")
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [1, 2, 3], "orders")
 		{
 			IsMultiTransport = true
 		};
@@ -149,7 +149,7 @@ public sealed class MultiTransportRetryIsolationShould
 		// Message carries NO pre-loaded deliveries -> forces the demand-load branch. The drain claims across
 		// every tenant, so the demand-load goes through the estate-wide admin read, not the tenant-confined
 		// consumer read.
-		var message = new OutboundMessage("OrderCreated", [4, 5, 6], "orders")
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [4, 5, 6], "orders")
 		{
 			IsMultiTransport = true,
 			Status = OutboxStatus.Failed,
@@ -199,7 +199,7 @@ public sealed class MultiTransportRetryIsolationShould
 
 		var publisher = new MessageBusOutboxPublisher(storeBase, _serializer, registry, _serviceProvider, _logger);
 
-		var message = new OutboundMessage("OrderCreated", [7, 8, 9], "orders")
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, [7, 8, 9], "orders")
 		{
 			IsMultiTransport = true
 		};

@@ -68,7 +68,6 @@ internal sealed class ProjectionRegistration
 		InlineApplyDelegate? inlineApply,
 		TimeSpan? cacheTtl = null,
 		Func<string, CancellationToken, Task>? deleteAction = null,
-		Type? storeType = null,
 		ProjectionOptions? options = null,
 		Func<object, string>? searchTextComputer = null,
 		Action<object, string>? searchTextSetter = null,
@@ -81,7 +80,6 @@ internal sealed class ProjectionRegistration
 		InlineApply = inlineApply;
 		CacheTtl = cacheTtl;
 		DeleteAction = deleteAction;
-		StoreType = storeType;
 		Options = options;
 		SearchTextComputer = searchTextComputer;
 		SearchTextSetter = searchTextSetter;
@@ -142,12 +140,6 @@ internal sealed class ProjectionRegistration
 	/// Null means no deletion handler is configured.
 	/// </summary>
 	internal Func<string, CancellationToken, Task>? DeleteAction { get; }
-
-	/// <summary>
-	/// Gets the optional store type override registered via <c>WithStore&lt;TStore&gt;</c>.
-	/// Null means the default DI-resolved <c>IProjectionStore&lt;T&gt;</c> is used.
-	/// </summary>
-	internal Type? StoreType { get; }
 
 	/// <summary>
 	/// Gets the optional per-projection options configured via <c>WithOptions</c>.

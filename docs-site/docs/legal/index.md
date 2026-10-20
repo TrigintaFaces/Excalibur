@@ -52,6 +52,16 @@ The Excalibur framework is distributed under a [multi-license scheme](https://gi
 
 See the `licenses/` directory in the repository for full license texts. The license texts govern; the summary below is a plain-language guide and does not replace them.
 
+### What it costs
+
+Nothing. There is no license key, no activation step, and no per-message, per-endpoint or per-seat
+metering anywhere in the framework. Building, shipping and operating your own applications on
+Excalibur is free of charge, including commercially and including when you run those applications
+as a hosted service for your own customers.
+
+The restrictions are on the framework itself, not on what you build with it — which is what the
+table below sets out.
+
 ### What the Excalibur License permits, in plain terms
 
 | Can I… | Under the Excalibur License 1.1 |

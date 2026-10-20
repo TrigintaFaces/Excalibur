@@ -99,7 +99,7 @@ public sealed class OutboxProcessorBackoffExclusionShould : UnitTestBase
 			A.Fake<IServiceProvider>(),
 			NullLogger<OutboxProcessor>.Instance,
 			envelopeDeserializer: null,
-			deadLetterQueue: null,
+			deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
 	}
 

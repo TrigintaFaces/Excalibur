@@ -56,13 +56,13 @@ public sealed class PoisonMessageOptionsShould
 	}
 
 	[Fact]
-	public void Default_EnableAutoCleanup_IsTrue()
+	public void Default_EnableAutoCleanup_IsFalse()
 	{
 		// Arrange & Act
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.Cleanup.EnableAutoCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutoCleanup.ShouldBeFalse();
 	}
 
 	[Fact]

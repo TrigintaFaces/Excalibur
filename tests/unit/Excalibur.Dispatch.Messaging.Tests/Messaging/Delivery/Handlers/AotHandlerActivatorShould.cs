@@ -22,6 +22,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Handlers;
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
+[Trait("Pattern", "FACTORY")]
 [Trait("Priority", "0")]
 public sealed class AotHandlerActivatorShould
 {
@@ -134,8 +135,12 @@ public sealed class AotHandlerActivatorShould
 
 		// Assert
 		var handler = result.ShouldBeOfType<AotHandlerWithContext>();
-		// Context may or may not be set depending on source generator registration
-		_ = result.ShouldNotBeNull();
+		handler.Context.ShouldBeSameAs(context);
+
+		var nextContext = CreateTestContext();
+		activator.ActivateHandler(typeof(AotHandlerWithContext), nextContext, provider)
+			.ShouldBeSameAs(handler);
+		handler.Context.ShouldBeSameAs(nextContext);
 	}
 
 	#endregion

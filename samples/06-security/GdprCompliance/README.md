@@ -214,7 +214,10 @@ personal data lawfully persists.
 | Reaches a store you forgot to register | no | yes, if the data was encrypted under that key |
 
 The second is `Excalibur.Compliance`'s crypto-shredding. `POST /crypto-shred/walkthrough` demonstrates it
-on `SupportNote` (`Domain/SupportNote.cs`), a record stored outside the event store.
+on `SupportNote` (`Domain/SupportNote.cs`), a record stored outside the event store. The walkthrough uses
+`EncryptedFieldBinding.TryReadEnvelope` and `EncryptedData.TryParse` to read the stored field's actual
+key handle and generation for its ledger checks. Decryption still requires the independently established
+owner; parsed envelope metadata does not authorize a read.
 
 #### The guarantee, in one sentence
 
@@ -395,7 +398,7 @@ This is the part worth copying carefully, because the answers are deliberately n
 |---|---|---|
 | **Write** (`SubjectFieldCryptor`, `IFieldEncryptor`) | the **ambient** tenant | the writer is operating as a tenant, so that is the authoritative one. Open it with `TenantContextHolder.BeginScope(tenantId)` |
 | **Erasure** | the tenant **recorded against the request** | a background processor's ambient scope is no evidence of whose data a request was about |
-| **Read** (decrypt) | the **stored envelope** | a projection rebuild or a background replay has no ambient tenant, and a reader's tenant must never be mistaken for the writer's |
+| **Read** (decrypt) | the **independently established record owner** passed by the caller | projection rebuilds and background replay establish the owner from trusted record or partition metadata; the envelope must match that owner and cannot authorize itself |
 
 Two consequences follow, and neither is obvious from the call signatures:
 

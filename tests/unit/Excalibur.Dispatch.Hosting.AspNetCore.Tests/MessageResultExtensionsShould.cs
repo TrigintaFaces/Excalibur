@@ -8,6 +8,15 @@ using Excalibur.Dispatch.Hosting.AspNetCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using System.Net;
+using System.Text.Encodings.Web;
 
 namespace Excalibur.Dispatch.Hosting.AspNetCore.Tests;
 
@@ -18,6 +27,73 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore.Tests;
 [Trait("Component", "Platform")]
 public sealed class MessageResultExtensionsShould : UnitTestBase
 {
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Regression")]
+	public async Task Preserve_Authorization_Http_Response_Through_Railway(bool bind)
+	{
+		var source = A.Fake<IMessageResult<int>>();
+		A.CallTo(() => source.Succeeded).Returns(false);
+		A.CallTo(() => source.AuthorizationResult).Returns(Excalibur.Dispatch.AuthorizationResult.Failed("denied"));
+
+		var response = await ExecuteRailwayThroughHttpAsync(source, bind);
+
+		response.ShouldBe(HttpStatusCode.Forbidden);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Regression")]
+	public async Task Preserve_Validation_Http_Response_Through_Railway(bool bind)
+	{
+		var source = A.Fake<IMessageResult<int>>();
+		A.CallTo(() => source.Succeeded).Returns(false);
+		A.CallTo(() => source.ValidationResult).Returns(new TestValidationResult { IsValid = false, Errors = ["invalid quantity"] });
+
+		var response = await ExecuteRailwayThroughHttpAsync(source, bind);
+
+		response.ShouldBe(HttpStatusCode.BadRequest);
+	}
+
+	private static async Task<HttpStatusCode> ExecuteRailwayThroughHttpAsync(IMessageResult<int> source, bool bind)
+	{
+		var builder = WebApplication.CreateBuilder();
+		builder.WebHost.UseTestServer();
+		builder.Services.AddAuthentication("railway-test")
+			.AddScheme<AuthenticationSchemeOptions, RailwayAuthenticationHandler>("railway-test", static _ => { });
+		await using var app = builder.Build();
+		app.MapGet("/result", () =>
+		{
+			var transformed = bind
+				? source.Bind<int, string>(static _ => throw new InvalidOperationException("Failed result invoked binder"))
+				: source.Map<int, string>(static _ => throw new InvalidOperationException("Failed result invoked mapper"));
+			return transformed.ToHttpResult();
+		});
+		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		try
+		{
+			await app.StartAsync(deadline.Token);
+			using var client = app.GetTestClient();
+			using var response = await client.GetAsync(new Uri("/result", UriKind.Relative), deadline.Token);
+			return response.StatusCode;
+		}
+		finally
+		{
+			using var stopDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			await app.StopAsync(stopDeadline.Token);
+		}
+	}
+
+	private sealed class RailwayAuthenticationHandler(
+		IOptionsMonitor<AuthenticationSchemeOptions> options,
+		ILoggerFactory logger,
+		UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+	{
+		protected override Task<AuthenticateResult> HandleAuthenticateAsync() => Task.FromResult(AuthenticateResult.NoResult());
+	}
+
 	#region ToHttpResult (non-generic)
 
 	[Fact]

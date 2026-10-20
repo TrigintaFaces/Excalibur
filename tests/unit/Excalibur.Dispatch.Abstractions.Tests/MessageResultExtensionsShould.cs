@@ -10,6 +10,130 @@ namespace Excalibur.Dispatch.Tests;
 [Trait("Component", "Abstractions")]
 public sealed class MessageResultExtensionsShould
 {
+	private static readonly string[] Operations = ["Map", "MapAsync", "MapTask", "Bind", "BindAsync", "BindTask"];
+
+	public static IEnumerable<TheoryDataRow<string, MessageDisposition>> CompositionCases => CreateCompositionCases(mappingOnly: false);
+
+	public static IEnumerable<TheoryDataRow<string, MessageDisposition>> MappingCases => CreateCompositionCases(mappingOnly: true);
+
+	private static IEnumerable<TheoryDataRow<string, MessageDisposition>> CreateCompositionCases(bool mappingOnly)
+	{
+		foreach (var operation in Operations)
+		{
+			if (mappingOnly && !operation.StartsWith("Map", StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			foreach (var disposition in Enum.GetValues<MessageDisposition>())
+			{
+				yield return new TheoryDataRow<string, MessageDisposition>(operation, disposition);
+			}
+		}
+	}
+
+	[Theory]
+	[MemberData(nameof(CompositionCases))]
+	[Trait("Pattern", "Regression")]
+	public async Task Preserve_Metadata_When_Composition_ShortCircuits(string operation, MessageDisposition disposition)
+	{
+		var validation = new object();
+		var authorization = new object();
+		var problem = new MessageProblemDetails { ErrorCode = 400, Detail = "original failure" };
+		var source = A.Fake<IMessageResult<int>>();
+		A.CallTo(() => source.Succeeded).Returns(false);
+		A.CallTo(() => source.ErrorMessage).Returns("original failure");
+		A.CallTo(() => source.ProblemDetails).Returns(problem);
+		A.CallTo(() => source.ValidationResult).Returns(validation);
+		A.CallTo(() => source.AuthorizationResult).Returns(authorization);
+		A.CallTo(() => source.Disposition).Returns(disposition);
+		var calls = 0;
+		string MapValue(int value) { calls++; return value.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+		IMessageResult<string> BindValue(int value) => MessageResult.Success(MapValue(value));
+
+		var transformed = await ComposeAsync(source, operation, MapValue, BindValue);
+
+		calls.ShouldBe(0);
+		transformed.Succeeded.ShouldBeFalse();
+		transformed.ErrorMessage.ShouldBe("original failure");
+		transformed.ProblemDetails.ShouldBeSameAs(problem);
+		transformed.ValidationResult.ShouldBeSameAs(validation);
+		transformed.AuthorizationResult.ShouldBeSameAs(authorization);
+		transformed.Disposition.ShouldBe(disposition);
+	}
+
+	[Theory]
+	[MemberData(nameof(MappingCases))]
+	[Trait("Pattern", "Regression")]
+	public async Task Preserve_Metadata_When_Mapping_A_Success(string operation, MessageDisposition disposition)
+	{
+		var validation = new object();
+		var authorization = new object();
+		var source = MessageResult.Success(42, validationResult: validation, authorizationResult: authorization, disposition: disposition);
+		var calls = 0;
+		string MapValue(int value) { calls++; return value.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+
+		var transformed = await ComposeAsync(source, operation, MapValue, value => MessageResult.Success(MapValue(value)));
+
+		calls.ShouldBe(1);
+		transformed.Succeeded.ShouldBeTrue();
+		transformed.ReturnValue.ShouldBe("42");
+		transformed.UntypedReturnValue.ShouldBe("42");
+		transformed.ValidationResult.ShouldBeSameAs(validation);
+		transformed.AuthorizationResult.ShouldBeSameAs(authorization);
+		transformed.Disposition.ShouldBe(disposition);
+	}
+
+	[Theory]
+	[MemberData(nameof(CompositionCases))]
+	[Trait("Pattern", "Regression")]
+	public async Task Preserve_Metadata_And_Existing_Null_ShortCircuit(string operation, MessageDisposition disposition)
+	{
+		var validation = new object();
+		var authorization = new object();
+		var source = MessageResult.Success<string?>(null, validationResult: validation, authorizationResult: authorization, disposition: disposition);
+		var calls = 0;
+		string MapValue(string? value) { calls++; return value ?? "unexpected callback"; }
+
+		var transformed = await ComposeAsync(source, operation, MapValue, value => MessageResult.Success(MapValue(value)));
+
+		calls.ShouldBe(0);
+		transformed.Succeeded.ShouldBeFalse();
+		transformed.ValidationResult.ShouldBeSameAs(validation);
+		transformed.AuthorizationResult.ShouldBeSameAs(authorization);
+		transformed.Disposition.ShouldBe(disposition);
+	}
+
+	[Theory]
+	[InlineData("Bind")]
+	[InlineData("BindAsync")]
+	[InlineData("BindTask")]
+	[Trait("Pattern", "Regression")]
+	public async Task Retain_The_Binders_Exact_Result(string operation)
+	{
+		var source = MessageResult.Success(42, disposition: MessageDisposition.AcceptedForBackgroundExecution);
+		var next = MessageResult.Success("next", validationResult: new object(), authorizationResult: new object(), disposition: MessageDisposition.ServedFromCache);
+		var calls = 0;
+		IMessageResult<string> BindValue(int _) { calls++; return next; }
+
+		var transformed = await ComposeAsync(source, operation, value => value.ToString(System.Globalization.CultureInfo.InvariantCulture), BindValue);
+
+		calls.ShouldBe(1);
+		transformed.ShouldBeSameAs(next);
+	}
+
+	private static Task<IMessageResult<string>> ComposeAsync<T>(IMessageResult<T> source, string operation, Func<T, string> map, Func<T, IMessageResult<string>> bind) =>
+		operation switch
+		{
+			"Map" => Task.FromResult(source.Map(map)),
+			"MapAsync" => source.MapAsync(value => Task.FromResult(map(value))),
+			"MapTask" => Task.FromResult(source).Map(map),
+			"Bind" => Task.FromResult(source.Bind(bind)),
+			"BindAsync" => source.BindAsync(value => Task.FromResult(bind(value))),
+			"BindTask" => Task.FromResult(source).Bind(bind),
+			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown composition"),
+		};
+
 	#region Map Tests
 
 	[Fact]
@@ -52,7 +176,7 @@ public sealed class MessageResultExtensionsShould
 	public void Map_TreatNullReturnValueAsFailure()
 	{
 		// Arrange - success result with null value via factory
-		var result = MessageResult.Failed<string?>(null as string, null);
+		var result = MessageResult.Success<string?>(null);
 
 		// Act
 		var mapped = result.Map(x => x!.Length);
@@ -233,7 +357,7 @@ public sealed class MessageResultExtensionsShould
 	public void Match_ExecuteOnFailure_WhenSuccessValueIsNull()
 	{
 		// Arrange
-		var result = MessageResult.Failed<string?>(null as string, null);
+		var result = MessageResult.Success<string?>(null);
 
 		// Act
 		var matched = result.Match(
@@ -409,7 +533,7 @@ public sealed class MessageResultExtensionsShould
 	public void GetValueOrDefault_ReturnDefault_WhenSuccessButNullValue()
 	{
 		// Arrange
-		var result = MessageResult.Failed<string?>(null as string, null);
+		var result = MessageResult.Success<string?>(null);
 
 		// Act
 		var value = result.GetValueOrDefault("fallback");

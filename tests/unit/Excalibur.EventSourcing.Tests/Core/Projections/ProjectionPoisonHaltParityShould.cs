@@ -134,7 +134,7 @@ public sealed class ProjectionPoisonHaltParityShould
 			.Returns((IDomainEvent)null!); // poison: null deserialization
 
 		// Real store double — lets us assert that NO rebuilt state was persisted past the poison.
-		var store = new InMemoryProjectionStore<RebuildPoisonProjection>();
+		var store = new TestProjectionStore<RebuildPoisonProjection>();
 		var projection = new MultiStreamProjection<RebuildPoisonProjection>();
 
 		var serviceProvider = A.Fake<IServiceProvider>();

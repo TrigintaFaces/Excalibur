@@ -47,7 +47,7 @@ public sealed class GoogleCloudAuditRegistrationShould
 
 		var exporter = provider.GetRequiredService<IAuditLogExporter>();
 
-		HttpClientOf(exporter).Timeout.ShouldBe(Timeout.InfiniteTimeSpan);
+		HttpClientOf(exporter).Timeout.ShouldBe(TimeSpan.FromSeconds(120));
 	}
 
 	[Fact]

@@ -33,7 +33,7 @@ public sealed class AuthorizationCacheKeyShould
 		// The trailing shape version is part of the contract, not decoration: it is what stops an instance
 		// running a different version of this library from reading a cached document it cannot interpret.
 		// Asserting it here means a change to the document's shape that forgets to bump the key goes red.
-		key.ShouldBe("authorization/tenant-1/activity-groups/v3");
+		key.ShouldBe("authorization/tenant-1/activity-groups/v4");
 	}
 
 	[Fact]
@@ -58,7 +58,7 @@ public sealed class AuthorizationCacheKeyShould
 		var activityGroups = AuthorizationCacheKey.ForActivityGroups("tenant-1");
 
 		grants.ShouldBe("authorization/user-123/grants");
-		activityGroups.ShouldBe("authorization/tenant-1/activity-groups/v3");
+		activityGroups.ShouldBe("authorization/tenant-1/activity-groups/v4");
 	}
 
 	[Fact]
@@ -100,7 +100,7 @@ public sealed class AuthorizationCacheKeyShould
 	[Fact]
 	public void Build_a_usable_key_for_a_legitimate_tenant() =>
 		AuthorizationCacheKey.ForActivityGroups("tenant-a")
-			.ShouldBe("authorization/tenant-a/activity-groups/v3");
+			.ShouldBe("authorization/tenant-a/activity-groups/v4");
 
 	[Fact]
 	public void Throw_when_the_tenant_is_missing()
@@ -112,3 +112,4 @@ public sealed class AuthorizationCacheKeyShould
 		_ = Should.Throw<ArgumentException>(() => AuthorizationCacheKey.ForActivityGroups("   "));
 	}
 }
+

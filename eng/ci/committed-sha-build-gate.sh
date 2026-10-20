@@ -63,6 +63,50 @@ owning_project_dir() {
     return 1
 }
 
+# Lexical repository paths only; never resolve symlinks or escape above the root.
+normalize_reference_path() {
+    local path="$1" part
+    local -a pieces=() stack=()
+    IFS=/ read -r -a pieces <<< "$path"
+    for part in "${pieces[@]}"; do
+        case "$part" in
+            ''|.) ;;
+            ..)
+                [ "${#stack[@]}" -gt 0 ] || return 1
+                unset "stack[$((${#stack[@]} - 1))]"
+                ;;
+            *) stack+=("$part") ;;
+        esac
+    done
+    [ "${#stack[@]}" -gt 0 ] || return 1
+    local IFS=/
+    printf '%s\n' "${stack[*]}"
+}
+
+# Bounded textual references: ASCII path tokens, optional query/fragment, ./ and ../.
+# Absolute paths, URLs, percent-encoded names and paths containing spaces are outside
+# this detector's grammar. A textual reference is a coupling candidate, not a proof
+# that the naming file's behavior depends on the target.
+references_staged_path() {
+    local file="$1" staged="$2" basename="$3" token candidate root_candidate
+    while IFS= read -r token; do
+        case "$token" in /*|*:*|*%*) continue ;; esac
+        token="${token%%[?#]*}"
+        [ "${token##*/}" = "$basename" ] || continue
+        candidate="$(normalize_reference_path "$(dirname "$file")/$token")" || continue
+        if [ -n "${REFERENCE_TARGETS[$candidate]:-}" ] || [ -f "$candidate" ]; then
+            [ "$candidate" = "$staged" ] && return 0
+            continue
+        fi
+        # Existing workflow commands use repo paths from nested action files. Retain
+        # that convention only for multi-component paths without an existing local target.
+        case "$token" in ./*|../*) continue ;; */*) ;; *) continue ;; esac
+        root_candidate="$(normalize_reference_path "$token")" || continue
+        [ "$root_candidate" = "$staged" ] && return 0
+    done < <(grep -IoE '[A-Za-z0-9_./:?#%=-]+' "$file" 2>/dev/null | sort -u)
+    return 1
+}
+
 # ── MODE 1: staged coherence ────────────────────────────────────────────────────────────────────────
 if [ "$MODE" = "--staged" ]; then
     mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
@@ -113,36 +157,20 @@ if [ "$MODE" = "--staged" ]; then
     #   a gate staged while its only caller (a .github composite action) stayed dirty;
     #   a fix staged in one provider while its siblings stayed dirty.
     #
-    # This arm asks a different, decidable question: does either side NAME the other? A caller names
+    # This arm asks a bounded textual question: does a dirty file resolve a reference to a staged file? A caller names
     # the script it runs; a workflow names the action it uses; a doc names the file it documents. If a
-    # dirty file mentions a staged file by name, or the reverse, the commit is a subset of a set that
-    # references itself -- and the committed tree will not be coherent.
+    # dirty file references a staged path, report the candidate split for staging together.
     #
-    # Matching is on BASENAME, so it survives a path written relative to a different directory (the
-    # caller that broke HEAD referenced "eng/ci/assert-compiled-not-skipped.sh" from .github/actions).
-    # Only files git tracks as text are read; binaries and absent files are skipped.
+    # Resolve relative to the naming file first. A unique basename does not establish root ownership.
+    # Only multi-component repo paths have a root fallback; existing local targets take precedence.
+    declare -A REFERENCE_TARGETS=()
+    while IFS= read -r -d '' tracked; do REFERENCE_TARGETS["$tracked"]=1; done < <(git ls-files -z)
     refs=0
     for st in "${STAGED[@]}"; do
         [ -n "$st" ] || continue
         st_base="$(basename "$st")"
         # A bare or very short name would match half the tree; require enough signal to be meaningful.
         [ "${#st_base}" -ge 6 ] || continue
-        # A basename can name SEVERAL tracked files -- three trees here ship an "audit-logging.md".
-        # For those, a bare basename hit cannot say which one is referenced, and a reference to the
-        # other tree's copy is not a coupling: it flagged a correct docs commit whose only inbound
-        # reference pointed at the published site's same-named page. So when the basename is
-        # ambiguous, require the reference to resolve to THIS path. Unique basenames keep the
-        # relative-path tolerance this arm was built for.
-        # The full path must be matched with a LEFT BOUNDARY, not as a substring: the whole point is
-        # that "docs/x/y.md" is a tail of "docs-site/docs/x/y.md", so a plain fixed-string search for
-        # the former still hits the latter and the narrowing buys nothing. A reference starts at a
-        # non-path character.
-        st_needle="$st_base"
-        st_anchored=0
-        if [ "$(git ls-files -- "*/$st_base" "$st_base" 2>/dev/null | head -2 | wc -l)" -gt 1 ]; then
-            st_needle="$(printf '%s' "$st" | sed 's/\./\\./g')"   # only "." is a metacharacter here
-            st_anchored=1
-        fi
         for d in "${DIRTY[@]}"; do
             [ -n "$d" ] || continue
             [ "$d" = "$st" ] && continue
@@ -155,7 +183,7 @@ if [ "$MODE" = "--staged" ]; then
             case "$d" in
                 .beads/*|.beads-backup-*/*|*/.beads/*) continue ;;
             esac
-            if { [ "$st_anchored" -eq 1 ]                     && grep -Eqs -- "(^|[^A-Za-z0-9_./-])$st_needle" "$d" 2>/dev/null; }                || { [ "$st_anchored" -eq 0 ]                     && grep -Fqs -- "$st_needle" "$d" 2>/dev/null; }; then
+            if references_staged_path "$d" "$st" "$st_base"; then
                 if [ "$refs" -eq 0 ]; then
                     echo "[committed-sha-build-gate] COUPLED SET SPLIT — a file OUTSIDE this commit references a file INSIDE it." >&2
                     echo "  The committed tree will contain one half of a pair that refers to the other:" >&2

@@ -23,7 +23,7 @@
     {
       "line": 191,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/AotCachedValueJsonConverter.cs",
-      "justification": "The type map is consulted first and the reflection-based fallback runs only for a type the supplied ",
+      "justification": "The type map is consulted first and the reflection-based fallback runs only for a type the supplied context does not carry; registering the cacheable types with the context removes that path entirely.",
       "warningId": "IL2026"
     },
     {
@@ -59,13 +59,13 @@
     {
       "line": 126,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/CachingMiddleware.cs",
-      "justification": "This implementation reflects; IDispatchMiddleware does not declare that, because a consumer-authored ",
+      "justification": "This implementation reflects; IDispatchMiddleware does not declare that, because a consumer-authored middleware need not reflect and must not inherit the claim. This type is internal, so the requirement cannot reach a consumer through it; it is declared on the caching registration methods, which is where a consumer opts in.",
       "warningId": "IL2046"
     },
     {
       "line": 130,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/CachingMiddleware.cs",
-      "justification": "This implementation requires runtime code generation; IDispatchMiddleware does not declare that, because ",
+      "justification": "This implementation requires runtime code generation; IDispatchMiddleware does not declare that, because a consumer-authored middleware need not. This type is internal, so the requirement is declared on the caching registration methods, which is where a consumer opts in.",
       "warningId": "IL3051"
     },
     {
@@ -119,13 +119,13 @@
     {
       "line": 687,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs",
-      "justification": "The wrapped middleware reflects; IDispatchMiddleware does not declare that, because a ",
+      "justification": "The wrapped middleware reflects; IDispatchMiddleware does not declare that, because a consumer-authored middleware need not reflect. The requirement reaches the consumer at the caching registration methods instead, which this type is internal to.",
       "warningId": "IL2046"
     },
     {
       "line": 691,
       "file": "src/Dispatch/Excalibur.Dispatch.Caching/CachingServiceCollectionExtensions.cs",
-      "justification": "The wrapped middleware requires runtime code generation; IDispatchMiddleware does not ",
+      "justification": "The wrapped middleware requires runtime code generation; IDispatchMiddleware does not declare that, because a consumer-authored middleware need not. The requirement reaches the consumer at the caching registration methods instead, which this type is internal to.",
       "warningId": "IL3051"
     },
     {
@@ -155,7 +155,7 @@
     {
       "line": 35,
       "file": "src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/AwsLambdaHostProvider.cs",
-      "justification": "DefaultLambdaJsonSerializer is registered as a fallback. ",
+      "justification": "DefaultLambdaJsonSerializer is registered as a fallback. Consumers targeting AOT should register SourceGeneratorLambdaJsonSerializer instead.",
       "warningId": "IL2026"
     },
     {
@@ -473,7 +473,7 @@
     {
       "line": 38,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/CloudEvents/CloudEventEncoderAdapter.cs",
-      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) \u2014 the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
+      "justification": "Mismatch-only, not a swallow: ICloudEventEncoderAdapter is an internal, non-extensible wiring shim over ICloudEventEncoder<TOutbound> (whose interface member already carries this requirement) — the consumer-facing signal already lives at each transport's opt-in registration (e.g. UseCloudEvents/AddCloudEventsForRabbitMq/AddCloudEventsForPubSub), which is annotated. Annotating this internal interface too would be redundant, not a new hole.",
       "warningId": "IL2046"
     },
     {
@@ -641,13 +641,13 @@
     {
       "line": 109,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL2026"
     },
     {
       "line": 111,
       "file": "src/Dispatch/Excalibur.Dispatch.Transport.Grpc/GrpcTransportAdapter.cs",
-      "justification": "AOT-safe: IDispatchMessage is an open type \u2014 concrete type only known at runtime. AOT consumers should use typed transport overloads.",
+      "justification": "AOT-safe: IDispatchMessage is an open type — concrete type only known at runtime. AOT consumers should use typed transport overloads.",
       "warningId": "IL3050"
     },
     {
@@ -933,27 +933,27 @@
       "warningId": "IL3050"
     },
     {
-      "line": 233,
+      "line": 242,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/HandlerScopeResolver.cs",
-      "justification": "The value is a constructor parameter's type, reached by reflection, so DynamicallyAccessedMembers cannot ",
+      "justification": "The value is a constructor parameter's type, reached by reflection, so DynamicallyAccessedMembers cannot flow to it. Its constructors are preserved by the container registration that makes it injectable in the first place. This is safe without relying on that: a type whose constructors this walk cannot read takes the uninspectable branch and is classified scope-requiring, so a trimmed type degrades to an unnecessary scope, never to a captive dependency.",
       "warningId": "IL2072"
     },
     {
       "line": 26,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/AotCompatibilityExtensions.cs",
-      "justification": "The reflective invoker is reached only when DispatchFeatureSwitches.UseReflectionInvoker is true. ",
+      "justification": "The reflective invoker is reached only when DispatchFeatureSwitches.UseReflectionInvoker is true. That property is a declared feature switch, so a trimmed application that disables it has this branch removed by the trimmer rather than analysed. An application that leaves it enabled has chosen reflective handler resolution and must root its handler types.",
       "warningId": "IL2026"
     },
     {
       "line": 71,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/FinalDispatchHandler.cs",
-      "justification": "Result construction is guarded at runtime: CreateTypedResult branches on RuntimeFeature.IsDynamicCodeSupported ",
+      "justification": "Result construction is guarded at runtime: CreateTypedResult branches on RuntimeFeature.IsDynamicCodeSupported and, when dynamic code is unavailable, builds the result from the source-generated factory registry.",
       "warningId": "IL2026"
     },
     {
       "line": 77,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/FinalDispatchHandler.cs",
-      "justification": "Ahead-of-time compilation IS supported on this path: CreateTypedResult branches on ",
+      "justification": "Ahead-of-time compilation IS supported on this path: CreateTypedResult branches on RuntimeFeature.IsDynamicCodeSupported and builds the result from the source-generated factory registry, failing fast when the result type has no generated factory. Only the dynamic-code branch reflects, and it is unreachable without runtime code generation.",
       "warningId": "IL3050"
     },
     {
@@ -1053,33 +1053,33 @@
       "warningId": "IL2026"
     },
     {
-      "line": 206,
+      "line": 219,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes ",
+      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that property to false and removes the branch, so this serializer is never constructed in a trimmed, natively compiled application; where it is constructed, the reflection it performs is available.",
       "warningId": "IL2026"
     },
     {
-      "line": 213,
+      "line": 226,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported, and the native compiler removes ",
+      "justification": "The only call site is behind RuntimeFeature.IsDynamicCodeSupported, and the native compiler removes that branch, so the dynamic code this serializer needs is never required in a natively compiled application.",
       "warningId": "IL3050"
     },
     {
-      "line": 301,
+      "line": 314,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of ",
+      "justification": "The handler types come from ServiceDescriptor.ImplementationType, which carries no annotation. Every one of them is already referenced by the registration that put it in the collection, so trimming keeps it and its constructors: this method reads types the composition root named, never types it discovered.",
       "warningId": "IL2072"
     },
     {
-      "line": 372,
+      "line": 390,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that ",
+      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that property to false and removes the branch, so this method is unreachable in a trimmed, natively compiled application; under a JIT runtime the reflection it performs is available and correct.",
       "warningId": "IL2026"
     },
     {
-      "line": 379,
+      "line": 397,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs",
-      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that ",
+      "justification": "Every call site is behind RuntimeFeature.IsDynamicCodeSupported. The native compiler substitutes that property to false and removes the branch, so the expression compilation these calls perform is unreachable in a natively compiled application.",
       "warningId": "IL3050"
     },
     {
@@ -1107,27 +1107,27 @@
       "warningId": "IL3050"
     },
     {
-      "line": 162,
+      "line": 180,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatcherContextExtensions.cs",
-      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via ",
+      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).",
       "warningId": "IL2026"
     },
     {
-      "line": 165,
+      "line": 183,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatcherContextExtensions.cs",
-      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via ",
+      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).",
       "warningId": "IL3050"
     },
     {
-      "line": 205,
+      "line": 223,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatcherContextExtensions.cs",
-      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via ",
+      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).",
       "warningId": "IL2026"
     },
     {
-      "line": 208,
+      "line": 226,
       "file": "src/Dispatch/Excalibur.Dispatch/DispatcherContextExtensions.cs",
-      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via ",
+      "justification": "Source-generated typed overloads in TypedDispatchExtensions shadow this method via C# overload resolution when Excalibur.Dispatch.SourceGenerators is referenced (required for AOT).",
       "warningId": "IL3050"
     },
     {
@@ -1193,37 +1193,37 @@
     {
       "line": 233,
       "file": "src/Dispatch/Excalibur.Dispatch/LocalMessageBus.cs",
-      "justification": "IMessageBus carries no ahead-of-time annotation, so this implementation cannot declare one without ",
+      "justification": "IMessageBus carries no ahead-of-time annotation, so this implementation cannot declare one without diverging from the interface it implements. The requirement is declared on the registration that composes this bus, which is where a consumer's compiler reads it.",
       "warningId": "IL2026"
     },
     {
       "line": 240,
       "file": "src/Dispatch/Excalibur.Dispatch/LocalMessageBus.cs",
-      "justification": "IMessageBus carries no ahead-of-time annotation, so this implementation cannot declare one without ",
+      "justification": "IMessageBus carries no ahead-of-time annotation, so this implementation cannot declare one without diverging from the interface it implements. The requirement is declared on the registration that composes this bus, which is where a consumer's compiler reads it.",
       "warningId": "IL3050"
     },
     {
       "line": 1427,
       "file": "src/Dispatch/Excalibur.Dispatch/LocalMessageBus.cs",
-      "justification": "The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is ",
+      "justification": "The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is unavailable this declines and the caller dispatches through the source-generated invoker instead. Declaring the requirement would push it up the composition chain to every consumer, including the ones this guard exists to serve.",
       "warningId": "IL3050"
     },
     {
       "line": 1473,
       "file": "src/Dispatch/Excalibur.Dispatch/LocalMessageBus.cs",
-      "justification": "The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is ",
+      "justification": "The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is unavailable this declines and the caller dispatches through the source-generated invoker instead. Declaring the requirement would push it up the composition chain to every consumer, including the ones this guard exists to serve.",
       "warningId": "IL3050"
     },
     {
       "line": 1521,
       "file": "src/Dispatch/Excalibur.Dispatch/LocalMessageBus.cs",
-      "justification": "The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is ",
+      "justification": "The generic construction below is behind an IsDynamicCodeSupported guard: where dynamic code is unavailable this declines and the caller dispatches through the source-generated invoker instead. Declaring the requirement would push it up the composition chain to every consumer, including the ones this guard exists to serve.",
       "warningId": "IL3050"
     },
     {
       "line": 2508,
       "file": "src/Dispatch/Excalibur.Dispatch/LocalMessageBus.cs",
-      "justification": "A shape probe whose only effect is to decline an optimisation. Fields trimming removed cannot be ",
+      "justification": "A shape probe whose only effect is to decline an optimisation. Fields trimming removed cannot be read, and their absence makes the handler look stateless, so the worst outcome is that a handler is promoted to a shared instance -- which is only reached when the scope resolver separately agrees it may be shared. Requiring the fields be preserved would push a trim contract through every caller in the handler-type flow to keep a heuristic exact.",
       "warningId": "IL2070"
     },
     {
@@ -1387,12 +1387,6 @@
       "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
       "justification": "Guarded by RuntimeFeature.IsDynamicCodeSupported check; AOT path uses source-gen context only",
       "warningId": "IL2026"
-    },
-    {
-      "line": 97,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "",
-      "warningId": "IL3050"
     },
     {
       "line": 217,
@@ -1579,40 +1573,16 @@
       "warningId": "IL3051"
     },
     {
-      "line": 54,
+      "line": 63,
       "file": "src/Excalibur/Excalibur.A3/Authorization/A3AuthorizationMiddleware.cs",
-      "justification": "This implementation reflects; IDispatchMiddleware does not declare that, because a consumer-authored ",
+      "justification": "This implementation reflects; IDispatchMiddleware does not declare that, because a consumer-authored middleware need not reflect and must not inherit the claim. This type is internal, so the requirement cannot reach a consumer through it; it is declared on AddExcaliburAuthorization, which is where a consumer opts in.",
       "warningId": "IL2046"
     },
     {
-      "line": 58,
+      "line": 67,
       "file": "src/Excalibur/Excalibur.A3/Authorization/A3AuthorizationMiddleware.cs",
-      "justification": "This implementation requires runtime code generation; IDispatchMiddleware does not declare that, because ",
+      "justification": "This implementation requires runtime code generation; IDispatchMiddleware does not declare that, because a consumer-authored middleware need not. This type is internal, so the requirement is declared on AddExcaliburAuthorization, which is where a consumer opts in.",
       "warningId": "IL3051"
-    },
-    {
-      "line": 88,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 88,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 194,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 194,
-      "file": "src/Excalibur/Excalibur.A3/Authorization/AuthorizationPolicyProvider.cs",
-      "justification": "Serialization/reflection inherently not AOT-safe",
-      "warningId": "IL3050"
     },
     {
       "line": 47,
@@ -2207,33 +2177,33 @@
       "warningId": "IL3050"
     },
     {
-      "line": 136,
+      "line": 194,
       "file": "src/Excalibur/Excalibur.Compliance/CryptoShredding/SubjectFieldCryptor.cs",
-      "justification": "A runtime-resolved record type, matching IEventSerializer.DeserializeEvent(byte[], Type) ",
+      "justification": "A runtime-resolved record type, matching IEventSerializer.DeserializeEvent(byte[], Type) which this answer gates; GetPlan is DAM-rooted and the instance path carries the same suppression for the same reason. Annotating the parameter instead would only move the unprovable step to every caller.",
       "warningId": "IL2067"
     },
     {
-      "line": 256,
+      "line": 356,
       "file": "src/Excalibur/Excalibur.Compliance/CryptoShredding/SubjectFieldCryptor.cs",
-      "justification": "object.GetType() over a consumer record; GetPlan is DAM-rooted and the caller throws ",
+      "justification": "object.GetType() over a consumer record; GetPlan is DAM-rooted and the caller throws rather than persist plaintext when a [DataSubjectId] type resolves no [PersonalData] fields.",
       "warningId": "IL2072"
     },
     {
-      "line": 42,
+      "line": 72,
       "file": "src/Excalibur/Excalibur.Compliance/Erasure/PersonalDataAnnotationSource.cs",
-      "justification": "Types come from a whole-domain assembly scan, so no annotation can flow to them. ",
+      "justification": "Types come from a whole-domain assembly scan, so no annotation can flow to them. The scan therefore cannot be trusted to be complete under trimming, and it does not claim to be: it reports ScanEstablished=false whenever reflection is unsupported or any part of the walk was skipped, and the coverage gate refuses to report an erasure Completed on an unestablished scan.",
       "warningId": "IL2075"
     },
     {
       "line": 124,
       "file": "src/Excalibur/Excalibur.Compliance/Erasure/PersonalDataAnnotationSource.cs",
-      "justification": "Assembly.GetTypes() over host-loaded assemblies is the erasure-inventory scan itself. ",
+      "justification": "Assembly.GetTypes() over host-loaded assemblies is the erasure-inventory scan itself. A partial type list clears the established flag rather than being returned as if whole, so a trimmed host yields an unestablished scan and the coverage gate refuses to complete on it.",
       "warningId": "IL2026"
     },
     {
       "line": 148,
       "file": "src/Excalibur/Excalibur.Compliance/Masking/RegexDataMasker.cs",
-      "justification": "object.GetType() over a consumer instance carries no DAM guarantee. Masking discovers ",
+      "justification": "object.GetType() over a consumer instance carries no DAM guarantee. Masking discovers [PersonalData(MaskInLogs)]/[Sensitive(MaskInLogs)] properties by reflection, which is why MaskObject is annotated RequiresUnreferencedCode; a consumer trimming those annotations away gets fewer masked fields, so annotated types must be rooted.",
       "warningId": "IL2072"
     },
     {
@@ -2411,30 +2381,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 54,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 54,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 91,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 91,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
       "line": 204,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs",
       "justification": "ICloudNativePersistenceProvider is implemented by providers that never reach reflective serialization, so the requirement cannot be declared on the interface without binding those too. It is declared on this DynamoDB implementation instead.",
@@ -2534,18 +2480,6 @@
       "line": 145,
       "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbRepositoryBase.cs",
       "justification": "Pairs the trimming suppression above: the same reflection-based System.Text.Json call also generates converters at run time. Supply JsonSerializerOptions with a source-generated resolver to keep this repository off both paths.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 251,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamsSubscription.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 251,
-      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamsSubscription.cs",
-      "justification": "",
       "warningId": "IL3050"
     },
     {
@@ -3427,18 +3361,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 618,
-      "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 618,
-      "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
       "line": 44,
       "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/DependencyInjection/EventSourcingBuilderCosmosDbExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -3487,30 +3409,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 670,
-      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 670,
-      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 824,
-      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 824,
-      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
       "line": 47,
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/DependencyInjection/EventSourcingBuilderFirestoreExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -3532,18 +3430,6 @@
       "line": 72,
       "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/DependencyInjection/EventSourcingBuilderFirestoreExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 458,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 458,
-      "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
-      "justification": "",
       "warningId": "IL3050"
     },
     {
@@ -4653,13 +4539,13 @@
     {
       "line": 43,
       "file": "src/Excalibur/Excalibur.Jobs/Jobs/ProjectionRebuildJob.cs",
-      "justification": "This job drives a materialized view rebuild, which serializes view types reflectively. ",
+      "justification": "This job drives a materialized view rebuild, which serializes view types reflectively. The job is therefore not trim-safe by contract, and IBackgroundJob.ExecuteAsync is kept clean so hosts composing trim-safe jobs are not warned about a condition they cannot act on.",
       "warningId": "IL2026"
     },
     {
       "line": 50,
       "file": "src/Excalibur/Excalibur.Jobs/Jobs/ProjectionRebuildJob.cs",
-      "justification": "This job drives a materialized view rebuild, which serializes view types reflectively. ",
+      "justification": "This job drives a materialized view rebuild, which serializes view types reflectively. The job is therefore not AOT-safe by contract; the package does not claim AOT compatibility.",
       "warningId": "IL3050"
     },
     {
@@ -4840,18 +4726,6 @@
       "line": 67,
       "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DependencyInjection/OutboxBuilderDynamoDbExtensions.cs",
       "justification": "Configuration binding uses reflection by design.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 274,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 274,
-      "file": "src/Excalibur/Excalibur.Outbox.DynamoDb/DynamoDbOutboxStore.cs",
-      "justification": "",
       "warningId": "IL3050"
     },
     {
@@ -5135,18 +5009,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 2226,
-      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 2226,
-      "file": "src/Excalibur/Excalibur.Outbox.SqlServer/SqlServerOutboxStore.cs",
-      "justification": "",
-      "warningId": "IL3050"
-    },
-    {
       "line": 78,
       "file": "src/Excalibur/Excalibur.Outbox/DependencyInjection/PartitionedOutboxBuilderExtensions.cs",
       "justification": "Options validation/binding uses reflection by design.",
@@ -5405,15 +5267,15 @@
       "warningId": "IL3050"
     },
     {
-      "line": 299,
+      "line": 316,
       "file": "src/Excalibur/Excalibur.Saga/DependencyInjection/SagaServiceCollectionExtensions.cs",
-      "justification": "Typed dispatch delegate created at DI composition time with concrete generic arguments. ",
+      "justification": "Typed dispatch delegate created at DI composition time with concrete generic arguments. AOT compiler preserves the concrete HandleEventInternalAsync<TSaga, TSagaState> instantiation.",
       "warningId": "IL2026"
     },
     {
-      "line": 302,
+      "line": 319,
       "file": "src/Excalibur/Excalibur.Saga/DependencyInjection/SagaServiceCollectionExtensions.cs",
-      "justification": "Typed dispatch delegate created at DI composition time with concrete generic arguments. ",
+      "justification": "Typed dispatch delegate created at DI composition time with concrete generic arguments. No runtime code generation needed — the generic method instantiation is known at compile time.",
       "warningId": "IL3050"
     },
     {
@@ -5725,25 +5587,25 @@
     {
       "line": 623,
       "file": "src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilder.cs",
-      "justification": "DynamicallyAccessedMembers does not flow through a List<Type>; this is the boundary where it stops, and ",
+      "justification": "DynamicallyAccessedMembers does not flow through a List<Type>; this is the boundary where it stops, and both sources crossing it are annotated. _globalMiddleware has exactly one insertion -- UseMiddleware<TMiddleware>(), whose TMiddleware carries DynamicallyAccessedMemberTypes.PublicConstructors -- so every element's constructors are preserved. The second source is GetType() on an instance the container already activated, whose implementation type the container annotates the same way (ServiceDescriptor.ImplementationType). Independently of both, the scope walk this feeds fails safe: a type whose constructors it cannot see is classified scope-requiring, never root-safe.",
       "warningId": "IL2072"
     },
     {
-      "line": 87,
+      "line": 86,
       "file": "src/Dispatch/Excalibur.Dispatch/Configuration/PipelineProfile.cs",
-      "justification": "The ordered snapshot is a Type collection, and DynamicallyAccessedMembers does not flow through one. ",
+      "justification": "The ordered snapshot is a Type collection, and DynamicallyAccessedMembers does not flow through one. Every type in it was declared through an annotated entry point or supplied by the consumer, who registered it with the container -- which preserves its public constructors. The scope walk that consumes these entries fails safe regardless: a type whose constructors it cannot see is classified scope-requiring, never root-safe.",
       "warningId": "IL2072"
     },
     {
       "line": 69,
       "file": "src/Dispatch/Excalibur.Dispatch/Configuration/SynthesizedPipelineProfile.cs",
-      "justification": "DynamicallyAccessedMembers cannot be expressed on a Type[] element, so it stops at this parameter. The ",
+      "justification": "DynamicallyAccessedMembers cannot be expressed on a Type[] element, so it stops at this parameter. The array is built from middleware the consumer declared and registered with the container, and that registration preserves their public constructors. The scope walk that consumes these entries fails safe regardless: a type whose constructors it cannot see is classified scope-requiring, never root-safe.",
       "warningId": "IL2062"
     },
     {
       "line": 23,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Pipeline/PipelineProfile.cs",
-      "justification": "DynamicallyAccessedMembers cannot be expressed on IEnumerable<Type>, so it stops at this parameter. The ",
+      "justification": "DynamicallyAccessedMembers cannot be expressed on IEnumerable<Type>, so it stops at this parameter. The types are supplied by the consumer, who also registers them with the container, and that registration preserves their public constructors. The scope walk that consumes these entries fails safe regardless: a type whose constructors it cannot see is classified scope-requiring, never root-safe.",
       "warningId": "IL2072"
     },
     {
@@ -5761,6 +5623,94 @@
       "warningId": "IL2026",
       "verdict": "PROPAGATED",
       "classifiedBy": "inspection"
+    },
+    {
+      "line": 97,
+      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
+      "justification": "Reflection-based configuration runs only when RuntimeFeature.IsDynamicCodeSupported; the Native AOT branch initializes the resolver from JsonSerializerContext.",
+      "warningId": "IL3050",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 58,
+      "file": "src/Excalibur/Excalibur.Data.DynamoDb/Caching/InMemoryDaxCacheProvider.cs",
+      "justification": "Reflection metadata is reachable only when dynamic code and JSON reflection are enabled; Native AOT uses consumer metadata or the empty resolver.",
+      "warningId": "IL2026",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 29,
+      "file": "src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamDocumentReader.cs",
+      "justification": "Reflection metadata is reachable only when dynamic code and JSON reflection are enabled; Native AOT uses consumer metadata or the empty resolver.",
+      "warningId": "IL2026",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 749,
+      "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL2026",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 749,
+      "file": "src/Excalibur/Excalibur.EventSourcing.CosmosDb/CosmosDbEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL3050",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 782,
+      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL2026",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 981,
+      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; metadata serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL2026",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 782,
+      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL3050",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 981,
+      "file": "src/Excalibur/Excalibur.EventSourcing.DynamoDb/DynamoDbEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; metadata serialization uses its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL3050",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 499,
+      "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL2026",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
+    },
+    {
+      "line": 499,
+      "file": "src/Excalibur/Excalibur.EventSourcing.Firestore/FirestoreEventStore.cs",
+      "justification": "When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.",
+      "warningId": "IL3050",
+      "reviewedBy": "Liskov existence review, 2026-10-13",
+      "note": "Reviewed source guard and bounded local controls; this existence approval does not establish universal AOT safety. Companion classification remains UNCLASSIFIED-NEEDS-OWNER."
     }
   ],
   "description": "AOT suppression baseline for Excalibur.Dispatch. Existing suppressions are grandfathered. New suppressions require justification and approval."

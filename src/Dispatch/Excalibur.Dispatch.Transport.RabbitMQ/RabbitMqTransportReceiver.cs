@@ -139,9 +139,9 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var receiptHandle = GetReceiptHandle(message);
 		try
 		{
+			var receiptHandle = GetReceiptHandle(message);
 			if (_deliveryTagCache.TryRemove(receiptHandle, out var deliveryTag))
 			{
 				// Ack must complete even during shutdown to prevent redelivery;
@@ -157,14 +157,10 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 					$"Message with receipt handle '{receiptHandle}' not found in delivery tag cache.");
 			}
 		}
-		catch (InvalidOperationException)
-		{
-			throw;
-		}
 		catch (Exception ex)
 		{
 			LogAcknowledgeError(message.Id, Source, ex);
-			throw;
+			throw CreateSettlementException("acknowledge", message, ex);
 		}
 	}
 
@@ -173,9 +169,9 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var receiptHandle = GetReceiptHandle(message);
 		try
 		{
+			var receiptHandle = GetReceiptHandle(message);
 			if (_deliveryTagCache.TryRemove(receiptHandle, out var deliveryTag))
 			{
 				// Reject must complete even during shutdown to prevent redelivery;
@@ -199,16 +195,21 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 					$"Message with receipt handle '{receiptHandle}' not found in delivery tag cache.");
 			}
 		}
-		catch (InvalidOperationException)
-		{
-			throw;
-		}
 		catch (Exception ex)
 		{
 			LogRejectError(message.Id, Source, ex);
-			throw;
+			throw CreateSettlementException("reject", message, ex);
 		}
 	}
+
+	private static TransportSettlementException CreateSettlementException(string operation, TransportReceivedMessage message, Exception cause) =>
+		new($"Failed to {operation} RabbitMQ message '{message.Id}'.", cause)
+		{
+			TransportName = "RabbitMQ",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			// Settlement claims remove the receipt before native I/O; this receipt cannot be retried.
+			Retryability = SettlementRetryability.Permanent,
+		};
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)

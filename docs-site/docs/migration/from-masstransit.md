@@ -887,15 +887,9 @@ await dispatcher.DispatchAsync(@event, CancellationToken.None);
 
 ## Performance Comparison
 
-| Metric | MassTransit (RabbitMQ) | Excalibur (SQL Outbox) |
-|--------|------------------------|--------------------------------|
-| Publish latency | ~2-5ms | ~3-7ms (includes DB write) |
-| Throughput | ~10,000 msg/sec | ~2,000 msg/sec (depends on DB) |
-| Message ordering | Per-queue | Per-aggregate (event sourcing) |
-| Delivery guarantee | At-least-once | Exactly-once (via outbox) |
-| Infrastructure | Requires broker | Database only |
+Compare performance using the same payloads, concurrency, batching, durability settings and completion boundary. Distinguish accepting a publish request, committing an outbox row and completing consumer processing; each measures different work.
 
-**Conclusion:** MassTransit has higher throughput for high-volume scenarios, but Dispatch provides stronger consistency guarantees and simpler infrastructure.
+The [benchmark results and evidence scope](../performance/competitor-comparison.md) describe the available local measurements. They do not establish RabbitMQ-versus-SQL-outbox throughput or latency. Measure the intended deployment before choosing infrastructure or setting capacity targets, and verify ordering, duplicate handling and failure recovery separately.
 
 ## Getting Help
 

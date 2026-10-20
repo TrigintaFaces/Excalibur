@@ -4,7 +4,7 @@ This sample demonstrates how to use `Excalibur.Dispatch.Transport.AwsSqs` for pu
 
 ## Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Docker](https://www.docker.com/products/docker-desktop) (for running LocalStack)
 - [AWS CLI](https://aws.amazon.com/cli/) (optional, for queue management)
 - [LocalStack CLI](https://docs.localstack.cloud/getting-started/installation/) (optional)
@@ -35,6 +35,12 @@ aws --endpoint-url=http://localhost:4566 sqs list-queues
 dotnet run
 ```
 
+For a finite local verification run, publish the three sample orders and stop the host:
+
+```bash
+dotnet run -- --Sample:RunOnce true
+```
+
 ## What This Sample Demonstrates
 
 ### Message Publishing
@@ -52,6 +58,8 @@ await dispatcher.DispatchAsync(order, context, cancellationToken: default);
 builder.Services.AddAwsSqsTransport("sqs", sqs =>
 {
     sqs.UseRegion("us-east-1")
+        .UseMaxRetryAttempts(2)
+        .UseRequestTimeout(TimeSpan.FromSeconds(10))
         .MapQueue<OrderPlacedEvent>(queueUrl);
 });
 ```
@@ -59,19 +67,33 @@ builder.Services.AddAwsSqsTransport("sqs", sqs =>
 ### LocalStack Client Configuration
 
 ```csharp
-builder.Services.AddSingleton<IAmazonSQS>(_ =>
+builder.Services.AddKeyedSingleton<IAmazonSQS>("sqs", (_, _) =>
 {
     var config = new AmazonSQSConfig
     {
         RegionEndpoint = RegionEndpoint.USEast1,
         ServiceURL = "http://localhost:4566",
         UseHttp = true,
+        MaxErrorRetry = 0,
+        MaxStaleConnectionRetries = 0,
     };
     return new AmazonSQSClient(
         new BasicAWSCredentials("test", "test"),
         config);
 });
 ```
+
+The client key must match the transport name. An unkeyed client does not override the
+named transport's client. This custom LocalStack client disables both SDK retry loops;
+the framework owns foreground send retries, while an outbox or pipeline retry owner
+suppresses that additional send policy for its exact message and context. Two configured
+retries allow at most three foreground SDK send operations, with one total ten-second
+deadline for each send execution. Caller cancellation remains effective.
+
+Production uses the framework registration without a custom SDK client. It separates
+send retry ownership from the receive client's SDK settings. An injected client with
+SDK retries enabled cannot be used inside a framework-owned send budget; configure
+both SDK retry settings to zero for that use.
 
 ### Routing Rules
 
@@ -81,21 +103,38 @@ Messages are routed to AWS SQS based on type:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+    dispatch.WithSerialization(serialization => serialization.RegisterSystemTextJson().UseSystemTextJson());
     dispatch.UseRouting(routing =>
-        routing.Transport.Route<OrderPlacedEvent>().To("sqs"));
+    {
+        routing.Transport.Route<OrderPlacedEvent>().To("sqs");
+        routing.Endpoints.Route<OrderPlacedEvent>().To("sqs");
+    });
+    dispatch.UseMiddleware<RoutingMiddleware>();
 });
 ```
 
+The pipeline explicitly includes routing middleware and selects a remote endpoint.
+Transport selection alone can still leave an event on the local handler path.
+
 ### Outbox Pattern
 
-The sample uses the outbox pattern for reliable messaging:
+The sample registers the framework outbox and inbox services:
 
 ```csharp
-builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
-builder.Services.AddOutboxHostedService();
+builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
+    outbox.UseInMemory().EnableBackgroundProcessing()));
+builder.Services.AddInMemoryInboxStore();
 builder.Services.AddInboxHostedService();
 ```
+
+Registering a store does not automatically stage directly dispatched events. This
+transport demonstration publishes its three events directly; buffering handler-produced
+events requires `dispatch.UseOutbox()` and the framework `IOutboxWriter`, as shown in the
+[outbox template](../../../templates/excalibur-outbox/README.md).
+
+The sample's in-memory stores are volatile and lose state when the process exits. Use
+durable providers for production recovery. Successful dispatch is checked before the
+sample logs an order as published; compilation alone does not verify broker delivery.
 
 ## Project Structure
 
@@ -141,10 +180,17 @@ The `init-sqs.sh` script configures a DLQ for failed message handling. Messages 
 For ordered, exactly-once delivery, enable FIFO queues:
 
 ```csharp
-opts.UseFifoQueue = true;
-opts.ContentBasedDeduplication = true;
+// FIFO is configured through its own builder, not a boolean flag. Supplying the
+// builder at all is what marks the adapter as FIFO.
+opts.ConfigureFifo(fifo => fifo
+    .ContentBasedDeduplication(true));
+
 // Queue name must end with .fifo
 ```
+
+`ConfigureFifo` also exposes `MessageGroupIdSelector` and `DeduplicationIdSelector` when you need to
+derive the group or deduplication id from the message rather than relying on content-based
+deduplication.
 
 ### Long Polling
 

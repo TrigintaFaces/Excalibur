@@ -112,7 +112,7 @@ protected override bool ApplyEventInternal(IDomainEvent @event)
 
 :::tip Performance Optimization
 
-This pattern-matching approach achieves **under 10 nanoseconds** per event application because:
+Direct pattern matching avoids reflective handler lookup:
 - No reflection is used
 - No dictionary lookups
 - The JIT compiler can inline the switch

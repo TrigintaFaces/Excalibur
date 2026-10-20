@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// Benchmarks for MessageContext creation and operations.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class MessageContextBenchmarks
 {
 	private IServiceProvider _serviceProvider = null!;

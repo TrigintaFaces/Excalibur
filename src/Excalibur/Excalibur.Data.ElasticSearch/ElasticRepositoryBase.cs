@@ -9,6 +9,7 @@ using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
 
 using Excalibur.Data.ElasticSearch.Exceptions;
+using Excalibur.Data.ElasticSearch.Internal;
 
 namespace Excalibur.Data.ElasticSearch;
 
@@ -47,10 +48,12 @@ public abstract class ElasticRepositoryBase<
 	}
 
 	/// <inheritdoc />
-	public virtual Task InitializeAsync(CancellationToken cancellationToken) =>
-
-		// Base implementation does nothing - derived classes can override
-		Task.CompletedTask;
+	/// <remarks>
+	/// Provisions the index by invoking <see cref="InitializeIndexAsync(CancellationToken)" />. The index
+	/// initializer set is enumerated once at start-up and this is the member it awaits, so a repository
+	/// declares how its index is created by overriding that one method and nothing else.
+	/// </remarks>
+	public virtual Task InitializeAsync(CancellationToken cancellationToken) => InitializeIndexAsync(cancellationToken);
 
 	/// <inheritdoc />
 	public virtual async Task<TDocument?> GetByIdAsync(string documentId, CancellationToken cancellationToken)
@@ -179,8 +182,19 @@ public abstract class ElasticRepositoryBase<
 			response.ApiCallDetails?.ToString() ?? "No API details available", exception);
 	}
 
-	/// <inheritdoc />
-	public abstract Task InitializeIndexAsync(CancellationToken cancellationToken);
+	/// <summary>
+	/// Provisions this repository's index. Called by <see cref="InitializeAsync" />.
+	/// </summary>
+	/// <remarks>
+	/// Does nothing by default, because an index is not always the repository's to create: a repository
+	/// reading a projection index must leave it to the projection store, whose mapping declares the
+	/// position field and applies the configured conventions and settings. Override this to provision an
+	/// index this repository owns -- <see cref="InitializeIndexWithMappingsAsync" /> derives the mapping
+	/// from <typeparamref name="TDocument" />.
+	/// </remarks>
+	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
+	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
+	public virtual Task InitializeIndexAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 	/// <summary>
 	/// Initializes the Elasticsearch index using a specific <see cref="CreateIndexRequest" />.
@@ -188,12 +202,25 @@ public abstract class ElasticRepositoryBase<
 	/// <param name="createIndexRequest"> The request configuration for creating the index. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	/// <exception cref="InvalidOperationException"> Thrown if the index does not exist and cannot be created. </exception>
 	protected async Task InitializeIndexAsync(CreateIndexRequest createIndexRequest, CancellationToken cancellationToken)
 	{
+		// Exists, not IsValidResponse: the question is whether the index is there, and a transport-level
+		// answer to a different question would have skipped provisioning entirely.
 		var exists = await _client.Indices.ExistsAsync(_indexName, cancellationToken).ConfigureAwait(false);
-		if (!exists.IsValidResponse)
+		if (exists.Exists)
 		{
-			_ = await _client.Indices.CreateAsync(createIndexRequest, cancellationToken).ConfigureAwait(false);
+			return;
+		}
+
+		var createResponse = await _client.Indices.CreateAsync(createIndexRequest, cancellationToken).ConfigureAwait(false);
+
+		// Raise rather than return: the settings and mappings this request carries are discarded if it
+		// failed, and the first write would then auto-create the index with a dynamically inferred mapping.
+		if (ElasticIndexProvisioning.Failed(createResponse))
+		{
+			throw new InvalidOperationException(
+				$"Failed to create index '{_indexName}': {createResponse.ApiCallDetails?.ToString() ?? "Unknown error"}");
 		}
 	}
 
@@ -249,7 +276,7 @@ public abstract class ElasticRepositoryBase<
 			}, cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!createResponse.IsValidResponse && !createResponse.Acknowledged)
+		if (ElasticIndexProvisioning.Failed(createResponse))
 		{
 			throw new InvalidOperationException(
 				$"Failed to create index '{_indexName}': {createResponse.ApiCallDetails}");

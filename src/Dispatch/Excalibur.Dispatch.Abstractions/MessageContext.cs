@@ -21,11 +21,15 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	private static readonly IMessageVersionMetadata DefaultVersionMetadata = new MessageVersionMetadata();
 	private static readonly IValidationResult DefaultValidationResult = SerializableValidationResult.Success();
 	private static readonly IAuthorizationResult DefaultAuthorizationResult = Excalibur.Dispatch.AuthorizationResult.Success();
+	private static readonly object RoutingDefaultMarker = true;
 
 	/// <summary>
 	/// Lazily initialized items dictionary. Only allocated when first write occurs.
 	/// </summary>
 	private Dictionary<string, object>? _items;
+
+	// An explicitly assigned null is still a present dictionary entry.
+	private bool _messageTypeWasSet;
 
 	/// <summary>
 	/// Lazily initialized features dictionary. Only allocated when first feature is set.
@@ -302,14 +306,14 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 				// Values kept in dedicated fields for the hot path still belong to Items from a caller's
 				// point of view -- transports and telemetry enumerate this dictionary. Seed them on the
 				// first materialization so the dictionary's contents are unchanged by the hoisting.
-				if (MessageTypeName is not null)
+				if (_messageTypeWasSet)
 				{
-					_items[MessageContextExtensions.MessageTypeKey] = MessageTypeName;
+					_items[MessageContextExtensions.MessageTypeKey] = MessageTypeName!;
 				}
 
 				if (MessageTypeIsRoutingDefault)
 				{
-					_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = true;
+					_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = RoutingDefaultMarker;
 				}
 			}
 
@@ -325,12 +329,23 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	internal void SetMessageTypeFast(string? value)
 	{
 		MessageTypeName = value;
+		_messageTypeWasSet = true;
 
 		if (_items is not null)
 		{
 			_items[MessageContextExtensions.MessageTypeKey] = value!;
 		}
 	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal string? GetMessageTypeFast() => _items is null
+		? MessageTypeName
+		: _items.TryGetValue(MessageContextExtensions.MessageTypeKey, out var value) ? value as string : null;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool IsMessageTypeRoutingDefaultFast() => _items is null
+		? MessageTypeIsRoutingDefault
+		: _items.TryGetValue(MessageContextExtensions.MessageTypeIsRoutingDefaultKey, out var value) && value is true;
 
 	/// <summary>
 	/// Records the routing-default marker without touching <see cref="Items"/> unless that dictionary
@@ -343,7 +358,56 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 
 		if (_items is not null)
 		{
-			_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = true;
+			_items[MessageContextExtensions.MessageTypeIsRoutingDefaultKey] = RoutingDefaultMarker;
+		}
+	}
+
+	/// <summary>
+	/// Reads the logical item bag without allocating its deferred dictionary.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool TryGetItemWithoutMaterializing(string key, out object? value)
+	{
+		ArgumentNullException.ThrowIfNull(key);
+		if (_items is not null)
+		{
+			return _items.TryGetValue(key, out value);
+		}
+
+		if (key == MessageContextExtensions.MessageTypeKey && _messageTypeWasSet)
+		{
+			value = MessageTypeName;
+			return true;
+		}
+
+		if (key == MessageContextExtensions.MessageTypeIsRoutingDefaultKey && MessageTypeIsRoutingDefault)
+		{
+			value = RoutingDefaultMarker;
+			return true;
+		}
+
+		value = null;
+		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void RemoveItemWithoutMaterializing(string key)
+	{
+		ArgumentNullException.ThrowIfNull(key);
+		if (_items is not null)
+		{
+			_items.Remove(key);
+			return;
+		}
+
+		if (key == MessageContextExtensions.MessageTypeKey)
+		{
+			MessageTypeName = null;
+			_messageTypeWasSet = false;
+		}
+		else if (key == MessageContextExtensions.MessageTypeIsRoutingDefaultKey)
+		{
+			MessageTypeIsRoutingDefault = false;
 		}
 	}
 
@@ -468,6 +532,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 
 		// These were set during InitializeDirectLocalContext, always reset them.
 		MessageTypeName = null;
+		_messageTypeWasSet = false;
 		MessageTypeIsRoutingDefault = false;
 		_correlationIdLazyEnabled = false;
 		_correlationIdWasExplicitlySet = false;

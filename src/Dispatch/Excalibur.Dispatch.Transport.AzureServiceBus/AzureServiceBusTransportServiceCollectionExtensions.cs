@@ -226,6 +226,7 @@ public static class AzureServiceBusTransportServiceCollectionExtensions
 
 			return new AzureServiceBusMessageBus(client, serializer, options, logger);
 		});
+		_ = services.AddRemoteMessageBus(name, sp => sp.GetRequiredKeyedService<AzureServiceBusMessageBus>(name));
 
 		// Unkeyed convenience registrations for the single-transport host. TryAdd*, so the
 		// first-registered named transport wins -- a multi-transport host must resolve the keyed

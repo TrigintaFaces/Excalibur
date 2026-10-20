@@ -103,7 +103,7 @@ public sealed class SchemaEvolutionHandlerMigrationStrategyShould
 		IMigrationHistoryStore migrationHistory,
 		IIndexInspection inspection,
 		IIndexAliasManager aliasManager,
-		IOptions<ProjectionOptions> options,
+		IOptions<ElasticSearchProjectionManagementOptions> options,
 		ILogger<SchemaEvolutionHandler> logger) CreateSeamFakes()
 	{
 		var ops = A.Fake<ISchemaEvolutionOperations>();
@@ -111,7 +111,7 @@ public sealed class SchemaEvolutionHandlerMigrationStrategyShould
 		var migrationHistory = A.Fake<IMigrationHistoryStore>();
 		var inspection = A.Fake<IIndexInspection>();
 		var aliasManager = A.Fake<IIndexAliasManager>();
-		var options = Options.Create(new ProjectionOptions
+		var options = Options.Create(new ElasticSearchProjectionManagementOptions
 		{
 			IndexPrefix = "test",
 			SchemaEvolution = new SchemaEvolutionOptions { AllowBreakingChanges = false },

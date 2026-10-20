@@ -35,6 +35,10 @@ public static class MessageMetadataExtensions
 	/// <summary>
 	/// Updates an IMessageContext with values from unified metadata.
 	/// </summary>
+	/// <remarks>
+	/// This is an explicit adapter for callers that already hold metadata and a context.
+	/// Call it to copy those values; this method is not registered as ingress middleware.
+	/// </remarks>
 	public static void ApplyToContext(this IMessageMetadata metadata, IMessageContext context)
 	{
 		ArgumentNullException.ThrowIfNull(metadata);

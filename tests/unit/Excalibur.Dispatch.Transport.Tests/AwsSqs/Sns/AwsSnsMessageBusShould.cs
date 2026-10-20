@@ -122,8 +122,10 @@ public sealed class AwsSnsMessageBusShould : IAsyncDisposable
 	[Fact]
 	public async Task DisposeClient()
 	{
+		var ownedBus = new AwsSnsMessageBus(_snsClient, _serializer, _options,
+			NullLogger<AwsSnsMessageBus>.Instance, ownsClient: true);
 		// Act
-		await _bus.DisposeAsync();
+		await ownedBus.DisposeAsync();
 
 		// Assert
 		A.CallTo(() => _snsClient.Dispose()).MustHaveHappenedOnceExactly();

@@ -1,7 +1,12 @@
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Metrics;
+using Excalibur.Saga.Orchestration;
+using Company.ExcaliburSaga.Messages;
+using Company.ExcaliburSaga.Sagas;
 #if (UseSqlServer)
 using Excalibur.Saga.SqlServer.DependencyInjection;
+#elif (UsePostgreSql)
+using Excalibur.Saga.Postgres.DependencyInjection;
 #endif
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,10 +50,25 @@ builder.Services.AddExcalibur(excalibur => excalibur
     {
 #if (UseSqlServer)
         saga.UseSqlServer(sql => sql.ConnectionStringName("SagaStore"));
+#elif (UsePostgreSql)
+        saga.UsePostgres(pg => pg.ConnectionStringName("SagaStore"));
+#elif (UseInMemoryDatabase)
+        saga.WithInMemoryStore();
 #endif
         saga.WithCoordination()
+            // In-memory timeout storage is a single-process demonstration and is lost on restart.
+            // A durable timeout store registered by the selected provider takes precedence.
+            .WithTimeouts()
             .WithInstrumentation();
     }));
+
+builder.Services.AddSaga<OrderSaga, OrderSagaState>();
+SagaRegistry.Register<OrderSaga, OrderSagaState>(saga => saga
+    .StartsWith<StartOrderProcessing>()
+    .Handles<PaymentCollected>()
+    .Handles<InventoryReserved>()
+    .Handles<OrderShipped>()
+    .Handles<PaymentTimedOut>());
 
 // OpenTelemetry: one call registers all Dispatch meters + activity sources
 builder.Services.AddOpenTelemetry()

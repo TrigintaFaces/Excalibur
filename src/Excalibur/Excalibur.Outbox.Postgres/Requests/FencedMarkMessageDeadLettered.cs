@@ -59,6 +59,7 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequest<FencedClaimMut
 	/// Initializes a new instance of the <see cref="FencedMarkMessageDeadLettered"/> class.
 	/// </summary>
 	/// <param name="messageId">The unique identifier of the message to dead-letter.</param>
+	/// <param name="attemptCount">The absolute number of observed logical send attempts.</param>
 	/// <param name="reason">The reason recorded against the dead-lettered message.</param>
 	/// <param name="fencingToken">The caller's leadership tenure token.</param>
 	/// <param name="outboxTableName">The qualified name of the outbox table.</param>
@@ -69,6 +70,7 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequest<FencedClaimMut
 	public FencedMarkMessageDeadLettered(
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		string outboxTableName,
 		string deadLetterTableName,
@@ -76,37 +78,40 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequest<FencedClaimMut
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
 		ArgumentException.ThrowIfNullOrWhiteSpace(outboxTableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(deadLetterTableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(fenceTableName);
 
+		// Lock the source before copying. Check archive/delete counts inside the command
+		// so trigger-suppressed deletion raises and rolls back the entire terminal transition.
 		var sql = $"""
 		   WITH fence AS (
-		           INSERT INTO {fenceTableName} AS f (scope_key, high_water_token)
-		               VALUES (@ScopeKey, @Token)
-		               ON CONFLICT (scope_key) DO UPDATE
-		                   SET high_water_token = GREATEST(f.high_water_token, @Token)
-		               RETURNING high_water_token
-		           ),
-		           moved AS (
-		               INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-		               SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, @Reason
-		               FROM {outboxTableName}
-		               WHERE message_id = @MessageId
-		                 AND (SELECT high_water_token FROM fence) = @Token
-		               RETURNING message_id
-		           ),
-		           del AS (
-		               DELETE FROM {outboxTableName}
-		               WHERE message_id = @MessageId
-		                 AND EXISTS (SELECT 1 FROM moved)
-		               RETURNING message_id
-		           )
-		           SELECT (SELECT high_water_token FROM fence) AS HighWaterToken,
-		                  (SELECT COUNT(*) FROM del)::int AS UpdatedCount,
-		                  EXISTS (SELECT 1 FROM {outboxTableName} WHERE message_id = @MessageId) AS RowExists;
+		   INSERT INTO {fenceTableName} AS f (scope_key, high_water_token)
+		   VALUES (@ScopeKey, @Token)
+		   ON CONFLICT (scope_key) DO UPDATE SET high_water_token = GREATEST(f.high_water_token, @Token)
+		   RETURNING high_water_token
+		   ),
+		   source AS MATERIALIZED (
+		   SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts FROM {outboxTableName}
+		   WHERE message_id = @MessageId AND (SELECT high_water_token FROM fence) = @Token
+		   FOR UPDATE
+		   ), archived AS (
+		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+		   SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, GREATEST(attempts, @AttemptCount), @Reason
+		   FROM source RETURNING message_id
+		   ), deleted AS (
+		   DELETE FROM {outboxTableName} o USING archived a
+		   WHERE o.message_id = a.message_id RETURNING o.message_id
+		   ), counts AS (
+		   SELECT (SELECT COUNT(*) FROM archived)::int AS inserted_count,
+		   (SELECT COUNT(*) FROM deleted)::int AS deleted_count
+		   )
+		   SELECT (SELECT high_water_token FROM fence) AS HighWaterToken,
+		   inserted_count / CASE WHEN inserted_count = deleted_count THEN 1 ELSE 0 END AS UpdatedCount
+		   FROM counts;
 		   """;
 
 		var parameters = new DynamicParameters();
@@ -114,6 +119,7 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequest<FencedClaimMut
 		parameters.Add("Token", fencingToken, direction: ParameterDirection.Input);
 		parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
 		parameters.Add("Reason", reason, direction: ParameterDirection.Input);
+		parameters.Add("AttemptCount", attemptCount, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds,
 			cancellationToken: cancellationToken);

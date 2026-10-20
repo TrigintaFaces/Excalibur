@@ -10,6 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Registry
 	/// </summary>
 	[Trait("Category", TestCategories.Unit)]
 	[Trait("Component", TestComponents.Messaging)]
+	[Trait("Pattern", "Registration")]
 	public sealed class MessageTypeRegistryShould
 	{
 		public enum NameForm
@@ -19,6 +20,84 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Registry
 			FullNameWithAssembly,
 			SimpleName,
 		}
+
+		[Fact]
+		public void ResolveDeclaredHistoricalAliasesToTheExactCurrentType()
+		{
+			MessageTypeRegistry.RegisterType<AliasProbe>();
+			MessageTypeRegistry.TryGetType("arb-registry-alias-old", out var resolved).ShouldBeTrue();
+			resolved.ShouldBe(typeof(AliasProbe));
+			MessageTypeRegistry.TryGetType("arb-registry-alias-current", out var current).ShouldBeTrue();
+			current.ShouldBe(resolved);
+		}
+
+		[Fact]
+		public void KeepCompetingAliasesPermanentlyAmbiguous()
+		{
+			MessageTypeRegistry.RegisterType<AliasFirst>();
+			MessageTypeRegistry.RegisterType<AliasSecond>();
+			MessageTypeRegistry.RegisterType<AliasFirst>();
+			MessageTypeRegistry.TryGetType("arb-registry-alias-shared", out _).ShouldBeFalse();
+			MessageTypeRegistry.TryGetType(typeof(AliasFirst).AssemblyQualifiedName!, out var first).ShouldBeTrue();
+			first.ShouldBe(typeof(AliasFirst));
+			MessageTypeRegistry.TryGetType(typeof(AliasSecond).AssemblyQualifiedName!, out var second).ShouldBeTrue();
+			second.ShouldBe(typeof(AliasSecond));
+		}
+
+		[Fact]
+		public void RefuseAnAliasThatConflictsWithAnotherPrimaryName()
+		{
+			MessageTypeRegistry.RegisterType<AliasPrimary>();
+			MessageTypeRegistry.RegisterType<AliasPrimaryCompetitor>();
+			MessageTypeRegistry.TryGetType("arb-registry-alias-primary", out _).ShouldBeFalse();
+			MessageTypeRegistry.TryGetType(typeof(AliasPrimary).AssemblyQualifiedName!, out var primary).ShouldBeTrue();
+			primary.ShouldBe(typeof(AliasPrimary));
+		}
+
+		[Fact]
+		public async Task PreserveAliasCollisionRefusalAfterCompetingRegistrations()
+		{
+			await Task.WhenAll(Task.Run(() => MessageTypeRegistry.RegisterType<AliasFirst>()),
+				Task.Run(() => MessageTypeRegistry.RegisterType<AliasSecond>()));
+			MessageTypeRegistry.TryGetType("arb-registry-alias-shared", out _).ShouldBeFalse();
+			MessageTypeRegistry.TryGetType("arb-registry-alias-first", out var first).ShouldBeTrue();
+			first.ShouldBe(typeof(AliasFirst));
+		}
+
+		[Fact]
+		public void RefuseAnUnqualifiedGenericAliasSharedByTwoConstructions()
+		{
+			MessageTypeRegistry.RegisterType<GenericAlias<int>>();
+			MessageTypeRegistry.RegisterType<GenericAlias<string>>();
+			MessageTypeRegistry.TryGetType("arb-registry-generic-alias-old", out _).ShouldBeFalse();
+			MessageTypeRegistry.TryGetType(MessageNameHelper.GetName(typeof(GenericAlias<int>)), out var integer).ShouldBeTrue();
+			integer.ShouldBe(typeof(GenericAlias<int>));
+			MessageTypeRegistry.TryGetType(MessageNameHelper.GetName(typeof(GenericAlias<string>)), out var text).ShouldBeTrue();
+			text.ShouldBe(typeof(GenericAlias<string>));
+		}
+
+		[MessageName("arb-registry-alias-current")]
+		[MessageNameAlias("arb-registry-alias-old")]
+		private sealed class AliasProbe : IDispatchEvent;
+
+		[MessageName("arb-registry-alias-first")]
+		[MessageNameAlias("arb-registry-alias-shared")]
+		private sealed class AliasFirst : IDispatchEvent;
+
+		[MessageName("arb-registry-alias-second")]
+		[MessageNameAlias("arb-registry-alias-shared")]
+		private sealed class AliasSecond : IDispatchEvent;
+
+		[MessageName("arb-registry-alias-primary")]
+		private sealed class AliasPrimary : IDispatchEvent;
+
+		[MessageName("arb-registry-alias-competitor")]
+		[MessageNameAlias("arb-registry-alias-primary")]
+		private sealed class AliasPrimaryCompetitor : IDispatchEvent;
+
+		[MessageName("arb-registry-generic-alias")]
+		[MessageNameAlias("arb-registry-generic-alias-old")]
+		private sealed class GenericAlias<T> : IDispatchEvent;
 
 		[Fact]
 		public void ResolveTheBareFullNameTheOutboxStages()

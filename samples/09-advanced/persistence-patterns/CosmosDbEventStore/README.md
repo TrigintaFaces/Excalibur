@@ -7,7 +7,7 @@ This sample demonstrates how to use **Azure Cosmos DB** as an event store with *
 - **Cosmos DB Event Store** - Persistent event storage with global distribution
 - **Partition Key Strategy** - Events partitioned by stream ID for optimal performance
 - **Transactional Batch** - Atomic writes for multiple events
-- **Change Feed Support** - Subscribe to event changes for projections
+- **Change Feed Support** - Available in the provider; this program does not demonstrate a subscription
 - **Local Development** - Works with Cosmos DB Emulator
 
 ## Prerequisites
@@ -36,9 +36,20 @@ The emulator runs at `https://localhost:8081/` with a well-known key.
 # Build
 dotnet build
 
-# Run (will use emulator if no connection string configured)
-dotnet run
+# Real persistence: configure CosmosDb__ConnectionString first, including for the emulator
+dotnet run -- --real
+
+# Offline illustration: explicitly selected, no database operations
+dotnet run -- --illustrative
 ```
+
+The default is real mode. Connection, reload and state-verification failures exit unsuccessfully;
+they never switch to illustrative output. Real operations share a 60-second cancellation deadline.
+The sample verifies the reloaded account's identity, balance, status, transaction count and version
+using a fresh service provider and repository.
+Configured emulator credentials are preserved. Set the emulator's connection string explicitly;
+the sample does not supply account credentials. `DatabaseName` and `ContainerName` are used by the
+database initialization and event-store configuration.
 
 ## Configuration
 
@@ -145,7 +156,7 @@ var account = BankAccountAggregate.Open(
 await repository.SaveAsync(account, cancellationToken);
 
 // Load and modify
-var loaded = await repository.LoadAsync(accountId, cancellationToken);
+var loaded = await repository.GetByIdAsync(accountId, cancellationToken);
 loaded.Deposit(500m, "Paycheck");
 await repository.SaveAsync(loaded, cancellationToken);
 ```
@@ -245,8 +256,8 @@ options.HttpClientFactory = () =>
 
 - [SQL Server Event Store](../SqlServerEventStore/) - Alternative provider
 - [Snapshot Strategies](../SnapshotStrategies/) - Performance optimization
-- [Event Upcasting](../EventUpcasting/) - Schema evolution
-- [EventSourcingIntro](../../01-getting-started/EventSourcingIntro/) - CQRS basics
+- [Event Upcasting](../../advanced/Versioning.Examples/EventUpcasting/) - Schema evolution
+- [EventSourcingIntro](../../../01-getting-started/EventSourcingIntro/) - CQRS basics
 
 ## Learn More
 

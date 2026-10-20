@@ -419,13 +419,13 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 	#region Options Configuration Tests
 
 	[Fact]
-	public void Options_HaveCorrectDefaultNodeUri()
+	public void Options_HaveNoDefaultNodeUriAndRefuseValidationWithoutOne()
 	{
-		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
-		// Assert
-		options.NodeUri.ShouldBe("http://localhost:9200");
+		// No node default, so the required-node check in Validate() is reachable.
+		options.NodeUri.ShouldBeEmpty();
+		_ = Should.Throw<InvalidOperationException>(options.Validate);
 	}
 
 	[Fact]

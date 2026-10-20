@@ -14,7 +14,7 @@ namespace Excalibur.Compliance.Tests.Encryption;
 // Durable-capability transparency across the encrypting store decorators, which become the resolved
 // IInboxStore / IOutboxStore in opt-in encryption scenarios.
 //
-// TWO DIFFERENT SEAMS, and this file now spans both — deliberately, because the divergence IS the finding.
+// TWO DIFFERENT SEAMS, and this file now spans both â€” deliberately, because the divergence IS the finding.
 //
 //   INBOX  (EncryptingInboxStoreDecorator, unchanged): still declares IProcessingTrackingInboxStore and forwards
 //          MarkProcessingAsync to a capable inner, throwing NotSupportedException over a non-capable one. The old
@@ -27,16 +27,16 @@ namespace Excalibur.Compliance.Tests.Encryption;
 //              incapable inner -> GetService returns null   (deny-by-default; the honest absence)
 //
 // THE OUTBOX INVERSION, RECORDED NOT DELETED. `ThrowNotSupported_WhenOutboxInnerCannotDeadLetter` asserted a THROW
-// over a non-capable inner — correct while the decorator declared the interface unconditionally. The ruled seam
+// over a non-capable inner â€” correct while the decorator declared the interface unconditionally. The ruled seam
 // removes the declaration, so the honest signal is a null from GetService, not a throw the consumer never asked
 // for. The degradation did not vanish; it moved to the consumer entitled to choose it. The arm is inverted (verdict
 // flipped, capability still named and pinned in BOTH directions), never relaxed, and each outbox arm carries its
 // own non-vacuity/liveness half so a GetService that answered null to everything cannot pass it.
 //
-// FIXTURE HONESTY. A bare FakeItEasy fake answers GetService with null for every type — including interfaces it
+// FIXTURE HONESTY. A bare FakeItEasy fake answers GetService with null for every type â€” including interfaces it
 // demonstrably implements. Forwarding through such a fake reports the capability absent even when present, a false
 // RED that looks like diligence. So the outbox fakes answer GetService the way a real store does: return the inner
-// for a capability it implements, null otherwise. Independent engage-test (author≠impl).
+// for a capability it implements, null otherwise. Independent engage-test (authorâ‰ impl).
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
 public sealed class EncryptingDecoratorCapabilityTransparencyShould
@@ -93,12 +93,12 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 		deadLetterable.ShouldNotBeNull(
 			"A capable inner must be discoverable as IDeadLetterableOutboxStore through the encrypting decorator. " +
 			"If null, the forwardable-capability path is broken and dead-lettering silently disappears behind " +
-			"encryption — the terminal-DeadLettered guarantee is lost with no throw and no log.");
+			"encryption â€” the terminal-DeadLettered guarantee is lost with no throw and no log.");
 
-		await deadLetterable.MarkDeadLetteredAsync("msg-1", "retries exhausted", CancellationToken.None);
+		await deadLetterable.MarkDeadLetteredAsync("msg-1", "retries exhausted", 0, CancellationToken.None);
 
 		A.CallTo(() => ((IDeadLetterableOutboxStore)inner)
-				.MarkDeadLetteredAsync("msg-1", "retries exhausted", A<CancellationToken>._))
+				.MarkDeadLetteredAsync("msg-1", "retries exhausted", A<int>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -130,7 +130,7 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 	/// The FENCED dead-letter route must survive the decorator. SAFETY.
 	/// </summary>
 	/// <remarks>
-	/// <b>The bare-fixture arm that locks this route is structurally blind to the forwarding half</b> — it
+	/// <b>The bare-fixture arm that locks this route is structurally blind to the forwarding half</b> â€” it
 	/// implements the capability directly with no decorator present, so it passes whether or not the
 	/// decorator forwards. Without this arm, a decorated store advertises the capability at compile time and
 	/// answers absent at runtime, which is the exact failure the interface's own remarks describe: a cast
@@ -138,7 +138,7 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 	/// <para>
 	/// The consequence is specific and irreversible. The drain picks the fenced TERMINAL route from this
 	/// probe. Denied, it falls back to the unfenced one, and a superseded tenure's dead-letter decision is
-	/// applied with no leadership check — for precisely the consumers who enabled crypto-shredding.
+	/// applied with no leadership check â€” for precisely the consumers who enabled crypto-shredding.
 	/// </para>
 	/// </remarks>
 	[Fact]
@@ -155,10 +155,10 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 			+ "decorator. If null, the drain takes the UNFENCED terminal route and a superseded tenure's "
 			+ "dead-letter decision is applied with no leadership check.");
 
-		_ = await fenced.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7L, CancellationToken.None);
+		_ = await fenced.MarkDeadLetteredAsync("msg-1", "retries exhausted", 0, 7L, CancellationToken.None);
 
 		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)inner)
-				.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7L, A<CancellationToken>._))
+				.MarkDeadLetteredAsync("msg-1", "retries exhausted", A<int>._, 7L, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -181,7 +181,7 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 	/// <remarks>
 	/// This capability is unlike the others in the file: it does not move data, it REPORTS ON THE STORE'S
 	/// OWN SHAPE. Denied, it read as absent, and a delete-on-sent store became indistinguishable from a
-	/// sent-tracking one for every consumer who enabled crypto-shredding — so callers and the conformance
+	/// sent-tracking one for every consumer who enabled crypto-shredding â€” so callers and the conformance
 	/// kit went looking for a row that store had already deleted. A decorator answering a question about
 	/// the store underneath is not merely advertising what it cannot honour; it is giving a wrong answer
 	/// about someone else.
@@ -285,11 +285,11 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 	[Fact]
 	public void ResolveNull_ForDeadLettering_WhenOutboxInnerCannotDeadLetter()
 	{
-		// INVERTED from ThrowNotSupported_WhenOutboxInnerCannotDeadLetter (recorded, not deleted — see the class
+		// INVERTED from ThrowNotSupported_WhenOutboxInnerCannotDeadLetter (recorded, not deleted â€” see the class
 		// header). The decorator no longer declares IDeadLetterableOutboxStore, so there is nothing to throw from.
 		// Deny-by-default: an incapable inner resolves to a HONEST null, which routes the consumer to its own
 		// documented fallback instead of a runtime exception it never requested.
-		var inner = HonestOutboxFake(); // IOutboxStore only — NOT IDeadLetterableOutboxStore
+		var inner = HonestOutboxFake(); // IOutboxStore only â€” NOT IDeadLetterableOutboxStore
 		var decorator = CreateOutboxDecorator(inner);
 
 		decorator.GetService(typeof(IDeadLetterableOutboxStore)).ShouldBeNull(
@@ -301,8 +301,8 @@ public sealed class EncryptingDecoratorCapabilityTransparencyShould
 	[Fact]
 	public void ResolveWorkingDeadLettering_OverACapableInner_LivenessForTheNullAssertion()
 	{
-		// NON-VACUITY for ResolveNull_… above: ShouldBeNull is satisfied by a decorator that answers null to EVERY
-		// type. The same capability, over a CAPABLE inner, must resolve non-null — otherwise the negative proves
+		// NON-VACUITY for ResolveNull_â€¦ above: ShouldBeNull is satisfied by a decorator that answers null to EVERY
+		// type. The same capability, over a CAPABLE inner, must resolve non-null â€” otherwise the negative proves
 		// nothing about dead-lettering specifically, only that the decorator resolves nothing at all.
 		var inner = HonestOutboxFake(b => b.Implements<IDeadLetterableOutboxStore>());
 		var decorator = CreateOutboxDecorator(inner);

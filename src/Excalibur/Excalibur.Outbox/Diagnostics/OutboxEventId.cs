@@ -255,6 +255,9 @@ internal static class OutboxEventId
 	/// <summary>A claim-scoped failure report found the message already sent or dead-lettered.</summary>
 	public const int OutboxFailureReportFoundTerminalMessage = 134010;
 
+	/// <summary>An unfenced dead-letter transition was refused by the store, so the outbox row still stands.</summary>
+	public const int OutboxDeadLetterRefused = 134011;
+
 	// ========================================
 	// 130200-130299: MessageOutbox
 	// ========================================

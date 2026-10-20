@@ -248,7 +248,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new QueryResponse
 			{
-				Items = [CreateItem("Order:agg-1", "evt-1", 1)],
+				Items = [CreateItem("t:__untenanted__:Order:agg-1", "evt-1", 1)],
 				LastEvaluatedKey = []
 			}));
 
@@ -258,6 +258,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var events = await eventStore.LoadAsync("agg-1", "Order", CancellationToken.None);
 
 		events.Count.ShouldBe(1);
+		events[0].TenantId.ShouldBe("__untenanted__");
 		events[0].EventId.ShouldBe("evt-1");
 		events[0].AggregateType.ShouldBe("Order");
 		events[0].Version.ShouldBe(1);
@@ -270,7 +271,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		_ = A.CallTo(() => client.QueryAsync(A<QueryRequest>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(new QueryResponse
 			{
-				Items = [CreateItem("Order:agg-1", "evt-7", 7)],
+				Items = [CreateItem("t:__untenanted__:Order:agg-1", "evt-7", 7)],
 				LastEvaluatedKey = []
 			}));
 
@@ -280,6 +281,7 @@ public sealed class DynamoDbEventStoreBehaviorShould : UnitTestBase
 		var events = await eventStore.LoadAsync("agg-1", "Order", fromVersion: 5, CancellationToken.None);
 
 		events.Count.ShouldBe(1);
+		events[0].TenantId.ShouldBe("__untenanted__");
 		events[0].EventId.ShouldBe("evt-7");
 		events[0].Version.ShouldBe(7);
 	}

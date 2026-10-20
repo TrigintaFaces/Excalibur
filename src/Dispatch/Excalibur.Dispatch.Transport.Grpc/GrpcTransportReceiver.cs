@@ -142,10 +142,14 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 
 			LogMessageAcknowledged(message.Id, Source);
 		}
-		catch (RpcException ex)
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
+		catch (Exception ex)
 		{
 			LogAcknowledgeFailed(message.Id, Source, ex);
-			throw;
+			throw SettlementFailed(message.Id, "acknowledge", ex);
 		}
 	}
 
@@ -182,10 +186,14 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 
 			LogMessageRejected(message.Id, Source, reason ?? "no reason");
 		}
-		catch (RpcException ex)
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
+		catch (Exception ex)
 		{
 			LogRejectFailed(message.Id, Source, ex);
-			throw;
+			throw SettlementFailed(message.Id, requeue ? "requeue" : "reject", ex);
 		}
 	}
 
@@ -283,6 +291,15 @@ internal sealed partial class GrpcTransportReceiver : ITransportReceiver
 
 			// The server reported a refusal without saying why, so this transport cannot tell a transient
 			// refusal from a permanent one. Saying so is honest; guessing Retryable would loop a caller.
+			Retryability = SettlementRetryability.Unspecified,
+		};
+
+	private TransportSettlementException SettlementFailed(string messageId, string action, Exception exception) =>
+		new($"The gRPC transport could not determine the outcome of {action} for message {messageId} on {Source}.", exception)
+		{
+			TransportName = "Grpc",
+			// An RPC fault can follow an accepted settlement whose response never reached this client.
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
 			Retryability = SettlementRetryability.Unspecified,
 		};
 

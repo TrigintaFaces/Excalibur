@@ -75,7 +75,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 				payload,
 				DatadogAuditJsonContext.Default.DatadogLogEntryArray);
 
-			var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+			using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -170,7 +170,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 					}
 				}
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
 				LogAuditExportBatchChunkError(ex);
 
@@ -220,7 +220,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 				DatadogAuditJsonContext.Default.DatadogLogEntryArray);
 
 			using var request = CreateRequest(json);
-			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+			using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			var isHealthy = response.IsSuccessStatusCode;
 			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
@@ -287,7 +287,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 			payloads,
 			DatadogAuditJsonContext.Default.DatadogLogEntryArray);
 
-		var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
+		using var response = await SendAsync(json, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -304,7 +304,8 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 	{
 		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
 		// resilience pipeline attached to the typed HttpClient in DI. The buffered request content is
-		// replayable, so the pipeline can safely re-send across attempts.
+		// replayable. Retrying after ambiguous server acceptance can still duplicate a log; replayability
+		// does not provide idempotency. Response-body timeout is outside this handler retry pipeline.
 		using var request = CreateRequest(json);
 		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}

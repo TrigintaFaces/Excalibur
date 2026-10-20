@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
 using System.Text;
 
 using Azure;
@@ -267,9 +266,8 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		var options = CreateDefaultOptions();
 		ApplyOverrides(options, overrides);
 
-		var provider = new AzureBlobClaimCheckProvider(Microsoft.Extensions.Options.Options.Create(options), NullLogger<AzureBlobClaimCheckProvider>.Instance);
-		var fakeContainer = A.Fake<BlobContainerClient>();
-		var fakeBlob = A.Fake<BlobClient>();
+		var fakeContainer = A.Fake<global::Azure.Storage.Blobs.BlobContainerClient>();
+		var fakeBlob = A.Fake<global::Azure.Storage.Blobs.BlobClient>();
 		var ensureCalls = 0;
 
 		A.CallTo(() => fakeContainer.CreateIfNotExistsAsync(
@@ -283,7 +281,9 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		A.CallTo(() => fakeContainer.GetBlobClient(A<string>._)).Returns(fakeBlob);
 		A.CallTo(() => fakeBlob.Uri).Returns(new Uri("https://unit-tests.local/container/blob"));
 
-		SetPrivateField(provider, "_containerClient", fakeContainer);
+		var provider = new AzureBlobClaimCheckProvider(
+			Microsoft.Extensions.Options.Options.Create(options),
+			NullLogger<AzureBlobClaimCheckProvider>.Instance, fakeContainer);
 
 		return (provider, fakeContainer, fakeBlob, () => ensureCalls);
 	}
@@ -318,12 +318,6 @@ public sealed class AzureBlobClaimCheckProviderDepthShould
 		options.IdPrefix = string.IsNullOrWhiteSpace(overrides.IdPrefix) ? options.IdPrefix : overrides.IdPrefix;
 	}
 
-	private static void SetPrivateField<T>(object instance, string fieldName, T value)
-	{
-		var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(instance, value);
-	}
 	/// <summary>
 	/// A well-formed identifier of the shape the provider mints: the configured prefix, the date partition
 	/// the identifier carries, and a 128-bit body.

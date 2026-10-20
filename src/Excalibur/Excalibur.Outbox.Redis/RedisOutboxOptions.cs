@@ -101,13 +101,14 @@ public sealed class RedisOutboxOptions
 	public int FailureBackoffFloorSeconds { get; set; } = 30;
 
 	/// <summary>
-	/// Gets or sets the identifier recorded as the lease owner of a claimed message (for diagnostics and
-	/// parity with the SQL Server outbox's <c>LeasedBy</c> column).
+	/// Gets or sets the identifier recorded as the lease owner of a claimed message.
+	/// Owner-checked completions use this same identifier.
 	/// </summary>
 	/// <remarks>
-	/// When <see langword="null"/> or empty, a stable per-instance identifier is generated. Disjoint claim
-	/// is guaranteed structurally by the atomic claim script regardless of this value; it exists for
-	/// observability (which processor holds a given lease).
+	/// When null, empty or whitespace, an immutable per-store identifier is generated at construction.
+	/// Use a different identifier for each independent processor sharing a key prefix. The atomic claim
+	/// script guarantees disjoint claims; this identifier also prevents a different owner from retiring
+	/// an active lease. It is not a fencing token or a per-acquisition generation.
 	/// </remarks>
 	public string? ProcessorId { get; set; }
 

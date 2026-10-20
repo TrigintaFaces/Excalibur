@@ -17,6 +17,353 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (breaking) — field decryption now establishes who is asking
+
+`IFieldEncryptor.DecryptAsync` and `SubjectFieldCryptor.DecryptFieldsAsync` each gained an
+`expectedTenantId`, which the caller takes from the authorized request or trusted stored-record metadata
+and **never from the envelope being decrypted**. The read path previously treated the envelope as
+self-describing, but an envelope is input — a document fetched by id, a row joined in, a projection
+replayed — so a component that reads ownership out of the thing being read authorises anything shaped
+correctly. A blank or mismatched tenant raises `CryptographicException`, compared ordinally with no
+trimming or case folding, **before any provider lookup and before the destruction ledger is consulted**:
+raised later, another tenant's erased envelope would have come back as a lawful `null` tombstone and the
+caller would have recorded someone else's erasure as its own. `SubjectKeyHandle` is tenant-qualified, and
+the in-memory, Postgres and SQL Server erasure stores plus the Cosmos DB, DynamoDB, Firestore and MongoDB
+event stores carry the tenant through.
+
+This is a compile error on upgrade by design; an overload preserving the old shape would have let every
+existing call site keep compiling and keep reading across tenants. A host that registers through
+`AddCryptoShredding()` and never calls the cryptor directly has nothing to change.
+
+**The part a recompile does not surface:** envelopes carry a tenant only because the write path began
+stamping one, and a blank envelope tenant is refused — so crypto-shredded data written by
+`10.0.0-alpha.14` or earlier stops decrypting until its envelopes are re-stamped with their owning tenant.
+That is a loud refusal, not data loss: the ciphertext and the key are untouched. See
+[Decryption requires the caller's tenant](https://docs.excalibur-dispatch.dev/docs/migration/decryption-requires-the-callers-tenant).
+
+### Changed (breaking) — a refused dead-letter mark is reported, and the store owns schedule due-ness
+
+`IDeadLetterableOutboxStore.MarkDeadLetteredAsync` returned a bare `ValueTask`, so the Redis, MongoDB and
+Elasticsearch stores could refuse the transition — row gone, row already terminal, lease held elsewhere
+— with no way to say so, and `OutboxProcessor` reported `Applied` regardless. Because the dead-letter
+entry is written **before** the row is marked, an unseen refusal left a message both delivered by the live
+claimant and sitting unreplayed in the queue, so an operator draining the redrive re-executed a message
+that had already succeeded. The member now returns `ValueTask<OutboxCompletionOutcome>` and every store
+returns the verdict it was already computing and discarding.
+
+Schedule due-ness moved to the store rather than the caller's clock, so two hosts with skewed clocks no
+longer disagree about whether a scheduled message is ready.
+
+### Fixed — a data-processing enqueue reported success without checking a row landed
+
+`AddDataTaskForRecordTypeAsync` discarded the affected-row count and returned the identifier regardless, so
+a task that was never queued was indistinguishable from one that was. Zero affected rows now raises and
+names the table. A suppressed count reports `-1` rather than `0` and is **not** treated as a refusal, so a
+correct insert under `SET NOCOUNT ON` is not rejected. The method also emitted no diagnostics at all —
+the half that actually costs time, since a task that cannot be found afterwards is usually in another
+database, another schema, or an ambient transaction that never committed.
+
+### Security — patched two cryptography packages carrying five advisories
+
+`System.Security.Cryptography.Xml` moves from 10.0.10 to **10.0.13**, clearing three high-severity
+advisories (GHSA-r955-8q5j-3h83, GHSA-7hqp-7c5m-4vq6, GHSA-c399-9853-6jmj).
+`System.Security.Cryptography.Pkcs` is now pinned centrally at **10.0.13**, clearing one high
+(GHSA-846f-f764-76mx) and one moderate (GHSA-2fmv-rv2c-59x7). Nothing referenced Pkcs directly: it
+arrived transitively at 8.0.1, 9.0.13 and 10.0.10 through several chains, all inside the affected ranges.
+
+The two SQL Server metapackages additionally reference Pkcs **directly**. `Microsoft.Data.SqlClient`
+depends on 9.0.13, and its newest release (7.1.1) still asks for 9.0.18 — also affected — so bumping
+SqlClient does not clear it. Central transitive pinning lifts that chain everywhere else but not in a
+metapackage, which restores its published dependency closure. The direct reference both lifts the
+resolved version and declares the security floor to anyone installing those metapackages.
+
+208 lock files were re-resolved so locked-mode restores stay consistent.
+
+
+### Fixed — a mistyped filter suffix became an equality filter instead of an error
+
+`FilterParser.Parse` mapped any unrecognised operator suffix to `FilterOperator.Equals`. So
+`["Amount:gtt"] = 100` — a typo for `:gt` — silently became *equality on `Amount`*: the query ran against
+all eight projection stores that share this parser, returned the wrong set, and reported nothing. The
+suffix is the one part of a filter key a reader cannot check by eye, because a typo in it still reads as a
+sensible key. Three tests asserted the fallback as the requirement, which is what made the defect
+findable.
+
+An unrecognised suffix now throws `ArgumentException` naming the suffix, listing the valid ones, and
+pointing at `ProjectionFilterBuilder`, which composes keys from typed methods and cannot produce an
+invalid one. A key that names no property before its separator — `":gt"`, `""`, whitespace — is refused
+for the same reason.
+
+`:eq` is now accepted as an explicit spelling of equality, symmetric with `:neq`. It previously "worked"
+only by falling through the same silent default that hid the typos.
+
+**Migration:** a filter key with an invalid suffix now throws where it previously returned wrong results.
+Every suffix in use across this repository and in the consumer application measured against it was
+already valid.
+
+
+### Fixed — two projections with the same simple name silently shared one index
+
+A projection's store options, and therefore its index, are keyed on its **unqualified** type name. Two
+read models called `Summary` in different namespaces got one options instance and one index: each read
+the other's documents and overwrote them on the same id. Nothing reported it — the registrations look
+correct, the types are plainly distinct, and the collision lives in a string neither of them mentions. A
+consumer with two `EmployeeProjection` types had to write the hazard into their own source as a comment.
+
+Registering a second projection type that claims an options name already owned by a different type is now
+refused, at registration, naming **both types in full** — the unqualified name is the same for both and
+so identifies neither. Re-registering the same projection is unaffected: the last call wins, as
+elsewhere.
+
+`ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>()` is the one function that produces
+that key. It was derived independently in four places — the store, both registration overloads, and
+every consumer repository that reads the same bucket by writing `nameof(MyProjection)` at the call site.
+
+**Still true, and not fixed by this:** with no `Index.IndexName`, an index is named after its C# class,
+so renaming the class renames the index and the read model comes back empty with nothing logged. Set
+`Index.IndexName` per projection to decouple the two; the one-call registration's documentation shows it.
+
+
+### Added — one call that registers a projection and the Elasticsearch store it lives in
+
+```csharp
+es.AddElasticSearchProjection<OrderSummary>(
+    p => p.Inline().When<OrderPlaced>((proj, e) => proj.Total = e.Amount),
+    o => { o.NodeUris = [...]; o.Index.IndexName = "ordersummary"; });
+```
+
+A stored projection needs two things said about it — what it folds, and where it goes — and said
+separately they could be forgotten separately. This says both, and cannot be half made. It lands on the
+existing `IEventSourcingBuilder` bridge in the provider package, so the core event-sourcing assembly
+still knows nothing about Elasticsearch.
+
+The store configuration is **required**, not optional: the options default their node to
+`http://localhost:9200`, so a one-call API that let it be omitted would start anywhere and reach a
+cluster only on a developer's own machine — a worse trap than the two calls it replaces.
+
+### Fixed — the new projection-store startup check could crash the host it protects
+
+The check resolved `IProjectionStore<T>` inside a scope it then disposed synchronously. The Elasticsearch
+projection store implements only `IAsyncDisposable`, so that disposal threw — meaning the check added in
+this same release would have refused to start **every** Elasticsearch consumer, including ones correctly
+configured. It now asks `IServiceProviderIsService` whether a store is registered, which constructs
+nothing, needs no scope, and is the first-party API for that question. A container that does not provide
+`IServiceProviderIsService` is not interrogated further rather than refused.
+
+
+### Changed — two registration methods that differed only by the case of one letter
+
+`AddElasticsearchProjections` (lowercase *s*) and `AddElasticSearchProjections` (capital *S*) were both
+public extension methods on `IServiceCollection`, both in `Microsoft.Extensions.DependencyInjection`, and
+both about projections — so IntelliSense offered them adjacent with nothing in the name to choose by.
+They registered different subsystems, and typing the wrong casing compiled and silently gave you the
+other one.
+
+The lowercase-*s* one is now **`AddElasticSearchProjectionManagement`**, which is what it does: the
+projection error handler, the rebuild manager, the consistency tracker and the schema-evolution handler,
+configured from the `ElasticSearch:ProjectionManagement` section (was `ElasticSearch:Projections`).
+`AddElasticSearchProjections`, which registers projection *stores*, is unchanged.
+
+Its options type is renamed with it: `Excalibur.Data.ElasticSearch.ProjectionOptions` →
+**`ElasticSearchProjectionManagementOptions`** (and its validator likewise). Two public types named
+`ProjectionOptions` could not both be imported — a consumer using `Excalibur.EventSourcing.Projections`
+and `Excalibur.Data.ElasticSearch` together got `CS0104` — and the one named plainly `ProjectionOptions`
+was the one that does **not** name projection indexes; it prefixes this subsystem's own sidecar indexes.
+
+**Migration:** rename the call, the section and the type. The core
+`Excalibur.EventSourcing.Projections.ProjectionOptions` is untouched.
+
+
+### Fixed — rebuild validation reported an existing projection index as missing
+
+`ProjectionRebuildManager.ValidateRebuildAsync` composed the projection's index name from
+`ProjectionOptions.IndexPrefix` plus the lowercased type name. The store composes it from a *different*
+settings object — `ElasticSearchProjectionStoreOptions.Index`, through
+`ElasticSearchProjectionIndexConvention` — including `IndexName` when one is set, which validation
+ignored entirely.
+
+Both prefixes default to `projections`, so the two agreed out of the box and diverged the moment either
+was set, including by the framework's own documented example. The result was a confident, reassuring,
+wrong answer about a consumer's read model — *"Index 'projections-ordersummary' does not exist. A rebuild
+will create a new index."* — with no exception and no error log.
+
+Validation now calls the same naming function the store calls, against the same named options instance,
+so the two cannot disagree. Six sibling sites that compose this subsystem's own sidecar index names from
+`ProjectionOptions.IndexPrefix` are unchanged; that was always a legitimate use of a subsystem prefix,
+and the projection's own index was the only name taken from the wrong source.
+
+### Changed — `ProjectionRebuildManager` is internal
+
+Consumers reach rebuilds through the public `IProjectionRebuildManager`, which is unchanged; nothing
+outside the package named the implementation. Per the internal-first standard it is now `internal
+sealed`, which removes seven entries from the public API surface.
+
+**Migration:** if you constructed `ProjectionRebuildManager` directly, resolve `IProjectionRebuildManager`
+from the container instead.
+
+
+### Fixed — the slow-inline-projection warning is now emitted, with a per-projection threshold
+
+Two public settings promised a warning when an inline projection ran long, and **neither was read by any
+production code**: the global `EventNotificationOptions.InlineProjectionWarningThreshold` and the
+per-projection `ProjectionOptions.WarningThreshold` reached through `WithOptions`. The global one was
+even validated at startup, so a host was told its value was in range and then nothing used it. An event
+ID for the warning was reserved and never emitted.
+
+`InlineProjectionProcessor` now times each projection's apply and warns when it exceeds its threshold,
+preferring the per-projection value and falling back to the global one — so one slow projection no longer
+forces every other projection's threshold up. The message names the projection, both durations, and the
+two ways to act on it. Timing goes through `TimeProvider`, so it is deterministic under test.
+
+### Removed — `IProjectionBuilder<T>.WithStore<TStore>()`
+
+It recorded a `Type` that **nothing ever read**. Every store resolution in the subsystem was, and
+remains, the plain `IProjectionStore<TProjection>` the container resolves — so a consumer who called it
+to escape a wrong default silently kept the default. Its documentation promised the opposite.
+
+Nothing replaces it, because nothing needs to: `IProjectionStore<T>` is registered per projection type
+already, which is how every provider binds a store. Choosing between two registrations for the *same*
+projection type is what keyed services are for.
+
+
+### Added — an in-memory projection store, so a first projection runs without a cluster
+
+`services.AddInMemoryProjectionStore<TProjection>()` registers an `IProjectionStore<TProjection>` backed
+by a dictionary. It answers the same filter grammar the remote stores answer — equality, `neq`, `gt`,
+`gte`, `lt`, `lte`, `in`, `contains` — through the same `FilterParser`, and honours `QueryOptions`
+skip, take, ordering and direction, so a test written against it says something about the store that
+replaces it.
+
+It exists because the documented projections Quick Start could not run: nothing in it registered a
+projection store, no in-memory store shipped, and four separate trees in this repository had each
+hand-written one. The Quick Start now shows both registrations and says why there are two.
+
+Registered as a **singleton** deliberately: a scoped in-memory store discards its contents at the end of
+each request, which is indistinguishable from a projection that never advanced.
+
+**It is not for production and not tenant-confined**, and it presents no tenant-scoping capability, which
+is how the `IProjectionStore<T>` contract says an unconfined store declares itself — a multi-tenant
+host's capability requirement will refuse it, which is the intended outcome.
+
+### Fixed — a sample registered two projections and no store
+
+`samples/09-advanced/cdc/CdcJobQuartz` folded two projections into nothing: it had no projection store
+of any kind, so its first save threw after the events were already durable. Found by the new startup
+check on its first run.
+
+
+### Added — a projection registered with nowhere to store it now stops the host at startup
+
+A stored projection takes two registrations: `AddProjection<T>()` says what it folds, and a provider's
+`Add<T>()` says where it is stored. Nothing connected them, so omitting the second produced a projection
+that folds into nothing — surfacing for an inline projection as a resolution failure on the first save,
+*after* the events were durable, wrapped in advice to rebuild from the event stream, which is the wrong
+remedy when the fix is one registration line; and for an async projection inside a background host, where
+nobody was looking.
+
+Every `AddProjection<T>()` now also registers a probe, closed over the projection type so the check needs
+no reflection and stays AOT-safe, and a startup validator that names every projection missing a store and
+tells the reader which registration to add. A projection declared `.Ephemeral()` is skipped, because it is
+rebuilt on demand and never stored. The probe resolves the store **in a scope**, since projection stores
+are registered scoped and resolving one from the root provider throws wherever scope validation is on.
+
+This is not opt-in: a projection with no store is wrong on every host.
+
+
+### Changed — index provisioning raises when it fails, instead of serving an index that is not there
+
+`ElasticSearchProjectionStore` logged a warning and carried on when it could not create its index; the
+repository base discarded the create response entirely. In both cases the first write then auto-created the
+index with a dynamically inferred mapping, silently discarding the declared mapping, the projection position
+field, and the configured shard, replica and refresh settings — while the system reported healthy. Both now
+throw `InvalidOperationException`, matching what first-party provisioning APIs do. A create refused because
+the index already exists is not treated as a failure, so two instances racing at startup both proceed.
+
+The repository base also tested the wrong property of the index-exists response, which could skip
+provisioning rather than perform it.
+
+`OpenSearchProjectionStore` discarded its create response the same way. That was only observable when the
+consumer supplied their own `IOpenSearchClient`, because the client the store builds for itself is
+configured to throw; the supplied-client path is now explicit rather than dependent on client settings.
+
+**Migration:** a startup that was silently running against an auto-created index will now fail at the first
+operation. The exception message carries the server's own reason — a rejected setting, a missing permission,
+or an unreachable cluster. Set `Index.CreateIndexOnInitialize = false` if the index is provisioned outside
+the application.
+
+### Changed — a repository no longer has to write two overrides to provision its index
+
+`ElasticRepositoryBase<TDocument>.InitializeIndexAsync` was `abstract` and the framework never called it:
+`InitializeAsync`, the member the registered initializer set awaits, was a no-op. Every repository therefore
+had to implement the abstract member *and* override `InitializeAsync` to forward to it, and omitting the
+forward silently skipped index creation. `InitializeAsync` now calls `InitializeIndexAsync`, and
+`InitializeIndexAsync` is `virtual` and does nothing by default — which is correct for a repository reading
+an index a projection store owns.
+
+**Migration:** existing overrides keep compiling and keep working. A forwarding `InitializeAsync` override
+is now redundant and can be deleted. A repository that overrode only `InitializeIndexAsync` will now have it
+invoked at startup, which is what it was written to do.
+
+### Fixed — a configured index-mapping convention made exact match and sort return nothing
+
+`ElasticSearchProjectionStore` built its query-side field table from a `static` member, so the table could
+not read the instance options that carry `IndexMappingConvention` — while the index itself was created from
+the same mapping *after* the convention had transformed it. A consumer who set the convention to the
+text-plus-keyword form its own documentation advertises therefore got an index whose string fields are
+`text`, and a query layer that classified them from the pre-convention `keyword` and omitted the `.keyword`
+sub-field. Exact match and sort then addressed a field that does not exist and **matched nothing** rather
+than failing.
+
+The mapping is now composed once per store instance and the field table is derived from that same object,
+so a transform applied to one reaches the other by construction. No API changed.
+
+
+### Added — one call registers an Elasticsearch repository and every interface it implements
+
+`services.AddElasticRepository<TDocument, TRepository>()` registers the concrete repository plus
+`IElasticRepositoryBase<TDocument>`, `IElasticRepositoryBaseQuery<TDocument>` and `IInitializeElasticIndex`
+against one shared singleton, replacing the four hand-written registrations that were previously required
+when consumers injected the framework interfaces directly. `AddRepository<TInterface, TImplementation>()`
+is unchanged and remains the right call when consumers inject a repository interface you declare yourself.
+
+Pass a `ServiceLifetime` to register a scoped or transient repository. The repository and both framework
+interfaces take that lifetime; index initialization still runs, but through a separate singleton instance,
+because the initializer set is enumerated once from the root. A repository that injects a scoped
+dependency therefore cannot be registered this way — the container rejects the singleton initializer at
+start-up and names the scoped dependency, rather than leaving the index uninitialized.
+
+### Fixed — only the first Elasticsearch repository's index was ever created
+
+`AddRepository<TInterface, TImplementation>()` registered the index initializer with `TryAddSingleton`,
+which matches on the service type alone. `IInitializeElasticIndex` is consumed as a set, so the second and
+every later repository registered this way was discarded: `InitializeElasticsearchIndexesAsync` created the
+first repository's index and silently skipped the rest. A host with one repository was unaffected, which
+is why this held — the first index existed, and the missing ones surfaced later as writes against an index
+Elasticsearch had auto-created with dynamic mappings instead of the configured ones.
+
+The registration now uses `TryAddEnumerable`, which de-duplicates on the implementation type, so every
+repository contributes its initializer and registering one twice still yields one.
+
+### Fixed — the outbox reported its background drain as enabled in hosts that had none
+
+`AddOutbox(...)` produced options whose `EnableBackgroundProcessing` read `true` by default, while that
+registration route registers no `OutboxBackgroundService` and nothing on it read the flag. A consumer
+staging messages and then checking whether something was draining them was told yes by the only property
+that answers the question. Rows accumulated, nothing published them, and the configuration surface
+asserted the opposite — a message accepted for delivery and never delivered, with nothing downstream
+learning otherwise.
+
+The option now defaults to **off**. The background drain was always opt-in and remains so: a host starts
+it with `EnableBackgroundProcessing()` on the outbox builder, or with `AddOutboxHostedService()`. Because
+the builder call sets the flag and registers the hosted service in the same act, the reported value and
+the registration can no longer disagree.
+
+**To upgrade:** no host changes behaviour — the drain was already absent on that route, so the only
+difference is that a property which lied now tells the truth. A consumer that *relied on reading* `true`
+to infer a drain was running was being misled and should call one of the two opt-ins explicitly. Note that
+either opt-in additionally requires you to supply an `IOutboxPublisher`, for which this framework provides
+no registration.
+
 ### Changed (breaking) â a CDC checkpoint save now reports whether it actually saved
 
 `ICdcStateStore.SavePositionAsync` returned `Task`. Two of the shipped providers can decline to write:

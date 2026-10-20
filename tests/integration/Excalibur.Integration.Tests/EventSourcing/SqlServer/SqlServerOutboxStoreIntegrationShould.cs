@@ -357,7 +357,7 @@ public sealed class SqlServerOutboxStoreIntegrationShould : IAsyncLifetime
 		// The retry-exhausted message reaches the terminal DeadLettered(5) status.
 		var deadLettered = CreateTestMessage();
 		await outboxStore.StageMessageAsync(deadLettered, CancellationToken.None);
-		await outboxStore.MarkDeadLetteredAsync(deadLettered.Id, "retries exhausted", CancellationToken.None);
+		await outboxStore.MarkDeadLetteredAsync(deadLettered.Id, "retries exhausted", 0, CancellationToken.None);
 
 		var unsentIds = (await outboxStore.GetUnsentMessagesAsync(50, CancellationToken.None))
 			.Select(m => m.Id)

@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Compliance.Diagnostics;
+using Excalibur.Dispatch;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -202,13 +203,37 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 		IErasureExecutor erasureExecutor,
 		CancellationToken cancellationToken)
 	{
-		LogErasureSchedulerExecutingRequest(request.RequestId, request.ScheduledExecutionAt);
-
+		IDisposable tenantScope;
 		try
 		{
+			tenantScope = ErasureRequestTenantScope.Begin(request);
+		}
+		catch (Exception ex)
+		{
+			LogErasureSchedulerExecutionError(request.RequestId, ex);
+			return;
+		}
+
+		using var ownedScope = tenantScope;
+		LogErasureSchedulerExecutingRequest(request.RequestId, request.ScheduledExecutionAt);
+		try
+		{
+			ErasureExecutionResult result;
 			// Execute the erasure (the service handles status transitions internally)
-			var result = await erasureExecutor.ExecuteAsync(
-				request.RequestId, cancellationToken).ConfigureAwait(false);
+			try
+			{
+				result = await erasureExecutor.ExecuteAsync(request.RequestId, cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				LogErasureSchedulerExecutionError(request.RequestId, ex);
+				await HandleFailedErasureAsync(request, erasureStore, ex.Message, cancellationToken).ConfigureAwait(false);
+				return;
+			}
 
 			if (result.Success)
 			{
@@ -225,12 +250,14 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 						request, erasureStore, result.ErrorMessage, cancellationToken).ConfigureAwait(false);
 			}
 		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
 		catch (Exception ex)
 		{
 			LogErasureSchedulerExecutionError(request.RequestId, ex);
-
-			await HandleFailedErasureAsync(
-					request, erasureStore, ex.Message, cancellationToken).ConfigureAwait(false);
+			// A tenant-scoped retry failed. The owner scope remains active through this diagnostic.
 		}
 	}
 
@@ -424,4 +451,17 @@ internal sealed partial class ErasureSchedulerBackgroundService : BackgroundServ
 			LogLevel.Error,
 			"Error during certificate cleanup")]
 	private partial void LogErasureSchedulerCertificateCleanupFailed(Exception exception);
+}
+
+internal static class ErasureRequestTenantScope
+{
+	public static IDisposable Begin(ErasureStatus request)
+	{
+		var tenantId = request.TenantId;
+		if (tenantId is not null && string.IsNullOrWhiteSpace(tenantId))
+		{
+			throw new ArgumentException("A recorded erasure tenant identity cannot be blank.", nameof(request));
+		}
+		return TenantContextHolder.BeginScope(tenantId ?? TenantScope.UntenantedSentinel);
+	}
 }

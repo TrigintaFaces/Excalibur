@@ -874,14 +874,9 @@ await dispatcher.DispatchAsync(
 
 ## Performance Comparison
 
-| Metric | NServiceBus (RabbitMQ) | Excalibur (SQL Outbox) |
-|--------|------------------------|--------------------------------|
-| Throughput | ~8,000 msg/sec | ~2,000 msg/sec |
-| Latency (p99) | ~10ms | ~15ms |
-| Infrastructure cost | High (broker + licensing) | Low (database only) |
-| Delivery guarantee | At-least-once | Exactly-once (outbox) |
+Measure both deployments with matched payloads, concurrency, batching, durability settings and completion boundaries. Capture throughput and latency percentiles under the expected load, including the database or broker operations required by each deployment.
 
-**Conclusion:** NServiceBus offers higher performance but at higher cost. Dispatch provides strong consistency guarantees with simpler infrastructure.
+The [benchmark results and evidence scope](../performance/competitor-comparison.md) do not establish NServiceBus-versus-SQL-outbox throughput, p99 latency or infrastructure cost. Validate these in the intended environment, and verify duplicate handling and failure recovery independently of timing results.
 
 ## Getting Help
 

@@ -10,6 +10,9 @@ namespace Excalibur.Dispatch;
 /// </summary>
 public interface IOutboxMessage
 {
+	/// <summary>Gets the persisted failure information, including pending recovery disposition.</summary>
+	/// <value>The last recorded failure, or null before a failure is recorded.</value>
+	string? LastError { get; init; }
 	/// <summary>
 	/// Gets the unique identifier for the message.
 	/// </summary>

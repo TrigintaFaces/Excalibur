@@ -1,466 +1,352 @@
 #!/usr/bin/env python3
-"""Locks the inventory of public members annotated as not ahead-of-time safe.
+"""Candidate strict configuration-scoped declaration inventory gate. Never rewrites its baseline.
 
-WHY THIS EXISTS, AND WHY IT IS NOT OPTIONAL ONCE A PACKAGE OPTS OUT
-    Setting IsAotCompatible=false turns OFF the AOT analyzer for that project. That is the correct
-    metadata -- the package really is not AOT-safe -- but it means the build stops reporting new
-    dynamic-code violations in it. Honest metadata and active detection pull in opposite directions,
-    and the opt-out silently buys the first by giving up the second.
-
-    This gate is what keeps the second. It records every public member currently annotated
-    RequiresDynamicCode / RequiresUnreferencedCode, so a NEW one has to be added deliberately, in a
-    reviewed diff, whether or not an analyzer is still watching that project.
-
-WHAT AN ENTRY MEANS
-    An entry is not an approval. It is a record that this member's reflection path was known and
-    accepted at the time it was written down. Removing an entry is always safe. Adding one is a
-    decision, and this gate exists to make sure it is made by a person rather than by drift.
-
-WHY AN ANNOTATION IS NOT ITSELF A DEFECT
-    Microsoft annotates reflection paths on consumer-facing APIs and ships an AOT-safe alternative
-    alongside them -- JsonSerializer.Serialize(Object, Type, JsonSerializerOptions) carries
-    RequiresUnreferencedCode, and its message names the alternative. So this gate does not forbid
-    annotations. It forbids UNNOTICED ones.
-
-EXIT
-    0  the inventory matches the source
-    1  a public member is annotated that the inventory does not record (or the file is unreadable)
-    2  REFUSE: the source could not be enumerated. Nothing was checked. NOT a pass.
+This is lexical annotation governance, not compiled API equivalence or AOT certification.
+All commands retain raw output and have wall-clock bounds. Timeouts stop the direct subprocess;
+this wrapper does not claim descendant cleanup. Caller owns build/test coordination.
 """
-
+import argparse
+import hashlib
+import importlib.util
+import json
 import os
-import re
+import stat
+from pathlib import Path
+import subprocess
 import sys
+import tempfile
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-SRC = os.path.join(REPO_ROOT, "src")
-INVENTORY = os.path.join(REPO_ROOT, "eng", "ci", "aot-annotation-inventory.txt")
-SUPPRESSION_BASELINE = os.path.join(REPO_ROOT, "eng", "ci", "aot-suppression-baseline.json")
+class Refusal(Exception):
+    pass
 
-ATTR = re.compile(
-    r"\[\s*(?:System\.Diagnostics\.CodeAnalysis\.)?Requires(DynamicCode|UnreferencedCode)\s*[\(\]]"
-)
-PUBLIC = re.compile(r"^\s*(public|protected)\b")
-# A member declaration's own name, enough to identify it without pinning a line number -- line
-# numbers churn on every edit above them and would make this inventory unmergeable.
-MEMBER = re.compile(r"[\w<>\[\]?,\. ]*?(\w+)\s*(?:\(|=>|\{|$)")
+def is_reparse(path):
+    return path.is_symlink() or bool(getattr(path.lstat(),'st_file_attributes',0) & getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400))
 
+def compare_inventory(current, baseline):
+    if not isinstance(current,list) or not current or any(not isinstance(i,str) or not i for i in current) or len(set(current))!=len(current):
+        raise Refusal('Observed inventory is empty/malformed/duplicated')
+    if not isinstance(baseline,dict) or baseline.get('schemaVersion')!=1 or not isinstance(baseline.get('identities'),list) or not baseline['identities']:
+        raise Refusal('Baseline must be a nonempty schemaVersion1 identities array')
+    recorded=baseline['identities']
+    if any(not isinstance(i,str) or not i for i in recorded) or len(set(recorded))!=len(recorded):
+        raise Refusal('Baseline identities malformed/duplicated')
+    additions,removals=sorted(set(current)-set(recorded)),sorted(set(recorded)-set(current))
+    return {'exitCode':1 if additions else 0,'additions':additions,'removals':removals}
 
-def enumerate_annotated(src_root, base=None):
-    """Return (entries, unreadable). Each entry: 'relative/path.cs::MemberName'."""
-    # Relativise against an explicit base. REPO_ROOT is right in production but wrong for a
-    # self-test whose fixture may sit on a different drive, where relpath raises rather than
-    # returning a path.
-    base = base or REPO_ROOT
-    entries, unreadable = set(), 0
-    if not os.path.isdir(src_root):
-        return entries, 1
-    for root, dirs, files in os.walk(src_root):
-        dirs[:] = [d for d in dirs if d not in ("bin", "obj")]
-        for fn in files:
-            if not fn.endswith(".cs"):
-                continue
-            path = os.path.join(root, fn)
-            try:
-                lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-            except Exception:
-                unreadable += 1
-                continue
-            rel = os.path.relpath(path, base).replace(os.sep, "/")
-            for i, line in enumerate(lines):
-                if not ATTR.search(line):
-                    continue
-                # Walk forward to the declaration, skipping attribute lists BY BRACKET BALANCE.
-                #
-                # The obvious version -- skip lines that start with "[" -- is blind to a wrapped
-                # attribute. An [UnconditionalSuppressMessage(...)] with a Justification on the
-                # next line puts a continuation line in the way that is not blank, not "[", and
-                # not a comment, so the walk stops there and never reaches the member. That is the
-                # commonest shape in this repo, because long justifications wrap. It made this
-                # gate blind to 73 of 279 annotated members while reporting a clean pass.
-                k = i
-                depth = 0
-                found = None
-                limit = min(i + 40, len(lines))
-                while k < limit:
-                    line = lines[k]
-                    stripped = line.strip()
-                    if depth == 0 and not stripped.startswith("[") and k > i:
-                        if not stripped or stripped.startswith("//"):
-                            k += 1
-                            continue
-                        if PUBLIC.match(line):
-                            found = stripped
-                        break
-                    depth += line.count("[") - line.count("]")
-                    if depth < 0:
-                        depth = 0
-                    k += 1
-                if found:
-                    m = MEMBER.search(found)
-                    entries.add("{}::{}".format(rel, m.group(1) if m else found[:40]))
-    return entries, unreadable
+def comparison_controls():
+    results=[]
+    for name,current,baseline,wanted in [
+        ('equal',['a'],{'schemaVersion':1,'identities':['a']},0),
+        ('addition',['a','b'],{'schemaVersion':1,'identities':['a']},1),
+        ('missing-current',[],{'schemaVersion':1,'identities':['a']},2),
+        ('malformed-baseline',['a'],{'schemaVersion':1,'identities':'a'},2),
+        ('duplicate-baseline',['a'],{'schemaVersion':1,'identities':['a','a']},2),
+        ('removal-allowed',['a'],{'schemaVersion':1,'identities':['a','b']},0)]:
+        try:
+            result=compare_inventory(current,baseline)
+            actual=result['exitCode']
+            if name=='removal-allowed' and result['removals']!=['b']:
+                actual=1
+        except Refusal:
+            actual=2
+        results.append({'name':name,'expected':wanted,'actual':actual,'passed':actual==wanted})
+    return results
 
+def shipping_projects(filter_path,repo):
+    data=read_json(filter_path)['solution']
+    solution=(filter_path.parent/str(data['path']).replace('\\','/')).resolve()
+    projects=data['projects']
+    if not isinstance(projects,list) or not projects or any(not isinstance(p,str) or not p for p in projects):
+        raise Refusal('ShippingOnly project census is empty/malformed')
+    paths=sorted({within(solution.parent/p.replace('\\','/'),repo).as_posix() for p in projects})
+    if any(not (repo/p).is_file() for p in paths):
+        raise Refusal('ShippingOnly resolves to missing project files')
+    return paths
 
-def load_inventory(path):
-    if not os.path.isfile(path):
-        return None
-    out = set()
-    for line in open(path, encoding="utf-8"):
-        line = line.strip()
-        if line and not line.startswith("#"):
-            out.add(line)
-    return out
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
-
-def check(src_root=SRC, inventory_path=INVENTORY, quiet=False, base=None):
-    found, unreadable = enumerate_annotated(src_root, base)
-    if unreadable:
-        if not quiet:
-            print("REFUSE: {} source file(s) unreadable -- the inventory was NOT verified.".format(
-                unreadable), file=sys.stderr)
-        return 2
-    recorded = load_inventory(inventory_path)
-    if recorded is None:
-        if not quiet:
-            print("REFUSE: inventory not found at {} -- nothing was compared.".format(
-                inventory_path), file=sys.stderr)
-        return 2
-    if not found and not recorded:
-        # Both empty is indistinguishable from a scanner that matched nothing. Say so.
-        if not quiet:
-            print("REFUSE: no annotated members found and inventory is empty -- "
-                  "cannot tell a clean tree from a broken scan.", file=sys.stderr)
-        return 2
-
-    added = sorted(found - recorded)
-    removed = sorted(recorded - found)
-
-    if not quiet:
-        print("aot-annotation-inventory: {} annotated public member(s); "
-              "{} new, {} recorded-but-gone.".format(len(found), len(added), len(removed)))
-        for e in removed:
-            print("  no longer annotated (safe -- drop it from the inventory): {}".format(e))
-    if added:
-        if not quiet:
-            print("", file=sys.stderr)
-            print("NEW public member(s) annotated as not ahead-of-time safe:", file=sys.stderr)
-            for e in added:
-                print("  {}".format(e), file=sys.stderr)
-            print("", file=sys.stderr)
-            print("An annotation is a contract with the consumer: their build gets the warning at",
-                  file=sys.stderr)
-            print("their call site. Add an AOT-safe alternative and name it in the attribute",
-                  file=sys.stderr)
-            print("message, or record the entry in eng/ci/aot-annotation-inventory.txt.",
-                  file=sys.stderr)
-        return 1
-    return 0
-
-
-def _selftest_tree(tmp, annotate_extra):
-    os.makedirs(os.path.join(tmp, "p"), exist_ok=True)
-    body = [
-        "using System.Diagnostics.CodeAnalysis;",
-        "namespace P;",
-        "public static class C {",
-        '    [RequiresDynamicCode("reflection")]',
-        "    public static void Known() { }",
-    ]
-    if annotate_extra:
-        # A WRAPPED attribute, deliberately. A single-line attribute does not exercise the walk
-        # that finds the declaration, so a fixture built only from single-line attributes passes
-        # whether or not the walk is correct -- which is exactly how this gate shipped blind to 73
-        # members with a green self-test.
-        body += ['    [RequiresUnreferencedCode("reflection")]',
-                 '    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",',
-                 '        Justification = "a justification long enough to wrap onto its own line")]',
-                 "    public static void Sneaky() { }"]
-    body.append("}")
-    with open(os.path.join(tmp, "p", "C.cs"), "w", encoding="utf-8") as fh:
-        fh.write("\n".join(body))
-
-
-DOCS_TABLE = os.path.join(REPO_ROOT, "docs-site", "docs", "advanced", "aot-compatibility.md")
-
-# A published table row: | `Package` | Status | Notes |
-DOC_ROW = re.compile(
-    r"^\|\s*`([A-Za-z0-9_.]+)`\s*\|\s*(Clean|Warns you|Doesn't warn you)\s*\|", re.M
-)
-
-
-def packages_with_annotations(inventory_path):
-    """Package names that own at least one recorded annotated member."""
-    packages = set()
-    with open(inventory_path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("::")[0].split("/")
-            if len(parts) > 2 and parts[0] == "src":
-                packages.add(parts[2])
-    return packages
-
-
-def packages_with_suppressions(baseline_path):
-    """Package names that own at least one BASELINED AOT suppression.
-
-    THE SECOND SOURCE OF EVIDENCE, and the gate was blind without it. An annotated public member
-    warns the consumer at their own call site; a suppression does the opposite -- it guarantees the
-    consumer's build says nothing. Both are reflection. A gate that measured only the first could
-    not see two thirds of what the published table claims, so it anchored a consumer-facing promise
-    to an instrument that cannot observe most of the thing being promised.
-
-    Path shape is identical to the annotation inventory (src/<area>/<Package>/...), so this is the
-    same parse over a different file rather than a new mechanism.
-    """
-    packages = set()
-    with open(baseline_path, encoding="utf-8") as fh:
-        text = fh.read()
-    for match in re.finditer(r"src/[A-Za-z0-9_.]+/([A-Za-z0-9_.]+)/", text):
-        packages.add(match.group(1))
-    return packages
-
-
-def check_docs(docs_path=None, inventory_path=None, quiet=False, baseline_path=None):
-    """The published package table must agree with the inventory.
-
-    A row calling a package AOT-safe while the inventory records an annotated public member in it
-    tells a consumer they can publish it with no warnings, which their own build will contradict.
-    The inventory is the measurement; the table is a claim about it, so the table is what must move.
-
-    EXIT  0 agree  |  1 a row disagrees  |  2 REFUSE: nothing was checked.
-    """
-    docs_path = docs_path or DOCS_TABLE
-    inventory_path = inventory_path or INVENTORY
-    baseline_path = baseline_path or SUPPRESSION_BASELINE
+def read_json(path):
     try:
-        annotated = packages_with_annotations(inventory_path)
-        suppressed = packages_with_suppressions(baseline_path)
-        text = open(docs_path, encoding="utf-8").read()
-    except OSError as exc:
-        print("REFUSE: {}. Nothing was checked; this is NOT a pass.".format(exc), file=sys.stderr)
-        return 2
+        return json.loads(path.read_bytes())
+    except (OSError, ValueError, UnicodeError) as error:
+        raise Refusal(f'Invalid/unreadable JSON {path}: {error}') from error
 
-    rows = DOC_ROW.findall(text)
-    # BOTH sources must be non-empty. An empty suppression baseline would silently disable the
-    # Clean-over-suppressions rule, which is the rule this gate exists for, and a green from a
-    # disabled rule reads exactly like a green from a satisfied one.
-    if not rows or not annotated or not suppressed:
-        print("REFUSE: no table rows ({}), no annotated packages ({}) or no suppressed packages "
-              "({}). Nothing was compared."
-              .format(len(rows), len(annotated), len(suppressed)), file=sys.stderr)
-        return 2
+def within(path, root):
+    try:
+        return path.resolve().relative_to(root.resolve())
+    except ValueError as error:
+        raise Refusal(f'Path escapes repository: {path}') from error
 
-    wrong = []
-    for package, status in rows:
-        annotated_here = package in annotated
-        suppressed_here = package in suppressed
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--repo', default=str(Path(__file__).resolve().parents[2]))
+    parser.add_argument('--output')
+    parser.add_argument('--project', default='tools/AotAnnotationInventory/AotAnnotationInventory.csproj')
+    parser.add_argument('--prepare-script', default='eng/ci/prepare-aot-inventory.ps1')
+    parser.add_argument('--merge-script', default='tools/AotAnnotationInventory/Merge-ConfiguredInventories.py')
+    parser.add_argument('--baseline', default='eng/ci/aot-annotation-inventory.json')
+    parser.add_argument('--shipping-filter', default='eng/ci/shards/ShippingOnly.slnf')
+    parser.add_argument('--dotnet', default='dotnet')
+    parser.add_argument('--pwsh', default='pwsh')
+    parser.add_argument('--configuration', default='Release')
+    parser.add_argument('--write-candidate')
+    parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--self-test-script', default='eng/ci/aot-annotation-inventory-selftest.py')
+    parser.add_argument('--check-docs', action='store_true')
+    parser.add_argument('--docs-helper', default='eng/ci/aot-inventory-docs.py')
+    parser.add_argument('--docs', default='docs-site/docs/advanced/aot-compatibility.md')
+    parser.add_argument('--suppression-baseline', default='eng/ci/aot-suppression-baseline.json')
+    parser.add_argument('--regenerate', action='store_true')
+    parser.add_argument('--fixtures', default='eng/ci/aot-inventory-fixtures')
+    args = parser.parse_args()
+    repo = Path(args.repo).resolve()
+    output = Path(args.output).resolve() if args.output else Path(tempfile.mkdtemp(prefix='aot-inventory-'))
+    if args.output:
+        output.mkdir(parents=True, exist_ok=False)
+    receipt = {'scope':'Explicit declaration-level lexical annotations in every governed source project/TFM; '
+                        'SDK symbols and evaluated language version; excludes target-added/generated Compile items; '
+                        'not compiled API equivalence or general AOT certification',
+               'evidenceDirectory':str(output), 'commands':[], 'status':'running'}
 
-        if status == "Clean" and annotated_here:
-            wrong.append(
-                "{}: table says Clean, but the inventory records annotated public members. A "
-                "consumer WILL see IL2026/IL3050 at their own call site.".format(package))
-        elif status == "Clean" and suppressed_here:
-            # THE RULE THAT WAS MISSING, and it is the one the whole defect turned on. A package
-            # whose reflection is suppressed has no annotated public member, so the old gate's
-            # second rule REQUIRED it to be labelled AOT-safe and went red if anyone labelled it
-            # honestly. The gate did not merely miss the false claim; it compelled it.
-            wrong.append(
-                "{}: table says Clean, but it carries baselined AOT suppressions. The consumer's "
-                "build will be SILENT about reflection that is really there -- which is exactly "
-                "what 'Doesn't warn you' exists to say.".format(package))
-        elif status == "Warns you" and not annotated_here:
-            wrong.append(
-                "{}: table says 'Warns you', but no annotated public member is recorded, so "
-                "nothing will warn the consumer.".format(package))
-        elif status == "Doesn't warn you" and not suppressed_here:
-            wrong.append(
-                "{}: table says \"Doesn't warn you\", but no baselined suppression is recorded. "
-                "If the reflection is gone the row should be Clean.".format(package))
+    def command(label, argv, timeout):
+        stdout, stderr = output / f'{label}.stdout.log', output / f'{label}.stderr.log'
+        item = {'label':label, 'argv':argv, 'timeoutSeconds':timeout,
+                'stdout':str(stdout), 'stderr':str(stderr)}
+        receipt['commands'].append(item)
+        try:
+            with stdout.open('xb') as out, stderr.open('xb') as err:
+                process = subprocess.run(argv, cwd=repo, stdout=out, stderr=err, timeout=timeout, check=False)
+            item['exitCode'] = process.returncode
+        except subprocess.TimeoutExpired as error:
+            item['timedOut'] = True
+            raise Refusal(f'{label} exceeded {timeout}s; inspect retained evidence and process ownership') from error
+        except OSError as error:
+            raise Refusal(f'{label} could not start: {error}') from error
+        if process.returncode != 0:
+            raise Refusal(f'{label} exited {process.returncode}; inspect {stderr}')
+        return stdout
 
-    if wrong:
-        if not quiet:
-            print("The published ahead-of-time table disagrees with the annotation inventory:",
-                  file=sys.stderr)
-            for line in wrong:
-                print("  " + line, file=sys.stderr)
-        return 1
-    if not quiet:
-        print("docs table agrees with the evidence ({} rows, {} annotated, {} suppressed)"
-              .format(len(rows), len(annotated), len(suppressed)))
-    return 0
+    project = repo / args.project
+    prepare = repo / args.prepare_script
+    merge = repo / args.merge_script
+    baseline = repo / args.baseline
+    shipping_filter = repo / args.shipping_filter
+    selftest = repo / args.self_test_script
+    docs_helper = repo / args.docs_helper
+    docs_path = repo / args.docs
+    suppression_path = repo / args.suppression_baseline
+    candidate_output = Path(args.write_candidate).resolve() if args.write_candidate else None
+    fixed = [Path(__file__).resolve(), docs_helper, docs_path, suppression_path,
+             repo/'global.json', repo/'Directory.Build.props', repo/'Directory.Build.targets', repo/'Directory.Packages.props']
+    if not args.check_docs:
+        fixed.extend([project,prepare,merge,shipping_filter])
+    if not candidate_output and not args.self_test:
+        fixed.append(baseline)
+    if args.self_test:
+        fixed.append(selftest)
 
+    def fingerprint():
+        paths = set()
+        for root in (repo/'src', repo/'tools', repo/'eng'):
+            if not root.is_dir():
+                # Artifact review can override the entire helper location before tools/ exists.
+                # Production still requires the actual selected project/helper files via fixed inputs.
+                if root == repo/'tools':
+                    continue
+                raise Refusal(f'Missing governed directory: {root}')
+            for directory, dirs, files in os.walk(root, followlinks=False):
+                for name in list(dirs):
+                    child = Path(directory)/name
+                    if name in ('bin','obj','node_modules','__pycache__'):
+                        dirs.remove(name)
+                    elif is_reparse(child):
+                        raise Refusal(f'Linked governed directory: {child}')
+                for name in files:
+                    path = Path(directory)/name
+                    if is_reparse(path):
+                        raise Refusal(f'Linked governed file: {path}')
+                    paths.add(path)
+        # Configurable artifact helper paths must also be pinned even outside production tools/eng.
+        paths.update(project.parent.glob('*.cs'))
+        paths.update(project.parent.glob('*.csproj'))
+        paths.update(fixed)
+        try:
+            return {str(p.resolve()):digest(p) for p in sorted(paths) if p.is_file()}
+        except OSError as error:
+            raise Refusal(f'Fingerprint could not read input: {error}') from error
 
-def self_test():
-    arms = 0
-    import tempfile
-    fails = 0
-    with tempfile.TemporaryDirectory() as tmp:
-        src = os.path.join(tmp, "src")
-        os.makedirs(src, exist_ok=True)
-        inv = os.path.join(tmp, "inv.txt")
+    before = None
+    exit_code = 2
+    try:
+        if args.regenerate:
+            raise Refusal('--regenerate is disabled: use --write-candidate <fresh-path>, review the diff, and promote deliberately')
+        if args.self_test and candidate_output:
+            raise Refusal('--self-test and --write-candidate are separate operations')
+        if candidate_output and (candidate_output == baseline.resolve() or candidate_output.exists()):
+            raise Refusal('Candidate output must be fresh and must never equal the governed baseline')
+        for path in fixed:
+            if not path.is_file():
+                raise Refusal(f'Required input missing: {path}')
+        before = fingerprint()
+        (output/'source-before.json').write_text(json.dumps(before,indent=2),encoding='utf-8')
+        spec = importlib.util.spec_from_file_location('aot_inventory_docs',docs_helper)
+        docs_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(docs_module)
+        def enforce_docs(identities):
+            result = docs_module.check_docs(identities,docs_path,suppression_path)
+            receipt['docsCheck'] = result
+            if result['exitCode'] == 2:
+                raise Refusal('Docs table evidence is incomplete/unreadable; inspect docsCheck diagnostics')
+            return result['exitCode']
+        def build_helper():
+            command('helper-build',[args.dotnet,'build',str(project),'-c','Release','-p:RunAnalyzers=false'],180)
+            built=project.parent/'bin/Release/net10.0/AotAnnotationInventory.dll'
+            if not built.is_file():
+                raise Refusal('Helper build produced no expected scanner DLL')
+            receipt['scannerDllSha256']=digest(built)
+            return built
+        if args.self_test:
+            comparison_results=comparison_controls()
+            receipt['comparisonSelfTests']=comparison_results
+            if not all(item['passed'] for item in comparison_results):
+                raise Refusal('Default comparison function planted controls failed')
+            shipping=shipping_projects(shipping_filter,repo)
+            receipt['shippingPathSelfTest']={'count':len(shipping),'allFilesExist':True}
+            # Fixed census control requested for this release. A deliberate project change updates this control.
+            if len(shipping)!=194:
+                raise Refusal('Release shipping-path control expected194 valid projects')
+            synthetic=output/'synthetic-filter'
+            synthetic.mkdir()
+            (synthetic/'project.csproj').write_text('<Project />',encoding='utf-8')
+            (synthetic/'filter').mkdir()
+            synthetic_filter=synthetic/'filter'/'test.slnf'
+            synthetic_filter.write_text(json.dumps({'solution':{'path':'..\\solution.sln','projects':['.\\project.csproj']}}),encoding='utf-8')
+            if shipping_projects(synthetic_filter,synthetic)!=['project.csproj']:
+                raise Refusal('Synthetic POSIX/backslash path normalization control failed')
+            docs_controls = docs_module.self_test()
+            receipt['docsSelfTests'] = docs_controls
+            if docs_controls['exitCode'] != 0:
+                raise Refusal('Documentation planted controls failed')
+            dll=build_helper()
+            command('self-test', [sys.executable,str(selftest),'--output',str(output/'self-test'),
+                '--repo',str(repo),'--scanner-dll',str(dll),'--fixtures',str(repo/args.fixtures),'--dotnet',args.dotnet], 600)
+            fixture_report = read_json(output/'self-test/positive-exact/stdout.json')
+            fixture_ids = [entry['identity'] for entry in fixture_report['entries']]
+            planted_interface = 'C.cs::Fixture.IContract.Public()::RequiresDynamicCode'
+            if planted_interface not in fixture_ids:
+                raise Refusal('Actual scanner omitted the planted implicit-public interface member')
+            interface_comparison = compare_inventory(fixture_ids, {'schemaVersion':1,
+                'identities':[identity for identity in fixture_ids if identity != planted_interface]})
+            receipt['interfaceAdditionSelfTest'] = interface_comparison
+            if interface_comparison['exitCode'] != 1 or interface_comparison['additions'] != [planted_interface]:
+                raise Refusal('Actual scanner interface addition did not fail the production comparator')
+            receipt['status'] = 'self-tests-passed-only'
+            exit_code = 0
+        elif args.check_docs:
+            if candidate_output:
+                raise Refusal('--check-docs and --write-candidate are separate operations')
+            recorded = read_json(baseline)
+            if recorded.get('schemaVersion') != 1 or not isinstance(recorded.get('identities'),list):
+                raise Refusal('Documentation baseline has invalid schema')
+            exit_code = enforce_docs(recorded['identities'])
+            receipt['status'] = 'docs-table-failed' if exit_code else 'docs-table-agrees-only-no-source-scan'
+        else:
+            shipping=shipping_projects(shipping_filter,repo)
+            shipping_list = output/'shipping-projects.txt'
+            shipping_list.write_text('\n'.join(shipping)+'\n',encoding='utf-8')
+            dll=build_helper()
+            manifests = output/'manifests'
+            command('prepare',[args.pwsh,'-NoProfile','-File',str(prepare),'-RepositoryRoot',str(repo),
+                '-ShippingProjectList',str(shipping_list),'-OutputDirectory',str(manifests),
+                '-Configuration',args.configuration],1200)
+            index_path = manifests/'scope-index.json'
+            index = read_json(index_path)
+            if not index.get('sourceCoverageComplete') or index.get('uncoveredSourceFiles') or not index.get('scopes'):
+                raise Refusal('All-src scope incomplete or residual source files require review')
+            index_hash = digest(index_path)
+            report_paths = []
+            seen = set()
+            for number, scope in enumerate(index['scopes']):
+                manifest = Path(scope['manifest']).resolve()
+                if manifest in seen or not manifest.is_file() or digest(manifest).upper() != scope['sha256'].upper():
+                    raise Refusal('Changed, duplicated or missing evaluated manifest')
+                seen.add(manifest)
+                report_path = command(f'scan-{number:04}',[args.dotnet,str(dll),'--source',str(repo/'src'),
+                    '--base',str(repo),'--configuration-manifest',str(manifest)],30)
+                report = read_json(report_path)
+                if not report.get('complete') or report.get('diagnostics'):
+                    raise Refusal('Scanner refused a configuration; no inventory comparison permitted')
+                report_paths.append(str(report_path))
+            report_list = output/'report-list.json'
+            report_list.write_text(json.dumps(report_paths,indent=2),encoding='utf-8')
+            merged = output/'merged.json'
+            command('merge',[sys.executable,str(merge),'--scope-index',str(index_path),
+                '--report-list',str(report_list),'--output',str(merged)],120)
+            if digest(index_path) != index_hash:
+                raise Refusal('Scope index changed between enumeration and merge')
+            population = read_json(merged)
+            if not population.get('complete') or not population.get('entries'):
+                raise Refusal('Merged inventory is empty/incomplete; not a measured pass')
+            identities = [entry['identity'] for entry in population['entries']]
+            if any(not isinstance(i,str) or not i for i in identities) or len(set(identities)) != len(identities):
+                raise Refusal('Merged identities malformed/duplicated')
+            current = set(identities)
+            docs_exit = enforce_docs(sorted(current))
+            receipt['currentCount'] = len(current)
+            receipt['scopeIndexSha256'] = digest(index_path)
+            receipt['mergedSha256'] = digest(merged)
+            if candidate_output:
+                receipt['status'] = 'candidate-only-not-baseline-pass'
+                # Defer writing until the final source fence succeeds.
+                receipt['candidateOutput'] = str(candidate_output)
+                exit_code = docs_exit
+                if docs_exit:
+                    receipt['status'] = 'docs-table-failed-candidate-not-written'
+            else:
+                recorded = read_json(baseline)
+                comparison=compare_inventory(sorted(current),recorded)
+                additions,removals=comparison['additions'],comparison['removals']
+                receipt.update(additions=additions, removals=removals, baselineSha256=digest(baseline))
+                exit_code = max(1 if additions else 0,docs_exit)
+                receipt['status'] = 'new-annotations-failed' if additions else ('docs-table-failed' if docs_exit else 'matched-no-new-annotations-and-docs-agree')
+    except (Refusal,OSError,ValueError,KeyError,TypeError) as error:
+        receipt.update(status='REFUSE',error=str(error))
+        exit_code = 2
+    finally:
+        if 'scannerDllSha256' in receipt:
+            try:
+                after_dll = digest(project.parent/'bin/Release/net10.0/AotAnnotationInventory.dll')
+                receipt['scannerDllSha256After'] = after_dll
+                if after_dll != receipt['scannerDllSha256']:
+                    receipt.update(status='REFUSE',error='Scanner binary changed during verification')
+                    exit_code = 2
+            except OSError as error:
+                receipt.update(status='REFUSE',error=f'Scanner binary final pin failed: {error}')
+                exit_code = 2
+        if before is not None:
+            try:
+                after = fingerprint()
+                (output/'source-after.json').write_text(json.dumps(after,indent=2),encoding='utf-8')
+                receipt['sourceUnchanged'] = before == after
+                if before != after:
+                    receipt.update(status='REFUSE',error='Governed source/config/tool population changed during verification')
+                    exit_code = 2
+            except (Refusal,OSError) as error:
+                receipt.update(status='REFUSE',error=f'Final fingerprint failed: {error}')
+                exit_code = 2
+        if exit_code == 0 and candidate_output and receipt.get('sourceUnchanged'):
+            try:
+                with candidate_output.open('x',encoding='utf-8') as stream:
+                    json.dump({'schemaVersion':1,'scope':receipt['scope'],'status':'review-candidate-only',
+                               'identities':sorted(current)},stream,indent=2)
+                    stream.write('\n')
+            except OSError as error:
+                receipt.update(status='REFUSE',error=f'Candidate could not be written: {error}')
+                exit_code = 2
+        (output/'gate-receipt.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+    print(f"{receipt['status']}: {output}")
+    return exit_code
 
-        # Arm 1 (safety): source matching the inventory passes.
-        _selftest_tree(src, annotate_extra=False)
-        found, _ = enumerate_annotated(src, tmp)
-        with open(inv, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(sorted(found)) + "\n")
-        rc = check(src, inv, quiet=True, base=tmp)
-        print("  PASS  matching inventory passes" if rc == 0
-              else "  FAIL  matching inventory returned {}, expected 0".format(rc))
-        fails += rc != 0
-        arms += 1
-
-        # Arm 2 (liveness): a NEW annotated member must fail. Without this the gate could pass by
-        # never detecting anything -- the failure it exists to prevent, applied to itself.
-        _selftest_tree(src, annotate_extra=True)
-        rc = check(src, inv, quiet=True, base=tmp)
-        print("  PASS  a newly annotated public member fails" if rc == 1
-              else "  FAIL  new annotation returned {}, expected 1".format(rc))
-        fails += rc != 1
-        arms += 1
-
-        # Arm 3 (refusal): a missing inventory must REFUSE, never pass.
-        rc = check(src, os.path.join(tmp, "nope.txt"), quiet=True, base=tmp)
-        print("  PASS  missing inventory REFUSEs (exit 2)" if rc == 2
-              else "  FAIL  missing inventory returned {}, expected 2".format(rc))
-        fails += rc != 2
-        arms += 1
-
-        # Arm 4 (refusal): an empty tree with an empty inventory must REFUSE, not report clean --
-        # a scanner that matches nothing looks exactly like a tree with nothing to find.
-        empty = os.path.join(tmp, "empty")
-        os.makedirs(empty, exist_ok=True)
-        empty_inv = os.path.join(tmp, "empty.txt")
-        open(empty_inv, "w", encoding="utf-8").close()
-        rc = check(empty, empty_inv, quiet=True, base=tmp)
-        print("  PASS  empty tree + empty inventory REFUSEs (exit 2)" if rc == 2
-              else "  FAIL  empty/empty returned {}, expected 2".format(rc))
-        fails += rc != 2
-        arms += 1
-
-        # Arms 5-10 (docs table): the claim, checked against BOTH sources of evidence.
-        #
-        # The table's three statuses answer one consumer question -- what will your build tell you? --
-        # so each arm below plants a row that answers it WRONGLY and requires the gate to say so.
-        doc_inv = os.path.join(tmp, "docinv.txt")
-        with open(doc_inv, "w", encoding="utf-8") as fh:
-            fh.write("src/Dispatch/Pkg.Annotated/File.cs::Member\n")
-        # The suppression baseline: a package whose reflection is internal and silenced. It has NO
-        # annotated member by construction -- that is what makes it invisible to the inventory, and
-        # why a gate reading only the inventory could not see it.
-        doc_base = os.path.join(tmp, "docbase.json")
-        with open(doc_base, "w", encoding="utf-8") as fh:
-            fh.write('{"suppressions": [{"file": "src/Excalibur/Pkg.Silent/Thing.cs", "rule": "IL2026"}]}')
-
-        agree = os.path.join(tmp, "agree.md")
-        with open(agree, "w", encoding="utf-8") as fh:
-            fh.write("## heading, so a first-line-only match cannot carry the arm\n"
-                     "| `Pkg.Annotated` | Warns you | note |\n"
-                     "| `Pkg.Silent` | Doesn't warn you | |\n"
-                     "| `Pkg.Clean` | Clean | |\n")
-        rc = check_docs(agree, doc_inv, quiet=True, baseline_path=doc_base)
-        print("  PASS  an agreeing docs table passes" if rc == 0
-              else "  FAIL  agreeing table returned {}, expected 0".format(rc))
-        fails += rc != 0
-        arms += 1
-
-        disagree = os.path.join(tmp, "disagree.md")
-        with open(disagree, "w", encoding="utf-8") as fh:
-            fh.write("## heading\n| `Pkg.Annotated` | Clean | |\n| `Pkg.Silent` | Doesn't warn you | |\n")
-        rc = check_docs(disagree, doc_inv, quiet=True, baseline_path=doc_base)
-        print("  PASS  a row claiming Clean over an ANNOTATED package fails" if rc == 1
-              else "  FAIL  disagreeing table returned {}, expected 1".format(rc))
-        fails += rc != 1
-        arms += 1
-
-        # THE ARM THE OLD GATE COULD NOT HAVE HAD, and the reason this file changed. Before the
-        # suppression baseline became evidence, a silent package had no annotated member, so the old
-        # second rule REQUIRED its row to read AOT-safe and went RED if anyone labelled it honestly.
-        # The gate did not merely miss the false claim -- it compelled it.
-        silent_lie = os.path.join(tmp, "silent.md")
-        with open(silent_lie, "w", encoding="utf-8") as fh:
-            fh.write("## heading\n| `Pkg.Annotated` | Warns you | |\n| `Pkg.Silent` | Clean | |\n")
-        rc = check_docs(silent_lie, doc_inv, quiet=True, baseline_path=doc_base)
-        print("  PASS  a row claiming Clean over a SUPPRESSED package fails" if rc == 1
-              else "  FAIL  Clean-over-suppressed returned {}, expected 1".format(rc))
-        fails += rc != 1
-        arms += 1
-
-        # The converse, so the new status cannot be applied as a blanket disclaimer to packages that
-        # have nothing to disclaim. A status nobody can be wrong about carries no information.
-        overclaim = os.path.join(tmp, "overclaim.md")
-        with open(overclaim, "w", encoding="utf-8") as fh:
-            fh.write("## heading\n| `Pkg.Annotated` | Warns you | |\n| `Pkg.Clean` | Doesn't warn you | |\n")
-        rc = check_docs(overclaim, doc_inv, quiet=True, baseline_path=doc_base)
-        print("  PASS  a row claiming \"Doesn't warn you\" over a clean package fails" if rc == 1
-              else "  FAIL  overclaim returned {}, expected 1".format(rc))
-        fails += rc != 1
-        arms += 1
-
-        rc = check_docs(os.path.join(tmp, "nope.md"), doc_inv, quiet=True, baseline_path=doc_base)
-        print("  PASS  a missing docs table REFUSEs (exit 2)" if rc == 2
-              else "  FAIL  missing table returned {}, expected 2".format(rc))
-        fails += rc != 2
-        arms += 1
-
-        # An empty suppression baseline silently disables the Clean-over-suppressed rule -- the rule
-        # this gate exists for. A green from a disabled rule is indistinguishable from a green from a
-        # satisfied one, so it must REFUSE rather than pass.
-        empty_base = os.path.join(tmp, "emptybase.json")
-        with open(empty_base, "w", encoding="utf-8") as fh:
-            fh.write("{}")
-        rc = check_docs(agree, doc_inv, quiet=True, baseline_path=empty_base)
-        print("  PASS  an empty suppression baseline REFUSEs (exit 2)" if rc == 2
-              else "  FAIL  empty baseline returned {}, expected 2".format(rc))
-        fails += rc != 2
-        arms += 1
-
-    if fails:
-        print("self-test: {} arm(s) FAILED".format(fails))
-        return 1
-    # Counted, not hardcoded. The literal said 7 while ten arms printed -- a gate that misreports its
-    # own coverage is the same defect it exists to catch, one level up, and a hardcoded total goes
-    # stale silently the moment anyone adds an arm.
-    print("self-test: {}/{} arms pass".format(arms, arms))
-    return 0
-
-
-def regenerate():
-    found, unreadable = enumerate_annotated(SRC)
-    if unreadable:
-        print("REFUSE: {} unreadable file(s); inventory NOT written.".format(unreadable),
-              file=sys.stderr)
-        return 2
-    header = [
-        "# Public members annotated RequiresDynamicCode / RequiresUnreferencedCode.",
-        "#",
-        "# An entry is a RECORD, not an approval: this member's reflection path was known and",
-        "# accepted when it was written down. Removing an entry is always safe. Adding one is a",
-        "# decision -- it means a consumer's build will now warn at their call site.",
-        "#",
-        "# Regenerate deliberately, never to clear a failure you have not read:",
-        "#   python3 eng/ci/aot-annotation-inventory-gate.py --regenerate",
-        "",
-    ]
-    with open(INVENTORY, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(header) + "\n".join(sorted(found)) + "\n")
-    print("wrote {} entries to {}".format(len(found), os.path.relpath(INVENTORY, REPO_ROOT)))
-    return 0
-
-
-if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else ""
-    if arg == "--self-test":
-        sys.exit(self_test())
-    if arg == "--regenerate":
-        sys.exit(regenerate())
-    if arg == "--check-docs":
-        sys.exit(check_docs())
-    if arg in ("", "--check"):
-        sys.exit(max(check(), check_docs()))
-    print("usage: {} [--self-test|--regenerate|--check-docs]".format(os.path.basename(sys.argv[0])),
-          file=sys.stderr)
-    sys.exit(2)
+if __name__ == '__main__':
+    raise SystemExit(main())

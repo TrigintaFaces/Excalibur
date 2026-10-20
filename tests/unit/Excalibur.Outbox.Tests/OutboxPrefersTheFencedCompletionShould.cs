@@ -176,7 +176,7 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 			A.Fake<IServiceProvider>(),
 			NullLogger<OutboxProcessor>.Instance,
 			leaderGate: gate,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		processor.Init("fenced-completion-routing-test");
 
@@ -292,18 +292,18 @@ public sealed class OutboxPrefersTheFencedCompletionShould
 			=> ValueTask.CompletedTask;
 
 		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
-			string messageId, string reason, long fencingToken, CancellationToken cancellationToken)
+			string messageId, string reason, int attemptCount, long fencingToken, CancellationToken cancellationToken)
 		{
 			FencedDeadLetters++;
 			PresentedDeadLetterToken = fencingToken;
 			return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied);
 		}
 
-		public ValueTask MarkDeadLetteredAsync(
-			string messageId, string reason, CancellationToken cancellationToken)
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+			string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 		{
 			UnfencedDeadLetters++;
-			return ValueTask.CompletedTask;
+			return ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 		}
 
 		public ValueTask EnqueueAsync(

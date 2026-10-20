@@ -86,7 +86,7 @@ public sealed class W3ProviderBoundaryTests
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Dispatch");
 
         _ = dispatchAssembly.ShouldNotBeNull(
-            "The Excalibur.Dispatch core assembly is not loaded — the module initializer force-loads it, so " +
+            "The Excalibur.Dispatch core assembly is not loaded — the assembly fixture force-loads it, so " +
             "its absence means drift, not a pass.");
 
         var violations = dispatchAssembly.GetReferencedAssemblies()

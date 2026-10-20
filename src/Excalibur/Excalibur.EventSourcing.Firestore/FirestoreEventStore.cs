@@ -496,7 +496,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 					var docId = $"{streamId}:{version}";
 					var docRef = _db!.Collection(_options.EventsCollectionName).Document(docId);
 
-#pragma warning disable IL2026, IL3050
+#pragma warning disable IL2026, IL3050 // When JSON reflection is disabled, construction requires a consumer resolver; event and metadata serialization use its type information. Reflection fallback supports reflection-enabled hosts.
 					var data = new Dictionary<string, object>
 					{
 						["eventId"] = evt.EventId.ToString(),
@@ -826,8 +826,18 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		return null;
 	}
 
-	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent) =>
-		new(
+	private static StoredEvent ToStoredEvent(CloudStoredEvent cloudEvent)
+	{
+		var parts = global::Excalibur.Dispatch.SegmentedKey.Split(cloudEvent.PartitionKeyValue, 4);
+		if (!string.Equals(parts[0], "t", StringComparison.Ordinal)
+			|| string.IsNullOrWhiteSpace(parts[1])
+			|| !string.Equals(parts[2], cloudEvent.AggregateType, StringComparison.Ordinal)
+			|| !string.Equals(parts[3], cloudEvent.AggregateId, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("Stored event partition ownership does not match its stream.");
+		}
+
+		return new StoredEvent(
 			cloudEvent.EventId,
 			cloudEvent.AggregateId,
 			cloudEvent.AggregateType,
@@ -835,7 +845,11 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			cloudEvent.EventData,
 			cloudEvent.Metadata,
 			cloudEvent.Version,
-			cloudEvent.Timestamp);
+			cloudEvent.Timestamp)
+		{
+			TenantId = parts[1],
+		};
+	}
 
 	private static CloudStoredEvent ToCloudStoredEvent(DocumentSnapshot doc)
 	{

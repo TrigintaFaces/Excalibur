@@ -1,10 +1,13 @@
-# Excalibur Benchmark Baseline (Latest Sync)
+# Excalibur Historical Benchmark Baselines
 
-This file summarizes the current committed comparative baselines used by docs.
+This file preserves the September comparative measurements used by older documentation.
+They are not verified measurements of the current source. The October full-suite refresh
+remains incomplete; substantial timing variance and failed cases are still under investigation.
+Do not promote its provisional results or combine distinct code epochs into a current baseline.
 
 ## Run Metadata
 
-### Current epoch
+### Earlier September comparison epoch
 
 - Date: **September 5, 2026** (20260905 epoch)
 - Runtime: .NET 10.0.11 (10.0.11, 10.0.1126.37416), X64 RyuJIT x86-64-v3
@@ -40,25 +43,33 @@ This file summarizes the current committed comparative baselines used by docs.
 - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/` — **not cross-diffable** with
   anything later, due to the BenchmarkDotNet 0.15.4 → 0.15.8 `InvocationCount` semantic shift.
 
-## Comparative Snapshot (20260905 epoch)
+## Historical Comparative Snapshot (distinct September code epochs)
 
 ### Track A: In-Process Parity
 
 #### Dispatch vs MediatR
 
-Source: `MediatRWarmPathComparisonBenchmarks-report-github.md`
+The next two command rows come from the separate post-correction epoch at
+`benchmarks/baselines/net10.0/dispatch-warmpath-20260905-lean/`. They include the correction
+that restored default correlation and causation initialization. The other rows below
+retain their earlier `dispatch-comparative-20260905/results/` provenance.
 
 | Scenario | Dispatch | MediatR |
 |----------|---------:|--------:|
 | Single command handler | 60.04 ns / 96 B | 42.78 ns / 152 B |
-| Single command, strict direct-local | 46.00 ns / 96 B | 41.32 ns / 152 B |
 | Single command, context-less 2-arg | 67.52 ns / 96 B | 42.78 ns / 152 B |
+
+Earlier comparison epoch (`MediatRWarmPathComparisonBenchmarks-report-github.md`):
+
+| Scenario | Dispatch | MediatR |
+|----------|---------:|--------:|
+| Single command, strict direct-local | 46.00 ns / 96 B | 41.32 ns / 152 B |
 | Singleton-promoted command | 53.85 ns / 96 B | 41.32 ns / 152 B |
 | Notification to 3 handlers | 134.99 ns / 96 B | 95.01 ns / 616 B |
 | 10 concurrent commands | 596.06 ns / 1,360 B | 541.74 ns / 1,856 B |
 | 100 concurrent commands | 5,584.43 ns / 12,160 B | 5,146.08 ns / 17,064 B |
 
-Dispatch query rows, published without a MediatR column (see the epoch README): query with return
+Earlier-epoch Dispatch query rows, published without a MediatR column (see the epoch README): query with return
 value 63.67 ns / 192 B, strict direct-local 63.02 ns / 192 B, typed API 63.76 ns / 288 B,
 context-less 2-arg 69.87 ns / 288 B, singleton-promoted 68.99 ns / 288 B.
 
@@ -142,12 +153,18 @@ tracked by `Excalibur_Dispatch-257j9n.10.18`. The production gapless default is 
 
 ### What the existing instruments measure
 
+The [2026-10-19 SQL append-wave observations](../docs/performance/sql-append-waves-2026-10-19.md)
+record six original managed jobs, with their SQL validation, resource limits,
+warnings and outlier exclusions. They do not replace historical epochs or establish
+a causal improvement, production capacity or NativeAOT timing.
+
 | Instrument | Scope and limitations |
 |---|---|
 | `AppendAllocationStrategyBenchmarks` | Direct SQL allocation/insert arms using IDENTITY or a transactional counter. Each timed wave includes all concurrent writers; its duration is not individual append latency. This compares those statements, not equivalent event-store guarantees or complete subscriber protocols. |
 | `AppendThroughputHarness` | Calls the same direct SQL arms in fixed-duration slices and includes the drain of in-flight work in elapsed time. It is not an actual framework append/subscriber benchmark. Rotates combination order and reports descriptive results without statistical acceptance gates. Successful-operation timing includes cleanup; slice timing includes failed-operation drain. Completion does not qualify comparative evidence. |
 | `SqlServerConcurrentAppendBenchmarks` | Actual `SqlServerEventStore.AppendAsync` waves against independent fresh streams. Includes scheduling, connection acquisition, serialization, network and transaction work. One event per writer has a null application payload. Persistence checks run outside timing. Wave throughput is not sustained production capacity or isolated counter cost. |
 | `OutboxStagingWindowBenchmarks` | Diagnostic comparison of staging placement. It does not establish a published percentage improvement for the complete application path. |
+| `InMemoryEventStoreBenchmarks` writers | Fresh streams/events accumulate until global cleanup. [Finite original-method controls](../docs/performance/in-memory-original-writers-2026-10-19.md) verify retained growth and cleanup; their original adaptive timing jobs remain withheld under campaign resource bounds. |
 
 The allocation and actual-store wave benchmarks retain a single-writer control. A single-writer measurement is
 necessary to assess the spike's approved regression threshold, even when the main question is contention.

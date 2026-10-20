@@ -13,7 +13,7 @@ namespace Boundary.Tests;
 /// <remarks>
 /// These guards key on ASSEMBLY IDENTITY (assembly name + referenced-assembly names), matched EXACTLY on the
 /// concrete-vs-<c>.Abstractions</c> distinction — never on CLR namespace membership, which ADR-075 severed
-/// from package identity. The module initializer force-loads the full framework set, so an empty target set
+/// from package identity. The assembly fixture force-loads the full framework set, so an empty target set
 /// means drift; each guard asserts non-emptiness rather than skipping.
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -31,7 +31,7 @@ public sealed class Phase8_3_BoundaryTests
     {
         var dispatchAssemblies = GetDispatchAssemblies();
         dispatchAssemblies.ShouldNotBeEmpty(
-            "No Excalibur.Dispatch.* assemblies are loaded — the module initializer force-loads them, so an " +
+            "No Excalibur.Dispatch.* assemblies are loaded — the assembly fixture force-loads them, so an " +
             "empty set means drift, not a pass.");
 
         var violations = new List<string>();
@@ -100,7 +100,7 @@ public sealed class Phase8_3_BoundaryTests
             .ToArray();
 
         coreAssemblies.ShouldNotBeEmpty(
-            "The Excalibur.Dispatch / .Patterns core assemblies are not loaded — the module initializer " +
+            "The Excalibur.Dispatch / .Patterns core assemblies are not loaded — the assembly fixture " +
             "force-loads them, so an empty set means drift, not a pass.");
 
         var violations = new List<string>();
@@ -135,7 +135,7 @@ public sealed class Phase8_3_BoundaryTests
     {
         var azureAssemblies = GetAssembliesMatching("Excalibur.Dispatch.Transport.Azure");
         azureAssemblies.ShouldNotBeEmpty(
-            "The Azure transport assemblies are not loaded — the module initializer force-loads them, so an " +
+            "The Azure transport assemblies are not loaded — the assembly fixture force-loads them, so an " +
             "empty set means drift, not a pass.");
 
         var violations = new List<string>();
@@ -169,7 +169,7 @@ public sealed class Phase8_3_BoundaryTests
         var awsAssemblies = GetAssembliesMatching(
             "Excalibur.Dispatch.Transport.Aws", "Excalibur.Dispatch.Hosting.Serverless.AwsLambda");
         awsAssemblies.ShouldNotBeEmpty(
-            "The AWS provider assemblies are not loaded — the module initializer force-loads them, so an empty " +
+            "The AWS provider assemblies are not loaded — the assembly fixture force-loads them, so an empty " +
             "set means drift, not a pass.");
 
         var violations = new List<string>();
@@ -204,7 +204,7 @@ public sealed class Phase8_3_BoundaryTests
         var googleAssemblies = GetAssembliesMatching(
             "Excalibur.Dispatch.Transport.Google", "Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctions");
         googleAssemblies.ShouldNotBeEmpty(
-            "The Google provider assemblies are not loaded — the module initializer force-loads them, so an " +
+            "The Google provider assemblies are not loaded — the assembly fixture force-loads them, so an " +
             "empty set means drift, not a pass.");
 
         var violations = new List<string>();

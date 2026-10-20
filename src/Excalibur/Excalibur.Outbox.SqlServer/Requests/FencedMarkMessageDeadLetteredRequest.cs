@@ -50,6 +50,7 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 	/// <param name="fenceTableName">The qualified fence control table name.</param>
 	/// <param name="messageId">The message being buried.</param>
 	/// <param name="reason">The reason recorded against the burial.</param>
+	/// <param name="attemptCount">The observed logical delivery attempt count.</param>
 	/// <param name="fencingToken">The presented tenure token.</param>
 	/// <param name="commandTimeout">Command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
@@ -58,10 +59,12 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 		string fenceTableName,
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		int commandTimeout,
 		CancellationToken cancellationToken)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 		var sql = $"""
 			SET NOCOUNT ON;
 
@@ -83,7 +86,8 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 			SELECT TOP 1 @HighWater = HighWaterToken FROM @FenceResult;
 
 			UPDATE {outboxTableName}
-			SET Status = 5, LastError = @Reason, LastAttemptAt = @LastAttemptAt, LeasedAt = NULL, LeasedBy = NULL
+			SET Status = 5, LastError = @Reason, RetryCount = CASE WHEN RetryCount < @AttemptCount THEN @AttemptCount ELSE RetryCount END,
+			    LastAttemptAt = @LastAttemptAt, LeasedAt = NULL, LeasedBy = NULL
 			WHERE Id = @MessageId
 			  AND Status NOT IN (2, 5)
 			  AND @HighWater = @FencingToken;
@@ -106,6 +110,7 @@ internal sealed class FencedMarkMessageDeadLetteredRequest : DataRequestBase<IDb
 		parameters.Add("@FencingToken", fencingToken);
 		parameters.Add("@MessageId", messageId);
 		parameters.Add("@Reason", reason);
+		parameters.Add("@AttemptCount", attemptCount, DbType.Int32);
 		parameters.Add("@LastAttemptAt", DateTimeOffset.UtcNow);
 
 		Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);

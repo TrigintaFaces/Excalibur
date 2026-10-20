@@ -37,17 +37,17 @@ public sealed class PollyRetryOptions
 	public bool UseJitter { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a predicate that narrows which exceptions are retried.
+	/// Gets or sets a predicate that selects which exceptions are retried.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// When this is <see langword="null"/> — the default — every exception is retried. A nullable predicate
-	/// here means "no additional restriction", not "no retry".
+	/// When this is <see langword="null"/>, exceptions other than cancellation and the framework exclusions
+	/// below are retried, matching Polly's default cancellation behavior.
 	/// </para>
 	/// <para>
-	/// The predicate can only ever <em>narrow</em> what is retried. It is combined with the framework's own
-	/// exclusions using AND, so returning <see langword="true"/> for an exception the framework never retries
-	/// has no effect. There is deliberately no way to widen retry coverage back out through this predicate.
+	/// An explicit predicate may select attempt-local cancellation when the caller remains active.
+	/// Caller cancellation still terminates the pipeline. The predicate is combined with the framework's
+	/// exclusions using AND, so it cannot re-enable a tenant-isolation violation.
 	/// </para>
 	/// <para>
 	/// Exceptions that are never retried regardless of this predicate:
@@ -58,7 +58,7 @@ public sealed class PollyRetryOptions
 	/// </remarks>
 	/// <value>
 	/// A predicate returning <see langword="true"/> for exceptions that may be retried, or
-	/// <see langword="null"/> to retry every exception the framework does not itself exclude.
+	/// <see langword="null"/> to use the default exclusion of cancellation and tenant-isolation failures.
 	/// </value>
 	public Func<Exception, bool>? ShouldRetry { get; set; }
 

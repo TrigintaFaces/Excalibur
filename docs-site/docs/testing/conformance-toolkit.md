@@ -27,11 +27,12 @@ tenant-isolated: reads are not scoped to the calling tenant. Use a database-back
 isolation matters.
 :::
 
-Two packages make up the toolkit:
+The toolkit is provided by these packages:
 
 | Package | What it provides |
 |---------|------------------|
 | `Excalibur.Testing.Conformance` | Abstract `{Contract}ConformanceTestKit` base classes — framework-agnostic, no Docker dependency. |
+| `Excalibur.Dispatch.Testing` | Receiver smoke checks and optional settlement outcome/effect helpers for `ITransportReceiver`. |
 | `Excalibur.Testing.Containers` | Opt-in TestContainers fixtures (`SqlServerContainerFixture`, `PostgresContainerFixture`) for running kits against a real backend. |
 
 The Containers package is kept separate so that if you only test in-memory, you never pull a Docker or
@@ -73,6 +74,89 @@ Because nothing in a kit makes an arm execute, **an arm you forget to wrap never
 `ConformanceSuite_ShouldWireEveryArm()` is the guard against exactly that: wrap it like any other arm and it fails, naming each arm you have not wired. Wire it first, before you trust a green.
 
 :::
+
+## Receiver settlement observations
+
+`Excalibur.Dispatch.Testing` provides `TransportReceiverConformanceTests` for implementations of
+`ITransportReceiver`. Supply `CreateReceiverAsync` and `SeedMessagesAsync`, then expose the protected
+checks through your test framework. Import `Excalibur.Dispatch.Testing.Transport` for the base class
+and `Excalibur.Dispatch.Transport` for the transport contracts and settlement outcome types.
+This receiver kit is separate from the data-provider kits above.
+
+The original `VerifyAcknowledgeSucceeds`, `VerifyRejectSucceeds`, and
+`VerifyRejectWithRequeueSucceeds` checks are smoke checks: they establish that the operation returns
+without an exception. They do not establish that settlement changed anything. For an observable-effect
+check, use `VerifyAcknowledgeHasObservableEffect` or `VerifyRejectHasObservableEffect` and supply an
+observer that asserts against independently owned fixture state:
+
+```csharp ignore
+public Task Acknowledgement_IsRecorded() =>
+    VerifyAcknowledgeHasObservableEffect((receiver, message) =>
+    {
+        var observed = _fixture.AcknowledgedMessages;
+        Assert.Single(observed);
+        Assert.Same(message, observed[0]);
+        Assert.Empty(_fixture.RejectedMessages);
+        return Task.CompletedTask;
+    });
+```
+
+The observer runs after settling exactly one received message, while the receiver is still alive.
+Completing the observer without assertions does not prove an effect. Pair the healthy implementation
+with a control that suppresses settlement: the same observer must reject that no-op control. Observe
+the requested rejection disposition as well as the message identity when using the reject helper.
+
+An in-memory acknowledgement record proves a local state change. A mocked RabbitMQ channel's exact
+acknowledgement or rejection call proves native operation selection. A real broker-state observation
+proves a different property; neither of the first two certifies durable broker acceptance or redelivery.
+Use real infrastructure when that property is required and report unavailable infrastructure as
+unverified.
+
+Test unknown or retired receipts, duplicate settlement, cancellation ownership, native failure, and
+independent settlement of messages from the same batch against the provider's documented policy.
+Providers differ in whether they retain a failed receipt and whether settlement observes caller
+cancellation. The kit does not impose a common retry or cancellation policy beyond the transport
+contract. Existing smoke checks remain available; adopting the effect checks adds no abstract factory
+requirements.
+
+The additional outcome helpers let the fixture declare its supported policy while the kit executes
+the settlement calls and checks their results:
+
+| Helper | Fixture responsibility |
+|---|---|
+| `VerifySettlementRefusal` | Arrange an unknown or expired/retired receipt, observe its lack of effect, and independently observe settlement of an unrelated valid receipt. Model expiry through a real fixture transition; malformed metadata alone does not prove expiry. |
+| `VerifyRepeatedSettlement` | Observe the first successful settlement, then the declared duplicate outcome and native/state effects. Stateless duplicate success and local-claim refusal are different supported policies. |
+| `VerifyNativeSettlementFailure` | Inject a specific native exception and independently observe the failed operation. The helper requires that exact exception as the portable failure's inner cause. |
+| `VerifySettlementCancellation` | Pause at the native boundary and provide an idempotent release hook. The helper cancels its own token and checks the declared outcome and independent effects. |
+| `VerifyCompetingSettlements` | Prove that the first call is pending and the second has been attempted before releasing the first. Observe both dispositions and exact message effects. |
+| `VerifySettlementBatchRetry` | Inject failure for one of two distinct receipts, observe that failure before its healthy peer settles, and declare and observe the failed receipt's retry policy. |
+
+Use `SettlementExpectation.Completed`, `SettlementExpectation.CallerCanceled`, or
+`SettlementExpectation.Refused(redelivery, retryability)` where the helper accepts an expectation.
+Requested caller cancellation must carry the helper's exact token. Portable failures must preserve the
+declared redelivery and retry axes. A provider using an independent settlement token may complete even
+after caller cancellation; a provider that forwards the token may cancel instead.
+
+Preparation hooks arrange faults or receipt transitions; they do not perform settlement. Observation
+hooks assert independent effects. All fixture hooks must return promptly with a task representing their
+work. Boundary hooks passively expose existing fixture signals and must not launch active fixture work.
+Synchronization hooks establish the intended overlap without sleeps. Canceling a boundary observation
+only cancels the kit's wait, not the borrowed signal or provider operation. A competing call may finish
+before its native-entry signal, including a local-claim refusal; its outcome must still be checked.
+Every asynchronous stage is bounded: the simpler helpers use 30 seconds per stage, while cancellation,
+competition, and batch helpers accept a positive finite timeout. Settlement is invoked on the thread
+pool so a synchronous native pause cannot prevent the harness from reaching its release boundary.
+These checks do not certify execution tied to the caller's synchronization context.
+
+A timeout bounds the harness's wait; it does not prove the underlying operation was canceled. Release
+and observation of all started settlement tasks are part of cleanup. An operation that cannot be drained
+leaves explicit cleanup uncertainty and fails the check. Pending borrowed boundary signals need not
+complete, and canceling their observation must not mask a fault or count as provider cancellation.
+
+These are opt-in protected helpers. Existing derived suites still compile without exposing them, so
+add explicit tests for the applicable scenarios. Pair them with controls for missing effects, incorrect
+classification or cause, wrong delivery, and missing overlap. Neither helper availability nor a green
+fixture for a different provider establishes your provider's behavior.
 
 ## What a green run actually covered
 

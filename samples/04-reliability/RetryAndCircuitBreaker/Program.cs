@@ -15,13 +15,11 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
-using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,8 +29,11 @@ using Microsoft.Extensions.Logging;
 using RetryAndCircuitBreaker.Messages;
 using RetryAndCircuitBreaker.Services;
 
+using Polly.Timeout;
+
 // Build configuration
-var builder = new HostApplicationBuilder(args);
+var verify = args.Contains("--verify", StringComparer.Ordinal);
+var builder = new HostApplicationBuilder(args.Where(argument => argument != "--verify").ToArray());
 
 // Add appsettings.json configuration
 builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
@@ -67,10 +68,10 @@ builder.Services.AddDispatch(dispatch =>
 builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 {
 	options.MaxRetryAttempts = 5; // Retry up to 5 times
-	options.BaseDelay = TimeSpan.FromMilliseconds(200); // Start with 200ms delay
+	options.BaseDelay = TimeSpan.FromMilliseconds(verify ? 10 : 200);
 	options.BackoffStrategy = BackoffStrategy.Exponential; // 200ms -> 400ms -> 800ms -> etc.
-	options.UseJitter = true; // Add randomness to prevent thundering herd
-	options.MaxDelay = TimeSpan.FromSeconds(10); // Cap at 10 seconds
+	options.UseJitter = !verify; // The demonstration uses jitter; verification keeps delays deterministic.
+	options.MaxDelay = verify ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(10);
 	options.EnableDetailedLogging = true; // Log retry attempts
 	options.ShouldRetry = ex => ex is PaymentServiceException; // Only retry payment exceptions
 });
@@ -78,7 +79,8 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
 // Circuit breaker for inventory service
 builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 {
-	options.ConsecutiveFailureThreshold = 3; // Open after 3 failures
+	options.MinimumThroughput = verify ? 2 : 4;
+	options.FailureRatio = verify ? 1 : 0.75;
 	options.BreakDuration = TimeSpan.FromSeconds(10); // Stay open for 10 seconds
 	options.OperationTimeout = TimeSpan.FromSeconds(5); // Timeout operations at 5 seconds
 
@@ -88,22 +90,12 @@ builder.Services.AddPollyCircuitBreaker("inventory-circuit", options =>
 	// run of successes delays recovery without making it safer.
 });
 
-// Timeout manager for slow operations
-builder.Services.ConfigureTimeoutManager(options =>
-{
-	// Add named timeouts for different operation types
-	options.DefaultTimeout = TimeSpan.FromSeconds(5);
-	options.OperationTimeouts["notification"] = TimeSpan.FromSeconds(2);
-	options.OperationTimeouts["payment"] = TimeSpan.FromSeconds(10);
-	options.OperationTimeouts["inventory"] = TimeSpan.FromSeconds(3);
-});
-
 // Bulkhead for notification service
 builder.Services.AddBulkhead("notification-bulkhead", options =>
 {
 	options.MaxConcurrency = 5; // Max 5 concurrent notifications
 	options.MaxQueueLength = 10; // Queue up to 10 more
-	options.OperationTimeout = TimeSpan.FromSeconds(5); // Timeout operations after 5s
+	options.OperationTimeout = verify ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(5);
 });
 
 // ============================================================
@@ -114,33 +106,12 @@ builder.Services.AddSingleton<UnreliableInventoryService>();
 builder.Services.AddSingleton<SlowNotificationService>();
 
 // ============================================================
-// Configure outbox/inbox for reliable messaging
-// ============================================================
-// AddInMemoryOutboxStore() is the in-memory provider's own entry point. The generic
-// AddOutbox<TStore>() cannot be used with it: the store's constructor is internal, so container
-// activation has nothing public to call and the host fails to start.
-builder.Services.AddInMemoryOutboxStore();
-builder.Services.AddInMemoryInboxStore();
-builder.Services.AddInboxHostedService();
-
-// AddOutboxHostedService() is deliberately NOT called here.
-//
-// The outbox background service drains staged messages through an IOutboxPublisher, and a
-// publisher needs a transport (Kafka, RabbitMQ, Azure Service Bus, ...). This sample stages
-// messages to the in-memory outbox store to show the WRITE half of the pattern and registers
-// no transport, so starting the drain loop would abort host startup with:
-//   Unable to resolve service for type 'Excalibur.Dispatch.IOutboxPublisher'
-// Register the transport and AddOutboxHostedService() together -- see
-// samples/04-reliability/OutboxPattern for the full stage-and-drain path.
-
-// ============================================================
 // Build and start the host
 // ============================================================
 using var host = builder.Build();
 
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 var dispatcher = host.Services.GetRequiredService<IDispatcher>();
-var context = DispatchContextInitializer.CreateDefaultContext();
 
 // Get services for demo configuration
 var paymentService = host.Services.GetRequiredService<FlakyPaymentService>();
@@ -151,6 +122,78 @@ logger.LogInformation("Starting Retry and Circuit Breaker Sample...");
 logger.LogInformation("");
 
 await host.StartAsync().ConfigureAwait(false);
+
+if (verify)
+{
+	using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+	var token = deadline.Token;
+	async Task<IMessageResult> DispatchAsync(IDispatchAction command) =>
+		await dispatcher.DispatchAsync(command, DispatchContextInitializer.CreateDefaultContext(host.Services), token)
+			.ConfigureAwait(false);
+	static void Require(bool condition, string message)
+	{
+		if (!condition)
+		{
+			throw new InvalidOperationException(message);
+		}
+	}
+	async Task ExpectAsync<TException>(IDispatchAction command) where TException : Exception
+	{
+		try
+		{
+			await DispatchAsync(command).ConfigureAwait(false);
+		}
+		catch (TException)
+		{
+			return;
+		}
+
+		throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
+	}
+
+	paymentService.SetFailuresBeforeSuccess(2);
+	var payment = await DispatchAsync(new ProcessPaymentCommand
+	{
+		PaymentId = "VERIFY-PAYMENT", Amount = 10, CustomerId = "VERIFY-CUSTOMER",
+	}).ConfigureAwait(false);
+	Require(payment.Succeeded && paymentService.CallCount == 3 && paymentService.CompletedPayments == 1,
+		"Dependency retry must make exactly three attempts and complete one payment.");
+	paymentService.SetFailuresBeforeSuccess(1000);
+	await ExpectAsync<PaymentServiceException>(new ProcessPaymentCommand
+	{
+		PaymentId = "VERIFY-PERSISTENT-FAILURE", Amount = 10, CustomerId = "VERIFY-CUSTOMER",
+	}).ConfigureAwait(false);
+	Require(paymentService.CallCount == 6 && paymentService.CompletedPayments == 0,
+		"Five retries must bound persistent failure to six total dependency attempts and no payment effect.");
+
+	var inventory = new CheckInventoryCommand { ProductSku = "VERIFY-SKU", RequestedQuantity = 1 };
+	inventoryService.SetHealth(false);
+	await ExpectAsync<InventoryServiceException>(inventory).ConfigureAwait(false);
+	await ExpectAsync<InventoryServiceException>(inventory).ConfigureAwait(false);
+	var callsBeforeRefusal = inventoryService.CallCount;
+	await ExpectAsync<CircuitBreakerOpenException>(inventory).ConfigureAwait(false);
+	Require(inventoryService.CallCount == callsBeforeRefusal, "Open breaker must not call the dependency.");
+	inventoryService.SetHealth(true);
+	await host.Services.GetRequiredKeyedService<ICircuitBreakerPolicy>("inventory-circuit")
+		.ResetAsync(token).ConfigureAwait(false);
+	Require((await DispatchAsync(inventory).ConfigureAwait(false)).Succeeded, "Manual breaker recovery must succeed.");
+
+	var notification = new SendNotificationCommand
+	{
+		NotificationType = "Email", Recipient = "verify@example.com", Message = "Verification",
+	};
+	notificationService.SetResponseDelay(System.Threading.Timeout.InfiniteTimeSpan);
+	await ExpectAsync<TimeoutRejectedException>(notification).ConfigureAwait(false);
+	var bulkhead = host.Services.GetRequiredKeyedService<IBulkheadPolicy>("notification-bulkhead");
+	Require(notificationService.CanceledNotifications == 1 && notificationService.CompletedNotifications == 0 &&
+		bulkhead.GetMetrics().ActiveExecutions == 0, "Timeout must cancel the dependency and release capacity without completing an effect.");
+	notificationService.SetResponseDelay(TimeSpan.Zero);
+	Require((await DispatchAsync(notification).ConfigureAwait(false)).Succeeded && notificationService.CompletedNotifications == 1,
+		"A healthy operation must complete after timeout recovery.");
+	Console.WriteLine("RESILIENCE_SAMPLE_VERIFIED: payment attempts=3 effects=1; breaker refusal and manual recovery; timeout cancellation and permit recovery");
+	await host.StopAsync(token).ConfigureAwait(false);
+	return;
+}
 
 // ============================================================
 // Demo 1: Retry with Exponential Backoff
@@ -171,7 +214,11 @@ var paymentCommand = new ProcessPaymentCommand { PaymentId = "PAY-001", Amount =
 logger.LogInformation("Sending payment (will fail 2 times, then succeed)...");
 try
 {
-	_ = await dispatcher.DispatchAsync(paymentCommand, context, cancellationToken: default).ConfigureAwait(false);
+	var paymentResult = await dispatcher.DispatchAsync(paymentCommand, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
+	if (!paymentResult.Succeeded || paymentService.CallCount != 3 || paymentService.CompletedPayments != 1)
+	{
+		throw new InvalidOperationException("Payment recovery did not produce three attempts and one completed effect.");
+	}
 	logger.LogInformation("Payment completed successfully!");
 }
 catch (Exception ex)
@@ -198,7 +245,7 @@ inventoryService.SetHealth(true);
 var inventoryCommand = new CheckInventoryCommand { ProductSku = "WIDGET-001", RequestedQuantity = 5, };
 
 logger.LogInformation("Checking inventory (healthy service)...");
-await dispatcher.DispatchAsync(inventoryCommand, context, cancellationToken: default).ConfigureAwait(false);
+await dispatcher.DispatchAsync(inventoryCommand, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
 
 await Task.Delay(300).ConfigureAwait(false);
 
@@ -212,7 +259,7 @@ for (var i = 1; i <= 5; i++)
 	try
 	{
 		var cmd = new CheckInventoryCommand { ProductSku = $"SKU-{i:D3}", RequestedQuantity = i };
-		_ = await dispatcher.DispatchAsync(cmd, context, cancellationToken: default).ConfigureAwait(false);
+		_ = await dispatcher.DispatchAsync(cmd, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
 	}
 	catch (Exception ex)
 	{
@@ -227,7 +274,14 @@ logger.LogInformation("");
 logger.LogInformation("Restoring inventory service health...");
 inventoryService.SetHealth(true);
 
-await Task.Delay(500).ConfigureAwait(false);
+await host.Services.GetRequiredKeyedService<ICircuitBreakerPolicy>("inventory-circuit")
+	.ResetAsync(CancellationToken.None).ConfigureAwait(false);
+var recoveredInventory = await dispatcher.DispatchAsync(inventoryCommand, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
+if (!recoveredInventory.Succeeded)
+{
+	throw new InvalidOperationException("Inventory did not recover after manual circuit reset.");
+}
+logger.LogInformation("Inventory recovered after an explicit manual circuit reset.");
 
 // ============================================================
 // Demo 3: Timeout Handling
@@ -251,52 +305,28 @@ var fastNotification = new SendNotificationCommand
 };
 
 logger.LogInformation("Sending fast notification (100ms delay)...");
-await dispatcher.DispatchAsync(fastNotification, context, cancellationToken: default).ConfigureAwait(false);
+await dispatcher.DispatchAsync(fastNotification, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
 
-await Task.Delay(300).ConfigureAwait(false);
+notificationService.SetResponseDelay(System.Threading.Timeout.InfiniteTimeSpan);
+try
+{
+	await dispatcher.DispatchAsync(fastNotification, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
+	throw new InvalidOperationException("The slow notification did not time out.");
+}
+catch (TimeoutRejectedException)
+{
+	logger.LogInformation("Notification timeout canceled the dependency operation.");
+}
 
-// ============================================================
-// Configuration Reference
-// ============================================================
-logger.LogInformation("");
-logger.LogInformation("=== Resilience Configuration Reference ===");
-logger.LogInformation("");
-logger.LogInformation("Retry Policy Options:");
-logger.LogInformation("  | Option              | Default     | Description                      |");
-logger.LogInformation("  |---------------------|-------------|----------------------------------|");
-logger.LogInformation("  | MaxRetryAttempts    | 3           | Maximum retry attempts           |");
-logger.LogInformation("  | BaseDelay           | 1 second    | Initial delay between retries    |");
-logger.LogInformation("  | BackoffStrategy     | Exponential | Linear, Exponential, or Constant |");
-logger.LogInformation("  | UseJitter           | true        | Add randomness to delays         |");
-logger.LogInformation("  | JitterFactor        | 0.2         | Jitter magnitude (0.0-1.0)       |");
-logger.LogInformation("  | MaxDelay            | 1 minute    | Maximum delay cap                |");
-logger.LogInformation("");
-logger.LogInformation("Circuit Breaker Options:");
-logger.LogInformation("  | Option              | Default     | Description                      |");
-logger.LogInformation("  |---------------------|-------------|----------------------------------|");
-logger.LogInformation("  | FailureThreshold    | 5           | Failures to open circuit         |");
-logger.LogInformation("  | BreakDuration        | 30 seconds  | Time circuit stays open          |");
-logger.LogInformation("  | OperationTimeout    | 5 seconds   | Timeout for each operation       |");
-logger.LogInformation("");
-logger.LogInformation("Half-open recovery is not configurable: ONE trial call is admitted, and the");
-logger.LogInformation("circuit closes if it succeeds.");
+notificationService.SetResponseDelay(TimeSpan.Zero);
+await dispatcher.DispatchAsync(fastNotification, DispatchContextInitializer.CreateDefaultContext(host.Services), cancellationToken: default).ConfigureAwait(false);
+var notificationBulkhead = host.Services.GetRequiredKeyedService<IBulkheadPolicy>("notification-bulkhead");
+if (notificationService.CanceledNotifications != 1 || notificationService.CompletedNotifications != 2 ||
+	notificationBulkhead.GetMetrics().ActiveExecutions != 0)
+{
+	throw new InvalidOperationException("Notification timeout and capacity recovery were not observed.");
+}
 
-// ============================================================
-// Best Practices
-// ============================================================
-logger.LogInformation("");
-logger.LogInformation("=== Best Practices ===");
-logger.LogInformation("");
-logger.LogInformation("1. RETRY: Use for transient failures (network, timeouts)");
-logger.LogInformation("2. CIRCUIT BREAKER: Protect against cascading failures");
-logger.LogInformation("3. TIMEOUT: Always set timeouts for external calls");
-logger.LogInformation("4. BULKHEAD: Isolate critical resources");
-logger.LogInformation("5. COMBINE: Use retry + circuit breaker + timeout together");
-logger.LogInformation("");
-logger.LogInformation("Example combined policy:");
-logger.LogInformation("  Retry(3) -> CircuitBreaker(5, 30s) -> Timeout(10s)");
-
-logger.LogInformation("");
 logger.LogInformation("Sample completed.");
 
 // Wait for shutdown signal

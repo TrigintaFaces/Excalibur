@@ -1,62 +1,57 @@
 #
-# ValidateOnStart coverage baseline — the irreducible residual (892ine / bd-ccr9eg burn-down).
-# Each non-comment line = an options type registered via AddOptions<T> that is NOT paired with both a
-# .ValidateOnStart() AND a registered IValidateOptions<T>. The ValidateOnStartCoverageGuardTests guard
-# fails (RED) if a NEW gap appears that is not listed here, and fails if a listed type becomes fully
-# validated (remove it). Lines starting with # and blank lines are ignored. One type per line.
+# ValidateOnStart coverage baseline — historical reviewed exceptions (892ine / bd-ccr9eg).
+# Each non-comment line = a fully qualified options type with an existing documented startup-validation
+# exception. The guard accepts registered validation delegates and annotations as well as validators,
+# and reports unsupported composition separately. No unresolved profile is evidence of full coverage.
+# Lines starting with # and blank lines are ignored. One type per line.
 # NOTE: inline comments are NOT supported (the whole trimmed line is the type name) — rationale lives
 # on the # lines above each entry.
 # pragma: allowlist secret  (this file lists type names only — no secrets)
 #
-# The bd-ccr9eg burn-down is COMPLETE. Every remaining entry is an intentional, documented exception,
-# NOT an un-triaged gap.
+# These eight entries retain their reviewed exception reasons from the historical bd-ccr9eg burn-down.
+# This list does not establish that every registration gap has been eliminated. The bounded detector
+# reports supported gaps and unresolved composition separately; neither this list nor an unresolved
+# result proves repository-wide startup-validation coverage.
 #
 # --- Category 1: NO top-level invariant (single bool / independent optionals / unconstrained value;
 #     nested option objects self-validate). A validator would be vacuous, so per the Step-0 ruling these
 #     are documented allowlist entries rather than faked validators. ---
 #
 # AwsSqsFifoOptions: single bool (ContentBasedDeduplication) — a bool cannot be invalid.
-AwsSqsFifoOptions
+Excalibur.Dispatch.Transport.Aws.AwsSqsFifoOptions
 # DispatchPatternsJsonOptions: get-only SerializerOptions + optional SerializerContext — nothing to reject.
-DispatchPatternsJsonOptions
+Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions
 # IndexManagementOptions: REMOVED from the baseline — it now has a real IValidateOptions<T>.
 # The entry's original rationale was "nested option objects that self-validate", and that was not the
 # case: none of DefaultTemplateOptions, LifecycleManagementOptions, OptimizationOptions or
 # EnvironmentOptions had a validator or any in-type check. The values are bound from configuration, so
 # a shard count of zero or a non-positive refresh interval could reach Elasticsearch and fail at
 # index-creation time instead of at startup. IndexManagementOptionsValidator now rejects those.
-# InMemoryEventStoreOptions: single optional IJsonTypeInfoResolver (EventTypeInfoResolver). Null selects
-#   the reflection serialization path and ANY non-null resolver is structurally valid, so there is no
-#   value a validator could reject -- the same shape as DispatchPatternsJsonOptions above. Whether a
-#   resolver actually DECLARES a given event type is knowable only per-append against the consumer's own
-#   runtime types, never at startup, and the store already fails that closed where it is knowable:
-#   ResolvedEventPayload raises EventTypeNotDeclaredException rather than writing. A startup validator
-#   here could only return Success, which is the faked validator the Step-0 ruling rejects.
-InMemoryEventStoreOptions
 # UpcastingOptions: single bool (EnableAutoUpcastOnReplay) — a bool cannot be invalid.
-UpcastingOptions
+Excalibur.Dispatch.Versioning.UpcastingOptions
 #
-# --- Category 2: FRAMEWORK-OWNED options — registered + validated by a Microsoft/first-party handler,
-#     not by us. Our guard requires OUR ValidateOnStart()+IValidateOptions<T>, which is neither
-#     appropriate nor possible for an options type the framework owns and self-validates. ---
+# --- Category 2: FRAMEWORK-OWNED options — registered + validated by a Microsoft/first-party handler.
+#     The bounded detector does not trace that handler's composition. Framework-owned validation
+#     does not require a validator written by this repository; predicates and annotations also count
+#     as validation when their registration profile is supported by the detector. ---
 #
 # HttpStandardResilienceOptions: Microsoft.Extensions.Http.Resilience — registered by the framework's
 #   AddStandardResilienceHandler (adopted by the Datadog/Splunk audit sinks, b7i6rh). Microsoft owns the
 #   type and its validation; we do not (and must not) add our own validator for it. Intentional exemption
 #   tracked as hcpupz.
-HttpStandardResilienceOptions
+Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions
 # DeadLetterOptions (GooglePubSub): three surviving properties after the inert ones were removed --
 # two optional nullable resource names and a get-only initialized set. The names are optional until the
 # DLQ is used and are guarded at point of use in PubSubDeadLetterQueueManager; the set cannot be invalid.
 # The former validator checked only properties that no longer exist, so it was deleted rather than
 # refilled with a vacuous body.
-DeadLetterOptions
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions
 # MqttCloudEventOptions: ONE property, a bool (Retain). A bool has no invalid value, so a validator for
 # this type could only ever return Success -- the vacuous body the two entries above were deleted rather
 # than given. Same disposition, and more clear-cut: there is nothing here to check, not merely nothing
 # left after a removal. If a constrained property is ever added, remove this line and write the validator;
 # the guard fails when a baselined type becomes fully validated, so it will force that.
-MqttCloudEventOptions
+Excalibur.Dispatch.Transport.Mqtt.MqttCloudEventOptions
 # AzureEventHubsCloudEventOptions: two surviving properties after the inert ones were removed. Its former
 # validator checked six properties, all of which are gone. Same disposition as DeadLetterOptions.
-AzureEventHubsCloudEventOptions
+Excalibur.Dispatch.Transport.Azure.AzureEventHubsCloudEventOptions

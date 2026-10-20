@@ -14,8 +14,56 @@ namespace Excalibur.Data.Tests.ElasticSearch.Security.KeyManagement;
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Data)]
+[Trait(TraitNames.Pattern, "Regression")]
 public sealed class KeyManagementConfigurationBindingShould
 {
+	[Theory]
+	[InlineData("")]
+	[InlineData("   ")]
+	[InlineData("relative/vault")]
+	[InlineData("https://[invalid")]
+	public void RefuseInvalidVaultUriAtStartupBeforeResolvingAzureClient(string vaultUri)
+	{
+		var services = new ServiceCollection();
+		services.AddAzureKeyVaultCredentialStorage(Configuration(
+			($"{KeyManagementSection}:AzureKeyVault:VaultUri", vaultUri)));
+		using var provider = services.BuildServiceProvider();
+		var error = Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
+		error.OptionsType.ShouldBe(typeof(AzureKeyVaultOptions));
+		error.Failures.ShouldContain(failure => failure.Contains(nameof(AzureKeyVaultOptions.VaultUri), StringComparison.Ordinal));
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-1)]
+	public void RefuseNonPositiveVaultConcurrencyAtStartup(int concurrency)
+	{
+		var services = new ServiceCollection();
+		services.AddAzureKeyVaultCredentialStorage(Configuration(
+			($"{KeyManagementSection}:AzureKeyVault:VaultUri", "https://secrets.internal.example/"),
+			($"{KeyManagementSection}:AzureKeyVault:MaxConcurrentOperations", concurrency.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+		using var provider = services.BuildServiceProvider();
+		var error = Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
+		error.OptionsType.ShouldBe(typeof(AzureKeyVaultOptions));
+		error.Failures.ShouldContain(failure => failure.Contains(nameof(AzureKeyVaultOptions.MaxConcurrentOperations), StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void ValidateCustomAbsoluteVaultHostWithoutOptionalCredentialIdsOrCloudIo()
+	{
+		var services = new ServiceCollection();
+		services.AddAzureKeyVaultCredentialStorage(Configuration(
+			($"{KeyManagementSection}:AzureKeyVault:VaultUri", "https://secrets.internal.example/"),
+			($"{KeyManagementSection}:AzureKeyVault:MaxConcurrentOperations", "3")));
+		using var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<IStartupValidator>().Validate();
+		var options = provider.GetRequiredService<IOptions<AzureKeyVaultOptions>>().Value;
+		options.VaultUri.ShouldBe("https://secrets.internal.example/");
+		options.MaxConcurrentOperations.ShouldBe(3);
+		options.TenantId.ShouldBeNull();
+		options.ClientId.ShouldBeNull();
+	}
+
 	private const string KeyManagementSection = "Elasticsearch:Security:Encryption:KeyManagement";
 	private const string FieldEncryptionKey = "Elasticsearch:Security:Encryption:FieldLevelEncryption";
 

@@ -7,6 +7,7 @@ using Dapper;
 
 using Excalibur.Data;
 using Excalibur.Data.Validation;
+using Excalibur.Dispatch;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.EventSourcing.Queries;
 
@@ -45,7 +46,7 @@ namespace Excalibur.EventSourcing.Sqlite;
 internal sealed class SqliteGlobalStreamQuery : IGlobalStreamQuery
 {
 	private const string SelectColumns =
-		"GlobalPosition, EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp";
+		"GlobalPosition, EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, TenantId";
 
 	private readonly string _connectionString;
 	private readonly string _table;
@@ -166,6 +167,7 @@ internal sealed class SqliteGlobalStreamQuery : IGlobalStreamQuery
 				DateTimeOffset.Parse(row.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind))
 			{
 				GlobalPosition = row.GlobalPosition,
+				TenantId = row.TenantId ?? KeyedTenantPartition.Untenanted.TenantId,
 			});
 		}
 
@@ -184,5 +186,6 @@ internal sealed class SqliteGlobalStreamQuery : IGlobalStreamQuery
 		byte[] EventData,
 		byte[]? Metadata,
 		long Version,
-		string Timestamp);
+		string Timestamp,
+		string? TenantId);
 }

@@ -318,6 +318,13 @@
           "Microsoft.Extensions.Options": "[10.0.10, )"
         }
       },
+      "excalibur.dispatch.hosting.aspnetcore": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.Dispatch": "[1.0.0, )",
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
+        }
+      },
       "excalibur.dispatch.patterns": {
         "type": "Project",
         "dependencies": {

@@ -5,6 +5,9 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Data.ElasticSearch.Projections;
 using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Projections;
+
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +19,106 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ElasticSearchProjectionsEventSourcingBuilderExtensions
 {
+	/// <summary>
+	/// Registers a projection and the ElasticSearch store it lives in, in one call.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type.</typeparam>
+	/// <param name="builder">The event-sourcing builder.</param>
+	/// <param name="configure">Configures what the projection folds — its mode and event handlers.</param>
+	/// <param name="configureStore">
+	/// Configures where it is stored — the cluster, and this projection's own index.
+	/// </param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// A stored projection needs two things said about it: what it folds, and where it goes. Said
+	/// separately they can be forgotten separately — a projection registered with no store folds into
+	/// nothing — so this says both, and cannot be half made.
+	/// </para>
+	/// <para>
+	/// <b><paramref name="configureStore"/> is required on purpose.</b> The store options default their
+	/// node to <c>http://localhost:9200</c>, so a one-call API that let it be omitted would start
+	/// anywhere and reach a cluster only on a developer's own machine — a worse trap than the two calls
+	/// it replaces, because it fails where nobody is looking rather than at the keyboard.
+	/// </para>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddEventSourcing(es => es
+	///     .AddElasticSearchProjection&lt;OrderSummary&gt;(
+	///         p => p.Inline().When&lt;OrderPlaced&gt;((proj, e) => proj.Total = e.Amount),
+	///         o =>
+	///         {
+	///             o.NodeUris = [new Uri("http://es01:9200"), new Uri("http://es02:9200")];
+	///             o.Index.IndexName = "ordersummary";
+	///         })));
+	/// </code>
+	/// </remarks>
+	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	public static IEventSourcingBuilder AddElasticSearchProjection<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TProjection>(
+		this IEventSourcingBuilder builder,
+		Action<IProjectionBuilder<TProjection>> configure,
+		Action<ElasticSearchProjectionStoreOptions> configureStore)
+		where TProjection : class, new()
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+		ArgumentNullException.ThrowIfNull(configureStore);
+
+		// What it folds, then where it goes. Both on the builder the consumer already has, and neither
+		// reachable without the other.
+		_ = builder.AddProjection(configure);
+		_ = builder.Services.AddElasticSearchProjectionStore<TProjection>(configureStore);
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Registers multiple ElasticSearch projection stores sharing one configured cluster.
+	/// </summary>
+	/// <param name="builder">The event-sourcing builder.</param>
+	/// <param name="section">The configuration section describing the shared cluster.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	/// <remarks>
+	/// The cluster is described once, in configuration, and every projection registered inside
+	/// <paramref name="configure"/> binds it while keeping its own index.
+	/// </remarks>
+	[RequiresUnreferencedCode("Binds configuration to the options type reflectively; configure the stores in code for trimming and AOT.")]
+	[RequiresDynamicCode("Binds configuration to the options type reflectively; configure the stores in code for trimming and AOT.")]
+	public static IEventSourcingBuilder AddElasticSearchProjections(
+		this IEventSourcingBuilder builder,
+		IConfiguration section,
+		Action<ElasticSearchProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		_ = builder.Services.AddElasticSearchProjections(section, configure);
+		return builder;
+	}
+
+	/// <summary>
+	/// Registers one ElasticSearch projection store, taking its cluster from a configuration section.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type to store.</typeparam>
+	/// <param name="builder">The event-sourcing builder.</param>
+	/// <param name="section">The configuration section describing the cluster.</param>
+	/// <param name="configureOptions">Optional code configuration, applied after the section so it wins.</param>
+	/// <returns>The same builder for fluent chaining.</returns>
+	[RequiresUnreferencedCode("Binds configuration to the options type reflectively; configure the store in code for trimming and AOT.")]
+	[RequiresDynamicCode("Binds configuration to the options type reflectively; configure the store in code for trimming and AOT.")]
+	public static IEventSourcingBuilder AddElasticSearchProjectionStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TProjection>(
+		this IEventSourcingBuilder builder,
+		IConfiguration section,
+		Action<ElasticSearchProjectionStoreOptions>? configureOptions = null)
+		where TProjection : class
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		_ = builder.Services.AddElasticSearchProjectionStore<TProjection>(section, configureOptions);
+		return builder;
+	}
+
 	/// <summary>
 	/// Registers multiple ElasticSearch projection stores sharing a single node URI.
 	/// </summary>

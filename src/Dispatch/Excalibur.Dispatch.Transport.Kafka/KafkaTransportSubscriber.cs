@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The consumer poll loop calls <see cref="IConsumer{TKey,TValue}.Consume(CancellationToken)"/> and invokes the
+/// The consumer poll loop calls <see cref="IConsumer{TKey,TValue}.Consume(TimeSpan)"/> and invokes the
 /// handler callback for each received message. Message settlement is determined by the returned <see cref="MessageAction"/>:
 /// </para>
 /// <list type="bullet">
@@ -50,6 +50,7 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 	private readonly KafkaOffsetSettler _settler;
 	private readonly KafkaPoisonRecordRouter _poison;
 	private volatile bool _disposed;
+	private static readonly TimeSpan PollTimeout = TimeSpan.FromMilliseconds(100);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KafkaTransportSubscriber"/> class.
@@ -128,60 +129,72 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 		// complete commit even after the subscription token is cancelled.
 		using var messageProcessingCts = new CancellationTokenSource();
 
-		_consumer.Subscribe(Source);
+		lock (_progress.OperationGate)
+		{
+			_consumer.Subscribe(Source);
+		}
 		LogSubscriptionStarted(Source);
 
 		try
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				global::Confluent.Kafka.ConsumeResult<string, byte[]> consumeResult;
-				try
+				global::Confluent.Kafka.ConsumeResult<string, byte[]>? consumeResult;
+				KafkaDeliveryDecision decision;
+				long generation;
+				lock (_progress.OperationGate)
 				{
-					consumeResult = _consumer.Consume(cancellationToken);
-				}
-				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-				{
-					break;
-				}
-
-				if (consumeResult?.Message == null)
-				{
-					continue;
-				}
-
-				// A seek-back replays every offset from the seek point, not only the one that was requeued. An
-				// offset that already reached a decision must not be handed to the handler a second time.
-				var decision = _progress.BeginDelivery(consumeResult.TopicPartition, consumeResult.Offset.Value);
-				if (decision.AbandonedOffset is { } abandoned)
-				{
-					LogOwedOffsetAbandoned(Source, consumeResult.Partition.Value, abandoned);
-				}
-
-				if (decision.SeekTo is { } seekTo)
-				{
-					// The fetch position passed an owed offset: a seek back was lost or overtaken. Seek again before
-					// fetching further. A seek that throws here is asked for again by the next fetch.
-					LogOwedOffsetReseek(Source, consumeResult.Partition.Value, seekTo);
+					if (cancellationToken.IsCancellationRequested)
+					{
+						break;
+					}
 					try
 					{
-						_consumer.Seek(new TopicPartitionOffset(consumeResult.TopicPartition, new Offset(seekTo)));
-
-						// Reported only once the seek returned: the binding waits for it and throws on any failure.
-						_progress.NoteSeekIssued(consumeResult.TopicPartition, seekTo);
+						consumeResult = _consumer.Consume(PollTimeout);
 					}
-					catch (KafkaException ex)
+					catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 					{
-						LogRedeliverySeekFailed(consumeResult.TopicPartitionOffset.ToString(), Source, ex);
+						break;
 					}
 
-					continue;
-				}
+					if (consumeResult?.Message == null)
+					{
+						continue;
+					}
 
-				var generation = decision.Generation;
-				if (!decision.Deliver)
-				{
-					continue;
+					// A seek-back replays every offset from the seek point, not only the one that was requeued. An
+					// offset that already reached a decision must not be handed to the handler a second time.
+					decision = _progress.BeginDelivery(consumeResult.TopicPartition, consumeResult.Offset.Value);
+					if (decision.AbandonedOffset is { } abandoned)
+					{
+						LogOwedOffsetAbandoned(Source, consumeResult.Partition.Value, abandoned);
+					}
+
+					if (decision.SeekTo is { } seekTo)
+					{
+						// The fetch position passed an owed offset: a seek back was lost or overtaken. Seek again before
+						// fetching further. A seek that throws here is asked for again by the next fetch.
+						LogOwedOffsetReseek(Source, consumeResult.Partition.Value, seekTo);
+						try
+						{
+							_consumer.Seek(new TopicPartitionOffset(consumeResult.TopicPartition, new Offset(seekTo)));
+
+							// Reported only once the seek returned: the binding waits for it and throws on any failure.
+							_progress.NoteSeekIssued(consumeResult.TopicPartition, seekTo);
+						}
+						catch (KafkaException ex)
+						{
+							LogRedeliverySeekFailed(consumeResult.TopicPartitionOffset.ToString(), Source, ex);
+						}
+
+						continue;
+					}
+
+					generation = decision.Generation;
+					if (!decision.Deliver)
+					{
+						continue;
+					}
 				}
 
 				TransportReceivedMessage received;
@@ -259,7 +272,10 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 			// Cancel in-flight message processing
 			await messageProcessingCts.CancelAsync().ConfigureAwait(false);
 
-			_consumer.Close();
+			lock (_progress.OperationGate)
+			{
+				_consumer.Close();
+			}
 			LogSubscriptionStopped(Source);
 		}
 	}
@@ -285,7 +301,10 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 		}
 
 		_disposed = true;
-		_consumer.Dispose();
+		lock (_progress.OperationGate)
+		{
+			_consumer.Dispose();
+		}
 		LogDisposed(Source);
 		GC.SuppressFinalize(this);
 		return ValueTask.CompletedTask;
@@ -401,10 +420,13 @@ internal sealed partial class KafkaTransportSubscriber : ITransportSubscriber
 	/// <param name="generation">The assignment generation the message was delivered under.</param>
 	private void SeekBackForRedelivery(global::Confluent.Kafka.ConsumeResult<string, byte[]> consumeResult, long generation)
 	{
-		if (_progress.TryRequeue(consumeResult.TopicPartition, consumeResult.Offset.Value, generation, out var seekOffset)
-			== KafkaRequeueOutcome.Requeued)
+		lock (_progress.OperationGate)
 		{
-			_consumer.Seek(new TopicPartitionOffset(consumeResult.TopicPartition, new Offset(seekOffset)));
+			if (_progress.TryRequeue(consumeResult.TopicPartition, consumeResult.Offset.Value, generation, out var seekOffset)
+				== KafkaRequeueOutcome.Requeued)
+			{
+				_consumer.Seek(new TopicPartitionOffset(consumeResult.TopicPartition, new Offset(seekOffset)));
+			}
 		}
 	}
 

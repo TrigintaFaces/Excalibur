@@ -2,7 +2,194 @@
 
 Comprehensive BenchmarkDotNet suite for **Excalibur** framework performance validation and competitive analysis.
 
-`.NET 10.0` | `317 benchmarks in latest full diagnostics matrix`
+### Handler invoker fixture verification
+
+Build with `dotnet build benchmarks/Excalibur.Dispatch.Benchmarks -c Release -p:BuildExamplesAndTests=true`.
+Before measuring `HandlerInvokerPathBenchmarks`, run each control in a fresh process:
+
+```powershell
+$bundle = 'benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0/Excalibur.Dispatch.Benchmarks.dll'
+dotnet $bundle handler-invoker-path-verify normal
+dotnet $bundle handler-invoker-path-verify frozen-registry
+dotnet $bundle handler-invoker-path-verify frozen-invoker
+dotnet $bundle handler-invoker-path-verify cleanup-frozen-registry
+dotnet $bundle handler-invoker-path-verify cleanup-frozen-invoker
+dotnet $bundle --filter '*HandlerInvokerPathBenchmarks*' --exporters json --artifacts artifacts/benchmarks/invoker-new-run
+```
+
+Keep builds, tests, profiling, source edits and other cache mutations out of the measurement window.
+This in-process fixture requires initially mutable caches. Setup registers only its private
+synthetic handler/message pair through the public registry and warms the unregistered runtime
+pair. Cleanup releases fixture references without clearing shared registrations or unfreezing
+caches; process termination retires the static entries. The controls check results, fallback
+refusal, repeated lifecycle calls and preservation of a foreign registration.
+
+The repaired public-registration setup and private fallback guard define a new fixture epoch.
+The two timed bodies, payloads and diagnostic job remain unchanged. Earlier setup failures are
+retained as failures. These are managed synthetic invoker observations, not source-generated
+dispatch, Native AOT measurements or evidence of a production speedup.
+
+One isolated Release capture on October 19, 2026 (.NET 10.0.12 RyuJIT,
+BenchmarkDotNet 0.15.8, original `diag-default` job) produced:
+
+| Synthetic invoker path | Mean | Standard deviation | Allocated per operation |
+| --- | ---: | ---: | ---: |
+| Registered pair (`Invoke_PrecompiledCacheHit`) | 28.928 ns | 0.252 ns | 168 B |
+| Warmed runtime fallback | 25.646 ns | 0.606 ns | 96 B |
+
+Both cases have eight actual measurements; the runtime case retains seven results after
+one outlier removal. BenchmarkDotNet also detected a registered-case outlier without removing
+a result. The registered synthetic delegate and runtime handler have different completion
+representations; this table does not rank production dispatch strategies. Raw measurements,
+five functional control captures and reconciliation are under
+`artifacts/benchmarks/full-refresh-20261015/hot-current-controls/invoker-path-repair-r1/`.
+The source fence passed; the runtime fence covers listed top-level files, not the complete
+transitive runtime population. Repeated-process stability has not been established here.
+
+### Outbox fixture isolation
+
+`OutboxStagingBenchmarks` and `OutboxPublishingBenchmarks` create an empty store in
+`IterationSetup` and dispose it in `IterationCleanup`, outside timed work. Each iteration
+invokes the unchanged operation once (`InvocationCount=1`, `UnrollFactor=1`). The store
+still uses unlimited capacity: no eviction or production retention policy was changed.
+One operation retains at most 100 messages or 1 MiB of payload before cleanup.
+
+The previous fixtures retained every staged or sent message across invocations. Their
+growing populations caused increasing scan costs and memory exhaustion. Those results
+are unsuitable for performance claims. Isolated measurements are a new measurement
+epoch, not evidence of a production speedup. Single-invocation microbenchmarks can have
+low iteration times and high timing error; retain BenchmarkDotNet warnings and do not
+publish precise comparisons unsupported by repeated results. See the
+[BenchmarkDotNet lifecycle guidance](https://benchmarkdotnet.org/articles/features/setup-and-cleanup.html).
+
+Before running these benchmarks, build Release and run the bounded regression controls:
+
+```powershell
+pwsh eng/performance/verify-outbox-benchmark-isolation.ps1 `
+  -BenchmarkBundle benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0 `
+  -ArtifactsPath artifacts/benchmarks/outbox-isolation-new-run
+```
+
+Use a fresh artifact directory. The controls exercise all ten operations across 1,280
+isolated cycles, checking counts, payloads, delivery status, envelope headers and cleanup.
+They enforce a two-minute deadline, a 512 MiB observed private-memory limit and a
+64 MiB retained managed-memory growth limit. These are fixture regression controls,
+not throughput, allocation or NativeAOT measurements.
+
+### Event-sourcing workload verification
+
+The shared `Patterns.TestDomainEvent` declares the permanent fixture identity
+`excalibur.benchmarks.test-domain-event.v1`. Its `EventType` payload property is data;
+it does not replace the declared name used by event stores.
+
+Before measuring `EventSourcingConcurrentLoadTest`, run the bounded diagnostic controls
+against the Release benchmark bundle:
+
+```powershell
+pwsh eng/performance/verify-eventsourcing-benchmark-isolation.ps1 `
+  -BenchmarkBundle benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0 `
+  -ArtifactsPath artifacts/benchmarks/event-sourcing-controls-new-run
+```
+
+The controls execute the existing methods outside measurement, with fresh stores and
+each writer/event-count combination. They validate stored events and observe append
+classifications through an activity listener. The listener is confined to the diagnostic
+process; it is not installed during BenchmarkDotNet measurements. Direct append-result
+controls separately verify result classification. Stored versions begin at zero while
+the fixture payload's version field begins at one.
+
+For the current in-memory provider, `ConcurrentAppend` and `ConcurrentAppendThenLoad`
+complete their operations synchronously and execute sequentially. Their original names
+are retained, but the writer parameter determines streams per invocation, not simultaneous
+writers. Report their timings and allocations as multi-stream append / append-and-load;
+do not describe them as parallel throughput or concurrent scaling measurements. The
+conflict method uses scheduled competing tasks, with append critical sections serialized
+by the store.
+
+The existing HostProcess job uses managed reflection-based serialization. These controls
+do not establish NativeAOT performance or compatibility. Keep actual NativeAOT publication
+and execution evidence separate, and retain the earlier cases that failed naming validation.
+
+### Isolated end-to-end scenarios
+
+`EndToEndScenarioBenchmarks` creates fresh providers and stores before each iteration,
+then executes one original workload and disposes its fixture state outside timing.
+This is a new, isolated **fresh-instance** epoch: first use of provider-local caches is
+inside the timed dispatch. Do not compare it directly with the old GlobalSetup fixture's
+warmed, progressively growing stores or describe it as steady-state dispatch overhead.
+Production retention policies are unchanged.
+
+The ten-dispatch full-pipeline cases deliberately retain their original same-order workload:
+one event commits, nine appends conflict, ten messages are staged and ten sends are recorded.
+Their successful dispatch count is not a count of successful event writes. The synthetic
+snapshot case retains snapshot version 20 over twenty stored events at versions 0..19;
+it does not establish correctly versioned snapshot hydration.
+
+```powershell
+pwsh eng/performance/verify-endtoend-benchmark-isolation.ps1 `
+  -BenchmarkBundle benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0 `
+  -ArtifactsPath artifacts/benchmarks/end-to-end-controls-new-run
+```
+
+The diagnostic executes all eight original methods across 64 isolated cycles. It checks
+append classifications, whole-store/index integrity, outbox and transport effects, snapshot
+state and successful-path cleanup, with 15 negative validator controls. It does not prove
+cleanup under injected disposal failures or independently observe discarded read results.
+
+### Encryption fixture integrity
+
+Each pre-encrypted payload owns its matching authentication-tag buffer. The earlier fixture
+overwrote one shared tag across four payload sizes, leaving three decrypt arms with invalid
+inputs. Repairing those operands is a fixture correction, not a crypto throughput improvement;
+preserve any earlier authentication failures as failed history.
+
+```powershell
+pwsh eng/performance/verify-encryption-benchmark-isolation.ps1 `
+  -BenchmarkBundle benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0 `
+  -ArtifactsPath artifacts/benchmarks/encryption-controls-new-run -Mode Fixed
+```
+
+The diagnostic invokes all eleven operations across eight fresh fixtures, checks every
+plaintext byte for all four payload sizes, rejects independent tag/ciphertext/nonce tampering,
+and checks cleanup. `-Mode Broken` is only for a preserved old compiled fixture: its three
+expected authentication failures are diagnostic evidence, not measured passes.
+
+Fixed-nonce arms measure raw primitive cost; they are not production nonce-management
+examples. Only `EncryptWithNonceGeneration` includes that cost. Production encryption must
+use a unique nonce for each encryption under a key, as required by
+[the AesGcm contract](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.aesgcm.encrypt).
+
+For these controls, use a fresh artifact directory and retain the runtime asset fence and
+process receipt. When BenchmarkDotNet rebuilds a separate workload bundle, repeat the controls
+against that exact retained bundle. Sampled memory limits and diagnostic reflection do not
+establish published latency, framework integration guarantees or actual NativeAOT execution.
+
+### Span serializer fixture integrity
+
+`SpanEventSerializerBenchmarks` directly serializes its existing event type. The repaired
+fixture generates all seven event members and supplies a member-scoped formatter for its
+string/null metadata values. That formatter supports up to 1,024 entries in this benchmark
+fixture; it is neither a general object serializer nor a production framework metadata limit.
+Earlier setup failures from the missing formatter remain failed evidence.
+
+```powershell
+pwsh eng/performance/verify-span-serializer-benchmark.ps1 `
+  -BenchmarkBundle benchmarks/Excalibur.Dispatch.Benchmarks/bin/Release/net10.0 `
+  -ArtifactsPath artifacts/benchmarks/span-controls-new-run
+```
+
+The bounded controls execute all sixteen unchanged methods across eight fixtures, compare
+every event field and metadata value, verify byte totals and replay counts, exercise malformed
+metadata and unsupported values, and check repeated cleanup. They also test that normal return
+with unread bytes cannot masquerade as malformed-input rejection. Repeat them against the
+exact generated workload bundle before accepting measured results.
+
+The IBufferWriter arms allocate an ArrayBufferWriter inside each invocation. Their separate
+fixture buffer does not establish zero allocation. Append/replay arms perform serialization
+loops without database I/O. Source-generated fixture metadata and managed diagnostic checks
+do not establish NativeAOT execution or a general serializer speedup.
+
+`.NET 10.0` | Discover the selected method, job and parameter population from the compiled executable.
 
 ---
 
@@ -389,7 +576,7 @@ Latest refreshed values (February 19, 2026):
 
 These suites focus on root-cause analysis when end-to-end comparative results regress.
 
-**Latest matrix run**: February 19, 2026 (`class-loop total time: 01:13:06.6268006`, `executed benchmarks: 317`).
+**Historical matrix run**: February 19, 2026 (`class-loop total time: 01:13:06.6268006`, `executed benchmarks: 317`). The following values belong to that historical epoch; they are not measurements of the current checkout.
 
 #### DispatchHotPathBreakdownBenchmarks.cs
 
@@ -402,7 +589,7 @@ These suites focus on root-cause analysis when end-to-end comparative results re
 | Handler activator/invoker | Separate DI activation from invocation overhead |
 | Handler registry lookup | Track lookup hit-path overhead |
 
-Latest values:
+Historical February 19 values:
 
 | Measurement | Mean | Allocated |
 |-------------|------|-----------|
@@ -417,6 +604,11 @@ Latest values:
 | HandlerRegistry: Lookup | 3.472 ns | 0 B |
 
 #### HandlerInvokerPathBenchmarks.cs
+
+Historical February 19 fixture values, retained for provenance. The current fixture repair
+uses public registration and a fallback guard; its October 19 measurements appear in
+[Handler invoker fixture verification](#handler-invoker-fixture-verification). The fixture
+epochs are not a before/after production performance comparison.
 
 | Measurement | Mean | Allocated |
 |-------------|------|-----------|
@@ -747,14 +939,19 @@ Excalibur competes in the **.NET messaging framework** space:
 1. **MediatR** (market leader, 20M+ NuGet downloads)
 2. **Wolverine** (modern alternative, advanced async features)
 
-**Competitive Advantages** (validated by benchmarks):
+**Feature overview** (capabilities and measured performance require separate evidence):
+
+The historical tables do not establish a current performance ranking. The October
+refresh remains incomplete; failures and timing variance are still under
+investigation. Compare only matched verified WarmPath workloads, not standalone
+fixture timings or feature availability.
 
 | Feature | Excalibur | MediatR | Wolverine |
 |---------|-------------------|---------|-----------|
 | **Event Sourcing** | ✅ Native (SqlServerEventStore) | ❌ No | ❌ No |
 | **Outbox Pattern** | ✅ Native (SqlOutboxStore) | ❌ No | ✅ Limited |
-| **In-Process Dispatch** | ✅ Ultra-lightweight | ✅ Mature | ⚠️ Heavier |
-| **Memory Efficiency** | ✅ Minimal allocations | ✅ Good | ⚠️ Higher |
+| **In-Process Dispatch** | Current ranking unverified | Current ranking unverified | Current ranking unverified |
+| **Memory Efficiency** | Match the measured workload | Match the measured workload | Match the measured workload |
 | **Async Messaging** | ⚠️ Framework layer | ❌ No | ✅ Advanced |
 | **CloudEvents** | ✅ Native support | ❌ No | ❌ No |
 | **Multi-Cloud** | ✅ AWS/Azure/GCP | ❌ No | ⚠️ Limited |
@@ -935,10 +1132,11 @@ docker info
 **Problem**: High StdDev, unstable benchmarks
 
 **Solution**:
-1. Close other applications (reduce system load)
-2. Disable CPU throttling / power saving
-3. Run multiple times, discard first run (cold start)
-4. Check for background processes (Windows Update, antivirus)
+1. Run small Release subsets with exclusive execution; keep builds, tests and profiling separate.
+2. Preserve the workload, dependency versions, job, warmup and runtime configuration for each comparison.
+3. Repeat in fresh processes and alternate matched baseline/candidate runs. Retain every raw run and failure.
+4. Inspect timing trends, outlier removal and run-to-run ranges. Withhold regression or speedup claims while results change timing regimes.
+5. Label any diagnostic configuration as a separate experiment, including changes to warmup, runtime settings or processor placement.
 
 ### Low Performance
 
@@ -947,8 +1145,8 @@ docker info
 **Solution**:
 1. Verify Release mode: `dotnet run -c Release`
 2. Check Docker resources (SQL Server needs 2GB+ RAM)
-3. Disable antivirus scanning of `bin/` and Docker volumes
-4. Use SSD for Docker storage (not HDD)
+3. Profile suspected framework costs in a separately recorded diagnostic run.
+4. Separate dispatch CPU costs, database I/O, startup and actual NativeAOT measurements when interpreting results.
 
 ---
 

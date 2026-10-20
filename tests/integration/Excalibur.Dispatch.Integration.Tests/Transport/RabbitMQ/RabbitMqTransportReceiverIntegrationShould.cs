@@ -3,7 +3,14 @@
 
 using System.Text;
 
+using Excalibur.Dispatch.Transport;
+using Excalibur.Dispatch.Transport.RabbitMQ;
+
+using Microsoft.Extensions.Logging.Abstractions;
+
 using RabbitMQ.Client;
+
+using BasicProperties = RabbitMQ.Client.BasicProperties;
 
 using Tests.Shared.Fixtures;
 using Tests.Shared.Infrastructure;
@@ -44,7 +51,7 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
                 Uri = new Uri(_container.GetConnectionString()),
             };
             _connection = await factory.CreateConnectionAsync().ConfigureAwait(false);
-            _channel = await _connection.CreateChannelAsync().ConfigureAwait(false);
+            _channel = await _connection!.CreateChannelAsync().ConfigureAwait(false);
             _dockerAvailable = true;
         }
         catch (Exception ex)
@@ -171,94 +178,24 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
     public async Task AcknowledgeMessage_RemovesFromQueue()
     {
         Assert.SkipUnless(_dockerAvailable, "Docker is not available");
-
-        // Arrange
-        var queueName = $"test-ack-{Guid.NewGuid():N}";
-        await _channel!.QueueDeclareAsync(
-            queue: queueName,
-            durable: false,
-            exclusive: false,
-            autoDelete: true).ConfigureAwait(false);
-
-        await _channel.BasicPublishAsync(
-            exchange: string.Empty,
-            routingKey: queueName,
-            mandatory: false,
-            basicProperties: new BasicProperties { MessageId = "ack-msg" },
-            body: Encoding.UTF8.GetBytes("ack-test")).ConfigureAwait(false);
-
-        // Act - receive and acknowledge
-        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: false, MessageWaitTimeout).ConfigureAwait(false);
-        result.ShouldNotBeNull();
-        await _channel.BasicAckAsync(result.DeliveryTag, multiple: false).ConfigureAwait(false);
-
-        // Assert - queue should be empty now
-        var afterAck = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
-        afterAck.ShouldBeNull();
+        await VerifySettlementAsync("acknowledge", noOp: false).ConfigureAwait(false);
+        await VerifySettlementAsync("acknowledge", noOp: true).ConfigureAwait(false);
     }
 
     [Fact]
     public async Task RejectMessageWithRequeue_MessageRedelivered()
     {
         Assert.SkipUnless(_dockerAvailable, "Docker is not available");
-
-        // Arrange
-        var queueName = $"test-nack-{Guid.NewGuid():N}";
-        await _channel!.QueueDeclareAsync(
-            queue: queueName,
-            durable: false,
-            exclusive: false,
-            autoDelete: true).ConfigureAwait(false);
-
-        await _channel.BasicPublishAsync(
-            exchange: string.Empty,
-            routingKey: queueName,
-            mandatory: false,
-            basicProperties: new BasicProperties { MessageId = "nack-msg" },
-            body: Encoding.UTF8.GetBytes("nack-test")).ConfigureAwait(false);
-
-        // Act - receive and reject with requeue
-        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: false, MessageWaitTimeout).ConfigureAwait(false);
-        result.ShouldNotBeNull();
-        result.BasicProperties.MessageId.ShouldBe("nack-msg");
-
-        await _channel.BasicNackAsync(result.DeliveryTag, multiple: false, requeue: true).ConfigureAwait(false);
-
-        // Assert - message should be redelivered
-        var redelivered = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
-        redelivered.ShouldNotBeNull();
-        redelivered.Redelivered.ShouldBeTrue();
-        redelivered.BasicProperties.MessageId.ShouldBe("nack-msg");
+        await VerifySettlementAsync("requeue", noOp: false).ConfigureAwait(false);
+        await VerifySettlementAsync("requeue", noOp: true).ConfigureAwait(false);
     }
 
     [Fact]
     public async Task RejectMessageWithoutRequeue_MessageRemoved()
     {
         Assert.SkipUnless(_dockerAvailable, "Docker is not available");
-
-        // Arrange
-        var queueName = $"test-reject-{Guid.NewGuid():N}";
-        await _channel!.QueueDeclareAsync(
-            queue: queueName,
-            durable: false,
-            exclusive: false,
-            autoDelete: true).ConfigureAwait(false);
-
-        await _channel.BasicPublishAsync(
-            exchange: string.Empty,
-            routingKey: queueName,
-            mandatory: false,
-            basicProperties: new BasicProperties { MessageId = "reject-msg" },
-            body: Encoding.UTF8.GetBytes("reject-test")).ConfigureAwait(false);
-
-        // Act - receive and reject without requeue
-        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: false, MessageWaitTimeout).ConfigureAwait(false);
-        result.ShouldNotBeNull();
-        await _channel.BasicNackAsync(result.DeliveryTag, multiple: false, requeue: false).ConfigureAwait(false);
-
-        // Assert - queue should be empty (message not requeued)
-        var afterReject = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
-        afterReject.ShouldBeNull();
+        await VerifySettlementAsync("reject", noOp: false).ConfigureAwait(false);
+        await VerifySettlementAsync("reject", noOp: true).ConfigureAwait(false);
     }
 
     [Fact]
@@ -468,5 +405,79 @@ public sealed class RabbitMqTransportReceiverIntegrationShould : IAsyncLifetime
             () => channel.BasicGetAsync(queueName, autoAck),
             timeout,
             TimeSpan.FromMilliseconds(100));
+    }
+
+    private async Task VerifySettlementAsync(string action, bool noOp)
+    {
+        using var bounded = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        var queueName = $"settlement-{Guid.NewGuid():N}";
+        var targetId = $"target-{Guid.NewGuid():N}";
+        var body = $"body-{targetId}";
+        await _channel!.QueueDeclareAsync(queueName, durable: false, exclusive: false,
+            autoDelete: false, cancellationToken: bounded.Token).ConfigureAwait(false);
+        try
+        {
+            await _channel.BasicPublishAsync(string.Empty, queueName, mandatory: false,
+                basicProperties: new global::RabbitMQ.Client.BasicProperties { MessageId = targetId },
+                body: Encoding.UTF8.GetBytes(body), cancellationToken: bounded.Token).ConfigureAwait(false);
+            await using var original = await _connection!.CreateChannelAsync(cancellationToken: bounded.Token).ConfigureAwait(false);
+            await using var realReceiver = new RabbitMqTransportReceiver(original, queueName, queueName,
+                NullLogger<RabbitMqTransportReceiver>.Instance);
+            ITransportReceiver receiver = noOp ? new NoOpSettlementReceiver(realReceiver) : realReceiver;
+            var received = await WaitHelpers.WaitForValueAsync(async () =>
+                (await receiver.ReceiveAsync(1, bounded.Token).ConfigureAwait(false)).SingleOrDefault(),
+                TimeSpan.FromSeconds(5), cancellationToken: bounded.Token).ConfigureAwait(false);
+            received.ShouldNotBeNull();
+            received.Id.ShouldBe(targetId);
+            Encoding.UTF8.GetString(received.Body.Span).ShouldBe(body);
+            if (action == "acknowledge")
+                await receiver.AcknowledgeAsync(received, bounded.Token).ConfigureAwait(false);
+            else
+                await receiver.RejectAsync(received, "integration rejection", action == "requeue", bounded.Token).ConfigureAwait(false);
+
+            if (action == "requeue")
+            {
+                // While the original channel stays open, a no-op cannot release its unacked target.
+                var redelivered = await WaitHelpers.WaitForValueAsync(
+                    () => original.BasicGetAsync(queueName, autoAck: true, bounded.Token),
+                    TimeSpan.FromSeconds(5), cancellationToken: bounded.Token).ConfigureAwait(false);
+                if (noOp)
+                    redelivered.ShouldBeNull();
+                else
+                {
+                    redelivered.ShouldNotBeNull();
+                    redelivered.BasicProperties.MessageId.ShouldBe(targetId);
+                    Encoding.UTF8.GetString(redelivered.Body.Span).ShouldBe(body);
+                    redelivered.Redelivered.ShouldBeTrue();
+                }
+            }
+
+            // Awaiting close distinguishes an ACK/drop from a target merely hidden as unacked.
+            await original.CloseAsync(bounded.Token).ConfigureAwait(false);
+            await using var probe = await _connection!.CreateChannelAsync(cancellationToken: bounded.Token).ConfigureAwait(false);
+            await probe.QueueDeclarePassiveAsync(queueName, bounded.Token).ConfigureAwait(false);
+            var afterClose = await WaitHelpers.WaitForValueAsync(
+                () => probe.BasicGetAsync(queueName, autoAck: true, bounded.Token),
+                TimeSpan.FromSeconds(5), cancellationToken: bounded.Token).ConfigureAwait(false);
+            if (noOp)
+            {
+                afterClose.ShouldNotBeNull();
+                afterClose.BasicProperties.MessageId.ShouldBe(targetId);
+                Encoding.UTF8.GetString(afterClose.Body.Span).ShouldBe(body);
+                afterClose.Redelivered.ShouldBeTrue();
+            }
+            else
+                afterClose.ShouldBeNull();
+        }
+        finally
+        {
+            await _channel!.QueueDeleteAsync(queueName, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    private sealed class NoOpSettlementReceiver(ITransportReceiver inner) : DelegatingTransportReceiver(inner)
+    {
+        public override Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
+        public override Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

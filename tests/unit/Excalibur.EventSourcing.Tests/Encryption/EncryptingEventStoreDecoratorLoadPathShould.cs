@@ -106,7 +106,8 @@ public sealed class EncryptingEventStoreDecoratorLoadPathShould
 		var serializer = new TestEventSerializer();
 		var storedBytes = serializer.SerializeEvent(atRest);
 		var decorator = CreateDecorator(
-			StoreReturning(Event("PersonalOrderPlaced", storedBytes)), serializer, out _, cryptor);
+			StoreReturning(Event("PersonalOrderPlaced", storedBytes) with { TenantId = "tenant-from-store" }),
+			serializer, out _, cryptor);
 
 		var loaded = await decorator.LoadAsync("agg-1", "Order", Ct);
 
@@ -114,6 +115,8 @@ public sealed class EncryptingEventStoreDecoratorLoadPathShould
 			loaded.ShouldHaveSingleItem().EventData!, typeof(PersonalOrderPlaced));
 		plaintext.CustomerName.ShouldBe("Ada Lovelace",
 			"a type declaring [PersonalData] must still be materialized and decrypted on load");
+		fieldEncryptor.LastExpectedTenantId.ShouldBe("tenant-from-store",
+			"ambientless replay must forward the store's owner, never derive authority from the ciphertext");
 	}
 
 	[Fact]
@@ -208,6 +211,8 @@ public sealed class EncryptingEventStoreDecoratorLoadPathShould
 	/// <summary>A field encryptor whose ciphertext is recoverable, so a round trip is observable in a unit test.</summary>
 	private sealed class ReversibleFieldEncryptor : IFieldEncryptor
 	{
+		public string? LastExpectedTenantId { get; private set; }
+
 		public ValueTask<EncryptedData> EncryptAsync(string subjectId, RetentionScope retentionScope, ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken) =>
 			ValueTask.FromResult(new EncryptedData
 			{
@@ -218,8 +223,11 @@ public sealed class EncryptingEventStoreDecoratorLoadPathShould
 				Iv = [1, 2, 3, 4],
 			});
 
-		public ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, CancellationToken cancellationToken) =>
-			ValueTask.FromResult<byte[]?>([.. envelope.Ciphertext.Select(static b => (byte)(b ^ 0x5A))]);
+		public ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, string expectedTenantId, CancellationToken cancellationToken)
+		{
+			LastExpectedTenantId = expectedTenantId;
+			return ValueTask.FromResult<byte[]?>([.. envelope.Ciphertext.Select(static b => (byte)(b ^ 0x5A))]);
+		}
 	}
 
 	[MessageName("Test.EncryptingDecoratorLoadPath.PlainOrderPlaced")]

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// Benchmarks for pipeline execution with various middleware configurations.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class PipelineBenchmarks
 {
 	private IServiceProvider _serviceProvider = null!;

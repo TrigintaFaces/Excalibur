@@ -983,10 +983,11 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	}
 
 	/// <inheritdoc />
-	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 
 		var stopwatch = ValueStopwatch.StartNew();
 		var result = WriteStoreTelemetry.Results.Success;
@@ -996,30 +997,53 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 
 		try
 		{
-			var rowsAffected = await connection.ResolveAsync(
+			var mutation = await connection.ResolveAsync(
 					new Requests.MarkMessageDeadLetteredRequest(
 						_options.Tables.QualifiedOutboxTableName,
 						messageId,
 						reason,
+						attemptCount,
 						_options.Processing.CommandTimeoutSeconds,
 						cancellationToken))
 				.ConfigureAwait(false);
 
-			// The statement addresses the row by its primary key and carries no other guard, so zero rows means
-			// no message with that identifier exists. Logging the terminal transition regardless asserted a state
-			// change that did not happen, on the one path an operator reads to explain a redelivery.
-			if (rowsAffected == 0)
+			// Zero rows has TWO causes and they need different words. The statement guards on
+			// `Status NOT IN (2, 5)` as well as the primary key, so a refusal means either no such row or a
+			// row that is already sent or dead-lettered. The batch reports both, because an operator reading
+			// this log to explain a redelivery is badly served by being told the row does not exist when it
+			// does and someone else finished it.
+			if (mutation.UpdatedCount > 0)
+			{
+				_logger.LogWarning(
+					"Marked message {MessageId} as dead-lettered (terminal): {Reason}", messageId, reason);
+				return OutboxCompletionOutcome.Applied;
+			}
+
+			if (mutation.IsTerminal)
+			{
+				_logger.LogError(
+					"MarkDeadLettered for message {MessageId} was refused because the row is already sent or "
+					+ "already dead-lettered. The message was NOT dead-lettered again: {Reason}",
+					messageId, reason);
+				return OutboxCompletionOutcome.AlreadyTerminal;
+			}
+
+			if (!mutation.RowExists)
 			{
 				_logger.LogError(
 					"MarkDeadLettered for message {MessageId} matched no rows because no message with that "
 					+ "identifier exists in the outbox. The message was NOT dead-lettered: {Reason}",
 					messageId, reason);
+				return OutboxCompletionOutcome.MessageNotFound;
 			}
-			else
-			{
-				_logger.LogWarning(
-					"Marked message {MessageId} as dead-lettered (terminal): {Reason}", messageId, reason);
-			}
+
+			// The row is present, not terminal, and still refused the guarded update. Nothing in this
+			// statement can produce that, so report it rather than inventing a classification for it.
+			_logger.LogError(
+				"MarkDeadLettered for message {MessageId} applied to no rows while the row is present and "
+				+ "not terminal. The message was NOT dead-lettered: {Reason}",
+				messageId, reason);
+			return OutboxCompletionOutcome.Unknown;
 		}
 		catch
 		{
@@ -1080,11 +1104,13 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 
 		// A zero or negative token is refused before it reaches the statement, for the reason above -- and
 		// it matters more here, because on this member an accepted stale token destroys a row rather than
@@ -1101,6 +1127,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 					_options.Tables.QualifiedFenceTableName,
 					messageId,
 					reason,
+					attemptCount,
 					fencingToken,
 					_options.Processing.CommandTimeoutSeconds,
 					cancellationToken))
@@ -2196,12 +2223,7 @@ public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IFencedOu
 			Id = row.Id,
 			MessageType = row.MessageType,
 			Payload = row.Payload,
-#pragma warning disable IL2026, IL3050
-			Headers = string.IsNullOrEmpty(row.Headers)
-				? new Dictionary<string, object>(StringComparer.Ordinal)
-				: JsonSerializer.Deserialize<Dictionary<string, object>>(row.Headers, _jsonOptions)
-				  ?? new Dictionary<string, object>(StringComparer.Ordinal),
-#pragma warning restore IL2026, IL3050
+			Headers = OutboxHeaderJsonReader.Deserialize(row.Headers),
 			Destination = row.Destination,
 			CreatedAt = row.CreatedAt,
 			ScheduledAt = row.ScheduledAt,

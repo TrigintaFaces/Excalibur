@@ -12,6 +12,11 @@ using Elastic.Clients.Elasticsearch.Mapping;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Dispatch.Diagnostics;
+using Excalibur.Data.ElasticSearch.Resilience;
+
+using Elastic.Transport;
+
+using Polly;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,6 +36,8 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 	private readonly Counter<long> _bulkErrorCounter;
 	private readonly Histogram<double> _errorHandlingDuration;
 	private readonly string _errorIndexName;
+	private readonly ResiliencePipeline<bool> _indexRetry;
+	private readonly ResiliencePipeline<bool> _bulkRetry;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionErrorHandler" /> class.
@@ -70,12 +77,16 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 			"Duration of error handling operations");
 
 		_errorIndexName = _settings.ErrorIndexName;
+		var retry = options.Value.Projections?.RetryPolicy ?? new ProjectionRetryOptions();
+		_indexRetry = ProjectionErrorPersistenceRetry.Create(retry, retry.MaxIndexAttempts, _logger, "create");
+		_bulkRetry = ProjectionErrorPersistenceRetry.Create(retry, retry.MaxBulkAttempts, _logger, "bulk create");
 	}
 
 	/// <inheritdoc />
 	public async Task HandleProjectionErrorAsync(ProjectionErrorContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		using var activity = Activity.Current?.Source.StartActivity("HandleProjectionError");
 		_ = (activity?.SetTag("projection.type", context.ProjectionType));
@@ -124,7 +135,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 				await StoreErrorRecordAsync(errorRecord, cancellationToken).ConfigureAwait(false);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			_logger.LogError(ex, "Failed to handle projection error for {ProjectionType}", context.ProjectionType);
 		}
@@ -140,6 +151,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 	public async Task HandleBulkOperationErrorsAsync(BulkOperationErrorContext context, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		using var activity = Activity.Current?.Source.StartActivity("HandleBulkOperationErrors");
 		_ = (activity?.SetTag("projection.type", context.ProjectionType));
@@ -208,7 +220,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 				await StoreBulkErrorRecordsAsync(errorRecords, cancellationToken).ConfigureAwait(false);
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			_logger.LogError(ex, "Failed to handle bulk operation errors for {ProjectionType}", context.ProjectionType);
 		}
@@ -229,6 +241,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 		int maxResults,
 		CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
 		try
 		{
 			var searchRequest = new SearchRequest(_errorIndexName)
@@ -239,6 +252,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 			};
 
 			var response = await _client.SearchAsync<ProjectionErrorRecord>(searchRequest, cancellationToken).ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
 
 			if (!response.IsValidResponse || response.Documents == null)
 			{
@@ -249,7 +263,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 
 			return response.Documents;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			_logger.LogError(ex, "Error retrieving projection error records");
 			return [];
@@ -260,6 +274,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 	public async Task<int> MarkErrorsAsResolvedAsync(IEnumerable<string> errorIds, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(errorIds);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		var errorIdList = errorIds.ToList();
 		if (errorIdList.Count == 0)
@@ -284,6 +299,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 			};
 
 			var response = await _client.UpdateByQueryAsync(updateByQueryRequest, cancellationToken).ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
 
 			if (!response.IsValidResponse)
 			{
@@ -297,7 +313,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 
 			return updatedCount;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			_logger.LogError(ex, "Error marking errors as resolved");
 			return 0;
@@ -329,17 +345,30 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 		try
 		{
 			await EnsureErrorIndexExistsAsync(cancellationToken).ConfigureAwait(false);
+			var writeIndex = await ResolveErrorWriteIndexAsync(cancellationToken).ConfigureAwait(false);
 
-			var response = await _client.IndexAsync(record, idx => idx.Index(_errorIndexName), cancellationToken).ConfigureAwait(false);
+			var request = new CreateRequest<ProjectionErrorRecord>(record, writeIndex.Index, record.Id)
+			{
+				Routing = writeIndex.Routing is null ? null : new Routing(writeIndex.Routing),
+			};
+			CreateResponse? response = null;
+			_ = await _indexRetry.ExecuteAsync(async token =>
+			{
+				request.RequestConfiguration = CreateSingleAttemptConfiguration();
+				response = await _client.CreateAsync(request, token).ConfigureAwait(false);
+				token.ThrowIfCancellationRequested();
+				return ProjectionErrorPersistenceRetry.IsRetryableFailure(response.ApiCallDetails?.HttpStatusCode,
+					response.ApiCallDetails?.OriginalException);
+			}, cancellationToken).ConfigureAwait(false);
 
-			if (!response.IsValidResponse)
+			if (response is { IsValidResponse: false })
 			{
 				_logger.LogWarning(
-					"Failed to store projection error record: {Error}",
+					"Unable to confirm storage of projection error record: {Error}",
 					response.ApiCallDetails?.OriginalException?.Message ?? "Unknown error");
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			_logger.LogError(ex, "Error storing projection error record");
 		}
@@ -353,33 +382,128 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 		try
 		{
 			await EnsureErrorIndexExistsAsync(cancellationToken).ConfigureAwait(false);
+			var writeIndex = await ResolveErrorWriteIndexAsync(cancellationToken).ConfigureAwait(false);
 
-			var bulkRequest = new BulkRequest(_errorIndexName)
+			var pending = records.ToList();
+			var permanentFailures = 0;
+			_ = await _bulkRetry.ExecuteAsync(async token =>
 			{
-				Operations = [.. records.Select(static record =>
-						new BulkIndexOperation<ProjectionErrorRecord>(record) { Id = record.Id }).Cast<IBulkOperation>().ToList(),],
-			};
+				var request = new BulkRequest(writeIndex.Index)
+				{
+					Routing = writeIndex.Routing is null ? null : new Routing(writeIndex.Routing),
+					Operations = [.. pending.Select(static record => (IBulkOperation)new BulkCreateOperation<ProjectionErrorRecord>(record) { Id = record.Id })],
+					RequestConfiguration = CreateSingleAttemptConfiguration(),
+				};
+				var response = await _client.BulkAsync(request, token).ConfigureAwait(false);
+				token.ThrowIfCancellationRequested();
+				if (response.Items is null || response.Items.Count == 0)
+				{
+					return ProjectionErrorPersistenceRetry.IsRetryableFailure(response.ApiCallDetails?.HttpStatusCode,
+						response.ApiCallDetails?.OriginalException);
+				}
 
-			var response = await _client.BulkAsync(bulkRequest, cancellationToken).ConfigureAwait(false);
+				// A malformed response supplies no authority to replay an arbitrary subset.
+				if (response.ApiCallDetails?.HttpStatusCode is { } status && status is >= 400 && !ProjectionErrorPersistenceRetry.IsTransientStatus(status))
+				{
+					return false;
+				}
+				var expected = pending.ToDictionary(static record => record.Id, StringComparer.Ordinal);
+				if (response.Items.Count != expected.Count ||
+					response.Items.Any(item => item.Id is null || !expected.ContainsKey(item.Id) || !string.Equals(item.Operation, "create", StringComparison.Ordinal)) ||
+					response.Items.Select(static item => item.Id).Distinct(StringComparer.Ordinal).Count() != expected.Count)
+				{
+					return false;
+				}
 
-			if (!response.IsValidResponse)
+				var retryable = new List<ProjectionErrorRecord>();
+				foreach (var item in response.Items)
+				{
+					if (ProjectionErrorPersistenceRetry.IsTransientStatus(item.Status))
+					{
+						retryable.Add(expected[item.Id!]);
+					}
+					else if (item.Status is < 200 or >= 300 || item.Error is not null)
+					{
+						// Includes conflict: an ambiguous earlier create is not proof of an identical stored payload.
+						permanentFailures++;
+					}
+				}
+				pending = retryable;
+				return pending.Count > 0;
+			}, cancellationToken).ConfigureAwait(false);
+
+			var failedCount = permanentFailures + pending.Count;
+			if (failedCount > 0)
 			{
-				_logger.LogWarning(
-					"Failed to store bulk projection error records: {Error}",
-					response.ApiCallDetails?.OriginalException?.Message ?? "Unknown error");
-			}
-			else if (response.Errors)
-			{
-				var failedCount = response.Items?.Count(static i => i.Error != null) ?? 0;
-				_logger.LogWarning(
-					"Partial failure storing projection error records: {FailedCount}/{TotalCount} failed",
+				_logger.LogWarning("Unable to confirm storage of {FailedCount}/{TotalCount} projection error records after the bounded persistence budget",
 					failedCount, records.Count);
 			}
+
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			_logger.LogError(ex, "Error storing bulk projection error records");
 		}
+	}
+
+	private sealed record ErrorWriteTarget(string Index, string? Routing);
+
+	private async Task<ErrorWriteTarget> ResolveErrorWriteIndexAsync(CancellationToken cancellationToken)
+	{
+		var response = await _client.Indices.GetAsync(new GetIndexRequest(_errorIndexName)
+		{
+			RequestConfiguration = CreateSingleAttemptConfiguration(),
+		}, cancellationToken).ConfigureAwait(false);
+		cancellationToken.ThrowIfCancellationRequested();
+		if (!response.IsValidResponse || response.Indices.Count == 0)
+		{
+			throw new InvalidOperationException("Cannot resolve projection error persistence to a concrete index; view_index_metadata permission is required.");
+		}
+
+		// Data streams and wildcard targets require additional authority. Never guess.
+		if (response.Indices.Any(static index => !string.IsNullOrEmpty(index.Value.DataStream)))
+		{
+			throw new InvalidOperationException("Projection error persistence requires an index or index alias, not a data stream.");
+		}
+		if (response.Indices.Count == 1 && response.Indices.TryGetValue(_errorIndexName, out _))
+		{
+			return new ErrorWriteTarget(_errorIndexName, null);
+		}
+
+		var aliases = response.Indices.Where(index => index.Value.Aliases.ContainsKey(_errorIndexName)).ToArray();
+		var writable = aliases.Where(index => index.Value.Aliases[_errorIndexName].IsWriteIndex == true).ToArray();
+		var target = writable.Length == 1 ? writable[0] : aliases.Length == 1 && aliases[0].Value.Aliases[_errorIndexName].IsWriteIndex != false ? aliases[0] : default;
+		if (target.Key is null || aliases.Length != response.Indices.Count)
+		{
+			throw new InvalidOperationException("Projection error alias must have one unambiguous write index.");
+		}
+		var alias = target.Value.Aliases[_errorIndexName];
+		return new ErrorWriteTarget(target.Key, alias.IndexRouting ?? alias.Routing);
+	}
+
+	private RequestConfiguration CreateSingleAttemptConfiguration()
+	{
+		var settings = _client.ElasticsearchClientSettings;
+		if (settings.ForceNode is { } forcedNode)
+		{
+			return new RequestConfiguration { ForceNode = forcedNode };
+		}
+		var predicate = settings.NodePredicate ?? settings.ProductRegistration.NodePredicate;
+		Uri? selected = null;
+		// Consume the SDK's view to completion; it owns rotation, health selection and iterator state.
+		foreach (var node in settings.NodePool.CreateView())
+		{
+			if (selected is null && predicate(node))
+			{
+				selected = node.Uri;
+			}
+		}
+		if (selected is null)
+		{
+			throw new InvalidOperationException("No eligible Elasticsearch node is available for projection error persistence.");
+		}
+		// Elastic.Transport 0.17.1 ignores request-local MaxRetries; ForceNode is its documented no-retry path.
+		return new RequestConfiguration { ForceNode = selected };
 	}
 
 	/// <summary>

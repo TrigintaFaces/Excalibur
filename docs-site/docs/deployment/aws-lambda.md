@@ -156,7 +156,9 @@ aws lambda invoke \
 
 ## Native AOT Compilation
 
-### Benefits
+### Earlier Unverified Illustration
+
+The following estimates are not measured framework cloud results. Cold-start time, package size and memory use depend on the workload and deployment; measure the deployed function before relying on them.
 
 - **90% faster cold starts**: ~100ms vs 1-3 seconds
 - **70% smaller package**: ~10MB vs 35MB
@@ -190,7 +192,7 @@ aws lambda update-function-code \
   --zip-file fileb://function.zip
 ```
 
-**Cold start comparison:**
+**Earlier unverified cold-start illustration (not measured framework cloud results):**
 
 | Runtime | Package Size | Cold Start | Memory |
 |---------|--------------|------------|--------|
@@ -723,29 +725,29 @@ aws lambda update-function-configuration \
 
 ## Performance Optimization
 
-### Provisioned Concurrency (Eliminate Cold Starts)
+### Provisioned Concurrency
 
 ```bash
 # Configure provisioned concurrency
 aws lambda put-provisioned-concurrency-config \
   --function-name your-function \
   --provisioned-concurrent-executions 5 \
-  --qualifier LATEST
+  --qualifier your-published-version-or-alias
 ```
 
-**Cost:** ~$0.0000041667 per GB-second (always running)
-**Benefit:** Zero cold starts
+**Earlier illustrative cost:** ~$0.0000041667 per GB-second (always running); not a current price quote.
+**Benefit:** Pre-initialized environments for the configured capacity. Spillover invocations and environment resets can still experience cold starts. Use a published version or alias for the qualifier. See [AWS concurrency guidance](https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html).
 
-### Lambda SnapStart (Java/.NET AOT)
+### Lambda SnapStart
 
 ```bash
-# Enable SnapStart (for Native AOT functions)
+# Enable SnapStart for a supported runtime and deployment
 aws lambda update-function-configuration \
   --function-name your-function \
   --snap-start ApplyOn=PublishedVersions
 ```
 
-**Result:** ~90% cold start reduction (100ms vs 1-3s)
+**Earlier unverified estimate:** ~90% cold start reduction (100ms vs 1-3s). This is not a measured framework cloud result or a promise for this function. Check [SnapStart runtime and deployment requirements](https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html) and measure the actual workload.
 
 ---
 

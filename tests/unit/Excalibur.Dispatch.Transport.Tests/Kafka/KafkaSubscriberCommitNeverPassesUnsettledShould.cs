@@ -132,7 +132,7 @@ public sealed class KafkaSubscriberCommitNeverPassesUnsettledShould
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var cursor = 0;
 
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() => cursor < log.Count ? log[cursor++] : null);
 
 		A.CallTo(() => consumer.Seek(A<TopicPartitionOffset>._))

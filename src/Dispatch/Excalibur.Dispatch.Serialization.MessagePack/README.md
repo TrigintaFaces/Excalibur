@@ -26,13 +26,22 @@ Pass native `MessagePackSerializerOptions` for custom configuration:
 ```csharp
 services.AddMessagePackSerializer(
     MessagePackSerializerOptions.Standard
+        .WithSecurity(MessagePackSecurity.UntrustedData)
         .WithCompression(MessagePackCompression.Lz4BlockArray));
 ```
 
 ## Package Dependencies
 
-- `MessagePack` - MessagePack binary serialization runtime
-- `Excalibur.Dispatch.Abstractions` - Core contracts only (no Core dependency)
+- `MessagePack` 3.1.9 - MessagePack binary serialization runtime
+- `Excalibur.Dispatch.Abstractions` and `Excalibur.Dispatch` - Framework contracts and integration
+
+## Untrusted Input
+
+The no-options registration uses `MessagePackSecurity.UntrustedData`. When supplying
+custom options, select the security profile explicitly, as in the example above.
+The 3.1.9 dependency includes the upstream fix for nested arrays reusing unread bytes
+to justify excessive allocation ([GHSA-qhrr-8q5h-9q3h](https://github.com/MessagePack-CSharp/MessagePack-CSharp/security/advisories/GHSA-qhrr-8q5h-9q3h)).
+Depth and message-size limits remain useful, but are not substitutes for the patched runtime.
 
 ## AOT Compatibility
 
@@ -41,9 +50,10 @@ generation (`StandardResolver`), so this package does not declare ahead-of-time 
 
 ## Performance Characteristics
 
-- **Throughput**: ~2-5x faster than JSON for binary payloads
 - **Compression**: Built-in LZ4 support for bandwidth optimization
-- **Latency**: Sub-microsecond serialization for small messages
+- **Measurements**: Throughput and latency depend on payload, resolver and options.
+  The framework benchmark refresh is in progress; current matched measurements are
+  required before publishing a JSON comparison or latency guarantee.
 
 ## Architecture Compliance
 
@@ -72,7 +82,7 @@ MessagePack is **not** included in `Excalibur.Dispatch` to avoid transitive bloa
 
 **Use MemoryPack when:**
 - You're building internal .NET-to-.NET communication
-- You need the absolute fastest .NET binary serialization
+- You want a .NET-focused binary serializer
 - You control both producer and consumer code
 
 ## Pluggable Serialization Integration

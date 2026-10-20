@@ -7,6 +7,9 @@ on:
       - "src/Dispatch/**"
       - "benchmarks/**"
       - "tests/performance/**"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "Directory.Packages.props"
       - "eng/ci/shards/PerformanceTests.slnf"
       - ".github/workflows/performance-tests.yml"
   schedule:

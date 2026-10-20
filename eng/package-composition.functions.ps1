@@ -35,7 +35,7 @@ function Get-CompositionSourceIdentity {
 function Invoke-PackageCommand {
     param(
         [Parameter(Mandatory)][string]$Executable,
-        [Parameter(Mandatory)][string[]]$Arguments,
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Arguments,
         [Parameter(Mandatory)][string]$Log,
         [Parameter(Mandatory)][string]$WorkingDirectory,
         [ValidateRange(1,7200)][int]$TimeoutSeconds = 1800

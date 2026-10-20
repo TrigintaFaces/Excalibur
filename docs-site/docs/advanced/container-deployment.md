@@ -14,19 +14,19 @@ This guide focuses specifically on container-optimized deployment. For non-conta
 
 ## 1. Choosing a Build Strategy
 
-Pick the strategy that matches your workload:
+The following table is an **earlier unverified illustration**, not current measurements, typical startup guarantees or a memory ranking. Its startup values and package counts retain the earlier snapshot only; their matched application, runtime and hardware provenance has not been established.
 
-| Strategy | Best For | Startup | Memory | Dispatch Compatibility |
-|----------|----------|---------|--------|----------------------|
-| **JIT** | Long-running APIs, plugin architectures | ~600 ms | Higher | All 170 packages |
-| **ReadyToRun** | APIs needing fast startup + full features | ~380 ms | Medium | All 170 packages |
-| **Native AOT** | Workers, jobs, event handlers, sidecars | &lt;100 ms | Lowest | 150/170 packages |
+| Strategy | Example uses | Earlier startup illustration (unverified) | Earlier memory label (unverified) | Earlier compatibility snapshot (unverified) |
+|----------|--------------|------------------------------------------|----------------------------------|-------------------------------------------|
+| **JIT** | Long-running APIs, plugin architectures | ~600 ms | Higher | All 194 packages |
+| **ReadyToRun** | APIs needing startup tuning + full features | ~380 ms | Medium | All 194 packages |
+| **Native AOT** | Workers, jobs, event handlers, sidecars | &lt;100 ms | Lowest | 148/194 packages |
 
-Most packages are AOT-compatible — core dispatch, pipeline, handlers, and most transports work fully in AOT. Packages depending on external SDKs without AOT support (Kafka/Confluent, AWS SDK) remain JIT-only -- see the [AOT Compatibility Matrix](./aot-compatibility.md).
+These package counts do not establish current compatibility. Consult the [AOT Compatibility Matrix](./aot-compatibility.md) and verify the actual application's dependency closure. Measure startup and memory for that application and host before choosing a strategy.
 
-:::tip AOT deserialization trade-off
+:::info Managed serializer observations are not NativeAOT measurements
 
-AOT eliminates JIT warmup, giving faster startup. However, source-generated deserialization can be 41-93% slower for complex message types compared to JIT-optimized paths (measured in `AotPathSerializationBenchmarks`). For most container workloads, the startup improvement outweighs the per-message overhead. Profile your specific workload to decide.
+Earlier guidance quoted 41–93% slower deserialization from `AotPathSerializationBenchmarks`. This was an unverified comparison of managed serializer configurations, not actual NativeAOT execution. It establishes neither a general NativeAOT slowdown nor that startup savings outweigh per-message cost. Measure startup and the complete serialization workload separately for the actual deployment; these managed observations do not justify choosing JIT over NativeAOT.
 :::
 
 ---
@@ -74,7 +74,7 @@ EXPOSE 8080
 ENTRYPOINT ["dotnet", "MyApp.dll"]
 ```
 
-20-40% faster startup. Images are 20-60% larger. Architecture-specific (`linux-x64`).
+Typically faster to start than JIT, at the cost of a larger image, and architecture-specific (`linux-x64`). These are general ReadyToRun characteristics rather than measurements of Excalibur; the size and startup change depend on your application.
 
 ### 2.3 Native AOT
 

@@ -72,7 +72,29 @@ public class InboxThroughputBenchmarks
 	public void GlobalCleanup()
 	{
 		_inboxStore?.Dispose();
+		_inboxStore = null;
 	}
+
+	/// <summary>
+	/// Recreate the seeded store outside each measured write iteration.
+	/// </summary>
+	/// <remarks>
+	/// Iteration setup gives these write cases one invocation per iteration, so unique
+	/// message identifiers cannot accumulate across repeated measurements. Read cases
+	/// retain their original global setup and adaptive invocation count.
+	/// </remarks>
+	[IterationSetup(Targets = new[] { nameof(CreateEntry), nameof(FullProcessingCycle) })]
+	public void SetupWriteIteration()
+	{
+		GlobalCleanup();
+		GlobalSetup();
+	}
+
+	/// <summary>
+	/// Release the write iteration's store after the measured operation completes.
+	/// </summary>
+	[IterationCleanup(Targets = new[] { nameof(CreateEntry), nameof(FullProcessingCycle) })]
+	public void CleanupWriteIteration() => GlobalCleanup();
 
 	/// <summary>
 	/// Benchmark: Get all entries from inbox (batch retrieval).

@@ -48,7 +48,7 @@ builder.Services.AddElasticsearchServices(
 	registry: null);
 
 // Add projection services if needed
-builder.Services.AddElasticsearchProjections(builder.Configuration);
+builder.Services.AddElasticSearchProjectionManagement(builder.Configuration);
 
 // =============================================================================
 // 3. Configure Dispatch Pipeline with Transport Providers

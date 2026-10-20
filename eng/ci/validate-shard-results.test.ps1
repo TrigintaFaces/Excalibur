@@ -27,7 +27,7 @@ function New-Trx([string[]]$Outcomes = @('Passed'), [string[]]$Names = @('A.Test
     return "<TestRun xmlns='http://microsoft.com/schemas/VisualStudio/TeamTest/2010' id='$([guid]::NewGuid())'><TestDefinitions>$definitions</TestDefinitions><Results>$results</Results><ResultSummary outcome='Completed'><Counters total='$($Outcomes.Count)' executed='$executed' passed='$passed' failed='$failed' notExecuted='$skipped'/></ResultSummary></TestRun>"
 }
 
-function Assert-Case([string]$Name, [string[]]$Documents, [bool]$Pass, [string]$Expected = 'A.Tests', [int]$Count = 0) {
+function Assert-Case([string]$Name, [string[]]$Documents, [bool]$Pass, [string]$Expected = 'A.Tests', [int]$Count = 0, [string]$MustPrint = '') {
     $script:caseCount++
     $directory = Join-Path $testRoot $Name
     [void](New-Item -ItemType Directory -Path $directory)
@@ -43,6 +43,12 @@ function Assert-Case([string]$Name, [string[]]$Documents, [bool]$Pass, [string]$
     elseif ($Pass -and $Count -gt 0) {
         $actual = Get-Content (Join-Path $report 'shard-results.json') -Raw | ConvertFrom-Json
         if ($actual.DistinctTests -ne $Count) { $failures.Add("${Name}: expected $Count distinct tests, got $($actual.DistinctTests)") }
+    }
+    # A diagnostic the gate does not refuse on must still be VISIBLE. Asserting the exit code alone
+    # cannot tell "accepted and shown" from "accepted and silently dropped", and the second is how a
+    # collector failure becomes invisible.
+    if ($MustPrint -and ($output -join "`n") -notlike "*$MustPrint*") {
+        $failures.Add("${Name}: expected the diagnostic to be printed, looked for '$MustPrint', output=$output")
     }
     Write-Host "${Name}: exit=$code"
 }
@@ -77,7 +83,23 @@ try {
     Assert-Case 'passing-sibling-cannot-hide-skip' @($valid, (New-Trx @('NotExecuted'))) $false
     $benignInfo = '<RunInfos><RunInfo outcome="Warning"><Text>Data collector ''Blame'' message: All tests finished running, Sequence file will not be generated.</Text></RunInfo></RunInfos>'
     Assert-Case 'completed-blame-warning' @($valid.Replace('</ResultSummary>', "$benignInfo</ResultSummary>")) $true -Count 1
-    Assert-Case 'unknown-warning' @($valid.Replace('</ResultSummary>', '<RunInfos><RunInfo outcome="Warning"><Text>Adapter failed to load.</Text></RunInfo></RunInfos></ResultSummary>')) $false
+    # DELIBERATELY FLIPPED, and this arm is the record of why. It asserted that an unrecognised Warning
+    # REFUSES, which made the gate an arbiter of English prose emitted by the test platform. That cost a
+    # production outage: a DataCollector with no friendlyName made VSTest write "Unable to find a
+    # datacollector with friendly name ''" into every TRX and, per eng/build.ps1, "every
+    # coverage-collecting shard refused its own passing evidence" -- a green build refused for saying
+    # something the gate had not been told about. A Warning is a diagnostic; the verdict comes from the
+    # counters, the per-result outcomes and the expected-assembly set, each asserted elsewhere here.
+    Assert-Case 'unrecognised-warning-is-a-diagnostic-not-a-verdict' @($valid.Replace('</ResultSummary>', '<RunInfos><RunInfo outcome="Warning"><Text>Adapter failed to load.</Text></RunInfo></RunInfos></ResultSummary>')) $true -Count 1 -MustPrint 'Adapter failed to load.'
+    # The exact text that caused that outage must now pass. This is the regression arm for it.
+    Assert-Case 'nameless-collector-warning-no-longer-refuses' @($valid.Replace('</ResultSummary>', "<RunInfos><RunInfo outcome=`"Warning`"><Text>Unable to find a datacollector with friendly name ''</Text></RunInfo><RunInfo outcome=`"Warning`"><Text>Unable to find a datacollector with friendly name ''</Text></RunInfo></RunInfos></ResultSummary>")) $true -Count 1 -MustPrint "Unable to find a datacollector"
+    # The replacement predicate must still go red, on the attribute the PLATFORM defines rather than on
+    # wording we do not own. Error was already covered above; Aborted was not covered at all.
+    # Fail-closed: an outcome we have never seen, and one that is absent entirely, both refuse rather
+    # than passing through a denylist of the failures someone thought to enumerate.
+    Assert-Case 'runinfo-with-no-outcome-attribute' @($valid.Replace('</ResultSummary>', '<RunInfos><RunInfo>no outcome at all</RunInfo></RunInfos></ResultSummary>')) $false
+    Assert-Case 'runinfo-with-unknown-outcome' @($valid.Replace('</ResultSummary>', '<RunInfos><RunInfo outcome="Bogus">unknown outcome</RunInfo></RunInfos></ResultSummary>')) $false
+    Assert-Case 'runner-aborted-after-pass' @($valid.Replace('</ResultSummary>', '<RunInfos><RunInfo outcome="Aborted">run aborted</RunInfo></RunInfos></ResultSummary>')) $false
     Assert-Case 'duplicate-summary' @($valid.Replace('</TestRun>', '<ResultSummary outcome="Failed"/></TestRun>')) $false
     Assert-Case 'duplicate-counters' @($valid.Replace('</ResultSummary>', '<Counters total="1" executed="1" passed="0" failed="1" notExecuted="0"/></ResultSummary>')) $false
     Assert-Case 'unknown-counter' @($valid.Replace("total='1'", "unexpected='0' total='1'")) $false

@@ -113,6 +113,7 @@ public sealed class OutboxDispatcherRegistrationShould
 	private static ServiceProvider BuildResolvableProvider(IServiceCollection services)
 	{
 		services.AddLogging();
+        services.AddSingleton<Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue>(Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 		services.TryAddSingleton(A.Fake<IOutboxStore>());
 		return services.BuildServiceProvider();
 	}

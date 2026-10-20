@@ -1,269 +1,92 @@
 # Outbox Pattern Sample
 
-This sample demonstrates the **transactional outbox pattern** for reliable message delivery with the Excalibur framework.
+This sample demonstrates framework-owned, eventually consistent event delivery with in-memory stores.
+It is for developers learning how producer handlers, outbox staging and the hosted processor fit together.
 
-## What This Sample Shows
+Events declare stable identities with the framework's `MessageName` attribute. Preserve those values
+across code moves; register message types in a separate worker, and use `MessageNameAlias` if a declared
+identity changes. This sample stages and consumes in one host.
 
-1. **Guaranteed Delivery** - Messages stored atomically with business data
-2. **At-Least-Once Semantics** - Automatic retry on failure
-3. **Configurable Policies** - Batch size, retry, and parallelism options
-4. **Inbox Deduplication** - Prevent duplicate message processing
+## Run
 
-## The Transactional Outbox Pattern
-
-The outbox pattern solves a common distributed systems problem: how to reliably publish events when your database transaction commits.
-
-### Without Outbox (Unreliable)
-
-```
-1. Save order to database
-2. Publish OrderPlacedEvent
-   -> If this fails, event is lost!
-   -> If DB commit fails after publish, event is orphaned!
-```
-
-### With Outbox (Reliable)
-
-```
-1. BEGIN TRANSACTION
-2. Save order to database
-3. Save OrderPlacedEvent to outbox table
-4. COMMIT TRANSACTION
-
-5. Background processor:
-   - Reads pending messages from outbox
-   - Publishes each message
-   - Marks as processed (or retries on failure)
-```
-
-## Key Concepts
-
-### Middleware Pipeline
-
-The recommended approach uses dispatch middleware for outbox and inbox integration:
-
-```csharp
-builder.Services.AddDispatch(dispatch =>
-{
-    // Add inbox middleware first -- deduplicates before processing
-    dispatch.UseInbox();
-
-    // Add outbox middleware -- stages integration events for reliable delivery
-    dispatch.UseOutbox();
-
-    // Register handlers from this assembly
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
-```
-
-### Outbox Configuration
-
-Uses the builder pattern to configure storage and processing:
-
-```csharp
-builder.Services.AddExcalibur(excalibur => excalibur.AddOutbox(outbox =>
-{
-    outbox.UseInMemory()                                    // In-memory for demo; use UseSqlServer() in production
-        .WithProcessing(processing =>
-        {
-            processing.BatchSize(50)                        // Process 50 messages per batch
-                .PollingInterval(TimeSpan.FromSeconds(2))   // Check for messages every 2 seconds
-                .MaxRetryCount(3)                           // Retry failed messages up to 3 times
-                .RetryDelay(TimeSpan.FromSeconds(10));      // Wait 10 seconds between retries
-        })
-        .EnableBackgroundProcessing();                      // Start the background processor hosted service
-}));
-```
-
-### Inbox Configuration
-
-```csharp
-builder.Services.AddExcaliburInbox(inbox =>
-{
-    inbox.UseInMemory(); // In-memory for demo; use UseSqlServer() in production
-});
-```
-
-## Running the Sample
+Requires the repository's .NET SDK. No database, broker, Docker or cloud account is needed.
 
 ```bash
-cd samples/04-reliability/OutboxPattern
-dotnet run
+dotnet run --project samples/04-reliability/OutboxPattern -- --once
 ```
 
-## Expected Output
+The process dispatches five `PlaceOrderCommand` actions, checks their typed order IDs, and waits up to
+30 seconds for the actual outbox statistics to report five sent messages. It exits after verified delivery.
+Omit `--once` to keep the host running; stop it with Ctrl+C.
 
-```
-Starting Outbox Pattern Sample...
+## Framework flow
 
-=== Transactional Outbox Pattern Demo ===
-
-The outbox pattern ensures reliable message delivery:
-  1. Save message to outbox (same transaction as business data)
-  2. Background processor publishes messages
-  3. Retry on failure with configurable policy
-
-Placing order: ORD-20260121-001
-  -> OrderPlacedEvent dispatched to outbox
-[Handler] Order placed: ORD-20260121-001 for customer CUST-12345, Total: $299.99
-
-=== Chained Events Demo ===
-  -> PaymentProcessedEvent dispatched
-  -> InventoryReservedEvent dispatched
-[Handler] Payment processed for order ORD-20260121-001: Transaction TXN-...
-[Handler] Inventory reserved for order ORD-20260121-001: 2x WIDGET-001
-
-=== Batch Dispatching Demo ===
-  -> Order ORD-20260121-002 dispatched
-  -> Order ORD-20260121-003 dispatched
-  -> Order ORD-20260121-004 dispatched
-  -> Order ORD-20260121-005 dispatched
+```text
+PlaceOrderCommand
+  -> PlaceOrderHandler validates input and writes OrderPlacedEvent through IOutboxWriter
+  -> UseOutbox middleware stages the buffered event after successful handling
+  -> OutboxBackgroundService resolves the framework IOutboxProcessor
+  -> the processor claims an eligible row and dispatches the event
+  -> OrderPlacedHandler runs; the store records Sent
 ```
 
-## Configuration Options
+The handler returns an order ID after staging. Event delivery happens asynchronously. Each producer
+dispatch uses a fresh service scope and context. The sample leaves claim acquisition, retry timing,
+attempt budgets and terminal transitions to the framework instead of implementing a publishing loop.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `BatchSize` | 100 | Messages processed per batch |
-| `PollingInterval` | 5 seconds | Time between processing cycles |
-| `MaxRetryCount` | 3 | Maximum retry attempts |
-| `RetryDelay` | 5 minutes | Delay between retries |
-| `EnableParallelProcessing` | false | Process messages in parallel |
-| `MaxDegreeOfParallelism` | 4 | Max parallel message handlers |
+`OutboxSample.CreateBuilder` contains the executable composition: `UseOutbox`, `UseInbox`, registered
+handlers, in-memory inbox/outbox providers and opt-in background processing. The sample has no business
+database or shared business transaction; it does not demonstrate atomic business-data persistence.
 
-## Inbox Deduplication
+## Processing settings
 
-The inbox pattern prevents duplicate message processing:
+The builder requests batches of 50, a two-second polling interval, three retries after the initial
+attempt, and a ten-second fixed retry delay. The in-memory provider's failure floor can defer a retry
+longer than the requested delay. Eligibility is the later of the calculated retry time and that floor.
 
-```
-Message arrives -> Check inbox for MessageId
-  - If exists: Skip (duplicate)
-  - If new: Process and record in inbox
-```
+Builder defaults map to the processor's delivery and background options. Explicit `Configure` or
+`PostConfigure` callbacks override them regardless of registration order. A registered
+`IBackoffCalculator` takes precedence over the default fixed calculator; the
+[Retry and Circuit Breaker sample](../RetryAndCircuitBreaker/) demonstrates the framework's Polly integration.
 
-This is essential for at-least-once delivery systems where messages may be redelivered.
+Delivery can repeat after ambiguous transport acceptance or a failure recording Sent. Consumers should
+be idempotent. Inbox middleware is configured here, but this console run does not simulate broker
+redelivery or certify exactly-once business effects.
 
-## Best Practices
+## Verification and limits
 
-1. **Atomic Transactions**: Always save outbox messages in the same transaction as business data
-2. **Idempotent Handlers**: Design handlers to be safe for repeated execution
-3. **Monitor Queue Depth**: Watch outbox size to detect delivery issues
-4. **Plan for Retention**: Sent outbox entries are retained until you remove them - automatic cleanup is not implemented, so schedule your own deletion job and size storage for the volume you keep
-5. **Use Parallel Processing**: Enable for high-throughput scenarios
+Successful output includes five staged producer outcomes and `Completed 5 real outbox deliveries`.
+The wait checks store statistics rather than treating a fixed sleep as evidence of delivery.
 
-## Production Deployment
+Native regression controls exercise the actual sample composition and verify typed outcomes, real
+staging, stored payloads, processor delivery and no replay of sent rows. Framework tests cover attempt
+budgets, retained failures, backoff floors, caller schedules and consumer calculator overrides.
 
-### SQL Server Implementation
+In-memory inbox/outbox contents disappear when the process stops. There is no infrastructure cost or
+external cleanup; restarting creates fresh stores. This example does not prove recovery after restart,
+remote broker behavior, or an atomic transaction spanning business data and the outbox.
 
-```csharp
-// Use durable SQL Server stores
-services.AddExcalibur(excalibur => excalibur
-    .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
-services.AddExcaliburInbox(inbox => inbox.UseSqlServer(sql => sql.ConnectionString(connectionString)));
-```
+## Durable deployment
 
-### Required Tables
+Select a durable provider and provision its schema before starting the application. Use the maintained
+provider scripts instead of copying a second schema into this sample:
 
-The SQL Server implementation does **not** auto-create tables. You must create them before starting the application:
+- [SQL Server outbox schema](../../../src/Excalibur/Excalibur.Outbox.SqlServer/Scripts/001_CreateOutboxSchema.sql)
+- [SQL Server single-tenant inbox schema](../../../src/Excalibur/Excalibur.Inbox.SqlServer/Scripts/001_CreateInboxSchema.sql)
+- [SQL Server multi-tenant inbox schema](../../../src/Excalibur/Excalibur.Inbox.SqlServer/Scripts/001_CreateInboxSchema.MultiTenant.sql)
 
-```sql
--- Outbox table (default: dbo.OutboxMessages)
-CREATE TABLE dbo.OutboxMessages (
-    Id               NVARCHAR(255)  NOT NULL PRIMARY KEY,
-    MessageType      NVARCHAR(500)  NOT NULL,
-    Payload          VARBINARY(MAX) NOT NULL,
-    Headers          NVARCHAR(MAX)  NULL,
-    Destination      NVARCHAR(255)  NOT NULL,
-    CreatedAt        DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-    ScheduledAt      DATETIMEOFFSET NULL,
-    SentAt           DATETIMEOFFSET NULL,
-    Status           INT            NOT NULL DEFAULT 0,
-    RetryCount       INT            NOT NULL DEFAULT 0,
-    LastError        NVARCHAR(MAX)  NULL,
-    LastAttemptAt    DATETIMEOFFSET NULL,
-    CorrelationId    NVARCHAR(255)  NULL,
-    CausationId      NVARCHAR(255)  NULL,
-    TenantId         NVARCHAR(64) COLLATE Latin1_General_BIN2  NOT NULL DEFAULT '__untenanted__',
-    Priority         INT            NOT NULL DEFAULT 0,
-    TargetTransports NVARCHAR(MAX)  NULL,
-    IsMultiTransport BIT            NOT NULL DEFAULT 0,
-    LeasedAt         DATETIMEOFFSET NULL,
-    LeasedBy         NVARCHAR(255)  NULL,
-    PartitionKey     NVARCHAR(256)  NULL,   -- ordered delivery: per-partition FIFO
-    GroupKey         NVARCHAR(256)  NULL,   -- logical message grouping
-    SequenceNumber   BIGINT         NOT NULL DEFAULT 0, -- monotonic ordering key
-    NextAttemptAt    DATETIMEOFFSET NULL,   -- retry backoff: not re-claimed until this time
-    FencingToken     BIGINT         NULL,   -- token of the leader that claimed the row; drain/mark SQL name it unconditionally
-    INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
-    INDEX IX_OutboxMessages_Claim (Status, NextAttemptAt, PartitionKey, SequenceNumber)
-);
+See the [outbox documentation](../../../docs-site/docs/patterns/outbox.md) for transaction integration,
+storage, routing, retention and operational guidance. Select the inbox schema matching the registered
+tenancy mode. Sent-row retention requires an explicit cleanup policy.
 
--- Leadership-fence control table (default: dbo.OutboxFence) — REQUIRED, including for a
--- single-instance outbox that never elects a leader.
---
--- The drain statement names this table unconditionally, and SQL Server resolves object names when
--- it compiles the statement — not when a predicate happens to evaluate. So if the table is absent
--- the drain fails on every attempt with "Msg 208, Invalid object name 'dbo.OutboxFence'", and
--- nothing is ever delivered. Create it even if you do not run leader-fenced processing.
---
--- It holds ONE row per outbox table (keyed by the qualified outbox table name) recording the highest
--- fencing token ever accepted. It is deliberately separate from OutboxMessages so routine cleanup,
--- which deletes sent token-bearing rows, can never lower the recorded high-water mark — a superseded
--- leader's stale token stays rejected after cleanup. Cleanup must not reference this table.
-CREATE TABLE dbo.OutboxFence (
-    OutboxTable    NVARCHAR(512) NOT NULL PRIMARY KEY,
-    HighWaterToken BIGINT        NOT NULL
-);
+## Source and ownership
 
--- Inbox table (default: dbo.inbox_messages) — SINGLE-TENANT schema.
---
--- DEPLOYMENT MODE: the inbox is column-agnostic by deployment. This sample is single-tenant, so
--- the dedup/claim key is the pair (MessageId, HandlerType) and there is NO TenantId column — a
--- single-tenant consumer pays nothing for a tenant discriminator it never uses. If you opt into
--- multi-tenancy (AddMultiTenancy()), use the MULTI-TENANT inbox schema instead — key
--- (MessageId, HandlerType, TenantId), TenantId NOT NULL — shipped as the provider's
--- 001_CreateInboxSchema.MultiTenant.sql. The store verifies the physical schema matches the
--- registered mode at startup and fails fast on a mismatch.
-CREATE TABLE dbo.inbox_messages (
-    MessageId     NVARCHAR(255)  NOT NULL,
-    HandlerType   NVARCHAR(500)  NOT NULL,
-    MessageType   NVARCHAR(500)  NOT NULL,
-    Payload       VARBINARY(MAX) NOT NULL,
-    Metadata      NVARCHAR(MAX)  NULL,
-    ReceivedAt    DATETIMEOFFSET NOT NULL,
-    ProcessedAt   DATETIMEOFFSET NULL,
-    Status        INT            NOT NULL DEFAULT 0,
-    LeaseExpiresAtUtc DATETIMEOFFSET NULL,         -- REQUIRED: backs the atomic lease-based claim
-    LastError     NVARCHAR(MAX)  NULL,
-    RetryCount    INT            NOT NULL DEFAULT 0,
-    LastAttemptAt DATETIMEOFFSET NULL,
-    NextAttemptAt DATETIMEOFFSET NULL,
-    CorrelationId NVARCHAR(255)  NULL,
-    Source        NVARCHAR(255)  NULL,
-    -- Single-tenant: the dedup/claim key is the pair. No TenantId column.
-    CONSTRAINT PK_inbox_messages PRIMARY KEY CLUSTERED (MessageId, HandlerType)
-);
+- `OutboxSample.cs`: framework registrations and processing defaults.
+- `Program.cs`: producer dispatch and bounded delivery verification.
+- `Handlers/OrderHandlers.cs`: producer and event consumers.
+- `Messages/OrderEvents.cs`: typed action and event contracts.
 
--- For multi-tenancy, provision from the provider's 001_CreateInboxSchema.MultiTenant.sql instead:
--- it carries TenantId NOT NULL DEFAULT '__untenanted__' and keys on (MessageId, HandlerType,
--- TenantId). There is no in-place upgrade from the single-tenant key -- re-provision.
-```
+Maintainer: [@TrigintaFaces](https://github.com/TrigintaFaces), as recorded in repository CODEOWNERS.
 
-## Project Structure
-
-```
-OutboxPattern/
-OutboxPattern.csproj       # Project file
-Program.cs                 # Main sample demonstrating outbox pattern
-appsettings.json           # Configuration for logging and outbox
-README.md                  # This file
-Messages/
-   OrderEvents.cs          # Event classes
-Handlers/
-    OrderHandlers.cs  # Event handlers
-```
-
-## Related Samples
-
-- [Saga Orchestration](../SagaOrchestration/) - Coordinated multi-step workflows
-- [Retry and Circuit Breaker](../RetryAndCircuitBreaker/) - Resilience patterns
+Related: [Saga Orchestration](../SagaOrchestration/) and
+[Retry and Circuit Breaker](../RetryAndCircuitBreaker/).

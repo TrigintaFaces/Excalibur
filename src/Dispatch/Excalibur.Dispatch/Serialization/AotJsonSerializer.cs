@@ -18,6 +18,11 @@ namespace Excalibur.Dispatch.Serialization;
 /// - Improved startup performance
 /// - Reduced memory allocations
 /// - Full AOT compatibility.
+/// <para>
+/// Deserialization consumes one complete JSON document and honors the supplied context's
+/// reader options. Custom converters follow System.Text.Json span deserialization semantics;
+/// converter or object-construction side effects are not rolled back if later input is invalid.
+/// </para>
 /// </remarks>
 public sealed class AotJsonSerializer : IDisposable
 {
@@ -54,8 +59,6 @@ public sealed class AotJsonSerializer : IDisposable
 	public string Format => "JSON";
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Serialization may require unreferenced code for type-specific handling.")]
-	[RequiresDynamicCode("Serialization may require dynamic code generation for type-specific handling.")]
 	public byte[] Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message)
 	{
 		var bufferWriter = _threadLocalBufferWriter.Value!;
@@ -70,8 +73,6 @@ public sealed class AotJsonSerializer : IDisposable
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Deserialization may require unreferenced code for type-specific handling.")]
-	[RequiresDynamicCode("Deserialization may require dynamic code generation for type-specific handling.")]
 	public T Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data)
 	{
 		if (data == null || data.Length == 0)
@@ -79,9 +80,8 @@ public sealed class AotJsonSerializer : IDisposable
 			throw new ArgumentNullException(nameof(data));
 		}
 
-		var reader = new Utf8JsonReader(data);
 		var typeInfo = GetTypeInfo<T>();
-		return JsonSerializer.Deserialize(ref reader, typeInfo)
+		return JsonSerializer.Deserialize(data.AsSpan(), typeInfo)
 			   ?? throw new InvalidOperationException(
 				   Resources.Serialization_DeserializationResultedInNull);
 	}
@@ -106,9 +106,8 @@ public sealed class AotJsonSerializer : IDisposable
 				nameof(data));
 		}
 
-		var reader = new Utf8JsonReader(data);
 		var typeInfo = GetTypeInfo<T>();
-		return JsonSerializer.Deserialize(ref reader, typeInfo)
+		return JsonSerializer.Deserialize(data, typeInfo)
 			   ?? throw new InvalidOperationException(
 				   Resources.Serialization_DeserializationResultedInNull);
 	}

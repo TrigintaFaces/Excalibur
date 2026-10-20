@@ -76,7 +76,7 @@ public sealed class SubjectFieldCryptorSuppliedPlanShould
 		var record = new UnannotatedCustomer { SubjectId = "subject-1", Email = Plaintext };
 
 		await cryptor.EncryptFieldsAsync(record, plan, aggregateType: null, CancellationToken.None).ConfigureAwait(false);
-		await cryptor.DecryptFieldsAsync(record, plan, CancellationToken.None).ConfigureAwait(false);
+		await cryptor.DecryptFieldsAsync(record, plan, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).ConfigureAwait(false);
 
 		record.Email.ShouldBe(Plaintext);
 	}
@@ -122,8 +122,8 @@ public sealed class SubjectFieldCryptorSuppliedPlanShould
 					Iv = [],
 				});
 
-		A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<CancellationToken>._))
-			.ReturnsLazily((EncryptedData envelope, CancellationToken _) => envelope.Ciphertext);
+		A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<string>._, A<CancellationToken>._))
+			.ReturnsLazily((EncryptedData envelope, string _, CancellationToken _) => envelope.Ciphertext);
 #pragma warning restore CA2012
 
 		return new SubjectFieldCryptor(encryptor);

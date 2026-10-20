@@ -10,7 +10,7 @@ namespace Excalibur.A3.Authorization.Stores.InMemory;
 /// <summary>
 /// In-memory implementation of <see cref="IGrantStore"/>, <see cref="IGrantQueryStore"/>,
 /// <see cref="IActivityGroupGrantStore"/> and <see cref="IActivityGroupGrantReplacement"/> backed by one
-/// immutable map.
+/// immutable state containing grants, revisions, and retry outcomes.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,12 +28,19 @@ namespace Excalibur.A3.Authorization.Stores.InMemory;
 /// </para>
 /// </remarks>
 internal sealed class InMemoryGrantStore
-	: IGrantStore, IGrantQueryStore, IActivityGroupGrantStore, IActivityGroupGrantReplacement
+	: IGrantStore, IGrantQueryStore, IActivityGroupGrantStore, IActivityGroupGrantReplacement, IAtomicGrantRevocationStore
 {
 	private readonly TimeProvider _timeProvider;
 
-	private ImmutableDictionary<string, Grant> _grants =
-		ImmutableDictionary.Create<string, Grant>(StringComparer.Ordinal);
+	private sealed record Operation(GrantRevocationRequest Request, GrantRevocationResult Result);
+	private sealed record State(
+		ImmutableDictionary<string, Grant> Grants,
+		ImmutableDictionary<string, long> Revisions,
+		ImmutableDictionary<(string UserId, Guid OperationId), Operation> Operations);
+	private State _state = new(
+		ImmutableDictionary.Create<string, Grant>(StringComparer.Ordinal),
+		ImmutableDictionary.Create<string, long>(StringComparer.Ordinal),
+		ImmutableDictionary<(string, Guid), Operation>.Empty);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="InMemoryGrantStore"/> class.
@@ -46,7 +53,7 @@ internal sealed class InMemoryGrantStore
 		_timeProvider = timeProvider ?? TimeProvider.System;
 
 	// Read once per operation, so every answer comes from a single state.
-	private ImmutableDictionary<string, Grant> Snapshot => Volatile.Read(ref _grants);
+	private ImmutableDictionary<string, Grant> Snapshot => Volatile.Read(ref _state).Grants;
 
 	/// <inheritdoc />
 	public Task<Grant?> GetGrantAsync(
@@ -89,7 +96,7 @@ internal sealed class InMemoryGrantStore
 		ArgumentNullException.ThrowIfNull(grant);
 
 		var key = BuildKey(grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier);
-		_ = ImmutableInterlocked.AddOrUpdate(ref _grants, key, grant, (_, _) => grant);
+		Mutate(current => Advance(current with { Grants = current.Grants.SetItem(key, grant) }, [grant.UserId]), cancellationToken);
 		return Task.FromResult(1);
 	}
 
@@ -104,7 +111,13 @@ internal sealed class InMemoryGrantStore
 		CancellationToken cancellationToken)
 	{
 		var key = BuildKey(userId, tenantId, grantType, qualifier);
-		return Task.FromResult(ImmutableInterlocked.TryRemove(ref _grants, key, out _) ? 1 : 0);
+		var removed = 0;
+		Mutate(current =>
+		{
+			removed = current.Grants.ContainsKey(key) ? 1 : 0;
+			return removed == 0 ? current : Advance(current with { Grants = current.Grants.Remove(key) }, [userId]);
+		}, cancellationToken);
+		return Task.FromResult(removed);
 	}
 
 	/// <inheritdoc />
@@ -123,6 +136,11 @@ internal sealed class InMemoryGrantStore
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(IAtomicGrantRevocationStore))
+		{
+			return this;
+		}
 
 		if (serviceType == typeof(IGrantQueryStore))
 		{
@@ -194,14 +212,14 @@ internal sealed class InMemoryGrantStore
 		CancellationToken cancellationToken) =>
 		Task.FromResult(RemoveWhere(g =>
 			string.Equals(g.UserId, userId, StringComparison.Ordinal)
-			&& string.Equals(g.GrantType, grantType, StringComparison.Ordinal)).Count);
+			&& string.Equals(g.GrantType, grantType, StringComparison.Ordinal), cancellationToken).Count);
 
 	/// <inheritdoc />
 	public Task<int> DeleteAllActivityGroupGrantsAsync(
 		string grantType,
 		CancellationToken cancellationToken) =>
 		Task.FromResult(RemoveWhere(g =>
-			string.Equals(g.GrantType, grantType, StringComparison.Ordinal)).Count);
+			string.Equals(g.GrantType, grantType, StringComparison.Ordinal), cancellationToken).Count);
 
 	/// <inheritdoc />
 	public Task<int> InsertActivityGroupGrantAsync(
@@ -222,10 +240,10 @@ internal sealed class InMemoryGrantStore
 			qualifier,
 			expiresOn,
 			grantedBy,
-			DateTimeOffset.UtcNow);
+			_timeProvider.GetUtcNow());
 
 		var key = BuildKey(userId, tenantId, grantType, qualifier);
-		_ = ImmutableInterlocked.AddOrUpdate(ref _grants, key, grant, (_, _) => grant);
+		Mutate(current => Advance(current with { Grants = current.Grants.SetItem(key, grant) }, [grant.UserId]), cancellationToken);
 		return Task.FromResult(1);
 	}
 
@@ -259,7 +277,7 @@ internal sealed class InMemoryGrantStore
 
 		return Task.FromResult(Replace(
 			g => string.Equals(g.GrantType, grantType, StringComparison.Ordinal),
-			snapshot));
+			snapshot, cancellationToken));
 	}
 
 	/// <inheritdoc />
@@ -278,7 +296,7 @@ internal sealed class InMemoryGrantStore
 		return Task.FromResult(Replace(
 			g => string.Equals(g.UserId, userId, StringComparison.Ordinal)
 				&& string.Equals(g.GrantType, grantType, StringComparison.Ordinal),
-			snapshot));
+			snapshot, cancellationToken));
 	}
 
 	/// <summary>
@@ -290,56 +308,117 @@ internal sealed class InMemoryGrantStore
 	/// the whole previous set or the whole new one. The previous users are assigned on every attempt, so the
 	/// ones reported come from the state actually swapped in rather than from an attempt that lost the race.
 	/// </remarks>
-	private IReadOnlyCollection<string> Replace(Func<Grant, bool> scope, ActivityGroupGrantSnapshot snapshot)
+	private IReadOnlyCollection<string> Replace(Func<Grant, bool> scope, ActivityGroupGrantSnapshot snapshot,
+		CancellationToken cancellationToken)
 	{
 		IReadOnlyCollection<string> previousUsers = [];
 		var grantedOn = _timeProvider.GetUtcNow();
-
-		_ = ImmutableInterlocked.Update(
-			ref _grants,
-			current =>
-			{
-				var doomed = current.Where(e => scope(e.Value)).ToArray();
-
-				previousUsers =
-					[.. doomed.Select(static e => e.Value.UserId).Distinct(StringComparer.Ordinal)];
-
-				return current
-					.RemoveRange(doomed.Select(static e => e.Key))
-					.SetItems(snapshot.Entries.Select(e => KeyValuePair.Create(
-						BuildKey(e.UserId, e.TenantId, e.GrantType, e.Qualifier),
-						new Grant(
-							e.UserId,
-							e.FullName,
-							e.TenantId,
-							e.GrantType,
-							e.Qualifier,
-							e.ExpiresOn,
-							e.GrantedBy,
-							grantedOn))));
-			});
-
+		Mutate(current =>
+		{
+			var doomed = current.Grants.Where(e => scope(e.Value)).ToArray();
+			previousUsers = [.. doomed.Select(e => e.Value.UserId).Distinct(StringComparer.Ordinal)];
+			var grants = current.Grants.RemoveRange(doomed.Select(e => e.Key))
+				.SetItems(snapshot.Entries.Select(e => KeyValuePair.Create(
+					BuildKey(e.UserId, e.TenantId, e.GrantType, e.Qualifier),
+					new Grant(e.UserId, e.FullName, e.TenantId, e.GrantType, e.Qualifier,
+						e.ExpiresOn, e.GrantedBy, grantedOn))));
+			return Advance(current with { Grants = grants },
+				previousUsers.Concat(snapshot.Entries.Select(e => e.UserId)));
+		}, cancellationToken);
 		return previousUsers;
 	}
 
-	/// <summary>
-	/// Removes every grant matching <paramref name="scope"/> in one exchange, reporting what was removed.
-	/// </summary>
-	private IReadOnlyCollection<string> RemoveWhere(Func<Grant, bool> scope)
+	private IReadOnlyCollection<string> RemoveWhere(Func<Grant, bool> scope, CancellationToken cancellationToken)
 	{
 		IReadOnlyCollection<string> removed = [];
-
-		_ = ImmutableInterlocked.Update(
-			ref _grants,
-			current =>
-			{
-				var doomed = current.Where(e => scope(e.Value)).Select(static e => e.Key).ToArray();
-				removed = doomed;
-
-				return current.RemoveRange(doomed);
-			});
-
+		Mutate(current =>
+		{
+			var doomed = current.Grants.Where(e => scope(e.Value)).ToArray();
+			removed = [.. doomed.Select(e => e.Key)];
+			return Advance(current with { Grants = current.Grants.RemoveRange(removed) },
+				doomed.Select(e => e.Value.UserId));
+		}, cancellationToken);
 		return removed;
+	}
+
+	/// <inheritdoc />
+	public Task<long> ReadUserRevisionAsync(string userId, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		if (!string.Equals(userId, userId.Trim(), StringComparison.Ordinal))
+		{
+			throw new ArgumentException("Identifiers must not contain leading or trailing whitespace.", nameof(userId));
+		}
+		cancellationToken.ThrowIfCancellationRequested();
+		return Task.FromResult(Volatile.Read(ref _state).Revisions.GetValueOrDefault(userId));
+	}
+
+	/// <inheritdoc />
+	public Task<UserGrantSnapshot> ReadUserSnapshotAsync(string userId, bool includeExpired, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		if (!string.Equals(userId, userId.Trim(), StringComparison.Ordinal))
+		{
+			throw new ArgumentException("Identifiers must not contain leading or trailing whitespace.", nameof(userId));
+		}
+		cancellationToken.ThrowIfCancellationRequested();
+		var state = Volatile.Read(ref _state);
+		var now = _timeProvider.GetUtcNow();
+		return Task.FromResult(new UserGrantSnapshot(userId, state.Revisions.GetValueOrDefault(userId),
+			state.Grants.Values.Where(g => string.Equals(g.UserId, userId, StringComparison.Ordinal)
+				&& (includeExpired || g.IsActive(now)))));
+	}
+
+	/// <inheritdoc />
+	public Task<GrantRevocationResult> RevokeAllAsync(GrantRevocationRequest request, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(request);
+		GrantRevocationResult? result = null;
+		Mutate(current =>
+		{
+			var key = (request.UserId, request.OperationId);
+			if (current.Operations.TryGetValue(key, out var operation))
+			{
+				if (operation.Request != request)
+				{
+					throw new InvalidOperationException("The revocation operation identifier has a different payload.");
+				}
+				result = operation.Result;
+				return current;
+			}
+			var doomed = current.Grants.Where(e => string.Equals(e.Value.UserId, request.UserId, StringComparison.Ordinal)
+				&& (request.Scope.TenantId is null || string.Equals(e.Value.TenantId, request.Scope.TenantId, StringComparison.Ordinal)))
+				.Select(e => e.Key).ToArray();
+			var next = Advance(current with { Grants = current.Grants.RemoveRange(doomed) }, [request.UserId]);
+			result = new GrantRevocationResult(request.OperationId, next.Revisions[request.UserId], doomed.Length);
+			return next with { Operations = next.Operations.Add(key, new Operation(request, result)) };
+		}, cancellationToken);
+		return Task.FromResult(result!);
+	}
+
+	private static State Advance(State state, IEnumerable<string> users)
+	{
+		var revisions = state.Revisions;
+		foreach (var user in users.Distinct(StringComparer.Ordinal))
+		{
+			revisions = revisions.SetItem(user, checked(revisions.GetValueOrDefault(user) + 1));
+		}
+		return state with { Revisions = revisions };
+	}
+
+	private void Mutate(Func<State, State> transform, CancellationToken cancellationToken)
+	{
+		while (true)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			var current = Volatile.Read(ref _state);
+			var next = transform(current);
+			cancellationToken.ThrowIfCancellationRequested();
+			if (ReferenceEquals(Interlocked.CompareExchange(ref _state, next, current), current))
+			{
+				return;
+			}
+		}
 	}
 
 	// Escaped before joining, so a term containing the separator cannot shift the meaning of the key:
@@ -367,6 +446,10 @@ internal sealed class InMemoryGrantStore
 		if (userId is not null)
 		{
 			ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+		if (!string.Equals(userId, userId.Trim(), StringComparison.Ordinal))
+		{
+			throw new ArgumentException("Identifiers must not contain leading or trailing whitespace.", nameof(userId));
+		}
 		}
 
 		if (grantType is not null)

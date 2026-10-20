@@ -5,13 +5,69 @@ using Excalibur.Compliance;
 using Excalibur.Compliance.Migration;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Compliance.Tests.Migration;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
+[Trait("Pattern", "Regression")]
 public sealed class MigrationServiceCollectionExtensionsShould
 {
+	[Theory]
+	[InlineData(false, 0)]
+	[InlineData(false, -1)]
+	[InlineData(true, 0)]
+	[InlineData(true, -1)]
+	public void RefuseNonPositiveConcurrencyThroughPublicCompositionAtStartup(bool configuration, int concurrency)
+	{
+		var services = new ServiceCollection();
+		RegisterOptions(services, configuration, concurrency);
+		using var provider = services.BuildServiceProvider();
+		var validator = provider.GetRequiredService<IStartupValidator>();
+		var error = Should.Throw<OptionsValidationException>(() => validator.Validate());
+		error.OptionsType.ShouldBe(typeof(MigrationOptions));
+		error.Failures.ShouldContain(failure => failure.Contains(nameof(MigrationOptions.MaxConcurrentMigrations), StringComparison.Ordinal));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ValidatePositiveConcurrencyWithoutResolvingMigrationInfrastructure(bool configuration)
+	{
+		var services = new ServiceCollection();
+		RegisterOptions(services, configuration, 8);
+		using var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<IStartupValidator>().Validate();
+		var options = provider.GetRequiredService<IOptions<MigrationOptions>>().Value;
+		options.MaxConcurrentMigrations.ShouldBe(8);
+		options.MigrationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+	}
+
+	[Fact]
+	public void ValidateDefaultMigrationOptionsAtStartup()
+	{
+		var services = new ServiceCollection();
+		services.AddEncryptionMigration();
+		using var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<IStartupValidator>().Validate();
+		provider.GetRequiredService<IOptions<MigrationOptions>>().Value.MaxConcurrentMigrations.ShouldBe(4);
+	}
+
+	private static void RegisterOptions(IServiceCollection services, bool configuration, int concurrency)
+	{
+		if (configuration)
+		{
+			var settings = new Dictionary<string, string?> { [nameof(MigrationOptions.MaxConcurrentMigrations)] = concurrency.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+			services.AddEncryptionMigration(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+		}
+		else
+		{
+			services.AddEncryptionMigration(options => options.MaxConcurrentMigrations = concurrency);
+		}
+	}
+
 	[Fact]
 	public void RegisterMigrationServices()
 	{

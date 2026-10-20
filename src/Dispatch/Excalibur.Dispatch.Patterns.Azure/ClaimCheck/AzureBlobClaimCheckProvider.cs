@@ -35,6 +35,14 @@ public partial class AzureBlobClaimCheckProvider : IClaimCheckProvider
 	public AzureBlobClaimCheckProvider(
 		IOptions<ClaimCheckOptions> options,
 		ILogger<AzureBlobClaimCheckProvider> logger)
+		: this(options, logger, null)
+	{
+	}
+
+	internal AzureBlobClaimCheckProvider(
+		IOptions<ClaimCheckOptions> options,
+		ILogger<AzureBlobClaimCheckProvider> logger,
+		BlobContainerClient? containerClient)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -42,8 +50,8 @@ public partial class AzureBlobClaimCheckProvider : IClaimCheckProvider
 		_options = options.Value;
 		_logger = logger;
 
-		var blobServiceClient = new BlobServiceClient(_options.ConnectionString);
-		_containerClient = blobServiceClient.GetBlobContainerClient(_options.ContainerName);
+		_containerClient = containerClient ?? new BlobServiceClient(_options.ConnectionString)
+			.GetBlobContainerClient(_options.ContainerName);
 	}
 
 	/// <summary>

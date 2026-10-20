@@ -3,6 +3,8 @@
 
 using System.Globalization;
 
+using Dapper;
+
 using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Outbox.Oracle;
@@ -160,21 +162,21 @@ public sealed class OracleFencedCompletionPathShould
 			// The FIRST token on a fresh scope ESTABLISHES the fence rather than being refused by it.
 			var (first, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 			var established = await store.MarkDeadLetteredAsync(
-				first.Id, "establishes the fence", 3, CancellationToken.None).ConfigureAwait(false);
+				first.Id, "establishes the fence", 0, 3L, CancellationToken.None).ConfigureAwait(false);
 			established.ShouldBe(
 				OutboxCompletionOutcome.Applied,
 				"the first token on a fresh scope establishes the fence");
 
 			var (second, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 			var live = await store.MarkDeadLetteredAsync(
-				second.Id, "by the live tenure", 12, CancellationToken.None).ConfigureAwait(false);
+				second.Id, "by the live tenure", 0, 12L, CancellationToken.None).ConfigureAwait(false);
 			live.ShouldBe(
 				OutboxCompletionOutcome.Applied,
 				"a tenure at or above the high-water must still be able to bury");
 
 			var (third, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
 			var superseded = await store.MarkDeadLetteredAsync(
-				third.Id, "by a superseded tenure", 6, CancellationToken.None).ConfigureAwait(false);
+				third.Id, "by a superseded tenure", 0, 6L, CancellationToken.None).ConfigureAwait(false);
 
 			superseded.ShouldBe(
 				OutboxCompletionOutcome.FenceRefused,
@@ -233,6 +235,119 @@ public sealed class OracleFencedCompletionPathShould
 	// that takes the text as a parameter reads better but trips the injection analyzer, which cannot tell a
 	// fixture constant from consumer input -- and suppressing that analyzer on a SQL-writing test is a worse
 	// trade than two near-identical methods.
+    [Theory]
+    [InlineData(false, 0, 0, 0)]
+    [InlineData(true, 0, 3, 3)]
+    [InlineData(false, 4, 2, 4)]
+    [InlineData(true, 2, 4, 4)]
+    public async Task ArchiveTheAbsoluteObservedCount(bool fenced, int stored, int observed, int expected)
+    {
+        using var store = await CreateStoreAsync().ConfigureAwait(false);
+        await _fixture.CleanupTableAsync().ConfigureAwait(false);
+        try
+        {
+            var (message, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+            await using var connection = _fixture.CreateConnection();
+            await connection.OpenAsync().ConfigureAwait(false);
+            await connection.ExecuteAsync("UPDATE OUTBOX SET attempts = :Stored WHERE message_id = :MessageId", new { Stored = stored, MessageId = message.Id }).ConfigureAwait(false);
+            if (fenced)
+            {
+                (await store.MarkDeadLetteredAsync(message.Id, "counted", observed, 5L, CancellationToken.None).ConfigureAwait(false)).ShouldBe(OutboxCompletionOutcome.Applied);
+            }
+            else
+            {
+                await store.MarkDeadLetteredAsync(message.Id, "counted", observed, CancellationToken.None).ConfigureAwait(false);
+            }
+            (await connection.QuerySingleAsync<int>("SELECT attempts FROM OUTBOX_DEAD_LETTERS WHERE message_id = :MessageId", new { MessageId = message.Id }).ConfigureAwait(false)).ShouldBe(expected);
+            await store.MarkDeadLetteredAsync(message.Id, "duplicate", expected + 10, CancellationToken.None).ConfigureAwait(false);
+            (await connection.QuerySingleAsync<int>("SELECT attempts FROM OUTBOX_DEAD_LETTERS WHERE message_id = :MessageId", new { MessageId = message.Id }).ConfigureAwait(false)).ShouldBe(expected);
+        }
+        finally { await _fixture.CleanupTableAsync().ConfigureAwait(false); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RollBackTheArchiveWhenDeletionThrows(bool fenced)
+    {
+        using var store = await CreateStoreAsync().ConfigureAwait(false);
+        await _fixture.CleanupTableAsync().ConfigureAwait(false);
+        await using var connection = _fixture.CreateConnection();
+        await connection.OpenAsync().ConfigureAwait(false);
+        var (message, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+        await connection.ExecuteAsync("CREATE OR REPLACE TRIGGER outbox_terminal_fault BEFORE DELETE ON OUTBOX FOR EACH ROW BEGIN RAISE_APPLICATION_ERROR(-20002, 'terminal deletion fault'); END;").ConfigureAwait(false);
+        try
+        {
+            var error = await Should.ThrowAsync<OperationFailedException>(async () =>
+            {
+                if (fenced) { await store.MarkDeadLetteredAsync(message.Id, "fault", 3, 20L, CancellationToken.None).ConfigureAwait(false); }
+                else { await store.MarkDeadLetteredAsync(message.Id, "fault", 3, CancellationToken.None).ConfigureAwait(false); }
+            });
+            error.InnerException.ShouldBeOfType<global::Oracle.ManagedDataAccess.Client.OracleException>().Number.ShouldBe(20002);
+            (await CountInOutboxAsync(message.Id).ConfigureAwait(false)).ShouldBe(1);
+            (await CountInDeadLettersAsync(message.Id).ConfigureAwait(false)).ShouldBe(0);
+        }
+        finally { await connection.ExecuteAsync("DROP TRIGGER outbox_terminal_fault").ConfigureAwait(false); }
+        (await store.MarkDeadLetteredAsync(message.Id, "restored", 3, 5L, CancellationToken.None).ConfigureAwait(false)).ShouldBe(OutboxCompletionOutcome.Applied);
+        await _fixture.CleanupTableAsync().ConfigureAwait(false);
+    }
+
+    [Theory]
+    [InlineData("ordinary")]
+    [InlineData("fenced")]
+    [InlineData("administrative")]
+    public async Task PreserveAlreadyDeliveredRows(string mode)
+    {
+        using var store = await CreateStoreAsync().ConfigureAwait(false);
+        await _fixture.CleanupTableAsync().ConfigureAwait(false);
+        var (message, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+        var id = message.Id;
+        await using var connection = _fixture.CreateConnection();
+        await connection.OpenAsync().ConfigureAwait(false);
+        await store.MarkSentAsync(id, CancellationToken.None).ConfigureAwait(false);
+        if (mode == "ordinary") { await store.MarkDeadLetteredAsync(id, "terminal", 7, CancellationToken.None).ConfigureAwait(false); }
+        else if (mode == "fenced") { (await store.MarkDeadLetteredAsync(id, "terminal", 7, 5L, CancellationToken.None).ConfigureAwait(false)).ShouldBe(OutboxCompletionOutcome.MessageNotFound); }
+        else { await connection.ResolveAsync(new MoveOutboxMessageToDeadLetter(id, "OUTBOX", "OUTBOX_DEAD_LETTERS", 30, CancellationToken.None)).ConfigureAwait(false); }
+        (await CountInOutboxAsync(id).ConfigureAwait(false)).ShouldBe(0);
+        (await CountInDeadLettersAsync(id).ConfigureAwait(false)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task AdministrativeMovesPreserveTheExistingAttemptCount()
+    {
+        using var store = await CreateStoreAsync().ConfigureAwait(false);
+        await _fixture.CleanupTableAsync().ConfigureAwait(false);
+        var (message, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+        var id = message.Id;
+        await using var connection = _fixture.CreateConnection();
+        await connection.OpenAsync().ConfigureAwait(false);
+        await connection.ExecuteAsync($"UPDATE OUTBOX SET attempts = 3 WHERE message_id = :MessageId", new { MessageId = id }).ConfigureAwait(false);
+        await connection.ResolveAsync(new MoveOutboxMessageToDeadLetter(id, "OUTBOX", "OUTBOX_DEAD_LETTERS", 30, CancellationToken.None)).ConfigureAwait(false);
+        (await connection.QuerySingleAsync<int>($"SELECT attempts FROM OUTBOX_DEAD_LETTERS WHERE message_id = :MessageId", new { MessageId = id }).ConfigureAwait(false)).ShouldBe(3);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RestoreThePersistedFailureEvidenceOnReservation(bool fenced)
+    {
+        using var store = await CreateStoreAsync().ConfigureAwait(false);
+        await _fixture.CleanupTableAsync().ConfigureAwait(false);
+        var (message, _) = await StageAndClaimAsync(store).ConfigureAwait(false);
+        var id = message.Id;
+        await using var connection = _fixture.CreateConnection();
+        await connection.OpenAsync().ConfigureAwait(false);
+        await store.MarkFailedAsync(id, "recovered failure", 2, CancellationToken.None).ConfigureAwait(false);
+        // Advance eligibility independently; the projection under test still runs the real claim SQL.
+        await connection.ExecuteAsync($"UPDATE OUTBOX SET next_attempt_at = NULL, dispatcher_id = NULL WHERE message_id = :MessageId", new { MessageId = id }).ConfigureAwait(false);
+        var recovered = fenced
+            ? await store.GetUnsentMessagesAsync(10, 5L, CancellationToken.None).ConfigureAwait(false)
+            : await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
+        var row = recovered.Single(item => item.Id == id);
+        row.RetryCount.ShouldBe(2);
+        row.LastError.ShouldBe("recovered failure");
+    }
+
 	private async Task<int> CountInOutboxAsync(string messageId)
 	{
 		await using var connection = _fixture.CreateConnection();

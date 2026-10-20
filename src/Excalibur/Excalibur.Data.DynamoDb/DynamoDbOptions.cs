@@ -3,6 +3,7 @@
 
 
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization.Metadata;
 
 using Amazon;
 
@@ -16,6 +17,17 @@ namespace Excalibur.Data.DynamoDb;
 /// </remarks>
 public sealed class DynamoDbOptions
 {
+	/// <summary>
+	/// Gets or sets the JSON metadata resolver for documents read from DynamoDB Streams.
+	/// </summary>
+	/// <remarks>
+	/// Supply a consumer source-generated context to read documents without JSON reflection.
+	/// Supplied metadata is authoritative and never falls back to reflection. Context options
+	/// are preserved. This configures document conversion, not AWS SDK Native AOT support.
+	/// </remarks>
+	/// <value>The document metadata resolver, or <see langword="null"/> for supported reflection defaults.</value>
+	public IJsonTypeInfoResolver? StreamDocumentTypeInfoResolver { get; set; }
+
 	/// <summary>
 	/// Gets or sets the name of the provider instance.
 	/// </summary>

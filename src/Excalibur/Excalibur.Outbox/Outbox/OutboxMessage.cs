@@ -120,6 +120,8 @@ public record OutboxMessage : IOutboxMessage
 			message.CreatedAt)
 		{
 			TenantId = message.TenantId,
+			LastError = message.LastError,
+			Attempts = message.RetryCount,
 			Destination = message.Destination,
 			CorrelationId = message.CorrelationId,
 			CausationId = message.CausationId,
@@ -178,6 +180,10 @@ public record OutboxMessage : IOutboxMessage
 	/// </summary>
 	/// <value>The current <see cref="Attempts"/> value.</value>
 	public int Attempts { get; set; }
+
+	/// <summary>Gets the persisted failure information used to resume a pending recovery disposition.</summary>
+	/// <value>The last recorded failure, or null before a failure is recorded.</value>
+	public string? LastError { get; init; }
 
 	/// <summary>
 	/// Gets or sets the optional identifier of the dispatcher handling this message.
@@ -291,6 +297,7 @@ public record OutboxMessage : IOutboxMessage
 		&& CreatedAt == other.CreatedAt
 		&& ExpiresAt == other.ExpiresAt
 		&& Attempts == other.Attempts
+		&& LastError == other.LastError
 		&& DispatcherId == other.DispatcherId
 		&& DispatcherTimeout == other.DispatcherTimeout
 		&& TenantId == other.TenantId
@@ -319,6 +326,7 @@ public record OutboxMessage : IOutboxMessage
 		hash.Add(CreatedAt);
 		hash.Add(ExpiresAt);
 		hash.Add(Attempts);
+		hash.Add(LastError);
 		hash.Add(DispatcherId);
 		hash.Add(DispatcherTimeout);
 		hash.Add(TenantId);

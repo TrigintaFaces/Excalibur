@@ -110,6 +110,8 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                                 local reason = ARGV[2]
 	                                                 local deadLetteredStatus = ARGV[3]
 	                                                 local sentStatus = ARGV[4]
+	                                                 local attemptCount = tonumber(ARGV[5])
+	                                                 local processorId = ARGV[6]
 
 	                                                 -- Silent no-op when message does not exist
 	                                                 local exists = redis.call('EXISTS', key)
@@ -126,10 +128,18 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	                                                 	return {ok = 'TERMINAL'}
 	                                                 end
 
+	                                                 local owner = redis.call('HGET', key, 'LeasedBy')
+	                                                 if owner and owner ~= '' and owner ~= processorId then
+	                                                     return {ok = 'NOT_OWNER'}
+	                                                 end
+	                                                 local currentCount = tonumber(redis.call('HGET', key, 'RetryCount')) or 0
+	                                                 local terminalCount = math.max(currentCount, attemptCount)
+
 	                                                 -- Update the message hash to terminal status
 	                                                 redis.call('HMSET', key,
 	                                                 	'Status', deadLetteredStatus,
-	                                                 	'LastError', reason)
+	                                                     'LastError', reason,
+	                                                     'RetryCount', terminalCount)
 
 	                                                 -- Remove from every claimable/in-flight index so the poller can never re-claim this id
 	                                                 redis.call('ZREM', stagedIdx, messageId)
@@ -389,7 +399,7 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	private IConnectionMultiplexer? _connection;
 	private bool _ownsConnection;
 	private IDatabase? _database;
-	private string? _resolvedProcessorId;
+	private readonly string _resolvedProcessorId;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -408,6 +418,9 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 
 		_options = options.Value;
 		_options.Validate();
+		_resolvedProcessorId = string.IsNullOrWhiteSpace(_options.ProcessorId)
+			? $"{Environment.MachineName}:{Guid.NewGuid():N}"
+			: _options.ProcessorId;
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
 	}
@@ -433,6 +446,9 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 		_connection = connection;
 		_options = options.Value;
 		_options.Validate();
+		_resolvedProcessorId = string.IsNullOrWhiteSpace(_options.ProcessorId)
+			? $"{Environment.MachineName}:{Guid.NewGuid():N}"
+			: _options.ProcessorId;
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
 		_database = connection.GetDatabase(_options.DatabaseId);
@@ -750,34 +766,60 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		await EnsureConnectedAsync().ConfigureAwait(false);
 
 		var key = GetMessageKey(messageId);
 
-		// Check if exists first - silent return when message does not exist
-		var exists = await _database!.KeyExistsAsync(key).ConfigureAwait(false);
-		if (!exists)
-		{
-			return;
-		}
-
-		// Use Lua script for atomic update: set terminal status + remove from every claimable index
-		_ = await _database!.ScriptEvaluateAsync(
+		// No pre-flight EXISTS probe: the script already answers NOT_FOUND atomically, and a separate
+		// probe decides on a key that can change before the script runs.
+		//
+		// The script's verdict is the return value. It was discarded here, which made all four of its
+		// answers indistinguishable and let the log line below assert a terminal transition that three of
+		// them did not perform -- against a caller that had already written the dead-letter entry.
+		var verdict = await _database!.ScriptEvaluateAsync(
 			MarkDeadLetteredLuaScript,
 			[key, GetStagedIndexKey(), GetFailedIndexKey(), GetLeasedIndexKey()],
 			[messageId, reason, ((int)OutboxStatus.DeadLettered).ToString(),
-				((int)OutboxStatus.Sent).ToString(CultureInfo.InvariantCulture)]).ConfigureAwait(false);
+				((int)OutboxStatus.Sent).ToString(CultureInfo.InvariantCulture),
+				attemptCount.ToString(CultureInfo.InvariantCulture), GetProcessorId()]).ConfigureAwait(false);
 
-		_logger.LogWarning(
-			"Marked message {MessageId} as dead-lettered: {Reason}",
-			messageId,
-			reason);
+		var outcome = verdict.ToString() switch
+		{
+			"SUCCESS" => OutboxCompletionOutcome.Applied,
+			"NOT_FOUND" => OutboxCompletionOutcome.MessageNotFound,
+			"TERMINAL" => OutboxCompletionOutcome.AlreadyTerminal,
+			"NOT_OWNER" => OutboxCompletionOutcome.ClaimLost,
+
+			// An answer this method does not know how to read is NOT a success. Unknown is the one value
+			// a caller is obliged to treat as "not applied".
+			_ => OutboxCompletionOutcome.Unknown,
+		};
+
+		if (outcome == OutboxCompletionOutcome.Applied)
+		{
+			_logger.LogWarning(
+				"Marked message {MessageId} as dead-lettered: {Reason}",
+				messageId,
+				reason);
+		}
+		else
+		{
+			_logger.LogError(
+				"MarkDeadLettered for message {MessageId} was refused ({Outcome}). The message was NOT "
+				+ "dead-lettered: {Reason}",
+				messageId,
+				outcome,
+				reason);
+		}
+
+		return outcome;
 	}
 
 	/// <inheritdoc/>
@@ -1180,13 +1222,8 @@ public sealed partial class RedisOutboxStore : IOutboxStore, IOutboxStoreAdmin, 
 	private string GetMessageKeyPrefix() => $"{_options.KeyPrefix}:msg:";
 
 
-	// Resolves the lease-owner identifier once: the configured ProcessorId, or a stable generated id.
-	// Disjoint claim does not depend on this value (the atomic claim script guarantees it); it is recorded
-	// as LeasedBy purely for diagnostics / parity with the SQL Server outbox.
-	private string GetProcessorId() =>
-		_resolvedProcessorId ??= string.IsNullOrWhiteSpace(_options.ProcessorId)
-			? $"{Environment.MachineName}:{Guid.NewGuid():N}"
-			: _options.ProcessorId;
+	// The immutable per-store identity is shared by every claim and owner-checked completion.
+	private string GetProcessorId() => _resolvedProcessorId;
 
 	private async Task EnsureConnectedAsync()
 	{

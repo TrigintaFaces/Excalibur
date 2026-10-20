@@ -1,4 +1,4 @@
-﻿# Excalibur.Outbox.Oracle
+# Excalibur.Outbox.Oracle
 
 Oracle Database implementation of the transactional outbox pattern for reliable, at-least-once
 message delivery.
@@ -58,6 +58,10 @@ rename the corresponding objects in the script to match.
 
 ## Oracle specifics
 
+- Dead-letter moves archive the message and delete the source row atomically, retaining its tenant
+  attribution. `MarkDeadLetteredAsync` reports `Applied` for a completed move; a missing or already
+  moved identifier reports `MessageNotFound`. `MoveToDeadLetter` returns 1 for a completed move and
+  0 otherwise; its batch counterpart sums those move counts.
 - The claim path opens a `FOR UPDATE SKIP LOCKED` cursor rather than using `FETCH FIRST`:
   Oracle rejects the two in one statement (ORA-02014), so the batch cap is applied as the
   cursor is fetched.
@@ -92,6 +96,13 @@ of Excalibur's other database drivers do not.
 If those terms do not suit you, no other Excalibur provider carries them: the SQL Server, MySQL and
 SQLite drivers are MIT and Npgsql is the PostgreSQL license. Every dependency's license is listed in
 `THIRD-PARTY-NOTICES.md` in the repository.
+
+## Dead-letter retirement
+
+Retirement records the absolute observed logical send count and preserves a greater
+persisted count. Administrative moves preserve the existing count because they perform
+no delivery. Marking a message sent deletes its outbox row, so later retirement cannot
+archive it. Reservation reloads retain both the retry count and last error.
 
 ## License
 

@@ -302,6 +302,60 @@ public sealed class KafkaPartitionProgressShould
 	}
 
 	[Fact]
+	public void RetainTerminalCommitCandidate_WhenRequeueIsRefusedBeforeCommitWasRecorded()
+	{
+		var progress = Assigned();
+		var generation = Deliver(progress, 7);
+		progress.TrySettle(Tp, 7, generation, out var first).ShouldBeTrue();
+		first.ShouldBe(8);
+		// A throwing native commit does not invoke OnCommitted. Local terminal state proves no broker outcome.
+		progress.TryRequeue(Tp, 7, generation, out _).ShouldBe(KafkaRequeueOutcome.NotOutstanding);
+		progress.TrySettle(Tp, 7, generation, out var retry).ShouldBeTrue();
+		retry.ShouldBe(8);
+		progress.OnCommitted(Tp, retry, generation);
+		progress.TrySettle(Tp, 7, generation, out _).ShouldBeFalse();
+	}
+
+	[Fact]
+	public void PreserveCurrentOwedWork_WhenOldGenerationTerminalSettleIsRefused()
+	{
+		var progress = Assigned();
+		var stale = Deliver(progress, 7);
+		progress.OnPartitionsRevoked([Tp]);
+		progress.OnPartitionsAssigned([Tp]);
+		var current = Deliver(progress, 7);
+		progress.TrySettle(Tp, 7, stale, out _).ShouldBeFalse();
+		progress.Outstanding.ShouldBe(1);
+		progress.TrySettle(Tp, 7, current, out var commit).ShouldBeTrue();
+		commit.ShouldBe(8);
+	}
+
+	[Fact]
+	public void DistinguishAtomicTerminalOwnershipFromCommitProgress()
+	{
+		var progress = Assigned();
+		var generation = Deliver(progress, 0);
+		_ = Deliver(progress, 1);
+		progress.SettleTerminal(Tp, 1, generation, out _)
+			.ShouldBe(KafkaTerminalSettlementOutcome.AcceptedWithoutCommit);
+		progress.Outstanding.ShouldBe(1);
+		progress.SettleTerminal(Tp, 0, generation, out var commit)
+			.ShouldBe(KafkaTerminalSettlementOutcome.CommitRequired);
+		commit.ShouldBe(2);
+		progress.OnCommitted(Tp, commit, generation);
+		progress.SettleTerminal(Tp, 0, generation, out _)
+			.ShouldBe(KafkaTerminalSettlementOutcome.AcceptedWithoutCommit);
+		progress.OnPartitionsRevoked([Tp]);
+		progress.OnPartitionsAssigned([Tp]);
+		_ = Deliver(progress, 0);
+		progress.SettleTerminal(Tp, 0, generation, out _)
+			.ShouldBe(KafkaTerminalSettlementOutcome.StaleGeneration);
+		progress.Outstanding.ShouldBe(1, "stale work must not remove the current assignment's delivery");
+		new KafkaPartitionProgress().SettleTerminal(Tp, 0, generation, out _)
+			.ShouldBe(KafkaTerminalSettlementOutcome.StaleGeneration);
+	}
+
+	[Fact]
 	public void RejectNullArguments()
 	{
 		var progress = new KafkaPartitionProgress();

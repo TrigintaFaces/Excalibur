@@ -12,8 +12,8 @@ namespace Excalibur.A3.Authorization.Grants;
 /// Represents a command to revoke all grants assigned to a specific user.
 /// </summary>
 /// <remarks>
-/// This command is used to remove all permissions or grants associated with a user within a specific tenant or globally if no tenant ID
-/// is provided.
+/// Removes every grant type within the command's authorized ambient tenant. All-tenants scope is refused
+/// by this command; explicitly authorized administrative tools use the atomic store capability directly.
 /// </remarks>
 [Activity("Revoke all grants", "Revokes all grants from a user.")]
 public sealed class RevokeAllGrantsCommand(
@@ -23,6 +23,21 @@ public sealed class RevokeAllGrantsCommand(
 	string? tenantId = null)
 	: AuthorizeCommandBase<AuditableResult<bool>>(correlationId, tenantId)
 {
+	/// <summary>Gets the command correlation identifier, preserved during serialization.</summary>
+	public Guid CorrelationId { get; } = correlationId;
+
+	/// <summary>
+	/// Gets or sets the stable identity of this revocation. Preserve this value when retrying an unknown commit outcome.
+	/// </summary>
+	public Guid OperationId { get; set; } = Guid.NewGuid();
+
+	/// <summary>
+	/// Gets or sets the explicit revocation scope. This preserves all-tenants intent independently of ambient tenant normalization.
+	/// </summary>
+	public GrantRevocationScope RevocationScope { get; set; } = tenantId is null
+		? GrantRevocationScope.AllTenants
+		: GrantRevocationScope.ForTenant(tenantId);
+
 	/// <summary>
 	/// Gets or sets the ID of the user whose grants are being revoked.
 	/// </summary>

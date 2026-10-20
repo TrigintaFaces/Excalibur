@@ -17,7 +17,7 @@ namespace Excalibur.Data.Tests.Configuration;
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ElasticSearchFileRenameVerificationShould
 {
-	private static readonly Assembly ElasticSearchAssembly = typeof(ProjectionOptions).Assembly;
+	private static readonly Assembly ElasticSearchAssembly = typeof(ElasticSearchProjectionManagementOptions).Assembly;
 
 	[Fact]
 	public void HaveRenamedCircuitBreakerOptionsToItsProviderPrefixedName()

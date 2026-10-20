@@ -16,8 +16,13 @@ namespace Excalibur.Dispatch.Testing.Transport;
 /// To use, inherit this class and implement <see cref="CreateReceiverAsync"/> and
 /// <see cref="SeedMessagesAsync"/> to provide an instance and seed test messages.
 /// </para>
+/// <para>
+/// Settlement checks that only require normal return are smoke checks. Use the observable-effect
+/// helpers with an independent fixture observation to verify that a settlement operation acted.
+/// Provider-specific failure, cancellation, and receipt ownership policies require separate scenarios.
+/// </para>
 /// </remarks>
-public abstract class TransportReceiverConformanceTests
+public abstract partial class TransportReceiverConformanceTests
 {
 	/// <summary>
 	/// Creates a new <see cref="ITransportReceiver"/> instance for testing.
@@ -162,6 +167,52 @@ public abstract class TransportReceiverConformanceTests
 
 		await receiver.AcknowledgeAsync(received[0], CancellationToken.None).ConfigureAwait(false);
 		// No exception = pass
+	}
+
+	/// <summary>
+	/// Verifies acknowledgement using an independent observation while the receiver is still alive.
+	/// </summary>
+	/// <param name="verifyEffect">Required observation of the received message's settlement effect.</param>
+	/// <remarks>
+	/// The fixture must observe its own recorded state, native calls, or broker state. The strength of
+	/// this check depends on that observation; a native-call fixture does not establish broker acceptance.
+	/// </remarks>
+	protected async Task VerifyAcknowledgeHasObservableEffect(Func<ITransportReceiver, TransportReceivedMessage, Task> verifyEffect)
+	{
+		ArgumentNullException.ThrowIfNull(verifyEffect);
+		await using var receiver = await CreateReceiverAsync().ConfigureAwait(false);
+		var received = await ReceiveExactlyOneAsync(receiver, "ack-effect").ConfigureAwait(false);
+		await receiver.AcknowledgeAsync(received, CancellationToken.None).ConfigureAwait(false);
+		await verifyEffect(receiver, received).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Verifies rejection using an independent observation while the receiver is still alive.
+	/// </summary>
+	/// <param name="requeue">The rejection outcome supported and exercised by this fixture.</param>
+	/// <param name="verifyEffect">Required observation of the received message's settlement effect.</param>
+	/// <remarks>
+	/// The fixture must observe its own recorded state, native calls, or broker state. Recording a
+	/// requeue request alone does not establish actual redelivery.
+	/// </remarks>
+	protected async Task VerifyRejectHasObservableEffect(bool requeue, Func<ITransportReceiver, TransportReceivedMessage, Task> verifyEffect)
+	{
+		ArgumentNullException.ThrowIfNull(verifyEffect);
+		await using var receiver = await CreateReceiverAsync().ConfigureAwait(false);
+		var received = await ReceiveExactlyOneAsync(receiver, "reject-effect").ConfigureAwait(false);
+		await receiver.RejectAsync(received, requeue ? "retry" : "test-reason", requeue, CancellationToken.None).ConfigureAwait(false);
+		await verifyEffect(receiver, received).ConfigureAwait(false);
+	}
+
+	private async Task<TransportReceivedMessage> ReceiveExactlyOneAsync(ITransportReceiver receiver, string body)
+	{
+		await SeedMessagesAsync(receiver, new[] { CreateTestMessage(body) }).ConfigureAwait(false);
+		var received = await receiver.ReceiveAsync(1, CancellationToken.None).ConfigureAwait(false);
+		if (received.Count != 1)
+		{
+			throw new InvalidOperationException($"Observable settlement verification requires exactly 1 received message, got {received.Count}.");
+		}
+		return received[0];
 	}
 
 	/// <summary>

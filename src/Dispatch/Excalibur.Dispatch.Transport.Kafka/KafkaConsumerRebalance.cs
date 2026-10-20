@@ -57,26 +57,35 @@ internal static partial class KafkaConsumerRebalance
 
 		_ = builder.SetPartitionsAssignedHandler((_, partitions) =>
 		{
-			progress.OnPartitionsAssigned(partitions);
-			LogPartitionsAssigned(logger, partitions.Count);
+			lock (progress.OperationGate)
+			{
+				progress.OnPartitionsAssigned(partitions);
+				LogPartitionsAssigned(logger, partitions.Count);
+			}
 		});
 
 		_ = builder.SetPartitionsRevokedHandler((consumer, partitions) =>
 		{
-			LogPartitionsRevoked(logger, partitions.Count);
+			lock (progress.OperationGate)
+			{
+				LogPartitionsRevoked(logger, partitions.Count);
 
-			// Committed BEFORE the tracker is told about the revoke: the positions being published are the
-			// tracker's, and OnPartitionsRevoked discards them.
-			CommitOnRevoke(consumer, partitions.Select(static p => p.TopicPartition), progress, logger);
-			progress.OnPartitionsRevoked(partitions.Select(static p => p.TopicPartition));
+				// Committed BEFORE the tracker is told about the revoke: the positions being published are the
+				// tracker's, and OnPartitionsRevoked discards them.
+				CommitOnRevoke(consumer, partitions.Select(static p => p.TopicPartition), progress, logger);
+				progress.OnPartitionsRevoked(partitions.Select(static p => p.TopicPartition));
+			}
 		});
 
 		_ = builder.SetPartitionsLostHandler((_, partitions) =>
 		{
-			// Partitions are already gone (e.g. session timeout) — committing would be rejected, so
-			// only record the loss. The new owner resumes from the last committed offset.
-			progress.OnPartitionsRevoked(partitions.Select(static p => p.TopicPartition));
-			LogPartitionsLost(logger, partitions.Count);
+			lock (progress.OperationGate)
+			{
+				// Partitions are already gone (e.g. session timeout) — committing would be rejected, so
+				// only record the loss. The new owner resumes from the last committed offset.
+				progress.OnPartitionsRevoked(partitions.Select(static p => p.TopicPartition));
+				LogPartitionsLost(logger, partitions.Count);
+			}
 		});
 	}
 
@@ -110,51 +119,54 @@ internal static partial class KafkaConsumerRebalance
 		ArgumentNullException.ThrowIfNull(consumer);
 		ArgumentNullException.ThrowIfNull(partitions);
 		ArgumentNullException.ThrowIfNull(progress);
-
-		var settled = new List<TopicPartitionOffset>();
-		var partitionCount = 0;
-		foreach (var partition in partitions)
+		lock (progress.OperationGate)
 		{
-			partitionCount++;
-			if (progress.TryGetPosition(partition, out var position))
+
+			var settled = new List<TopicPartitionOffset>();
+			var partitionCount = 0;
+			foreach (var partition in partitions)
 			{
-				settled.Add(new TopicPartitionOffset(partition, new Offset(position.Value)));
+				partitionCount++;
+				if (progress.TryGetPosition(partition, out var position))
+				{
+					settled.Add(new TopicPartitionOffset(partition, new Offset(position.Value)));
+				}
 			}
-		}
 
-		if (settled.Count == 0)
-		{
-			// Nothing this tenure settled on any revoked partition. Committing anything here would publish a
-			// position no work earned, so the next owner resumes from the last committed offset instead.
-			LogCommitOnRevokeNothingSettled(logger, partitionCount, new KafkaException(ErrorCode.Local_NoOffset));
-			return;
-		}
+			if (settled.Count == 0)
+			{
+				// Nothing this tenure settled on any revoked partition. Committing anything here would publish a
+				// position no work earned, so the next owner resumes from the last committed offset instead.
+				LogCommitOnRevokeNothingSettled(logger, partitionCount, new KafkaException(ErrorCode.Local_NoOffset));
+				return;
+			}
 
-		try
-		{
-			consumer.Commit(settled);
-			LogCommitOnRevoke(logger, partitionCount);
-		}
-		catch (KafkaException ex) when (ex.Error.Code == ErrorCode.Local_NoOffset)
-		{
-			// This used to read "nothing has been consumed/stored yet — benign", and that is no longer
-			// what it means. With enable.auto.offset.store=false the store is written only at settlement,
-			// so this condition now says THIS TENURE SETTLED NOTHING — which is reachable after consuming
-			// thousands of messages, not only on an idle consumer.
-			//
-			// It is still correct to swallow it: there is genuinely no position to publish, and refusing
-			// to commit unsettled work is the whole point of the change. But it is no longer benign, and
-			// it is the only place the condition is observable. Handlers slower than the rebalance cadence
-			// give: consume, revoke before anything settles, nothing stored, this branch, reassign,
-			// consume the same messages, repeat — zero group progress, indefinitely, silently.
-			//
-			// So it is logged rather than discarded. Trading silent message loss for silent non-progress
-			// would be a poor trade; trading it for VISIBLE non-progress is the one worth making.
-			LogCommitOnRevokeNothingSettled(logger, partitionCount, ex);
-		}
-		catch (KafkaException ex)
-		{
-			LogCommitOnRevokeFailed(logger, ex);
+			try
+			{
+				consumer.Commit(settled);
+				LogCommitOnRevoke(logger, partitionCount);
+			}
+			catch (KafkaException ex) when (ex.Error.Code == ErrorCode.Local_NoOffset)
+			{
+				// This used to read "nothing has been consumed/stored yet — benign", and that is no longer
+				// what it means. With enable.auto.offset.store=false the store is written only at settlement,
+				// so this condition now says THIS TENURE SETTLED NOTHING — which is reachable after consuming
+				// thousands of messages, not only on an idle consumer.
+				//
+				// It is still correct to swallow it: there is genuinely no position to publish, and refusing
+				// to commit unsettled work is the whole point of the change. But it is no longer benign, and
+				// it is the only place the condition is observable. Handlers slower than the rebalance cadence
+				// give: consume, revoke before anything settles, nothing stored, this branch, reassign,
+				// consume the same messages, repeat — zero group progress, indefinitely, silently.
+				//
+				// So it is logged rather than discarded. Trading silent message loss for silent non-progress
+				// would be a poor trade; trading it for VISIBLE non-progress is the one worth making.
+				LogCommitOnRevokeNothingSettled(logger, partitionCount, ex);
+			}
+			catch (KafkaException ex)
+			{
+				LogCommitOnRevokeFailed(logger, ex);
+			}
 		}
 	}
 

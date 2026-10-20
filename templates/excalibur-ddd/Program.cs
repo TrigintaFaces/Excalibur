@@ -2,6 +2,8 @@
 using Excalibur.EventSourcing.SqlServer;
 #elif (UsePostgreSql)
 using Excalibur.EventSourcing.Postgres;
+#elif (UseInMemoryDatabase)
+using Excalibur.EventSourcing.InMemory;
 #endif
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Metrics;

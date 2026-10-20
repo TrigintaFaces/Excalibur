@@ -399,6 +399,11 @@ projects:
     in_solution: true
     framework_owner: Excalibur
 
+  - path: samples/10-aot/Excalibur.Dispatch.Scheduling.Aot.Sample/Excalibur.Dispatch.Scheduling.Aot.Sample.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Dispatch
+
   - path: samples/11-real-world/ECommerceSample/ECommerceSample.csproj
     classification: Sample
     in_solution: true
@@ -1684,6 +1689,27 @@ projects:
     in_solution: true
     category: Functional
     framework_owner: Excalibur
+
+  - path: tests/harnesses/AotJsonContractProbe/AotJsonContractProbe.csproj
+    classification: Test
+    in_solution: true
+    category: NativeAOT
+    framework_owner: Dispatch
+    notes: "Executable NativeAOT JSON contract probe; not independently xUnit discoverable"
+
+  - path: tests/harnesses/HandlerActivationAotProbe/HandlerActivationAotProbe.csproj
+    classification: Test
+    in_solution: true
+    category: NativeAOT
+    framework_owner: Dispatch
+    notes: "Executable NativeAOT handler activation contract probe; not independently xUnit discoverable"
+
+  - path: tests/harnesses/SqlServerScheduleProcessProbe/SqlServerScheduleProcessProbe.csproj
+    classification: Test
+    in_solution: true
+    category: Integration
+    framework_owner: Excalibur
+    notes: "Executable child-process probe used by scheduler integration tests; not independently discoverable"
 
   - path: tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj
     classification: Test

@@ -14,8 +14,8 @@ namespace Excalibur.Dispatch.Transport.IbmMq;
 /// own queue-manager connection and syncpoint, so
 /// <see cref="AcknowledgeAsync"/> commits (removes) exactly that message and <see cref="RejectAsync"/>
 /// backs it out (redelivers) — true per-message ack/reject in any order. Outstanding units of work are
-/// bounded by the caller's <c>maxMessages</c> and are always committed or backed out (never leaked),
-/// including on <see cref="DisposeAsync"/> and cancellation.
+/// bounded by the configured outstanding limit. Settlement attempts release local handles, including
+/// during <see cref="DisposeAsync"/>; failed native calls may leave the broker outcome unknown.
 /// </summary>
 internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 {
@@ -68,7 +68,7 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		cancellationToken.ThrowIfCancellationRequested();
-		Settle(message.Id, commit: true);
+		Settle(GetReceiptHandle(message), commit: true);
 		return Task.CompletedTask;
 	}
 
@@ -83,7 +83,7 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 			// REQUEUE: backing out the uncommitted syncpoint get returns the message to the input queue, and
 			// the queue manager increments MQMD.BackoutCount so a consumer can bound its own retries. That
 			// count is reported as TransportReceivedMessage.DeliveryCount.
-			Settle(message.Id, commit: false);
+			Settle(GetReceiptHandle(message), commit: false);
 			return Task.CompletedTask;
 		}
 
@@ -91,7 +91,7 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 		// the opposite of that. This method used to back out for BOTH values of requeue and return success,
 		// so a poison-message arm asking for no redelivery got immediate redelivery and was told it had
 		// succeeded -- an unbounded loop in which a dead-letter decorator writes a fresh copy every pass.
-		SettleToBackoutQueue(message.Id, reason);
+		SettleToBackoutQueue(GetReceiptHandle(message), reason);
 		return Task.CompletedTask;
 	}
 
@@ -124,8 +124,7 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 			{
 				// Deliberately swallowed HERE and nowhere else: disposal must not throw, and one queue
 				// manager refusing a backout must not abandon the remaining units of work or leak their
-				// connections. Settle has already logged the failure with its reason code. The message is
-				// redelivered either way, which is the outcome disposal was asking for.
+				// connections. Native failures do not establish whether broker rollback completed.
 				//
 				// The catch is deliberately broad rather than TransportSettlementException alone. Settle
 				// surfaces a refused settlement as that type, but the queue manager and the connection
@@ -196,7 +195,10 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 
 			var id = Convert.ToHexString(mqMessage.MessageId);
 			var received = BuildReceived(id, mqMessage);
-			_outstanding[id] = new UnitOfWork(queueManager, queue, mqMessage);
+			// MQMD identity can recur across deliveries; each local unit of work needs its own receipt.
+			var receiptHandle = Guid.NewGuid().ToString("N");
+			received.ProviderData["ibmmq.receipt_handle"] = receiptHandle;
+			_outstanding[receiptHandle] = new UnitOfWork(queueManager, queue, mqMessage);
 			return received;
 		}
 		catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
@@ -311,6 +313,17 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 				? contentType
 				: null;
 
+	private static string GetReceiptHandle(TransportReceivedMessage message)
+	{
+		if (message.ProviderData.TryGetValue("ibmmq.receipt_handle", out var handle)
+			&& handle is string receiptHandle && !string.IsNullOrWhiteSpace(receiptHandle))
+		{
+			return receiptHandle;
+		}
+		throw CreateSettlementException("IBM MQ message does not contain a valid receipt handle in ProviderData.",
+			new InvalidOperationException("Missing or malformed IBM MQ receipt handle."), TransportRedeliveryExpectation.Unspecified);
+	}
+
 	private void Settle(string id, bool commit)
 	{
 		var unitOfWork = ClaimUnitOfWork(id, commit ? "acknowledge" : "requeue");
@@ -326,38 +339,21 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 				unitOfWork.QueueManager.Backout();
 			}
 		}
-		catch (MQException ex)
+		catch (TransportSettlementException)
 		{
-			LogSettleFailed(id, commit, ex.ReasonCode, ex);
-
-			// Surface the failure instead of returning normally. The syncpoint was neither committed nor
-			// backed out, so the queue manager still owns the message and will present it again once this
-			// connection closes — swallowing this told the caller the message was settled while guaranteeing
-			// the redelivery it would then see as an unexplained duplicate. The MQ-specific exception is
-			// wrapped rather than rethrown so a consumer catching a settlement failure never has to
-			// reference the IBM MQ client.
-			throw new TransportSettlementException(
-				$"IBM MQ could not {(commit ? "commit" : "back out")} the unit of work for message '{id}' (reason code {ex.ReasonCode}).",
-				ex)
+			throw;
+		}
+		catch (Exception ex)
+		{
+			if (ex is MQException mqException)
 			{
-				TransportName = "IbmMq",
+				LogSettleFailed(id, commit, mqException.ReasonCode, mqException);
+			}
 
-				// THE TWO PATHS DIFFER AND THIS USED TO ASSERT `Expected` FOR BOTH.
-				// A failed BACKOUT is decidable: the syncpoint either rolled back or the connection died and
-				// rolled it back, and both reachable states return the message. A failed COMMIT is not. The
-				// connection-lost family means the request may have been applied before the reply was lost,
-				// in which case the message is gone and will never be seen again -- telling that caller to
-				// expect a redelivery sends it to wait for work that is not coming. Only the reason code
-				// distinguishes them, so it is what decides.
-				RedeliveryExpectation = !commit || IsDefiniteFailure(ex.ReasonCode)
-					? TransportRedeliveryExpectation.Expected
-					: TransportRedeliveryExpectation.Unspecified,
-
-				// The unit of work was removed from the outstanding map before this point and the connection
-				// closes in the finally below, so the syncpoint this call needed no longer exists. Repeating
-				// the settle finds nothing to settle and can never succeed.
-				Retryability = SettlementRetryability.Permanent,
-			};
+			// A failed native call does not prove broker rollback or redelivery.
+			throw CreateSettlementException(
+				$"IBM MQ could not {(commit ? "commit" : "back out")} the unit of work for message '{id}'.",
+				ex, TransportRedeliveryExpectation.Unspecified);
 		}
 		finally
 		{
@@ -395,23 +391,6 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 	}
 
 	/// <summary>
-	/// Whether a reason code reports a <em>definite</em> failure, as opposed to a lost connection that
-	/// leaves the outcome unknown.
-	/// </summary>
-	/// <remarks>
-	/// The distinction matters only for a commit. When the connection breaks around <c>MQCMIT</c>, the queue
-	/// manager may have committed before the reply was lost, so neither "it happened" nor "it did not" is
-	/// knowable from here. Any other reason code is the queue manager refusing the request, which it can
-	/// only do by not performing it.
-	/// </remarks>
-	private static bool IsDefiniteFailure(int reasonCode) => reasonCode is not (
-		MQC.MQRC_CONNECTION_BROKEN
-		or MQC.MQRC_CONNECTION_QUIESCING
-		or MQC.MQRC_Q_MGR_QUIESCING
-		or MQC.MQRC_Q_MGR_NOT_AVAILABLE
-		or MQC.MQRC_HOST_NOT_AVAILABLE);
-
-	/// <summary>
 	/// Honours <c>RejectAsync(requeue: false)</c> by moving the message to the configured backout queue and
 	/// committing, so the queue manager does not present it again.
 	/// </summary>
@@ -442,16 +421,24 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 			// NO DESTINATION, SO THE OUTCOME CANNOT BE DELIVERED -- AND IS NOT FAKED.
 			// Backing out is the only way to resolve the syncpoint, and it is the opposite of what the
 			// caller asked for, so the caller is told rather than allowed to believe the message is gone.
-			TryBackout(unitOfWork.QueueManager);
+			var backedOut = TryBackout(unitOfWork.QueueManager, out var backoutFailure);
 			SafeClose(unitOfWork.Queue, unitOfWork.QueueManager);
+
+			if (backoutFailure is not null)
+			{
+				throw CreateSettlementException(
+					$"IBM MQ cannot reject message '{id}' without requeue because no backout queue is configured; rollback could not be completed.",
+					backoutFailure, TransportRedeliveryExpectation.Unspecified);
+			}
 
 			throw new TransportSettlementException(
 				$"IBM MQ cannot reject message '{id}' without requeue because no backout queue is configured. "
 				+ $"Set {nameof(IbmMqReceiveTuningOptions)}.{nameof(IbmMqReceiveTuningOptions.BackoutQueueName)} "
-				+ "to the input queue's BOQNAME. The message has been backed out and will be redelivered.")
+				+ "to the input queue's BOQNAME. "
+				+ (backedOut ? "Rollback completed." : "Rollback outcome is unknown."))
 			{
 				TransportName = "IbmMq",
-				RedeliveryExpectation = TransportRedeliveryExpectation.Expected,
+				RedeliveryExpectation = backedOut ? TransportRedeliveryExpectation.Expected : TransportRedeliveryExpectation.Unspecified,
 
 				// Configuration, not weather. Repeating the call changes nothing.
 				Retryability = SettlementRetryability.Permanent,
@@ -459,6 +446,7 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 		}
 
 		IIbmMqQueue? backoutQueue = null;
+		var commitAttempted = false;
 		try
 		{
 			backoutQueue = unitOfWork.QueueManager.AccessQueue(
@@ -476,54 +464,67 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 			backoutQueue.Put(unitOfWork.Message, putOptions);
 
 			// Commits the put AND the original get.
+			commitAttempted = true;
 			unitOfWork.QueueManager.Commit();
 			LogRejectedToBackoutQueue(id, Source, _receive.BackoutQueueName, reason ?? "unspecified");
 		}
-		catch (MQException ex)
+		catch (TransportSettlementException)
 		{
-			LogBackoutQueuePutFailed(id, _receive.BackoutQueueName, ex.ReasonCode, ex);
-
-			// The unit of work was not committed, so the get is still uncommitted and the message is still
-			// the queue manager's. Resolving it by backout returns it to the input queue -- the honest
-			// outcome, and the one the exception reports.
-			TryBackout(unitOfWork.QueueManager);
-
-			throw new TransportSettlementException(
-				$"IBM MQ could not move message '{id}' to backout queue "
-				+ $"'{_receive.BackoutQueueName}' (reason code {ex.ReasonCode}); it has been backed out and "
-				+ "will be redelivered.",
-				ex)
+			_ = TryBackout(unitOfWork.QueueManager);
+			throw;
+		}
+		catch (Exception ex)
+		{
+			if (ex is MQException mqException)
 			{
-				TransportName = "IbmMq",
+				LogBackoutQueuePutFailed(id, _receive.BackoutQueueName, mqException.ReasonCode, mqException);
+			}
 
-				// Whether the put failed or the commit did, this path backs out, and a backout returns the
-				// message. Unlike the commit path in Settle, that is decidable here.
-				RedeliveryExpectation = TransportRedeliveryExpectation.Expected,
-
-				// A missing or unauthorised backout queue fails identically every time; a quiescing queue
-				// manager does not. The reason code is the only thing that can tell them apart.
-				Retryability = IsDefiniteFailure(ex.ReasonCode)
-					? SettlementRetryability.Permanent
-					: SettlementRetryability.Retryable,
-			};
+			var backedOut = TryBackout(unitOfWork.QueueManager);
+			// Rollback cannot undo a commit accepted before its response was lost.
+			var redelivery = !commitAttempted && backedOut
+				? TransportRedeliveryExpectation.Expected : TransportRedeliveryExpectation.Unspecified;
+			throw CreateSettlementException(
+				$"IBM MQ could not move message '{id}' to backout queue "
+				+ $"'{_receive.BackoutQueueName}'.", ex, redelivery);
 		}
 		finally
 		{
-			backoutQueue?.Dispose();
+			SafeClose(backoutQueue, null);
 			SafeClose(unitOfWork.Queue, unitOfWork.QueueManager);
 		}
 	}
 
-	private static void TryBackout(IIbmMqQueueManager? queueManager)
+	private static TransportSettlementException CreateSettlementException(string description, Exception cause, TransportRedeliveryExpectation redelivery) =>
+		new(description, cause)
+		{
+			TransportName = "IbmMq",
+			RedeliveryExpectation = redelivery,
+			// The atomic claim consumed this handle before native I/O; it cannot be retried.
+			Retryability = SettlementRetryability.Permanent,
+		};
+
+	private static bool TryBackout(IIbmMqQueueManager? queueManager) => TryBackout(queueManager, out _);
+
+	private static bool TryBackout(IIbmMqQueueManager? queueManager, out Exception? failure)
 	{
+		failure = null;
 		try
 		{
-			queueManager?.Backout();
+			if (queueManager is null)
+			{
+				return false;
+			}
+			queueManager.Backout();
+			return true;
 		}
-		catch (MQException)
+#pragma warning disable CA1031 // Failure handling must preserve the primary settlement failure.
+		catch (Exception ex)
 		{
-			// best-effort during failure handling
+			failure = ex;
+			return false;
 		}
+#pragma warning restore CA1031
 	}
 
 	private static void SafeClose(IIbmMqQueue? queue, IIbmMqQueueManager? queueManager)
@@ -532,7 +533,8 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 		{
 			queue?.Dispose();
 		}
-		catch (MQException)
+#pragma warning disable CA1031 // Each handle must close independently without masking the primary failure.
+		catch (Exception)
 		{
 			// ignored — connection teardown follows
 		}
@@ -541,10 +543,11 @@ internal sealed partial class IbmMqTransportReceiver : ITransportReceiver
 		{
 			queueManager?.Dispose();
 		}
-		catch (MQException)
+		catch (Exception)
 		{
 			// ignored
 		}
+#pragma warning restore CA1031
 	}
 
 	/// <summary>

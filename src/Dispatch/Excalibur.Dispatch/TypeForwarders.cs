@@ -22,4 +22,5 @@ using Excalibur.Dispatch.Resilience;
 [assembly: TypeForwardedTo(typeof(IDeadLetterStore))]
 [assembly: TypeForwardedTo(typeof(IDeadLetterStoreAdmin))]
 [assembly: TypeForwardedTo(typeof(MessageContext))]
+[assembly: TypeForwardedTo(typeof(Excalibur.Dispatch.TenantContextHolder))]
 [assembly: TypeForwardedTo(typeof(WellKnownHeaderNames))]

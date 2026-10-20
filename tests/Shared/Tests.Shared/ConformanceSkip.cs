@@ -15,6 +15,21 @@ namespace Tests.Shared;
 /// surface the fact is about — a property of the type system rather than a renewable decision.
 /// </para>
 /// <para>
+/// ONLY THE CAPABILITY HALF IS EMITTED FROM HERE, and that is deliberate rather than unfinished. A
+/// suppression's defining requirements are a named owner, an expiry, and renewal on fresh evidence —
+/// none of which a marker in a skip message can enforce, because nothing refuses on a date it merely
+/// reads. They are carried instead by the approved-skip allowlist under <c>eng/ci</c>, whose entries
+/// declare all three as mandatory fields and whose expiry is checked per entry on every CI run,
+/// independently of whether the test was observed skipping. So a suppression is recorded by adding an
+/// entry there, not by calling a method here, and a second marker would be a parallel mechanism for a
+/// decision the first one already makes.
+/// </para>
+/// <para>
+/// The consequence to watch for: a skip whose cause IS fixable can only reach for the capability marker,
+/// which reads as the stronger claim. When that happens, say so at the call site and add the allowlist
+/// entry — the marker then describes how the skip was emitted, and the entry describes what is owed.
+/// </para>
+/// <para>
 /// A test-runner summary cannot tell them apart. It reports a count and discards every reason, so both
 /// read as the same number, and a suite that silences an inconvenient test looks exactly like one that
 /// correctly declines to claim conformance it cannot hold. The marker below is what a CI gate matches to

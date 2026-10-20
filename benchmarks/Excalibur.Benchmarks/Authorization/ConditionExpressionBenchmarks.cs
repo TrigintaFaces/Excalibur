@@ -13,7 +13,7 @@ namespace Excalibur.Benchmarks.Authorization;
 /// Gate: all evaluations must complete in &lt; 10us.
 /// Sprint 727 T.14 (g9dii8).
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 [MemoryDiagnoser]
 public class ConditionExpressionBenchmarks
 {

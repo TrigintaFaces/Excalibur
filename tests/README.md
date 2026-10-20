@@ -20,8 +20,10 @@ also live here; not every project under `tests/` is an executable test assembly.
 | [Shared/Excalibur.Dispatch.Testing/](Shared/Excalibur.Dispatch.Testing/) | Dispatch testing support library |
 
 The solution filters in [eng/ci/shards](../eng/ci/shards/) define CI project sets.
-Source packages can map to merged test projects: ASP.NET Core hosting tests, for
-example, live in [Excalibur.Dispatch.Hosting.Tests](unit/Excalibur.Dispatch.Hosting.Tests/).
+Source packages can map to merged test projects. Hosting services have coverage in
+[Excalibur.Dispatch.Hosting.Tests](unit/Excalibur.Dispatch.Hosting.Tests/), while the
+Dispatch ASP.NET Core exception handler has dedicated coverage in
+[Excalibur.Dispatch.Hosting.AspNetCore.Tests](unit/Excalibur.Dispatch.Hosting.AspNetCore.Tests/).
 Consult the [critical package test matrix](../eng/governance/framework-governance.json)
 and shard files when moving projects. Update solution membership and validation
 manifests together.
@@ -56,6 +58,14 @@ Preserve test identities, counts, TRX files and candidate/package identities as 
 by the relevant [CI gate](../docs/ci-gates.md).
 
 ## Traits and fixtures
+
+Boundary architecture tests use an xUnit assembly fixture to load framework assemblies before
+test execution, including filtered runs. Discovery and the assembly-info handshake do not run
+this setup. The expected population comes from the built dependency manifest; missing files,
+load failures and mismatched assembly identities fail the fixture instead of shrinking coverage.
+Discovery-time data providers must remain independent of this execution-time population.
+Separate solution and project-reference guards enforce source-project membership; the
+fixture validates the runtime assets declared by the built manifest.
 
 Use the required `Category`, `Component` and `Pattern` traits according to the
 [test standards](../docs/testing/test-standards.md) and

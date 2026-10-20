@@ -8,7 +8,7 @@
     <RootNamespace>Excalibur.Dispatch.Performance.Benchmarks</RootNamespace>
     <!-- Optimize for benchmarking -->
     <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <!-- Suppress CA1034 - nested types are acceptable in benchmarks -->
     <NoWarn>$(NoWarn);CA1034;CA1815;CS7022</NoWarn>

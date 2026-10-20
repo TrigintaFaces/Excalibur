@@ -15,6 +15,19 @@ namespace Excalibur.Outbox.Tests.Health;
 [Trait("Component", "Outbox")]
 public sealed class OutboxHealthCheckShould : UnitTestBase
 {
+	[Fact]
+	public async Task OmitFailurePercentageWhenProcessorDoesNotMeasureFailures()
+	{
+		var state = new BackgroundServiceHealthState();
+		state.MarkStarted();
+		state.RecordProcessorCycle(1);
+		var check = new OutboxHealthCheck(state, Options.Create(new OutboxHealthCheckOptions()));
+		var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+		result.Status.ShouldBe(HealthStatus.Healthy);
+		result.Data.ShouldNotContainKey("FailureRatePercent");
+		result.Data["FailureRateAvailable"].ShouldBe(false);
+	}
+
 	#region Constructor Tests
 
 	[Fact]

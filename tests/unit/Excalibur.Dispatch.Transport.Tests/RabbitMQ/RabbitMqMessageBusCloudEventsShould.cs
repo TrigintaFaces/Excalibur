@@ -33,12 +33,16 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ;
 [Trait("Pattern", "TRANSPORT")]
 public sealed class RabbitMqMessageBusCloudEventsShould : UnitTestBase
 {
-	[Fact]
-	public async Task PublishEvent_WhenCloudEventsConfigured_EmitsCloudEventAttributesOnDefaultSend()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task PublishEvent_WhenCloudEventsConfigured_EmitsCloudEventAttributesOnDefaultSend(bool mapped)
 	{
 		var channel = A.Fake<IChannel>();
 		var serializer = A.Fake<IPayloadSerializer>();
 		var options = new RabbitMqOptions { Exchange = "ex", RoutingKey = "rk" };
+		var topology = new RabbitMQTopologyOptions();
+		topology.ExchangeMappings[typeof(TestCloudEventBusEvent)] = "mapped-events";
 
 		var cloudEventOptions = Microsoft.Extensions.Options.Options.Create(new CloudEventOptions
 		{
@@ -73,12 +77,15 @@ public sealed class RabbitMqMessageBusCloudEventsShould : UnitTestBase
 			cloudEventBridge: bridge,
 			cloudEventEncoder: mapper,
 			cloudEventOptions: null,
-			topologyInitializer: null);
+			topologyInitializer: null,
+			publishRoutes: mapped ? new RabbitMqPublishRoutes(topology) : null);
 
 		var evt = new TestCloudEventBusEvent();
 		var context = new MessageContext(evt, CreateServiceProvider());
 
 		await bus.PublishAsync(evt, context, CancellationToken.None);
+		A.CallTo(() => channel.BasicPublishAsync(mapped ? "mapped-events" : "ex", "rk", A<bool>._,
+			A<RabbitMqBasicProperties>._, A<ReadOnlyMemory<byte>>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 
 		// The serializer is never consulted on the CloudEvents path -- the mapper owns encoding.
 		A.CallTo(() => serializer.SerializeObject(A<object>._, A<Type>._)).MustNotHaveHappened();

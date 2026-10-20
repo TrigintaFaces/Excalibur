@@ -5,18 +5,19 @@
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
-/// Exception thrown when a message could not be settled with the broker.
+/// Exception thrown when message settlement failed or its outcome could not be determined.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Settlement is the acknowledgement or rejection that tells the broker what became of a received
-/// message. When it fails, the broker's view of the message is unchanged — so the outcome the caller
-/// asked for did not happen, and the message is usually still owned by the broker.
+/// message. A failure does not establish the broker's state: the request may have been accepted
+/// before a connection failure or timeout became observable. Use <see cref="RedeliveryExpectation"/>
+/// and <see cref="Retryability"/> to determine the caller's next action.
 /// </para>
 /// <para>
 /// This exception exists so that failure is not reported as success. A settle call that swallowed its
-/// error returned normally, telling the caller the message was settled when it was not, and the
-/// redelivery that followed appeared to the consumer as an unexplained duplicate.
+/// error returned normally, telling the caller the message was settled without establishing that
+/// outcome, and any redelivery that followed appeared to the consumer as an unexplained duplicate.
 /// </para>
 /// <para>
 /// It derives from <see cref="InvalidOperationException"/>, which is the type the transport receivers
@@ -31,13 +32,12 @@ namespace Excalibur.Dispatch.Transport;
 /// portable code does not have to reference a specific broker's package to catch a settlement failure.
 /// </para>
 /// <para>
-/// <b>Known gap.</b> That requirement is newly stated, and not every shipped transport has been brought
-/// to it yet. Several receivers still let their broker client's exception escape from
-/// <c>AcknowledgeAsync</c> and <c>RejectAsync</c>, and a settlement that times out surfaces as an
-/// <see cref="OperationCanceledException"/> rather than as this type. Until each transport is converted,
-/// portable code that must not fault should catch <see cref="InvalidOperationException"/> — this type's
-/// base — and treat an unrecognised exception from a settlement call as a settlement of unknown outcome:
-/// assume the message may be redelivered.
+	/// <b>Known gap.</b> Not every shipped transport has been verified against this boundary. Unconverted
+	/// receivers may expose native exceptions; catching <see cref="InvalidOperationException"/> alone
+	/// does not catch arbitrary broker-client failures. Catch this type where conversion is implemented
+	/// and treat other settlement failures as an unknown outcome. Handle caller-owned cancellation
+	/// separately according to the transport's cancellation behavior; an internal timeout does not by
+	/// itself establish caller cancellation or whether the broker accepted settlement.
 /// </para>
 /// </remarks>
 public sealed class TransportSettlementException : InvalidOperationException

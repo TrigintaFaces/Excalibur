@@ -15,7 +15,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task DeriveProjectionIdFromEventForSyncHandler()
     {
         // Arrange
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();
@@ -51,7 +51,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task FallBackToAggregateIdWhenNoKeySelectorRegistered()
     {
         // Arrange
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();
@@ -101,7 +101,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task HandleMultipleKeysInSameBatch()
     {
         // Arrange
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();
@@ -147,7 +147,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task CreateNewProjectionWhenKeyedProjectionDoesNotExist()
     {
         // Arrange -- store is empty
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();
@@ -184,7 +184,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task MergeWithExistingKeyedProjectionState()
     {
         // Arrange -- pre-populate store with existing projection
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         await store.UpsertAsync("category-electronics",
             new OrderSummary { Total = 500m, EventCount = 3 },
             CancellationToken.None).ConfigureAwait(false);
@@ -255,7 +255,7 @@ public sealed class ProjectionBuilderKeyedByShould
     {
         // Arrange -- KeyedBy with WhenHandledBy (async DI-resolved handler) exercises
         // the full async code path in CreateInlineApplyDelegate that uses GetKeySelector.
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .AddTransient<OrderPlacedHandler>()
@@ -288,7 +288,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task FallBackToAggregateIdForAsyncHandlerWithoutKeySelector()
     {
         // Arrange -- async handler WITHOUT KeyedBy should use aggregate ID
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .AddTransient<OrderPlacedHandler>()
@@ -319,7 +319,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task ThrowWhenKeySelectorReturnsNull()
     {
         // Arrange -- key selector returns null at runtime
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();
@@ -347,7 +347,7 @@ public sealed class ProjectionBuilderKeyedByShould
     public async Task ThrowWhenKeySelectorReturnsEmptyString()
     {
         // Arrange -- key selector returns empty string at runtime
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();
@@ -376,7 +376,7 @@ public sealed class ProjectionBuilderKeyedByShould
     {
         // Arrange -- register KeyedBy for TestOrderPlaced but NO handler for TestOrderShipped.
         // TestOrderShipped events should be skipped (no store load, no upsert).
-        var store = new InMemoryProjectionStore<OrderSummary>();
+        var store = new TestProjectionStore<OrderSummary>();
         var services = new ServiceCollection()
             .AddSingleton<IProjectionStore<OrderSummary>>(store)
             .BuildServiceProvider();

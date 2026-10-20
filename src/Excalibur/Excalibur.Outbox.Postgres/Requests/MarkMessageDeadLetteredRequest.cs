@@ -29,7 +29,8 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     /// Initializes a new instance of the <see cref="MarkMessageDeadLetteredRequest"/> class.
     /// </summary>
     /// <param name="messageId">The unique identifier of the message to dead-letter.</param>
-    /// <param name="reason">The reason the message was dead-lettered.</param>
+    /// <param name="attemptCount">The absolute number of observed logical send attempts.</param>
+	/// <param name="reason">The reason the message was dead-lettered.</param>
     /// <param name="outboxTableName">The fully qualified outbox table name.</param>
     /// <param name="deadLetterTableName">The fully qualified dead-letter table name.</param>
     /// <param name="commandTimeout">Command timeout in seconds.</param>
@@ -50,11 +51,13 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
     public MarkMessageDeadLetteredRequest(
         string messageId,
         string reason,
+		int attemptCount,
         string outboxTableName,
         string deadLetterTableName,
         int commandTimeout,
         CancellationToken cancellationToken)
     {
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         ArgumentNullException.ThrowIfNull(reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(outboxTableName);
@@ -63,22 +66,36 @@ internal sealed class MarkMessageDeadLetteredRequest : DataRequest<int>
         // Insert into dead-letter table with the supplied reason, then delete from main outbox.
         // Deleting the row is the Postgres idiom for a terminal state — the row is structurally
         // absent from all claim predicates without needing a status column.
-        var sql = $"""
-                INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-                        SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, @Reason
-                        FROM {outboxTableName}
-                        WHERE message_id = @MessageId;
-
-                        DELETE FROM {outboxTableName}
-                        WHERE message_id = @MessageId;
-                """;
+        // Lock the source before copying. Check archive/delete counts inside the command
+		// so trigger-suppressed deletion raises and rolls back the entire terminal transition.
+		var sql = $"""
+		   WITH source AS MATERIALIZED (
+		   SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts FROM {outboxTableName}
+		   WHERE message_id = @MessageId
+		   FOR UPDATE
+		   ), archived AS (
+		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+		   SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, GREATEST(attempts, @AttemptCount), @Reason
+		   FROM source RETURNING message_id
+		   ), deleted AS (
+		   DELETE FROM {outboxTableName} o USING archived a
+		   WHERE o.message_id = a.message_id RETURNING o.message_id
+		   ), counts AS (
+		   SELECT (SELECT COUNT(*) FROM archived)::int AS inserted_count,
+		   (SELECT COUNT(*) FROM deleted)::int AS deleted_count
+		   )
+		   SELECT
+		   inserted_count / CASE WHEN inserted_count = deleted_count THEN 1 ELSE 0 END AS UpdatedCount
+		   FROM counts;
+		   """;
 
         var parameters = new DynamicParameters();
         parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
         parameters.Add("Reason", reason, direction: ParameterDirection.Input);
+		parameters.Add("AttemptCount", attemptCount, direction: ParameterDirection.Input);
 
         Command = CreateCommand(sql, parameters, commandTimeout: commandTimeout, cancellationToken: cancellationToken);
         ResolveAsync = async connection =>
-            await connection.ExecuteAsync(Command).ConfigureAwait(false);
+            await connection.QuerySingleAsync<int>(Command).ConfigureAwait(false);
     }
 }

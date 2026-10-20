@@ -23,9 +23,10 @@ public static class SwaggerGenOptionsExtensions
 		options.MapType<ProblemDetails>(static () => new OpenApiSchema
 		{
 			Type = JsonSchemaType.Object,
-			Required = new HashSet<string>(StringComparer.Ordinal) { "title", "status", "traceId" },
+			Required = new HashSet<string>(StringComparer.Ordinal) { "type", "title", "status", "traceId" },
 			Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal)
 			{
+				["type"] = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uri", Description = "A URI reference identifying the problem type." },
 				["title"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "A short, human-readable summary of the problem type." },
 				["status"] = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Description = "The HTTP status code." },
 				["detail"] =
@@ -38,22 +39,16 @@ public static class SwaggerGenOptionsExtensions
 						Description = "A URI reference identifying this specific occurrence of the problem.",
 					},
 				["traceId"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "The trace identifier for correlating logs and diagnostics." },
-				["exceptionId"] =
-					new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid", Description = "A globally unique identifier for this exception instance." },
-				["errorCode"] = new OpenApiSchema { Type = JsonSchemaType.Integer, Description = "Application-specific error code, if available." },
+				["errorCode"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Application-specific error code (only shown in development)." },
 				["stack"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "The exception stack trace (only shown in development)." },
-				["validationErrors"] = new OpenApiSchema
+				["errors"] = new OpenApiSchema
 				{
-					Type = JsonSchemaType.Array,
-					Description = "List of validation errors returned for a failed validation.",
-					Items = new OpenApiSchema
+					Type = JsonSchemaType.Object,
+					Description = "Public validation errors grouped by property name.",
+					AdditionalProperties = new OpenApiSchema
 					{
-						Type = JsonSchemaType.Object,
-						Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal)
-						{
-							["propertyName"] = new OpenApiSchema { Type = JsonSchemaType.String },
-							["errorMessage"] = new OpenApiSchema { Type = JsonSchemaType.String },
-						},
+						Type = JsonSchemaType.Array,
+						Items = new OpenApiSchema { Type = JsonSchemaType.String },
 					},
 				},
 			},

@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.DependencyInjection;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,7 +26,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	private ProjectionMode _mode = ProjectionMode.Async;
 	private TimeSpan? _cacheTtl;
 	private Func<string, CancellationToken, Task>? _deleteAction;
-	private Type? _storeType;
 	private ProjectionOptions? _options;
 	private Func<TProjection, string>? _searchTextComputer;
 	private Action<TProjection, string>? _searchTextSetter;
@@ -106,6 +106,14 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 		// Register the handler type in DI if IServiceCollection is available (T.6)
 		_services?.TryAddTransient(typeof(THandler));
+
+		// Closed over the handler type here, where it is known, so the start-up check that the handler's
+		// own dependencies can be supplied needs no assembly scan. Registering the handler says it can be
+		// RESOLVED; it says nothing about whether what it asks for was registered too, and that gap
+		// surfaces on the first event -- inside a background host for an async projection.
+		_services?.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IProjectionHandlerProbe>(
+				new ProjectionHandlerProbe<THandler>(typeof(TProjection).Name)));
 
 		return this;
 	}
@@ -208,14 +216,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <inheritdoc />
-	public IProjectionBuilder<TProjection> WithStore<TStore>()
-		where TStore : class, IProjectionStore<TProjection>
-	{
-		_storeType = typeof(TStore);
-		return this;
-	}
-
-	/// <inheritdoc />
 	public IProjectionBuilder<TProjection> WithOptions(Action<ProjectionOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
@@ -237,6 +237,15 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <summary>
+	/// Gets the mode configured via <see cref="Inline"/>, <see cref="Async"/> or <see cref="Ephemeral"/>.
+	/// </summary>
+	/// <remarks>
+	/// Read at registration time by the store requirement, which must know whether this projection owes
+	/// a store before the registry is populated at start-up.
+	/// </remarks>
+	internal ProjectionMode Mode => _mode;
+
+	/// <summary>
 	/// Gets the optional cache TTL configured via <see cref="WithCacheTtl"/>.
 	/// </summary>
 	internal TimeSpan? CacheTtl => _cacheTtl;
@@ -245,11 +254,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	/// Gets the delete action configured via <see cref="WhenDeleted"/>.
 	/// </summary>
 	internal Func<string, CancellationToken, Task>? DeleteAction => _deleteAction;
-
-	/// <summary>
-	/// Gets the store type override configured via <see cref="WithStore{TStore}"/>.
-	/// </summary>
-	internal Type? StoreType => _storeType;
 
 	/// <summary>
 	/// Gets the projection options configured via <see cref="WithOptions"/>.
@@ -335,7 +339,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			inlineApply,
 			_cacheTtl,
 			_deleteAction,
-			_storeType,
 			_options,
 			searchTextComputer,
 			searchTextSetter,

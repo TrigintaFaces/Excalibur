@@ -23,8 +23,9 @@
 
     Rather than hand-maintain a package list that silently rots when the framework gains a transitive
     dependency, we ProjectReference every framework project and let MSBuild compute the complete transitive
-    closure into this test's output directory. BoundaryTestsModuleInitializer then force-loads the framework
-    assemblies from that output so the enumeration is complete and order-independent, and every transitive
+    closure into this test's output directory. BoundaryFrameworkAssemblyFixture then force-loads the framework
+    assemblies named in the dependency manifest before execution (not discovery), so the enumeration is
+    complete and order-independent, and every transitive
     dependency resolves naturally from the same directory. This is enforcing (it reveals the true type set,
     never masks a boundary violation — a forbidden reference is visible in GetReferencedAssemblies metadata)
     and self-maintaining (a new project or dependency flows in without editing this file).
@@ -49,4 +50,5 @@
     <Using Include="Xunit" />
     <Using Include="Shouldly" />
   </ItemGroup>
+  <Import Project="PristineOptionLivenessInputs.targets" />
 </Project>

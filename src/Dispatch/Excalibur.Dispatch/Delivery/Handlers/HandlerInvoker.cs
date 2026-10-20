@@ -193,15 +193,13 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	[RequiresDynamicCode("Compiles expressions at runtime")]
 	private static InvokerFunc BuildInvoker(Type handlerType, Type messageType)
 	{
-		_ = messageType; // Parameter not used - message type is discovered dynamically via reflection
-		var method = handlerType.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public)
-					 ?? throw new InvalidOperationException($"No HandleAsync method found on {handlerType}");
+		var (callTarget, method) = SelectHandlerMethod(handlerType, messageType);
 
 		var handlerParam = Expression.Parameter(typeof(object), "handler");
 		var messageParam = Expression.Parameter(typeof(IDispatchMessage), "message");
 		var cancellationTokenParameter = Expression.Parameter(typeof(CancellationToken), "cancellationToken");
 
-		var castHandler = Expression.Convert(handlerParam, handlerType);
+		var castHandler = Expression.Convert(handlerParam, callTarget);
 		var castMessage = Expression.Convert(messageParam, method.GetParameters()[0].ParameterType);
 
 		var call = Expression.Call(castHandler, method, castMessage, cancellationTokenParameter);
@@ -266,6 +264,73 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		throw new InvalidOperationException(
 			$"Unsupported return type {method.ReturnType} on handler {handlerType}. " +
 			"Handler methods must return Task, Task<T>, ValueTask, or ValueTask<T>.");
+	}
+
+	private static (Type CallTarget, MethodInfo Method) SelectHandlerMethod(Type handlerType, Type messageType)
+	{
+		var candidates = new List<(Type CallTarget, MethodInfo Method, MethodInfo Implementation)>();
+		foreach (var contract in handlerType.GetInterfaces())
+		{
+			if (!contract.IsGenericType)
+			{
+				continue;
+			}
+
+			var definition = contract.GetGenericTypeDefinition();
+			if (definition != typeof(IActionHandler<>) && definition != typeof(IActionHandler<,>) &&
+				definition != typeof(IEventHandler<>) && definition != typeof(IDocumentHandler<>))
+			{
+				continue;
+			}
+
+			if (!contract.GetGenericArguments()[0].IsAssignableFrom(messageType))
+			{
+				continue;
+			}
+
+			var map = handlerType.GetInterfaceMap(contract);
+			for (var index = 0; index < map.InterfaceMethods.Length; index++)
+			{
+				if (map.InterfaceMethods[index].Name == "HandleAsync")
+				{
+					candidates.Add((contract, map.InterfaceMethods[index], map.TargetMethods[index]));
+				}
+			}
+		}
+
+		if (candidates.Count == 0)
+		{
+			// Preserve runtime support for duck-typed Task and ValueTask handlers.
+			foreach (var method in handlerType.GetMethods(BindingFlags.Instance | BindingFlags.Public))
+			{
+				var parameters = method.GetParameters();
+				if (method.Name == "HandleAsync" && !method.ContainsGenericParameters && parameters.Length == 2 &&
+					parameters[1].ParameterType == typeof(CancellationToken) &&
+					parameters[0].ParameterType.IsAssignableFrom(messageType))
+				{
+					candidates.Add((handlerType, method, method));
+				}
+			}
+		}
+
+		var exact = candidates.Where(candidate => candidate.Method.GetParameters()[0].ParameterType == messageType).ToList();
+		if (exact.Count != 0)
+		{
+			candidates = exact;
+		}
+
+		var mostSpecific = candidates.Where(candidate => !candidates.Any(other =>
+			candidate.Method.GetParameters()[0].ParameterType != other.Method.GetParameters()[0].ParameterType &&
+			candidate.Method.GetParameters()[0].ParameterType.IsAssignableFrom(other.Method.GetParameters()[0].ParameterType)))
+			.DistinctBy(candidate => candidate.Implementation).ToList();
+		if (mostSpecific.Count == 1)
+		{
+			return (mostSpecific[0].CallTarget, mostSpecific[0].Method);
+		}
+
+		throw new InvalidOperationException(mostSpecific.Count == 0
+			? $"No compatible HandleAsync method found on {handlerType} for {messageType}."
+			: $"Ambiguous HandleAsync contracts on {handlerType} for {messageType}.");
 	}
 
 	/// <summary>

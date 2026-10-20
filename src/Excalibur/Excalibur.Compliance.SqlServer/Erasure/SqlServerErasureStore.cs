@@ -29,7 +29,7 @@ namespace Excalibur.Compliance.SqlServer.Erasure;
 /// </list>
 /// </remarks>
 public sealed partial class SqlServerErasureStore
-	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureSchemaValidator,
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureBackgroundQueryStore, IErasureSchemaValidator,
 		IKeyDestructionLedger, IDisposable
 {
 	private readonly SqlServerErasureStoreOptions _options;
@@ -146,6 +146,8 @@ public sealed partial class SqlServerErasureStore
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(request);
+		var tenant = AmbientScope;
+		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
@@ -161,7 +163,7 @@ public sealed partial class SqlServerErasureStore
 		// The ambient term is authoritative on the write. Stamping the request's own TenantId would let a
 		// caller file a request into another tenant's partition — and, because every scoped read matches on
 		// the ambient term, that row would then be readable only by the tenant it was planted on.
-		var tenant = AmbientScope;
+
 
 		await using var connection = new SqlConnection(_options.ConnectionString);
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -174,8 +176,7 @@ public sealed partial class SqlServerErasureStore
 			request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
-			TenantId = KeyedTenantPartition.FromStoredValue(
-				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
+			TenantId = owner,
 			Scope = (int)request.Scope,
 			LegalBasisV2 = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -757,6 +758,31 @@ public sealed partial class SqlServerErasureStore
 	}
 
 	/// <inheritdoc />
+	public async Task<IReadOnlyList<ErasureStatus>> GetAwaitingKeyDestructionRequestsAsync(
+		int pageNumber, int pageSize, CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+		var sql = $@"
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
+				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
+				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
+				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
+			FROM {_options.FullRequestsTableName}
+			WHERE Status = @Status
+			ORDER BY RequestedAt, RequestId
+			OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+		await using var connection = new SqlConnection(_options.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		var rows = await connection.QueryAsync<ErasureRequestRow>(new CommandDefinition(sql,
+			new { Status = (int)ErasureRequestStatus.AwaitingKeyDestruction, PageSize = pageSize, Offset = ((long)pageNumber - 1) * pageSize },
+			cancellationToken: cancellationToken, commandTimeout: _options.CommandTimeoutSeconds)).ConfigureAwait(false);
+		return rows.Select(row => row.ToStatus()).ToList();
+	}
+
+	/// <inheritdoc />
 	public async Task<IReadOnlyList<ErasureStatus>> ListRequestsAsync(
 		ErasureRequestStatus? status,
 		string? tenantId,
@@ -1028,7 +1054,7 @@ public sealed partial class SqlServerErasureStore
 			return this;
 		}
 
-		if (serviceType == typeof(IErasureQueryStore))
+		if (serviceType == typeof(IErasureQueryStore) || serviceType == typeof(IErasureBackgroundQueryStore))
 		{
 			return this;
 		}

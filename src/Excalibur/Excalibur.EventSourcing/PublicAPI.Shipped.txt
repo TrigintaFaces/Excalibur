@@ -735,3 +735,12 @@ virtual Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.Forwarda
 virtual Excalibur.EventSourcing.Decorators.IsolatingEventStoreDecorator.WrapCapability(System.Type! serviceType) -> object?
 virtual Excalibur.EventSourcing.Decorators.IsolatingProjectionStoreDecorator<TProjection>.WrapCapability(System.Type! serviceType) -> object?
 virtual Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.DeleteAsync(TAggregate! aggregate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.InMemoryProjectionStore() -> void
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.EventSourcing.Projections.InMemoryProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.InMemoryProjectionStoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.InMemoryProjectionStoreServiceCollectionExtensions.AddInMemoryProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

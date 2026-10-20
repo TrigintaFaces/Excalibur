@@ -15,6 +15,12 @@
     <NoWarn>$(NoWarn);CA1001;CA1052;CA1707;MA0048;MA0053;MA0016;MA0061;MA0036;MA0025;IDE0060;SA1623;SA1202;SA1402;CS1591;SA1600;SA1201;SA1305;MA0038;MA0042;MA0051;MA0076;CA1711;CA1812;CA1852;CA1859</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/001_CreateEventStoreSchema.sql"
+                      LogicalName="BenchmarkSchema.001_CreateEventStoreSchema.sql" />
+    <EmbeddedResource Include="../../src/Excalibur/Excalibur.Outbox.SqlServer/Scripts/001_CreateOutboxSchema.sql"
+                      LogicalName="BenchmarkSchema.001_CreateOutboxSchema.sql" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MediatR" />

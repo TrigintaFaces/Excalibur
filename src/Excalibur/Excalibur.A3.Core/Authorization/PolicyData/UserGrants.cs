@@ -8,6 +8,18 @@ namespace Excalibur.A3.Authorization.PolicyData;
 /// </summary>
 internal sealed class UserGrants(IGrantStore grantStore)
 {
+	internal bool SupportsSharedCache { get; } = grantStore.GetService(typeof(IDurableGrantStore)) is IDurableGrantStore;
+	private readonly IAtomicGrantRevocationStore? _atomicStore =
+		grantStore.GetService(typeof(IAtomicGrantRevocationStore)) as IAtomicGrantRevocationStore;
+
+	internal Task<long?> RevisionAsync(string userId, CancellationToken cancellationToken) => ReadRevisionAsync(userId, cancellationToken);
+
+	private async Task<long?> ReadRevisionAsync(string userId, CancellationToken cancellationToken) =>
+		_atomicStore is null ? null : await _atomicStore.ReadUserRevisionAsync(userId, cancellationToken).ConfigureAwait(false);
+
+	internal async Task<UserGrantSnapshot?> SnapshotAsync(string userId, CancellationToken cancellationToken) =>
+		_atomicStore is null ? null : await _atomicStore.ReadUserSnapshotAsync(userId, includeExpired: false, cancellationToken).ConfigureAwait(false);
+
 	private readonly IGrantQueryStore _queryStore =
 		grantStore.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore
 		?? throw new InvalidOperationException(

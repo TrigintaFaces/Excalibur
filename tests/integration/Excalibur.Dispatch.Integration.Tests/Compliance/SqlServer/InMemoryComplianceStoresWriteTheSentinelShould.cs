@@ -90,14 +90,13 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 	}
 
 	/// <summary>
-	/// SAFETY + PARITY. The same holds for the erasure-request store, whose write path had the same split.
+	/// SAFETY + PARITY. Null uses the configured request owner; present blank owners are rejected.
 	/// </summary>
 	[Theory]
 	[InlineData(null, Sentinel)]
-	[InlineData("", Sentinel)]
-	[InlineData("  ", Sentinel)]
 	[InlineData(Sentinel, Sentinel)]
 	[InlineData(RealTenant, RealTenant)]
+	[InlineData("__default__", "__default__")]
 	public async Task StoreTheSameRequestTenantTermOnBothProviders(string? supplied, string expected)
 	{
 		RequireServer();
@@ -122,6 +121,42 @@ public sealed class InMemoryComplianceStoresWriteTheSentinelShould : Integration
 			"both stores were handed the same tenant (" + Describe(supplied) + ") and must persist the same term.");
 
 		sqlTerm.ShouldBe(expected);
+	}
+
+	/// <summary>Malformed present owners are rejected without writing a request or changing valid rows.</summary>
+	[Theory]
+	[InlineData("")]
+	[InlineData("  ")]
+	public async Task RejectMalformedRequestOwnersWithoutMutatingEitherStore(string supplied)
+	{
+		RequireServer();
+		var inMemory = UnscopedInMemoryRequests();
+		var sql = UnscopedSqlRequests();
+		var scheduled = DateTimeOffset.UtcNow.AddDays(30);
+		var memoryBaseline = NewRequest(RealTenant);
+		var sqlBaseline = NewRequest(RealTenant);
+		await inMemory.SaveRequestAsync(memoryBaseline, scheduled, TestCancellationToken);
+		await sql.SaveRequestAsync(sqlBaseline, scheduled, TestCancellationToken);
+		var memoryBefore = (await inMemory.GetStatusAsync(memoryBaseline.RequestId, TestCancellationToken)).ShouldNotBeNull();
+		var sqlBefore = (await sql.GetStatusAsync(sqlBaseline.RequestId, TestCancellationToken)).ShouldNotBeNull();
+		var memoryInvalid = NewRequest(supplied);
+		var sqlInvalid = NewRequest(supplied);
+
+		await Should.ThrowAsync<ArgumentException>(() => inMemory.SaveRequestAsync(memoryInvalid, scheduled, TestCancellationToken));
+		await Should.ThrowAsync<ArgumentException>(() => sql.SaveRequestAsync(sqlInvalid, scheduled, TestCancellationToken));
+
+		(await inMemory.GetStatusAsync(memoryInvalid.RequestId, TestCancellationToken)).ShouldBeNull();
+		(await sql.GetStatusAsync(sqlInvalid.RequestId, TestCancellationToken)).ShouldBeNull();
+		memoryInvalid.TenantId.ShouldBe(supplied);
+		sqlInvalid.TenantId.ShouldBe(supplied);
+		var memoryAfter = (await inMemory.GetStatusAsync(memoryBaseline.RequestId, TestCancellationToken)).ShouldNotBeNull();
+		var sqlAfter = (await sql.GetStatusAsync(sqlBaseline.RequestId, TestCancellationToken)).ShouldNotBeNull();
+		memoryAfter.TenantId.ShouldBe(memoryBefore.TenantId);
+		memoryAfter.Status.ShouldBe(memoryBefore.Status);
+		memoryAfter.DataSubjectIdHash.ShouldBe(memoryBefore.DataSubjectIdHash);
+		sqlAfter.TenantId.ShouldBe(sqlBefore.TenantId);
+		sqlAfter.Status.ShouldBe(sqlBefore.Status);
+		sqlAfter.DataSubjectIdHash.ShouldBe(sqlBefore.DataSubjectIdHash);
 	}
 
 	/// <summary>

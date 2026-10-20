@@ -13,7 +13,10 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 	public void HaveCorrectDefaults()
 	{
 		var sut = new ElasticSearchMaterializedViewStoreOptions();
-		sut.NodeUri.ShouldBe("http://localhost:9200");
+
+		// No node default, so the required-node check in Validate() is reachable.
+		sut.NodeUri.ShouldBeEmpty();
+		_ = Should.Throw<InvalidOperationException>(sut.Validate);
 		sut.ViewsIndexName.ShouldBe(ElasticSearchMaterializedViewStoreOptions.DefaultViewsIndexName);
 		sut.PositionsIndexName.ShouldBe(ElasticSearchMaterializedViewStoreOptions.DefaultPositionsIndexName);
 		sut.RequestTimeoutSeconds.ShouldBe(30);
@@ -72,9 +75,23 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 	}
 
 	[Fact]
-	public void ValidateSuccessfullyWithDefaults()
+	public void RefuseValidationWithDefaultsBecauseNoNodeIsConfigured()
 	{
 		var sut = new ElasticSearchMaterializedViewStoreOptions();
+
+		// This arm used to assert the opposite, because NodeUri defaulted to a local address.
+		_ = Should.Throw<InvalidOperationException>(() => sut.Validate());
+	}
+
+	/// <summary>
+	/// LIVENESS for the arm above: a node is the only thing the defaults lack, so the refusal detects
+	/// an unconfigured cluster rather than rejecting every default.
+	/// </summary>
+	[Fact]
+	public void ValidateSuccessfullyWithDefaultsOnceANodeIsConfigured()
+	{
+		var sut = new ElasticSearchMaterializedViewStoreOptions { NodeUri = "http://localhost:9200" };
+
 		Should.NotThrow(() => sut.Validate());
 	}
 
@@ -105,7 +122,7 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 	[Fact]
 	public void ThrowWhenViewsIndexNameIsEmpty()
 	{
-		var sut = new ElasticSearchMaterializedViewStoreOptions { ViewsIndexName = "" };
+		var sut = new ElasticSearchMaterializedViewStoreOptions { NodeUri = "http://localhost:9200", ViewsIndexName = "" };
 		Should.Throw<InvalidOperationException>(() => sut.Validate())
 			.Message.ShouldContain("ViewsIndexName");
 	}
@@ -113,7 +130,7 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 	[Fact]
 	public void ThrowWhenPositionsIndexNameIsEmpty()
 	{
-		var sut = new ElasticSearchMaterializedViewStoreOptions { PositionsIndexName = "" };
+		var sut = new ElasticSearchMaterializedViewStoreOptions { NodeUri = "http://localhost:9200", PositionsIndexName = "" };
 		Should.Throw<InvalidOperationException>(() => sut.Validate())
 			.Message.ShouldContain("PositionsIndexName");
 	}

@@ -1,0 +1,13 @@
+{
+  "status": "candidate fixtures, not executed",
+  "staging": "Copy selected .cs.txt files as .cs into a fresh source directory; do not scan this candidate project as the fixture population.",
+  "cases": [
+    {"sources":["positive.cs.txt"],"manifest":"release-net10.json","expectedExit":0,"require":"Nested type annotation is one declaration entry; Read`1(in V,string) and Read(int) are distinct; Callback`1(ref W), constructor and implicit/default interface members included; internal container, private, explicit interface and private protected excluded; duplicate Partial() annotation identity has two source positions."},
+    {"sources":["positive.cs.txt"],"manifest":"conditional-net10.json","expectedExit":0,"require":"Exactly the baseline entries plus Selected() annotation; manifest hash differs."},
+    {"sources":["global-alias.cs.txt","global-alias-use.cs.txt"],"manifest":"release-net10.json","expectedExit":0,"require":"Consumer.Call() has RequiresUnreferencedCode from the other file's global alias."},
+    {"sources":["shadow-refuse.cs.txt"],"manifest":"release-net10.json","expectedExit":2,"require":"complete=false, shadow diagnostic, never a verified platform annotation population."},
+    {"sources":["malformed-refuse.cs.txt"],"manifest":"release-net10.json","expectedExit":2,"require":"complete=false and positioned Roslyn parse diagnostics."},
+    {"setup":"stage a .cs file unreadable by the executing identity, verify inability to open it before invocation","manifest":"release-net10.json","expectedExit":2,"require":"complete=false; no baseline comparison permitted."},
+    {"setup":"omit manifest, omit symbols property, malformed JSON, linked source root/ancestor/file/directory, missing root or empty source population","expectedExit":2,"require":"Each case independently refuses; no inventory rewrite."}
+  ]
+}

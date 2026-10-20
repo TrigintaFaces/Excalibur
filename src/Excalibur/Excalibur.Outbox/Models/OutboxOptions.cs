@@ -39,8 +39,9 @@ public sealed class OutboxRetryOptions
 /// <para>
 /// This type is produced by the framework from the outbox builder, not constructed by consumers.
 /// Configure the outbox through the builder callback on <c>AddOutbox</c>; resolve this type from
-/// dependency injection when you need to read the settings the outbox is actually running with,
-/// for example in a diagnostics endpoint or a startup log.
+/// dependency injection when you need to read the builder's configured defaults. Explicit configuration
+/// of delivery/background options or a consumer backoff calculator can override those defaults;
+/// inspect the corresponding resolved options when reporting the processor's effective settings.
 /// </para>
 /// </remarks>
 /// <example>

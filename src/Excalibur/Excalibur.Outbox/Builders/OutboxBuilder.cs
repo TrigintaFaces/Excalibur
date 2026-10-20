@@ -50,7 +50,7 @@ internal sealed class OutboxBuilder : IOutboxBuilder
 	public IOutboxBuilder EnableBackgroundProcessing()
 	{
 		_config.EnableBackgroundProcessing = true;
-		_ = Services.AddHostedService<OutboxBackgroundService>();
+		_ = Services.AddHostedService<OutboxBackgroundService>(OutboxBackgroundService.Create);
 		Services.TryAddSingleton<OutboxDrainMarker>();
 		return this;
 	}

@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// High-throughput message processor using channels for AWS SQS. Optimized for 50K+ msgs/sec with zero-allocation processing.
+/// Message processor using channels for AWS SQS, with allocation kept off the per-message path. Sustained throughput is bounded by SQS quotas and the network and is not measured here.
 /// </summary>
 internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 {

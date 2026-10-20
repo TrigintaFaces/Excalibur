@@ -16,4 +16,5 @@ namespace Excalibur.Outbox.SqlServer;
 /// therefore remains readable unchanged.
 /// </remarks>
 [JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(Dictionary<string, object>))]
 internal sealed partial class OutboxInternalJsonContext : JsonSerializerContext;

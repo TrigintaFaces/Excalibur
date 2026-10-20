@@ -346,6 +346,7 @@ nir_public_pathspecs() {
     # there silently truncated printf and dropped the last three exclusions.
     printf '%s\n' \
         'docs-site/' 'samples/' 'src/' 'CHANGELOG.md' 'README.md' \
+        'CONTRIBUTING.md' 'SECURITY.md' 'SUPPORT.md' 'CODE_OF_CONDUCT.md' \
         'eng/' '.github/workflows/' \
         ':(exclude,glob)**/.dts/**' \
         ':(exclude,glob)**/bin/**' ':(exclude,glob)**/obj/**' \
@@ -887,6 +888,8 @@ EOF
         "docs-site/docs/guide.md" \
         "samples/01/Program.cs" \
         "CHANGELOG.md" \
+        "CONTRIBUTING.md" \
+        "SUPPORT.md" \
         "src/Foo/Widget.cs" \
     ; do
         if nir_is_exempt "$p"; then
@@ -1022,7 +1025,10 @@ EOF
     # nir_keep_line keeps a representative of each. So when the rule gains a public surface, this arm
     # fails until the gate covers it. Reads an unpublished path (absent on the mirror) -> SKIPS there;
     # a dev-time coherence guard, not a shipped check.
-    local rule_file="${NIR_RULE_FILE:-}"
+    # Defaulted, not left empty: with no default this arm skipped on EVERY local run while its
+    # own skip message claimed local runs assert coherence — a coherence guard that was off
+    # wherever it could have worked. The path is unpublished, so the mirror still skips.
+    local rule_file="${NIR_RULE_FILE:-.claude/rules/quality/no-internal-refs-in-public-surface.md}"
     if [ -f "$rule_file" ]; then
         local exts ext repr shape
         exts="$(grep -oE 'path: "src/\*\*/\*\.[a-zA-Z]+"' "$rule_file" | grep -oE '\.[a-zA-Z]+"' | tr -d '"' | sort -u)"

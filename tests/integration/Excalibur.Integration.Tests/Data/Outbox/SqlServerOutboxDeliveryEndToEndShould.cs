@@ -4,6 +4,8 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery.Registry;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Outbox.SqlServer;
 
@@ -77,7 +79,11 @@ public sealed class SqlServerOutboxDeliveryEndToEndShould : IClassFixture<SqlSer
 		await using var provider = BuildConsumerComposition(delivered);
 
 		var store = provider.GetRequiredService<IOutboxStore>();
-		var message = new OutboundMessage("E2EDeliveryMessage", [1, 2, 3], "orders");
+		MessageTypeRegistry.RegisterType<DeliveryProbeEvent>();
+		var id = Guid.NewGuid().ToString();
+		var payload = provider.GetRequiredService<IPayloadSerializer>()
+			.SerializeObject(new DeliveryProbeEvent(id, "orders-payload"), typeof(DeliveryProbeEvent));
+		var message = new OutboundMessage(typeof(DeliveryProbeEvent).FullName!, payload, "orders") { Id = id };
 		await store.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 
 		var publisher = provider.GetRequiredService<IOutboxPublisher>();
@@ -131,19 +137,20 @@ public sealed class SqlServerOutboxDeliveryEndToEndShould : IClassFixture<SqlSer
 
 		// The payload serializer the drain uses to materialise a staged body. Not registered by AddExcalibur,
 		// so a consumer running the outbox supplies it - same pluggable shape as the publisher itself.
-		_ = services.AddPluggableSerialization();
+		_ = services.AddPluggableSerializer(SerializerIds.SystemTextJson, new SystemTextJsonSerializer(), setAsCurrent: true);
 
 		var bus = A.Fake<IMessageBusAdapter>();
 		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
-			.ReturnsLazily((IDispatchMessage _, IMessageContext context, CancellationToken _) =>
+			.ReturnsLazily((IDispatchMessage message, IMessageContext context, CancellationToken _) =>
 			{
+				var restored = message.ShouldBeOfType<DeliveryProbeEvent>();
+				restored.PersistedId.ShouldBe(context.MessageId);
+				restored.Payload.ShouldBe("orders-payload");
 				delivered.Add(context.MessageId);
 
 				// Succeeded MUST be set explicitly. FakeItEasy defaults a bool to false, so an unconfigured
 				// IMessageResult reports FAILURE and the drain measures the error path instead of delivery.
-				var result = A.Fake<IMessageResult>();
-				_ = A.CallTo(() => result.Succeeded).Returns(true);
-				return Task.FromResult(result);
+				return Task.FromResult<IMessageResult>(MessageResult.Success());
 			});
 
 		_ = services.AddSingleton(bus);
@@ -163,4 +170,6 @@ public sealed class SqlServerOutboxDeliveryEndToEndShould : IClassFixture<SqlSer
 
 		return services.BuildServiceProvider();
 	}
+
+	private sealed record DeliveryProbeEvent(string PersistedId, string Payload) : IDispatchEvent;
 }

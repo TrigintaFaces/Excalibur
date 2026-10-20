@@ -24,6 +24,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'discover-required-tests.functions.ps1')
 if (-not ('Excalibur.CI.DiscoveryProcessJob' -as [type])) {
     Add-Type -Path (Join-Path $PSScriptRoot 'discover-required-tests.process.cs')
 }
@@ -250,8 +251,8 @@ namespace Excalibur.CI {
         throw 'Discovery did not complete exactly once without timeout or abort.'
     }
     foreach ($diagnostic in $census.Diagnostics) {
-        $zeroMatch = 'Warning: No test matches the given testcase filter `' + $filter + '` in ' + $assembly
-        if (-not ($filter -and $complete.TotalCount -eq 0 -and $diagnostic.Trim() -ceq $zeroMatch)) {
+        if (-not (Test-ExpectedZeroMatchDiagnostic -Diagnostic $diagnostic -Filter $filter -AssemblyPath $assembly `
+            -DiscoveredCount $complete.TotalCount -ReceivedCount $census.Tests.Count)) {
             throw "Discovery diagnostics: $($census.Diagnostics -join '; ')"
         }
     }

@@ -10,6 +10,17 @@ namespace Excalibur.Data.DataProcessing;
 public sealed partial class DataOrchestrationManager
 {
 	// Source-generated logging methods
+	[LoggerMessage(DataProcessingEventId.DataTaskQueued, LogLevel.Information,
+		"Queued data task {DataTaskId} for record type '{RecordType}' into {QualifiedTableName} " +
+		"on database '{Database}'. Ambient transaction: {AmbientTransaction}. The row is deleted once " +
+		"the task completes, and is rolled back if an ambient transaction does not commit.")]
+	private partial void LogDataTaskQueued(
+		Guid dataTaskId,
+		string recordType,
+		string qualifiedTableName,
+		string database,
+		string ambientTransaction);
+
 	[LoggerMessage(DataProcessingEventId.ProcessorNotFound, LogLevel.Warning,
 		"Error processing back fill for table '{RecordType}'. No processor found.")]
 	private partial void LogProcessorNotFound(string recordType);

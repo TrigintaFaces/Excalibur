@@ -1279,6 +1279,18 @@ Each candidate exposes health information:
 | `LastUpdated` | `DateTimeOffset` | When health was last reported |
 | `Metadata` | `IDictionary<string, string>` | Custom health metadata |
 
+### In-memory election lifetimes
+
+Dispose each directly constructed `InMemoryLeaderElection` when its owner finishes, preferably with
+`await using`. `StopAsync` removes the running membership but keeps the instance restartable; it does
+not release the instance's resource bucket. The last owner to dispose releases that bucket, including
+when an election was never started. Owners sharing a resource keep the same bucket until all dispose.
+
+This bounds candidate buckets by resource names held by undisposed instances. It does not reclaim
+abandoned instances automatically. Fencing-token history remains in the shared state after bucket
+retirement so recreating a resource cannot reuse an earlier token; this is not a bound on all shared-state
+memory. Use a shared state with the intended test or application lifetime.
+
 ### Making timestamps deterministic in your tests
 
 `CandidateHealth.LastUpdated` and the acquisition instant on `CurrentLeadership` come from the
@@ -1290,7 +1302,7 @@ using Microsoft.Extensions.Time.Testing;
 
 var clock = new FakeTimeProvider();
 
-var election = new InMemoryLeaderElection(
+await using var election = new InMemoryLeaderElection(
     resourceName: "orders-processor",
     options: Options.Create(new LeaderElectionOptions { InstanceId = "candidate-1" }),
     logger: NullLogger<InMemoryLeaderElection>.Instance,

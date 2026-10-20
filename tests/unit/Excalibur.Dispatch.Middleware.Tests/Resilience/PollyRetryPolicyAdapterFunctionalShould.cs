@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
@@ -13,6 +14,112 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 [Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class PollyRetryPolicyAdapterFunctionalShould
 {
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task ExecuteExactlyOnceWhenRetryCountIsZero(bool named)
+	{
+		var predicates = 0;
+		var options = new PollyRetryOptions
+		{
+			MaxRetryAttempts = 0,
+			ShouldRetry = _ => { predicates++; return true; },
+		};
+		var services = new ServiceCollection();
+		services.AddPollyRetryPolicy("disabled", configured =>
+		{
+			configured.MaxRetryAttempts = options.MaxRetryAttempts;
+			configured.ShouldRetry = options.ShouldRetry;
+		});
+		await using var provider = services.BuildServiceProvider();
+		IRetryPolicy policy = named ? provider.GetRequiredKeyedService<IRetryPolicy>("disabled") : new PollyRetryPolicyAdapter(Opt(options));
+		var calls = 0;
+		var result = await policy.ExecuteAsync(_ => { calls++; return Task.FromResult(42); }, CancellationToken.None);
+		result.ShouldBe(42);
+		calls.ShouldBe(1);
+		var fault = new IOException("before effect");
+		var observed = await Should.ThrowAsync<IOException>(() => policy.ExecuteAsync<int>(_ =>
+		{
+			calls++;
+			return Task.FromException<int>(fault);
+		}, CancellationToken.None));
+		observed.ShouldBeSameAs(fault);
+		calls.ShouldBe(2, "each independent zero-retry execution gets exactly one attempt");
+		predicates.ShouldBe(0);
+	}
+
+	[Theory]
+	[InlineData(0, false)]
+	[InlineData(0, true)]
+	[InlineData(1, false)]
+	[InlineData(1, true)]
+	public async Task PreservePreCancelledCallerAndPreventOperationEffects(int retries, bool noResponse)
+	{
+		var policy = new PollyRetryPolicyAdapter(Opt(new PollyRetryOptions { MaxRetryAttempts = retries }));
+		using var caller = new CancellationTokenSource();
+		caller.Cancel();
+		var effects = 0;
+		if (noResponse)
+		{
+			await Should.ThrowAsync<OperationCanceledException>(() => policy.ExecuteAsync(token =>
+			{
+				token.ThrowIfCancellationRequested();
+				effects++;
+				return Task.CompletedTask;
+			}, caller.Token));
+		}
+		else
+		{
+			await Should.ThrowAsync<OperationCanceledException>(() => policy.ExecuteAsync(token =>
+			{
+				token.ThrowIfCancellationRequested();
+				effects++;
+				return Task.FromResult(42);
+			}, caller.Token));
+		}
+		effects.ShouldBe(0);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task Exclude_Cancellation_By_Default_When_Outer_Token_Is_Not_Canceled(bool taskCanceled)
+	{
+		var adapter = new PollyRetryPolicyAdapter(Opt(new PollyRetryOptions
+		{
+			MaxRetryAttempts = 3,
+			BaseDelay = TimeSpan.Zero,
+			UseJitter = false,
+		}));
+		OperationCanceledException expected = taskCanceled
+			? new TaskCanceledException("Dependency canceled its operation.")
+			: new OperationCanceledException("Dependency canceled its operation.");
+		var attempts = 0;
+		await Should.ThrowAsync<OperationCanceledException>(() => adapter.ExecuteAsync<int>(_ =>
+		{
+			attempts++;
+			return Task.FromException<int>(expected);
+		}, CancellationToken.None));
+		attempts.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task Honor_Explicit_Retry_Of_Attempt_Local_Cancellation()
+	{
+		var adapter = new PollyRetryPolicyAdapter(Opt(new PollyRetryOptions
+		{
+			MaxRetryAttempts = 3,
+			BaseDelay = TimeSpan.Zero,
+			UseJitter = false,
+			ShouldRetry = exception => exception is OperationCanceledException,
+		}));
+		var attempts = 0;
+		var result = await adapter.ExecuteAsync(_ => ++attempts == 1
+			? Task.FromException<int>(new OperationCanceledException("Attempt-local cancellation."))
+			: Task.FromResult(42), CancellationToken.None);
+		result.ShouldBe(42);
+		attempts.ShouldBe(2);
+	}
 	[Fact]
 	public async Task Retry_transient_failures_up_to_max_retries()
 	{

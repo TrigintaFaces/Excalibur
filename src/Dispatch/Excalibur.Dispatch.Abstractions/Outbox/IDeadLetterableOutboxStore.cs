@@ -31,6 +31,9 @@ public interface IDeadLetterableOutboxStore
 	/// status after its retry policy is exhausted.
 	/// </summary>
 	/// <remarks>
+	/// <para>The count describes logical attempts already observed by the caller, not physical transport requests.
+	/// Only an applied transition may change it: the same atomic operation records max(stored, supplied).
+	/// Missing and already-terminal messages retain their count; zero is valid for a pre-dispatch poison message.</para>
 	/// <para>
 	/// After this transition the message MUST NOT be returned by any claim predicate
 	/// (<see cref="IOutboxStore.GetUnsentMessagesAsync"/> or <c>IOutboxStoreAdmin.GetAllTenantsFailedMessagesAsync</c>),
@@ -72,11 +75,33 @@ public interface IDeadLetterableOutboxStore
 	/// completion could be judged against, so an ownership guard alone cannot protect this row afterwards.
 	/// The terminal-status obligation above is what remains, which is why it is stated and not implied.
 	/// </para>
+	/// <para>
+	/// <b>THE REFUSAL IS REPORTED, NEVER THROWN, AND THE CALLER MUST TEST FOR
+	/// <see cref="OutboxCompletionOutcome.Applied"/> BY NAME.</b> Every guard an implementation runs here
+	/// — the row is gone, the row is already terminal, the lease belongs to someone else — ends in a write
+	/// that did not happen, and the caller has already written the dead-letter entry by the time it asks.
+	/// A refusal it cannot see leaves the message simultaneously delivered by the live claimant and sitting
+	/// unreplayed in the dead-letter queue, where a redrive re-executes a message that already succeeded.
+	/// Deciding success by excluding the refusals instead makes every member added later a success, which
+	/// is the direction this contract must never fail.
+	/// </para>
+	/// <para>
+	/// <b>Reachable outcomes.</b> <see cref="OutboxCompletionOutcome.Applied"/> when the row was mutated;
+	/// <see cref="OutboxCompletionOutcome.MessageNotFound"/> when no row matched;
+	/// <see cref="OutboxCompletionOutcome.AlreadyTerminal"/> when the row was already sent or already
+	/// dead-lettered; <see cref="OutboxCompletionOutcome.ClaimLost"/> when the store holds a delivery lease
+	/// for a different owner. <see cref="OutboxCompletionOutcome.FenceRefused"/> is NOT reachable — this
+	/// member carries no fencing token, so an implementation returning it would report a judgement it was
+	/// given no means to make. <see cref="OutboxCompletionOutcome.Unknown"/> must never be returned by a
+	/// store; it exists so that a default or unset value cannot read as success.
+	/// </para>
 	/// </remarks>
 	/// <param name="messageId">The unique identifier of the message to dead-letter.</param>
 	/// <param name="reason">A human-readable reason describing why the message was dead-lettered.</param>
+	/// <param name="attemptCount">Observed logical delivery attempts. Nonnegative; an applied transition atomically records the maximum of this value and the stored count.</param>
 	/// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-	/// <returns>A task that represents the asynchronous dead-letter transition.</returns>
+	/// <returns>The outcome of the transition. Only <see cref="OutboxCompletionOutcome.Applied"/> means the row was mutated.</returns>
 	/// <exception cref="ArgumentException">Thrown when <paramref name="messageId"/> is null or empty.</exception>
-	ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken);
+	/// <exception cref="ArgumentOutOfRangeException">Thrown before mutation when <paramref name="attemptCount"/> is negative.</exception>
+	ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken);
 }

@@ -14,6 +14,7 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;
 
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait("Component", "Platform")]
+[Trait("Pattern", "TRANSPORT")]
 public sealed class SqsTransportReceiverShould : IAsyncDisposable
 {
 	private readonly IAmazonSQS _fakeSqs = A.Fake<IAmazonSQS>();
@@ -184,8 +185,9 @@ public sealed class SqsTransportReceiverShould : IAsyncDisposable
 		};
 
 		// Act & Assert
-		await Should.ThrowAsync<InvalidOperationException>(() =>
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() =>
 			_receiver.AcknowledgeAsync(received, CancellationToken.None));
+		thrown.Retryability.ShouldBe(SettlementRetryability.Permanent);
 	}
 
 	[Fact]
@@ -357,29 +359,140 @@ public sealed class SqsTransportReceiverShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public async Task RethrowOnAcknowledgeError()
+	public async Task WrapAcknowledgeErrorWithPortableUncertainty()
 	{
 		// Arrange
 		var received = CreateReceivedMessage("msg-err", "receipt-err");
+		var native = new AmazonSQSException("Delete failed");
 		A.CallTo(() => _fakeSqs.DeleteMessageAsync(A<DeleteMessageRequest>._, A<CancellationToken>._))
-			.Throws(new AmazonSQSException("Delete failed"));
+			.Throws(native);
 
 		// Act & Assert
-		await Should.ThrowAsync<AmazonSQSException>(() =>
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() =>
 			_receiver.AcknowledgeAsync(received, CancellationToken.None));
+		AssertNativeFailure(thrown);
+		thrown.InnerException.ShouldBeSameAs(native);
 	}
 
 	[Fact]
-	public async Task RethrowOnRejectError()
+	public async Task WrapRejectErrorWithPortableUncertainty()
 	{
 		// Arrange
 		var received = CreateReceivedMessage("msg-rej-err", "receipt-rej");
+		var native = new AmazonSQSException("Visibility change failed");
 		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(A<ChangeMessageVisibilityRequest>._, A<CancellationToken>._))
-			.Throws(new AmazonSQSException("Visibility change failed"));
+			.Throws(native);
 
 		// Act & Assert
-		await Should.ThrowAsync<AmazonSQSException>(() =>
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() =>
 			_receiver.RejectAsync(received, "reason", true, CancellationToken.None));
+		AssertNativeFailure(thrown);
+		thrown.InnerException.ShouldBeSameAs(native);
+	}
+
+
+	[Theory]
+	[InlineData("acknowledge", false)]
+	[InlineData("reject", false)]
+	[InlineData("requeue", false)]
+	[InlineData("acknowledge", true)]
+	[InlineData("reject", true)]
+	[InlineData("requeue", true)]
+	public async Task WrapNativeTimeoutDespiteUnrelatedCallerCancellation(string action, bool cancelCaller)
+	{
+		using var caller = new CancellationTokenSource();
+		if (cancelCaller) caller.Cancel();
+		var native = new OperationCanceledException("native settlement timeout");
+		A.CallTo(() => _fakeSqs.DeleteMessageAsync(A<DeleteMessageRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromException<DeleteMessageResponse>(native));
+		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(A<ChangeMessageVisibilityRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromException<ChangeMessageVisibilityResponse>(native));
+		var received = CreateReceivedMessage("msg-timeout", "receipt-timeout");
+
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() => Settle(received, action, caller.Token));
+
+		AssertNativeFailure(thrown);
+		thrown.InnerException.ShouldBeSameAs(native);
+		received.ProviderData["sqs.receipt_handle"].ShouldBe("receipt-timeout");
+	}
+
+	[Theory]
+	[InlineData("acknowledge")]
+	[InlineData("reject")]
+	[InlineData("requeue")]
+	public async Task CompleteSettlementWithIndependentTokenWhenCallerIsCanceled(string action)
+	{
+		using var caller = new CancellationTokenSource();
+		caller.Cancel();
+		var observed = CancellationToken.None;
+		A.CallTo(() => _fakeSqs.DeleteMessageAsync(A<DeleteMessageRequest>._, A<CancellationToken>._))
+			.Invokes((DeleteMessageRequest _, CancellationToken token) => observed = token)
+			.Returns(new DeleteMessageResponse());
+		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(A<ChangeMessageVisibilityRequest>._, A<CancellationToken>._))
+			.Invokes((ChangeMessageVisibilityRequest _, CancellationToken token) => observed = token)
+			.Returns(new ChangeMessageVisibilityResponse());
+
+		await Settle(CreateReceivedMessage("msg-canceled", "receipt-canceled"), action, caller.Token);
+
+		observed.ShouldNotBe(caller.Token);
+		observed.CanBeCanceled.ShouldBeTrue();
+		observed.IsCancellationRequested.ShouldBeFalse();
+	}
+
+	[Theory]
+	[InlineData("acknowledge", false)]
+	[InlineData("reject", false)]
+	[InlineData("requeue", false)]
+	[InlineData("acknowledge", true)]
+	[InlineData("reject", true)]
+	[InlineData("requeue", true)]
+	public async Task RejectInvalidReceiptWithoutNativeIo(string action, bool malformed)
+	{
+		var message = new TransportReceivedMessage { Id = "invalid-receipt" };
+		if (malformed) message.ProviderData["sqs.receipt_handle"] = 123;
+
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() => Settle(message, action, CancellationToken.None));
+
+		thrown.TransportName.ShouldBe("Sqs");
+		thrown.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		thrown.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		A.CallTo(() => _fakeSqs.DeleteMessageAsync(A<DeleteMessageRequest>._, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(A<ChangeMessageVisibilityRequest>._, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Theory]
+	[InlineData("acknowledge")]
+	[InlineData("reject")]
+	[InlineData("requeue")]
+	public async Task PreserveExistingPortableSettlementFailureIdentity(string action)
+	{
+		var sentinel = new TransportSettlementException("already classified")
+		{
+			TransportName = "Sqs",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Expected,
+			Retryability = SettlementRetryability.Permanent,
+		};
+		A.CallTo(() => _fakeSqs.DeleteMessageAsync(A<DeleteMessageRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromException<DeleteMessageResponse>(sentinel));
+		A.CallTo(() => _fakeSqs.ChangeMessageVisibilityAsync(A<ChangeMessageVisibilityRequest>._, A<CancellationToken>._))
+			.Returns(Task.FromException<ChangeMessageVisibilityResponse>(sentinel));
+
+		var thrown = await Should.ThrowAsync<TransportSettlementException>(() =>
+			Settle(CreateReceivedMessage("sentinel-msg", "sentinel-receipt"), action, CancellationToken.None));
+
+		thrown.ShouldBeSameAs(sentinel);
+	}
+
+	private Task Settle(TransportReceivedMessage message, string action, CancellationToken token) =>
+		action == "acknowledge" ? _receiver.AcknowledgeAsync(message, token)
+			: _receiver.RejectAsync(message, "test reason", action == "requeue", token);
+
+	private static void AssertNativeFailure(TransportSettlementException thrown)
+	{
+		thrown.TransportName.ShouldBe("Sqs");
+		thrown.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		thrown.Retryability.ShouldBe(SettlementRetryability.Unspecified);
+		thrown.InnerException.ShouldNotBeNull();
 	}
 
 	private static TransportReceivedMessage CreateReceivedMessage(string id, string receiptHandle) =>

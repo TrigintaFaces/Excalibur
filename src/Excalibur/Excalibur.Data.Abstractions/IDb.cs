@@ -16,7 +16,8 @@ namespace Excalibur.Data;
 /// mapping of an optimistic-concurrency conflict to a typed <see cref="ConcurrencyException"/> — happens on
 /// the execute path over <see cref="Connection"/>, notably <see cref="DbConnectionExtensions"/>. That path
 /// propagates a <see cref="ConcurrencyException"/> (and any other application exception) to the caller
-/// unchanged; only non-application infrastructure faults are wrapped as an <see cref="OperationFailedException"/>.
+	/// unchanged. Resolver cancellation propagates unchanged with its token and canceled task status;
+	/// other non-application infrastructure faults are wrapped as an <see cref="OperationFailedException"/>.
 /// </para>
 /// <para>
 /// The lifecycle members below neither perform writes nor raise <see cref="ConcurrencyException"/>: an

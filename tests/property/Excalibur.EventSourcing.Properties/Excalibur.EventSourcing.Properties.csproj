@@ -33,6 +33,7 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance\Excalibur.Compliance.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />

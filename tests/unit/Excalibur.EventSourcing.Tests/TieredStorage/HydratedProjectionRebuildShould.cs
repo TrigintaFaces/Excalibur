@@ -32,7 +32,7 @@ public sealed class HydratedProjectionRebuildShould
         var fixture = new HydratedConsumerFixture(corruptLaterArchive);
         var projection = new MultiStreamProjection<Amounts>();
         projection.AddHandler<HydratedConsumerFixture.AmountAdded>((state, message) => state.Total += message.Amount);
-        var store = new InMemoryProjectionStore<Amounts>();
+        var store = new TestProjectionStore<Amounts>();
         var services = new ServiceCollection();
         services.AddSingleton<IGlobalStreamQuery>(fixture.Query);
         services.AddSingleton(projection);

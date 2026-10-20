@@ -10,6 +10,12 @@ namespace Excalibur.Compliance;
 /// </summary>
 /// <remarks>
 /// Fields marked with <see cref="PersonalDataAttribute"/> are the intended inputs to this encryptor.
+/// <para>
+/// Default crypto-shredding registrations retain this collaborator in singleton services. Replacement
+/// implementations retained by that default graph must support concurrent calls and lifetime-compatible
+/// dependencies. Existing registrations are preserved; scoped replacements are not promoted or made
+/// singleton-safe by this registration.
+/// </para>
 /// </remarks>
 public interface IFieldEncryptor
 {
@@ -19,6 +25,8 @@ public interface IFieldEncryptor
 	/// <remarks>
 	/// This write path fails closed: any encryption failure throws. It MUST NOT return plaintext or a
 	/// partially-protected value under any circumstances.
+	/// A resolved tenant context is required before key creation. The framework's single-tenant default
+	/// supplies that identity; an unresolved context is refused rather than treated as the default tenant.
 	/// </remarks>
 	/// <param name="subjectId">The raw data-subject identifier whose key protects the value.</param>
 	/// <param name="retentionScope">
@@ -31,6 +39,7 @@ public interface IFieldEncryptor
 	/// <param name="plaintext">The plaintext bytes to encrypt.</param>
 	/// <param name="cancellationToken">A token that is observed for cancellation.</param>
 	/// <returns>A task that completes with the subject-bound ciphertext envelope.</returns>
+	/// <exception cref="InvalidOperationException">The tenant context has no resolved, nonblank tenant identity.</exception>
 	ValueTask<EncryptedData> EncryptAsync(string subjectId, RetentionScope retentionScope, System.ReadOnlyMemory<byte> plaintext, CancellationToken cancellationToken);
 
 	/// <summary>
@@ -58,10 +67,15 @@ public interface IFieldEncryptor
 	/// </para>
 	/// </remarks>
 	/// <param name="envelope">The subject-bound ciphertext envelope to decrypt.</param>
+	/// <param name="expectedTenantId">
+	/// The owning tenant established by the authorized request or trusted stored-record metadata.
+	/// Do not derive this value from the supplied envelope. Missing or mismatched ownership is
+	/// rejected before any provider or destruction-ledger lookup, including for erased generations.
+	/// </param>
 	/// <param name="cancellationToken">A token that is observed for cancellation.</param>
 	/// <returns>
 	/// A task that completes with the decrypted plaintext bytes, or <see langword="null"/> when the
 	/// subject's key has been destroyed.
 	/// </returns>
-	ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, CancellationToken cancellationToken);
+	ValueTask<byte[]?> DecryptAsync(EncryptedData envelope, string expectedTenantId, CancellationToken cancellationToken);
 }

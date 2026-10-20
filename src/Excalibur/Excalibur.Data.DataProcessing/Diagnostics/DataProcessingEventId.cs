@@ -25,6 +25,9 @@ internal static class DataProcessingEventId
 	/// <summary>Processor not found for record type.</summary>
 	public const int ProcessorNotFound = 107000;
 
+	/// <summary>A data task was queued, naming the table and database it was written to.</summary>
+	public const int DataTaskQueued = 107006;
+
 	/// <summary>Error processing data task.</summary>
 	public const int ProcessingDataTaskError = 107001;
 

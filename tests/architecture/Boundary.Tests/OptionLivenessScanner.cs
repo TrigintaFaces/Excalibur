@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Immutable;
+using System.Buffers.Binary;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -34,6 +35,24 @@ namespace Boundary.Tests;
 /// </summary>
 internal static class OptionLivenessScanner
 {
+    private sealed record ForwardingAccessor(string AssemblyName, string TypeName, string MethodName, SignatureTypeCode ValueType)
+    {
+        public string Key => AssemblyName + "|" + TypeName + "::" + MethodName;
+    }
+
+    private sealed class ForwardingEvidence
+    {
+        public Dictionary<string, (OptionProperty Property, SignatureTypeCode Type)> Properties { get; } = new(StringComparer.Ordinal);
+
+        public List<(string Source, ForwardingAccessor Target)> Candidates { get; } = [];
+
+        public Dictionary<string, HashSet<string>> Groups { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, HashSet<string>> Callers { get; } = new(StringComparer.Ordinal);
+    }
+
+    private static string QualifiedGetter(OptionProperty property) => property.AssemblyName + "|" + property.GetterId;
+
 	/// <summary>One public settable property on one public <c>*Options</c> type.</summary>
 	internal sealed record OptionProperty(string AssemblyName, string DeclaringType, string PropertyName)
 	{
@@ -61,6 +80,11 @@ internal static class OptionLivenessScanner
 	/// whose receiver is an un-resolvable generic instantiation is credited to every same-named getter,
 	/// which can mask an inert one — <see cref="ScanResult.LiveOnlyViaUnresolvedReceiver"/> sizes that
 	/// residual so it is a measured quantity rather than an open-ended one.
+	/// Direct-base primitive forwarding is recognized only when both accessors have the verified
+	/// call-and-return shape and the canonical property is present in the scanned corpus. Other
+	/// delegation shapes and debug accessors containing locals or branches remain unrecognized.
+	/// Assembly qualification uses simple names; duplicate assembly names refuse the census.
+	/// Application/provider extensions outside this corpus require separate consumer evidence.
 	/// </para>
 	/// <para>
 	/// <b>Closed:</b> a read performed by the option's OWN validator or post-configurer no longer counts
@@ -104,6 +128,7 @@ internal static class OptionLivenessScanner
 	internal static ScanResult Scan(IEnumerable<string> assemblyPaths, bool excludeOwnPlumbing = true)
 	{
 		var population = new List<(OptionProperty Property, List<string> GetterAliases)>();
+		var forwarding = new ForwardingEvidence();
 
 		// getterId -> the set of types whose methods call it.
 		var callers = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -118,6 +143,7 @@ internal static class OptionLivenessScanner
 		var malformed = new List<string>();
 		var assemblies = 0;
 		var bodies = 0;
+		var assemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var path in assemblyPaths)
 		{
@@ -132,14 +158,18 @@ internal static class OptionLivenessScanner
 				}
 
 				var md = pe.GetMetadataReader();
-				assemblies++;
-
-				var assemblyName = Path.GetFileNameWithoutExtension(path);
+				var assemblyName = md.GetString(md.GetAssemblyDefinition().Name);
+                if (!assemblyNames.Add(assemblyName))
+                {
+                    unreadable.Add(Path.GetFileName(path) + ": duplicate assembly simple name " + assemblyName);
+                    continue;
+                }
+                assemblies++;
 				var methodOwner = BuildMethodOwnerMap(md);
 
-				CollectOptionProperties(md, assemblyName, population);
+				CollectOptionProperties(pe, md, assemblyName, population, forwarding);
 				CollectPlumbingTypes(md, plumbingFor);
-				bodies += CollectCalls(pe, md, methodOwner, callers, unresolvedGetterNames, malformed);
+				bodies += CollectCalls(pe, md, methodOwner, callers, unresolvedGetterNames, malformed, forwarding.Callers);
 			}
 			catch (Exception ex) when (ex is BadImageFormatException or IOException or InvalidOperationException)
 			{
@@ -149,13 +179,14 @@ internal static class OptionLivenessScanner
 			}
 		}
 
+		BuildForwardingGroups(forwarding);
 		if (!excludeOwnPlumbing)
 		{
 			plumbingFor.Clear();
 		}
 
 		var inert = population
-			.Where(entry => !IsRead(entry.Property, entry.GetterAliases, callers, unresolvedGetterNames, plumbingFor))
+			.Where(entry => !IsRead(entry.Property, entry.GetterAliases, callers, unresolvedGetterNames, plumbingFor, forwarding))
 			.Select(entry => entry.Property)
 			.OrderBy(p => p.Id, StringComparer.Ordinal)
 			.ToImmutableArray();
@@ -164,7 +195,7 @@ internal static class OptionLivenessScanner
 		// the walker could not resolve. Each is a maybe, not a read.
 		var unresolvedOnly = population
 			.Where(entry => unresolvedGetterNames.Contains("get_" + entry.Property.PropertyName)
-				&& !HasNamedReader(entry.Property, entry.GetterAliases, callers, plumbingFor))
+				&& !HasNamedReader(entry.Property, entry.GetterAliases, callers, plumbingFor, forwarding))
 			.Select(entry => entry.Property)
 			.OrderBy(p => p.Id, StringComparer.Ordinal)
 			.ToImmutableArray();
@@ -184,7 +215,8 @@ internal static class OptionLivenessScanner
 		List<string> getterAliases,
 		Dictionary<string, HashSet<string>> callers,
 		HashSet<string> unresolvedGetterNames,
-		Dictionary<string, HashSet<string>> plumbingFor)
+		Dictionary<string, HashSet<string>> plumbingFor,
+		ForwardingEvidence forwarding)
 	{
 		// A call whose receiver type could not be resolved (a generic instantiation) is credited to
 		// every getter of that name. Conservative: it can hide an inert option, never invent one.
@@ -193,7 +225,7 @@ internal static class OptionLivenessScanner
 			return true;
 		}
 
-		return HasNamedReader(property, getterAliases, callers, plumbingFor);
+		return HasNamedReader(property, getterAliases, callers, plumbingFor, forwarding);
 	}
 
 	/// <summary>
@@ -204,8 +236,19 @@ internal static class OptionLivenessScanner
 		OptionProperty property,
 		List<string> getterAliases,
 		Dictionary<string, HashSet<string>> callers,
-		Dictionary<string, HashSet<string>> plumbingFor)
+		Dictionary<string, HashSet<string>> plumbingFor,
+		ForwardingEvidence forwarding)
 	{
+        var owners = new HashSet<string>(StringComparer.Ordinal) { property.DeclaringType };
+        var key = QualifiedGetter(property);
+        forwarding.Groups.TryGetValue(key, out var group);
+        if (group is not null)
+        {
+            foreach (var member in group)
+            {
+                owners.Add(forwarding.Properties[member].Property.DeclaringType);
+            }
+        }
 		foreach (var getterId in getterAliases.Prepend(property.GetterId))
 		{
 			if (!callers.TryGetValue(getterId, out var callingTypes))
@@ -223,14 +266,18 @@ internal static class OptionLivenessScanner
 			// a check and comes back out as a pass or a fail, never into behaviour a consumer can
 			// observe. Crediting that read is how a validated-but-unobserved option passed as live.
 			if (callingTypes.Any(t =>
-				!string.Equals(t, property.DeclaringType, StringComparison.Ordinal)
-				&& !IsOwnPlumbing(t, property.DeclaringType, plumbingFor)))
+				!owners.Contains(t)
+				&& !owners.Any(owner => IsOwnPlumbing(t, owner, plumbingFor))))
 			{
 				return true;
 			}
 		}
 
-		return false;
+        // An alias is credited only after both accessors prove identical primitive storage,
+        // and only through a reader of the exact assembly-qualified accessor group.
+        return group is not null && group.Any(member =>
+            forwarding.Callers.TryGetValue(member, out var readers) && readers.Any(reader =>
+                !owners.Contains(reader) && !owners.Any(owner => IsOwnPlumbing(reader, owner, plumbingFor))));
 	}
 
 	private static bool IsOwnPlumbing(
@@ -343,9 +390,11 @@ internal static class OptionLivenessScanner
 	// ---- population ---------------------------------------------------------------------------
 
 	private static void CollectOptionProperties(
+		PEReader pe,
 		MetadataReader md,
 		string assemblyName,
-		List<(OptionProperty, List<string>)> population)
+		List<(OptionProperty, List<string>)> population,
+		ForwardingEvidence forwarding)
 	{
 		foreach (var typeHandle in md.TypeDefinitions)
 		{
@@ -396,10 +445,126 @@ internal static class OptionLivenessScanner
 				// case the read compiles to a call on the interface getter instead. Credit both.
 				var aliases = interfaceNames.Select(i => i + "::get_" + propertyName).ToList();
 
-				population.Add((new OptionProperty(assemblyName, declaringType, propertyName), aliases));
+                var option = new OptionProperty(assemblyName, declaringType, propertyName);
+				population.Add((option, aliases));
+                CollectForwardingProperty(pe, md, type, propertyName, getter, setter, option, forwarding);
 			}
 		}
 	}
+
+    private static void CollectForwardingProperty(
+        PEReader pe, MetadataReader md, TypeDefinition type, string propertyName,
+        MethodDefinition getter, MethodDefinition setter, OptionProperty option, ForwardingEvidence forwarding)
+    {
+        var valueType = PrimitiveAccessorType(md.GetBlobReader(getter.Signature), setter: false);
+        if (valueType is null || PrimitiveAccessorType(md.GetBlobReader(setter.Signature), setter: true) != valueType
+            || md.GetString(getter.Name) != "get_" + propertyName || md.GetString(setter.Name) != "set_" + propertyName)
+        {
+            return;
+        }
+
+        var source = QualifiedGetter(option);
+        forwarding.Properties[source] = (option, valueType.Value);
+        var read = ForwardingTarget(pe, md, getter, setter: false);
+        var write = ForwardingTarget(pe, md, setter, setter: true);
+        if (read is null || write is null || type.BaseType.IsNil)
+        {
+            return; // Interface properties and bodyless accessors cannot be forwarding bridges.
+        }
+        var baseName = TypeHandleName(md, type.BaseType);
+        var baseAssembly = TypeHandleAssembly(md, type.BaseType);
+        if (read is null || write is null || read.ValueType != valueType || write.ValueType != valueType
+            || read.TypeName != baseName || read.AssemblyName != baseAssembly
+            || write.TypeName != read.TypeName || write.AssemblyName != read.AssemblyName
+            || !read.MethodName.StartsWith("get_", StringComparison.Ordinal)
+            || write.MethodName != "set_" + read.MethodName[4..])
+        {
+            return;
+        }
+
+        forwarding.Candidates.Add((source, read));
+    }
+
+    private static void BuildForwardingGroups(ForwardingEvidence evidence)
+    {
+        foreach (var (source, target) in evidence.Candidates)
+        {
+            if (!evidence.Properties.TryGetValue(target.Key, out var canonical) || canonical.Type != target.ValueType)
+            {
+                continue; // An unscanned or mismatched canonical property is not evidence.
+            }
+
+            var members = new HashSet<string>(StringComparer.Ordinal) { source, target.Key };
+            if (evidence.Groups.TryGetValue(source, out var sourceGroup)) { members.UnionWith(sourceGroup); }
+            if (evidence.Groups.TryGetValue(target.Key, out var targetGroup)) { members.UnionWith(targetGroup); }
+            foreach (var member in members) { evidence.Groups[member] = members; }
+        }
+    }
+
+    private static SignatureTypeCode? PrimitiveAccessorType(BlobReader signature, bool setter)
+    {
+        var header = signature.ReadSignatureHeader();
+        if (header.Kind != SignatureKind.Method || !header.IsInstance || header.IsGeneric
+            || signature.ReadCompressedInteger() != (setter ? 1 : 0)) { return null; }
+        var result = signature.ReadSignatureTypeCode();
+        if (setter)
+        {
+            if (result != SignatureTypeCode.Void) { return null; }
+            result = signature.ReadSignatureTypeCode();
+        }
+
+        return signature.RemainingBytes == 0 && result is
+            SignatureTypeCode.Boolean or SignatureTypeCode.Char or SignatureTypeCode.SByte or SignatureTypeCode.Byte or
+            SignatureTypeCode.Int16 or SignatureTypeCode.UInt16 or SignatureTypeCode.Int32 or SignatureTypeCode.UInt32 or
+            SignatureTypeCode.Int64 or SignatureTypeCode.UInt64 or SignatureTypeCode.Single or SignatureTypeCode.Double or
+            SignatureTypeCode.String or SignatureTypeCode.Object or SignatureTypeCode.IntPtr or SignatureTypeCode.UIntPtr
+            ? result : null;
+    }
+
+    private static ForwardingAccessor? ForwardingTarget(PEReader pe, MetadataReader md, MethodDefinition method, bool setter)
+    {
+        if (method.RelativeVirtualAddress == 0) { return null; }
+        var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes();
+        if (il is null) { return null; }
+        var index = 0;
+        if (!ConsumeInstruction(il, ref index, 0x02) || (setter && !ConsumeInstruction(il, ref index, 0x03))
+            || !ConsumeInstruction(il, ref index, 0x28) || index + sizeof(int) > il.Length) { return null; }
+        var token = BinaryPrimitives.ReadInt32LittleEndian(il.AsSpan(index, sizeof(int)));
+        index += sizeof(int);
+        if (!ConsumeInstruction(il, ref index, 0x2A)) { return null; }
+        while (index < il.Length && il[index] == 0) { index++; }
+        if (index != il.Length) { return null; }
+        var handle = MetadataTokens.EntityHandle(token);
+        if (handle.Kind == HandleKind.MethodDefinition)
+        {
+            var target = md.GetMethodDefinition((MethodDefinitionHandle)handle);
+            var kind = PrimitiveAccessorType(md.GetBlobReader(target.Signature), setter);
+            return kind is null ? null : new ForwardingAccessor(md.GetString(md.GetAssemblyDefinition().Name),
+                FullName(md, target.GetDeclaringType()), md.GetString(target.Name), kind.Value);
+        }
+        if (handle.Kind != HandleKind.MemberReference) { return null; }
+        var member = md.GetMemberReference((MemberReferenceHandle)handle);
+        var valueType = PrimitiveAccessorType(md.GetBlobReader(member.Signature), setter);
+        var name = TypeHandleName(md, member.Parent);
+        var assembly = TypeHandleAssembly(md, member.Parent);
+        return valueType is null || name is null || assembly is null ? null :
+            new ForwardingAccessor(assembly, name, md.GetString(member.Name), valueType.Value);
+    }
+
+    private static bool ConsumeInstruction(byte[] il, ref int index, byte expected)
+    {
+        while (index < il.Length && il[index] == 0) { index++; }
+        return index < il.Length && il[index++] == expected;
+    }
+
+    private static string? TypeHandleAssembly(MetadataReader md, EntityHandle handle)
+    {
+        if (handle.Kind == HandleKind.TypeDefinition) { return md.GetString(md.GetAssemblyDefinition().Name); }
+        if (handle.Kind != HandleKind.TypeReference) { return null; }
+        var scope = md.GetTypeReference((TypeReferenceHandle)handle).ResolutionScope;
+        return scope.Kind == HandleKind.AssemblyReference ? md.GetString(md.GetAssemblyReference((AssemblyReferenceHandle)scope).Name) :
+            scope.Kind == HandleKind.TypeReference ? TypeHandleAssembly(md, scope) : null;
+    }
 
 	private static bool IsPublic(MethodDefinition method) =>
 		(method.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public;
@@ -445,7 +610,8 @@ internal static class OptionLivenessScanner
 		Dictionary<int, string> methodOwner,
 		Dictionary<string, HashSet<string>> callers,
 		HashSet<string> unresolvedGetterNames,
-		List<string> malformed)
+		List<string> malformed,
+		Dictionary<string, HashSet<string>> qualifiedCallers)
 	{
 		var bodies = 0;
 		var tokens = new List<int>();
@@ -479,7 +645,7 @@ internal static class OptionLivenessScanner
 
 			foreach (var token in tokens)
 			{
-				RecordCall(md, methodOwner, token, callerType, callers, unresolvedGetterNames);
+				RecordCall(md, methodOwner, token, callerType, callers, unresolvedGetterNames, qualifiedCallers);
 			}
 		}
 
@@ -492,7 +658,8 @@ internal static class OptionLivenessScanner
 		int token,
 		string callerType,
 		Dictionary<string, HashSet<string>> callers,
-		HashSet<string> unresolvedGetterNames)
+		HashSet<string> unresolvedGetterNames,
+		Dictionary<string, HashSet<string>> qualifiedCallers)
 	{
 		if (token == 0)
 		{
@@ -512,24 +679,27 @@ internal static class OptionLivenessScanner
 
 		string? calleeName;
 		string? calleeType;
+        string? calleeAssembly;
 
 		switch (handle.Kind)
 		{
 			case HandleKind.MethodDefinition:
 				calleeName = md.GetString(md.GetMethodDefinition((MethodDefinitionHandle)handle).Name);
 				calleeType = methodOwner.TryGetValue(token, out var owner) ? owner : null;
+                calleeAssembly = md.GetString(md.GetAssemblyDefinition().Name);
 				break;
 
 			case HandleKind.MemberReference:
 				var memberRef = md.GetMemberReference((MemberReferenceHandle)handle);
 				calleeName = md.GetString(memberRef.Name);
 				calleeType = TypeHandleName(md, memberRef.Parent);
+                calleeAssembly = TypeHandleAssembly(md, memberRef.Parent);
 				break;
 
 			case HandleKind.MethodSpecification:
 				// Generic method instantiation: unwrap to the open method and re-record.
 				var spec = md.GetMethodSpecification((MethodSpecificationHandle)handle);
-				RecordCall(md, methodOwner, MetadataTokens.GetToken(spec.Method), callerType, callers, unresolvedGetterNames);
+				RecordCall(md, methodOwner, MetadataTokens.GetToken(spec.Method), callerType, callers, unresolvedGetterNames, qualifiedCallers);
 				return;
 
 			default:
@@ -555,6 +725,16 @@ internal static class OptionLivenessScanner
 		}
 
 		set.Add(callerType);
+        if (calleeAssembly is not null)
+        {
+            var qualified = calleeAssembly + "|" + key;
+            if (!qualifiedCallers.TryGetValue(qualified, out var readers))
+            {
+                readers = new HashSet<string>(StringComparer.Ordinal);
+                qualifiedCallers[qualified] = readers;
+            }
+            readers.Add(callerType);
+        }
 	}
 
 	// ---- names --------------------------------------------------------------------------------

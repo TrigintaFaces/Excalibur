@@ -145,6 +145,8 @@ public sealed class SplunkServiceCollectionExtensionsShould
 			["Splunk:Connection:HecEndpoint"] = "https://splunk.example.com:8088/services/collector",
 			["Splunk:Connection:HecToken"] = "test-token",
 			["Splunk:Batch:RequestTimeout"] = "00:00:42",
+			["Splunk:Batch:MaxRetryAttempts"] = "2",
+			["Splunk:Batch:RetryBaseDelay"] = "00:00:01",
 			["Splunk:Connection:ValidateCertificate"] = "true"
 		};
 		var configuration = new ConfigurationBuilder()
@@ -160,18 +162,21 @@ public sealed class SplunkServiceCollectionExtensionsShould
 			splunk.BindConfiguration("Splunk"));
 		using var provider = services.BuildServiceProvider();
 
-		// Assert - the per-request timeout now lives on the standard resilience pipeline's AttemptTimeout
-		// (bd-b7i6rh: the Polly-backed resilience handler owns timeouts, so HttpClient.Timeout is left
-		// Infinite and RequestTimeout binds into the handler instead). Assert RequestTimeout flowed there.
+		// Microsoft names the standard pipeline after the client and the standard handler identifier.
+		// Looking up the client name alone creates unrelated default options, hiding the configured pipeline.
 		var resilience = provider
 			.GetRequiredService<IOptionsMonitor<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>>()
-			.Get(nameof(SplunkAuditExporter));
+			.Get(nameof(SplunkAuditExporter) + "-standard");
 		resilience.AttemptTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(42));
+		resilience.Retry.MaxRetryAttempts.ShouldBe(2);
+		resilience.Retry.Delay.ShouldBe(TimeSpan.FromSeconds(1));
+		resilience.TotalRequestTimeout.Timeout.ShouldBe(TimeSpan.FromSeconds(126));
+		resilience.CircuitBreaker.SamplingDuration.ShouldBe(TimeSpan.FromSeconds(84));
 
-		// ...and the HttpClient itself is deliberately Infinite (the pipeline bounds each attempt).
+		// The client retains a total deadline so buffering the response body is bounded too.
 		var factory = provider.GetRequiredService<IHttpClientFactory>();
 		using var client = factory.CreateClient(nameof(SplunkAuditExporter));
-		client.Timeout.ShouldBe(System.Threading.Timeout.InfiniteTimeSpan);
+		client.Timeout.ShouldBe(TimeSpan.FromSeconds(126));
 	}
 
 	[Fact]

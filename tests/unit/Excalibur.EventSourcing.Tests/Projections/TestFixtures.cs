@@ -53,17 +53,25 @@ public sealed class TestOrderShipped : IDomainEvent
 	public DateTimeOffset ShippedAt { get; init; } = DateTimeOffset.UtcNow;
 }
 
+
 /// <summary>
-/// In-memory projection store for testing without external dependencies.
+/// A projection-store TEST DOUBLE with a synchronous accessor.
 /// </summary>
-internal sealed class InMemoryProjectionStore<T> : IProjectionStore<T>
+/// <remarks>
+/// Deliberately NOT the shipped <see cref="Excalibur.EventSourcing.Projections.InMemoryProjectionStore{TProjection}"/>,
+/// and named so the two cannot be confused. This one exists for the synchronous <see cref="Get"/> helper
+/// that dozens of arms assert through, and it IGNORES filters entirely in <see cref="QueryAsync"/> --
+/// which means any arm asserting a filtered query through it is vacuous. The shipped store honours the
+/// shared filter grammar; prefer it for anything that queries.
+/// </remarks>
+internal sealed class TestProjectionStore<T> : IProjectionStore<T>
 	where T : class
 {
-	private readonly Dictionary<string, T> _store = new();
+	private readonly Dictionary<string, T> _store = [];
 
 	public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken)
 	{
-		_store.TryGetValue(id, out var result);
+		_ = _store.TryGetValue(id, out var result);
 		return Task.FromResult(result);
 	}
 
@@ -75,28 +83,22 @@ internal sealed class InMemoryProjectionStore<T> : IProjectionStore<T>
 
 	public Task DeleteAsync(string id, CancellationToken cancellationToken)
 	{
-		_store.Remove(id);
+		_ = _store.Remove(id);
 		return Task.CompletedTask;
 	}
 
 	public Task<IReadOnlyList<T>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
-		CancellationToken cancellationToken)
-	{
-		return Task.FromResult<IReadOnlyList<T>>(_store.Values.ToList());
-	}
+		CancellationToken cancellationToken) =>
+		Task.FromResult<IReadOnlyList<T>>([.. _store.Values]);
 
 	public Task<long> CountAsync(
 		IDictionary<string, object>? filters,
-		CancellationToken cancellationToken)
-	{
-		return Task.FromResult((long)_store.Count);
-	}
+		CancellationToken cancellationToken) =>
+		Task.FromResult((long)_store.Count);
 
-	/// <summary>
-	/// Test helper: get stored projection directly.
-	/// </summary>
+	/// <summary>Test helper: read a stored projection without awaiting.</summary>
 	internal T? Get(string id) => _store.TryGetValue(id, out var v) ? v : null;
 }
 

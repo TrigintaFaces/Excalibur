@@ -199,6 +199,20 @@ start** a composition that cannot state one:
   verification, about a handle, at completion — if an earlier note had you add a version-scoped or
   generation-scoped overload, delete it.
 
+One change makes the crypto-shredding read path establish WHO is asking, and it is a compile error:
+
+- **[Decryption requires the caller's tenant](decryption-requires-the-callers-tenant.md)** --
+  `IFieldEncryptor.DecryptAsync` and `SubjectFieldCryptor.DecryptFieldsAsync` each gained an
+  `expectedTenantId`, taken from the authorized request or trusted stored-record metadata and **never from
+  the envelope being decrypted** -- an envelope is input, so a component that reads ownership out of it
+  authorises anything shaped correctly. A blank or mismatched tenant raises `CryptographicException`
+  ordinally, **before the destruction ledger is consulted**, so another tenant's erased envelope cannot come
+  back as a lawful `null` tombstone. A host that registers through `AddCryptoShredding()` and never calls
+  the cryptor directly has nothing to change. **The part a recompile will not surface:** envelopes written
+  before the write path began stamping a tenant carry none, and a blank envelope tenant is refused -- so
+  crypto-shredded data written by `10.0.0-alpha.14` or earlier stops decrypting until its envelopes are
+  re-stamped. That is a loud refusal rather than data loss; the ciphertext and the key are untouched.
+
 One change needs a **database migration** and will stop your application starting until you run it, and it
 also touches any code that reads an erasure certificate's retention entries:
 

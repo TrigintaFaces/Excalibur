@@ -51,10 +51,10 @@ public sealed class OutboxPayloadSizeGuardShould
 		registry.RegisterTransport("kafka", adapter, "Kafka", TransportLocality.Remote);
 
 		var publisher = new MessageBusOutboxPublisher(
-			store, A.Fake<IPayloadSerializer>(), registry, ServiceProviderWithLimit(maxPayloadBytes),
+			store, OutboxFakeCapabilityExtensions.CreateRegisteredSerializer(), registry, ServiceProviderWithLimit(maxPayloadBytes),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 
-		var message = new OutboundMessage("OrderCreated", payload, "orders-default");
+		var message = new OutboundMessage(OutboxFakeCapabilityExtensions.RegisteredMessageType, payload, "orders-default");
 		var transport = new OutboundMessageTransport(message.Id, "kafka") { Destination = "orders-topic" };
 		A.CallTo(() => admin.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
 			.Returns(new[] { (message, transport) });

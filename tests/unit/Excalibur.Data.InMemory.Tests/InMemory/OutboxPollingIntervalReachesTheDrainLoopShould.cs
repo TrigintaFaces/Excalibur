@@ -100,4 +100,118 @@ public sealed class OutboxPollingIntervalReachesTheDrainLoopShould
 
 		options.FailureBackoffFloorSeconds.ShouldBe(30);
 	}
+    [Theory]
+    [InlineData(-2d)]
+    [InlineData(4294967295d)]
+    public void RefuseUnsupportedFinalPollingTimeoutAtStartup(double milliseconds)
+    {
+        var delay = TimeSpan.FromMilliseconds(milliseconds);
+        Should.Throw<ArgumentOutOfRangeException>(() => Task.Delay(delay, new CancellationToken(true)));
+        using var provider = BuildFinalOptionsProvider(options => options.PollingInterval = delay);
+        AssertStartupRefuses(provider, nameof(OutboxProcessingOptions.PollingInterval));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(int.MaxValue)]
+    public void RefuseUnsupportedFinalDrainTimeoutAtStartup(int seconds)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => { using var unsupported = new CancellationTokenSource(TimeSpan.FromSeconds(seconds)); });
+        using var provider = BuildFinalOptionsProvider(options => options.DrainTimeoutSeconds = seconds);
+        AssertStartupRefuses(provider, nameof(OutboxProcessingOptions.DrainTimeoutSeconds));
+    }
+
+    [Fact]
+    public void RefuseNegativeFinalRetryCountAtStartup()
+    {
+        using var provider = BuildFinalOptionsProvider(options => options.MaxRetries = -1);
+        AssertStartupRefuses(provider, nameof(OutboxProcessingOptions.MaxRetries));
+    }
+
+    [Theory]
+    [InlineData(0d)]
+    [InlineData(-1d)]
+    [InlineData(-1.5d)]
+    [InlineData(0.5d)]
+    [InlineData(4294967294d)]
+    public void PreserveNativeSupportedPollingAndImmediateDrainPolicies(double milliseconds)
+    {
+        var delay = TimeSpan.FromMilliseconds(milliseconds);
+        Task.Delay(delay, new CancellationToken(true)).IsCanceled.ShouldBeTrue();
+        using var immediateDrain = new CancellationTokenSource(TimeSpan.Zero);
+        immediateDrain.IsCancellationRequested.ShouldBeTrue();
+        using var provider = BuildFinalOptionsProvider(options =>
+        {
+            options.PollingInterval = delay;
+            options.DrainTimeoutSeconds = 0;
+            options.MaxRetries = 0;
+            options.Enabled = false;
+        });
+        provider.GetRequiredService<IStartupValidator>().Validate();
+        var finalOptions = provider.GetRequiredService<IOptions<OutboxProcessingOptions>>().Value;
+        finalOptions.PollingInterval.ShouldBe(delay);
+        finalOptions.DrainTimeoutSeconds.ShouldBe(0);
+        finalOptions.MaxRetries.ShouldBe(0);
+        finalOptions.Enabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void KeepValidationRegistrationStableAcrossRepeatedOutboxRegistration()
+    {
+        var services = new ServiceCollection();
+        services.AddExcaliburOutbox(outbox => outbox.UseInMemory());
+        var validators = services.Count(descriptor => descriptor.ServiceType == typeof(IValidateOptions<OutboxProcessingOptions>));
+        var startupValidators = services.Count(descriptor => descriptor.ServiceType == typeof(IStartupValidator));
+        validators.ShouldBeGreaterThan(0);
+        services.AddExcaliburOutbox(outbox => outbox.UseInMemory());
+        services.Count(descriptor => descriptor.ServiceType == typeof(IValidateOptions<OutboxProcessingOptions>)).ShouldBe(validators);
+        services.Count(descriptor => descriptor.ServiceType == typeof(IStartupValidator)).ShouldBe(startupValidators);
+    }
+
+    [Fact]
+    public void ValidateAfterConsumerPostConfigurationAndAlongsideConsumerValidators()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions<OutboxProcessingOptions>().Validate(_ => true);
+        services.AddExcaliburOutbox(outbox => outbox.UseInMemory());
+        services.PostConfigure<OutboxProcessingOptions>(options => options.MaxRetries = -1);
+        using var provider = services.BuildServiceProvider();
+        AssertStartupRefuses(provider, nameof(OutboxProcessingOptions.MaxRetries));
+    }
+    private static void AssertStartupRefuses(ServiceProvider provider, string property)
+    {
+        Exception? failure = null;
+        try
+        {
+            provider.GetRequiredService<IStartupValidator>().Validate();
+        }
+        catch (OptionsValidationException exception)
+        {
+            failure = exception;
+        }
+        catch (AggregateException exception)
+        {
+            failure = exception;
+        }
+        failure.ShouldNotBeNull();
+        var errors = failure is AggregateException aggregate
+            ? aggregate.Flatten().InnerExceptions.ToArray()
+            : new[] { failure };
+        errors.ShouldNotBeEmpty();
+        foreach (var error in errors)
+        {
+            var validation = error.ShouldBeOfType<OptionsValidationException>();
+            validation.OptionsType.ShouldBe(typeof(OutboxProcessingOptions));
+            validation.Failures.ShouldContain(message => message.Contains(property, StringComparison.Ordinal));
+        }
+    }
+    private static ServiceProvider BuildFinalOptionsProvider(Action<OutboxProcessingOptions> configure)
+    {
+        var services = new ServiceCollection();
+        services.AddExcaliburOutbox(outbox => outbox.UseInMemory()
+            .WithProcessing(processing => processing.PollingInterval(TimeSpan.FromMilliseconds(250))));
+        services.Configure<InMemoryOutboxOptions>(options => options.FailureBackoffFloorSeconds = int.MaxValue);
+        services.Configure(configure);
+        return services.BuildServiceProvider();
+    }
 }

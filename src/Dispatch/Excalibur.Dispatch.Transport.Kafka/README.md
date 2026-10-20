@@ -316,11 +316,13 @@ The default is `CorrelationId`.
 
 | Type | Characteristics |
 |------|-----------------|
-| `None` | No compression (fastest, largest) |
-| `Gzip` | Good compression, slower |
-| `Snappy` | Balanced speed/compression (recommended) |
-| `Lz4` | Fastest compression |
-| `Zstd` | Best compression ratio |
+| `None` | Sends uncompressed payloads |
+| `Gzip` | Gzip compression |
+| `Snappy` | Snappy compression |
+| `Lz4` | LZ4 compression |
+| `Zstd` | Zstandard compression |
+
+Measure CPU use, payload size, and throughput with your messages before selecting a compression algorithm.
 
 ### Retry Policies
 

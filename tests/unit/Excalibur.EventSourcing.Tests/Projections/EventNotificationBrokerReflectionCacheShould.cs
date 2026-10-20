@@ -28,7 +28,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 	{
 		if (sp == null)
 		{
-			_services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+			_services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 			sp = _services.BuildServiceProvider();
 		}
 
@@ -54,7 +54,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		// Arrange — register handler, invoke twice to exercise the cache path
 		var invokeCount = 0;
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+		services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 		var handler = new DelegatingHandler<TestOrderPlaced>((_, _, _) =>
 		{
 			Interlocked.Increment(ref invokeCount);
@@ -81,7 +81,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		var placedCount = 0;
 		var shippedCount = 0;
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+		services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 
 		services.AddSingleton<IEventNotificationHandler<TestOrderPlaced>>(
 			new DelegatingHandler<TestOrderPlaced>((_, _, _) =>
@@ -119,7 +119,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 	{
 		// Arrange — handler throws, Propagate policy should use ExceptionDispatchInfo.Throw
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+		services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 
 		var thrownException = new InvalidOperationException("original error");
 		services.AddSingleton<IEventNotificationHandler<TestOrderPlaced>>(
@@ -159,7 +159,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 	{
 		// Arrange — handler throws, LogAndContinue should not propagate
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+		services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 		services.AddSingleton<IEventNotificationHandler<TestOrderPlaced>>(
 			new DelegatingHandler<TestOrderPlaced>((_, _, _) =>
 				throw new InvalidOperationException("swallowed")));

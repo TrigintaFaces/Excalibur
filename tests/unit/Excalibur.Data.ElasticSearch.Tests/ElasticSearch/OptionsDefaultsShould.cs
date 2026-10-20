@@ -57,9 +57,9 @@ public sealed class OptionsDefaultsShould
 	}
 
 	[Fact]
-	public void ProjectionOptionsHaveCorrectDefaults()
+	public void ElasticSearchProjectionManagementOptionsHaveCorrectDefaults()
 	{
-		var options = new ProjectionOptions();
+		var options = new ElasticSearchProjectionManagementOptions();
 
 		options.IndexPrefix.ShouldBe("projections");
 		options.ErrorHandling.ShouldNotBeNull();

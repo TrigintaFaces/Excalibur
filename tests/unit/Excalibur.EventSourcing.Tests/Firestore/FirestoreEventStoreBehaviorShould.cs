@@ -219,12 +219,13 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 			Metadata = [4, 5],
 			Version = 8,
 			Timestamp = DateTimeOffset.UtcNow,
-			PartitionKeyValue = "Order:agg-1"
+			PartitionKeyValue = "t:tenant-from-store:Order:agg-1"
 		};
 
 		var stored = (StoredEvent)method!.Invoke(null, [cloud])!;
 		stored.EventId.ShouldBe("evt-1");
 		stored.AggregateType.ShouldBe("Order");
+		stored.TenantId.ShouldBe("tenant-from-store");
 		stored.Version.ShouldBe(8);
 	}
 

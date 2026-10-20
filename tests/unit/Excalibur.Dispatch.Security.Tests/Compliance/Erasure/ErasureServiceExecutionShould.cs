@@ -648,6 +648,7 @@ public sealed class ErasureServiceExecutionShould
 		new()
 		{
 			RequestId = requestId,
+			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			DataSubjectIdHash = "hash-value",
 			IdType = DataSubjectIdType.UserId,
 			Scope = ErasureScope.User,

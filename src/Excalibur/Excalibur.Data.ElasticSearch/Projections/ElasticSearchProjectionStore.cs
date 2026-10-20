@@ -16,6 +16,7 @@ using Elastic.Transport;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.ElasticSearch.Exceptions;
+using Excalibur.Data.ElasticSearch.Internal;
 using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging;
@@ -52,8 +53,14 @@ public sealed partial class ElasticSearchProjectionStore<
 	IAsyncDisposable
 	where TProjection : class
 {
-	private static readonly IReadOnlyDictionary<string, ProjectionFieldDefinition> FieldDefinitions =
-		BuildFieldDefinitions();
+	// The index mapping and the query-side field table are ONE object, built once in the constructor.
+	// They used to be two calls to the same builder, and only the index's call had the mapping convention
+	// applied to it -- the field table was static and so could not read the instance options at all. Exact
+	// match and sort then addressed pre-convention field names against a post-convention index and matched
+	// nothing. Deriving both from one field makes that divergence inexpressible.
+	private readonly Properties _declaredMapping;
+
+	private readonly IReadOnlyDictionary<string, ProjectionFieldDefinition> _fieldDefinitions;
 
 	/// <summary>
 	/// The named options key used for this projection type.
@@ -92,6 +99,8 @@ public sealed partial class ElasticSearchProjectionStore<
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
 		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
+		_declaredMapping = BuildDeclaredIndexMapping();
+		_fieldDefinitions = BuildFieldDefinitions(_declaredMapping);
 	}
 
 	/// <summary>
@@ -116,6 +125,8 @@ public sealed partial class ElasticSearchProjectionStore<
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
 		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
+		_declaredMapping = BuildDeclaredIndexMapping();
+		_fieldDefinitions = BuildFieldDefinitions(_declaredMapping);
 	}
 
 	private enum ProjectionFieldType
@@ -664,10 +675,10 @@ public sealed partial class ElasticSearchProjectionStore<
 		return q => q.Term(t => t.Field("_nonexistent_field_").Value("impossible_value"));
 	}
 
-	private static ProjectionFieldDefinition ResolveFieldDefinition(string propertyName)
+	private ProjectionFieldDefinition ResolveFieldDefinition(string propertyName)
 	{
 		if (!string.IsNullOrWhiteSpace(propertyName) &&
-			FieldDefinitions.TryGetValue(propertyName, out var definition))
+			_fieldDefinitions.TryGetValue(propertyName, out var definition))
 		{
 			return definition;
 		}
@@ -698,7 +709,32 @@ public sealed partial class ElasticSearchProjectionStore<
 		return GetExactMatchFieldName(fieldName, requiresKeywordSuffix);
 	}
 
-	private static IReadOnlyDictionary<string, ProjectionFieldDefinition> BuildFieldDefinitions()
+	// The ONE place an index mapping for this projection is composed. Both the index and the query-side
+	// field table come from its result, so a transform added here reaches both by construction.
+	private Properties BuildDeclaredIndexMapping()
+	{
+		var properties = ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
+
+		// Mapped EXPLICITLY, not left to dynamic mapping. The position is a field the projection type
+		// does not declare, so the mapping built from its public properties cannot contain it. Under the
+		// default dynamic mapping the engine would infer `long` and the write would work -- but a
+		// consumer who sets `dynamic: strict` through the index convention would have every positioned
+		// write REJECTED for an undeclared field, and nothing in this store would explain why. Declaring
+		// it removes the dependence on a setting we do not control.
+		properties[PositionField] = new LongNumberProperty();
+
+		// Convention-based customization, applied last so it can override anything above. This allows
+		// consumers to globally override mapping defaults (e.g. text + keyword multi-fields for strings)
+		// without implementing IElasticIndexConfiguration<T> per type.
+		var convention = _options.Index.IndexMappingConvention;
+
+		return convention is not null
+			? convention.ConfigureMappings(typeof(TProjection), properties)
+			: properties;
+	}
+
+	private static IReadOnlyDictionary<string, ProjectionFieldDefinition> BuildFieldDefinitions(
+		Properties declaredMapping)
 	{
 		var definitions = new Dictionary<string, ProjectionFieldDefinition>(
 			StringComparer.OrdinalIgnoreCase);
@@ -707,7 +743,6 @@ public sealed partial class ElasticSearchProjectionStore<
 		// index is built from (ElasticIndexMappingBuilder) — explicit (IElasticIndexConfiguration) or inferred.
 		// This makes query-side field naming consistent-by-construction with the index mapping instead of a
 		// second source of truth (the runtime PropertyType) that re-diverged on every field-type addition.
-		var declaredMapping = ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
 		var declaredByName = new Dictionary<string, IProperty>(StringComparer.OrdinalIgnoreCase);
 		foreach (var mapping in declaredMapping)
 		{
@@ -817,7 +852,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		return descriptor;
 	}
 
-	private static Action<QueryDescriptor<TProjection>> BuildQuery(IDictionary<string, object>? filters)
+	private Action<QueryDescriptor<TProjection>> BuildQuery(IDictionary<string, object>? filters)
 	{
 		return q =>
 		{
@@ -868,39 +903,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			}
 			if (_client is null)
 			{
-				ElasticsearchClientSettings settings;
-
-				if (_options.NodeUris is { Count: > 0 } uris)
-				{
-					NodePool pool = _options.ConnectionPoolType switch
-					{
-						ConnectionPoolType.Sniffing => new SniffingNodePool(uris),
-						_ => new StaticNodePool(uris),
-					};
-					settings = new ElasticsearchClientSettings(pool)
-						.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
-				}
-				else
-				{
-					settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
-						.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
-				}
-
-				if (_options.EnableDebugMode)
-				{
-					settings = settings.DisableDirectStreaming();
-				}
-
-				if (!string.IsNullOrWhiteSpace(_options.Auth.ApiKey))
-				{
-					settings = settings.Authentication(new ApiKey(_options.Auth.ApiKey));
-				}
-				else if (!string.IsNullOrWhiteSpace(_options.Auth.Username) && !string.IsNullOrWhiteSpace(_options.Auth.Password))
-				{
-					settings = settings.Authentication(new BasicAuthentication(_options.Auth.Username, _options.Auth.Password));
-				}
-
-				_client = new ElasticsearchClient(settings);
+				_client = new ElasticsearchClient(ElasticSearchProjectionClientSettings.Create(_options));
 			}
 
 			if (_options.Index.CreateIndexOnInitialize)
@@ -928,32 +931,12 @@ public sealed partial class ElasticSearchProjectionStore<
 			return;
 		}
 
-		// Build explicit field mappings for the projection type using the three-tier strategy:
-		// 1. Explicit: IElasticIndexConfiguration<TProjection> (consumer-declared, full control)
-		// 2. Inferred: Reflection over public properties (keyword for strings, long/double for numerics, etc.)
-		// 3. Dynamic: Elasticsearch guesses (only for unknown/complex types not covered by tiers 1-2)
-		//
-		// Projections are stored flat — the TProjection is the document root. Each projection
-		// type gets its own index (via ElasticSearchProjectionIndexConvention), so no envelope
-		// metadata (projectionType discriminator, etc.) is needed.
-		var properties = ElasticIndexMappingBuilder.BuildMappingProperties<TProjection>();
-
-		// Mapped EXPLICITLY, not left to dynamic mapping. The position is a field the projection type
-		// does not declare, so the mapping built from its public properties cannot contain it. Under the
-		// default dynamic mapping the engine would infer `long` and the write would work -- but a
-		// consumer who sets `dynamic: strict` through the index convention would have every positioned
-		// write REJECTED for an undeclared field, and nothing in this store would explain why. Declaring
-		// it removes the dependence on a setting we do not control.
-		properties[PositionField] = new LongNumberProperty();
-
-		// Apply convention-based customization if configured.
-		// This allows consumers to globally override mapping defaults (e.g., text + keyword
-		// multi-fields for strings) without implementing IElasticIndexConfiguration<T> per type.
-		var convention = _options.Index.IndexMappingConvention;
-		if (convention is not null)
-		{
-			properties = convention.ConfigureMappings(typeof(TProjection), properties);
-		}
+		// The mapping composed in the constructor, which the query-side field table is also derived from.
+		// Three-tier strategy, in BuildDeclaredIndexMapping: explicit IElasticIndexConfiguration<TProjection>,
+		// then reflection over public properties, then whatever Elasticsearch infers dynamically for types
+		// neither covers. Projections are stored flat -- the TProjection is the document root, and each type
+		// gets its own index, so no envelope metadata is needed.
+		var properties = _declaredMapping;
 
 		var createResponse = await _client!.Indices
 			.CreateAsync(_indexName, c => c
@@ -965,11 +948,19 @@ public sealed partial class ElasticSearchProjectionStore<
 					.Properties(properties)), cancellationToken)
 			.ConfigureAwait(false);
 
-		if (!createResponse.IsValidResponse && !createResponse.Acknowledged)
+		if (!ElasticIndexProvisioning.Failed(createResponse))
 		{
-			var errorMessage = createResponse.ApiCallDetails?.ToString() ?? "Unknown error";
-			LogIndexCreationFailed(_indexName, errorMessage);
+			return;
 		}
+
+		// Raise rather than serve. The declared mapping, the position field, the shard and replica counts
+		// and the refresh interval all live in this request, so a store that carries on after it failed has
+		// the first write auto-create the index with a dynamically inferred mapping -- discarding every one
+		// of those settings while reporting healthy.
+		var errorMessage = createResponse.ApiCallDetails?.ToString() ?? "Unknown error";
+		LogIndexCreationFailed(_indexName, errorMessage);
+
+		throw new InvalidOperationException($"Failed to create index '{_indexName}': {errorMessage}");
 	}
 
 	[LoggerMessage(DataElasticsearchEventId.ProjectionStoreInitialized, LogLevel.Information,

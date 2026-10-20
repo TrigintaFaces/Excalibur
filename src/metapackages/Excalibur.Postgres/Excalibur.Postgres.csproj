@@ -5,6 +5,7 @@
     <PackageId>Excalibur.Postgres</PackageId>
     <Description>Complete PostgreSQL metapackage for Excalibur: event sourcing, inbox, sagas, leader election, audit logging, compliance, and data access in a single package reference. The outbox is not registered -- its PostgreSQL store requires an application-supplied Excalibur.Data.IDb.</Description>
     <PackageTags>excalibur;postgres;postgresql;event-sourcing;outbox;inbox;saga;leader-election;audit;compliance;metapackage</PackageTags>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>
@@ -34,5 +35,15 @@
     <ProjectReference Include="..\..\Excalibur\Excalibur.Compliance.Postgres\Excalibur.Compliance.Postgres.csproj" />
     <!-- Data Access -->
     <ProjectReference Include="..\..\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for the same persistence stack -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Inbox.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Saga.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.LeaderElection.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.AuditLogging.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Compliance.Postgres" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Data.Postgres" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
 </Project>

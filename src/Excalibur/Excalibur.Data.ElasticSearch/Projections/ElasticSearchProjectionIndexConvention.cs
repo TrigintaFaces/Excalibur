@@ -37,6 +37,26 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 public static class ElasticSearchProjectionIndexConvention
 {
 	/// <summary>
+	/// The name of the options instance a projection's store settings live under.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type.</typeparam>
+	/// <returns>The options name — the projection's unqualified type name.</returns>
+	/// <remarks>
+	/// <para>
+	/// Use this rather than writing <c>nameof(MyProjection)</c> at the call site. It was derived
+	/// independently in three places — the store, the registration, and every consumer repository that
+	/// reads the same bucket — and three derivations of one fact are three chances for one to drift.
+	/// </para>
+	/// <para>
+	/// The name is the projection's UNQUALIFIED type name, so two projection types that share a simple
+	/// name in different namespaces would share one options instance and therefore one index. Registering
+	/// the second one is refused for that reason, naming both types in full.
+	/// </para>
+	/// </remarks>
+	public static string GetOptionsName<TProjection>()
+		where TProjection : class => typeof(TProjection).Name;
+
+	/// <summary>
 	/// Resolves the ElasticSearch index name for a projection type using the configured options.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection type. The lowercased type name is used when

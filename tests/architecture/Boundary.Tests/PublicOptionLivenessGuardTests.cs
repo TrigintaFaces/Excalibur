@@ -217,18 +217,27 @@ public sealed class PublicOptionLivenessGuardTests
 	{
 		var scan = ShippedScan.Value;
 		var baseline = ReadBaseline();
-		var inert = scan.Inert.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-		var population = scan.Population.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
-
-		var nowWired = baseline
-			.Where(id => population.Contains(id) && !inert.Contains(id))
-			.OrderBy(id => id, StringComparer.Ordinal)
-			.ToList();
+		var nowWired = FindBaselineEntriesWithRuntimeReaders(scan, baseline);
 
 		nowWired.ShouldBeEmpty(
-			"baselined option propert(ies) are now read by shipped code. Remove them from " +
+			"baselined option propert(ies) now have positively attributed readers in shipped code. Remove them from " +
 			$"{BaselineRelativePath} so the list only ever shrinks:\n  " +
 			string.Join("\n  ", nowWired));
+	}
+
+	internal static IReadOnlyList<string> FindBaselineEntriesWithRuntimeReaders(
+		OptionLivenessScanner.ScanResult scan, IEnumerable<string> baseline)
+	{
+		var inert = scan.Inert.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+		var population = scan.Population.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+		// The scanner conservatively credits unresolved same-named getters to avoid false inert
+		// accusations. That uncertainty cannot prove a baselined option has acquired a runtime reader.
+		var unresolvedOnly = scan.LiveOnlyViaUnresolvedReceiver.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+
+		return baseline
+			.Where(id => population.Contains(id) && !inert.Contains(id) && !unresolvedOnly.Contains(id))
+			.OrderBy(id => id, StringComparer.Ordinal)
+			.ToList();
 	}
 
 	[Fact]
@@ -252,15 +261,12 @@ public sealed class PublicOptionLivenessGuardTests
 	// ---- discovery ------------------------------------------------------------------------------
 
 	/// <summary>
-	/// The shipped framework assemblies, taken from this test's own output directory. Boundary.Tests
-	/// project-references every project under <c>src/</c>, so that directory is the complete shipped
-	/// closure and needs no hand-maintained list. Source generators are Roslyn components, not shipped
-	/// runtime surface, and carry no consumer options.
+	/// The same resolved framework closure as the test output, captured before coverage instrumentation.
+	/// The compiled manifest binding, exact runtime population and module identities are verified before
+	/// scanning pristine bytes. Source generators remain outside this runtime option census.
 	/// </summary>
 	private static IEnumerable<string> ShippedAssemblyPaths() =>
-		Directory.EnumerateFiles(AppContext.BaseDirectory, "Excalibur*.dll")
-			.Where(path => !Path.GetFileName(path).Contains("SourceGenerators", StringComparison.OrdinalIgnoreCase))
-			.OrderBy(path => path, StringComparer.Ordinal);
+		PristineOptionLivenessInputs.GetPaths();
 
 	private static ImmutableHashSet<string> ReadBaseline()
 	{

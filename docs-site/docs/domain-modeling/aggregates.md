@@ -108,7 +108,7 @@ A domain event carries only its own business data. The aggregate id is supplied 
 
 ## Event Application
 
-Excalibur uses the **RaiseEvent/Apply** pattern with pattern matching for event application, providing near-zero overhead (under 10ns per event). For a detailed explanation of why this pattern was chosen over alternatives like `When/Apply`, see the [Event Application Pattern](../event-sourcing/event-application-pattern.md) guide.
+Excalibur uses the **RaiseEvent/Apply** pattern with direct pattern matching for event application. Event application time depends on the event handlers and state changes; the current benchmark refresh establishes no per-event latency bound. For a detailed explanation of why this pattern was chosen over alternatives like `When/Apply`, see the [Event Application Pattern](../event-sourcing/event-application-pattern.md) guide.
 
 ```csharp
 protected override bool ApplyEventInternal(IDomainEvent @event) => @event switch

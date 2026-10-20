@@ -27,7 +27,7 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 	private readonly ILogger _logger;
 	private readonly int? _maxPayloadBytes;
 	private readonly int _maxBatchSize;
-	private readonly ConcurrentDictionary<string, MessageId> _unsettled = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, ReceiptEntry> _unsettled = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -95,6 +95,7 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 				}
 
 				var receiptHandle = pulsarMessage.MessageId.ToString();
+				var entry = _unsettled.GetOrAdd(receiptHandle, static (_, id) => new ReceiptEntry(id), pulsarMessage.MessageId);
 				try
 				{
 					PayloadSizeGuard.EnsureWithinLimit(pulsarMessage.Value()?.Length ?? 0, _maxPayloadBytes);
@@ -103,18 +104,20 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 				{
 					// Poison-message guard: acknowledge (skip) the oversized message so the subscription
 					// does not redeliver it forever, then continue the batch.
-					LogPayloadTooLargeRejected(Source, pulsarMessage.Value()?.Length ?? 0, ex);
-					await _consumer.Acknowledge(pulsarMessage.MessageId, cancellationToken).ConfigureAwait(false);
+					if (await SettleReceiptAsync(receiptHandle, entry,
+						() => _consumer.Acknowledge(entry.MessageId, cancellationToken), cancellationToken).ConfigureAwait(false))
+					{
+						LogPayloadTooLargeRejected(Source, pulsarMessage.Value()?.Length ?? 0, ex);
+					}
 					continue;
 				}
 
-				_unsettled[receiptHandle] = pulsarMessage.MessageId;
 				if (_unsettled.Count > MaxUnsettledMessages)
 				{
 					LogUnsettledOverflow(Source, _unsettled.Count);
 				}
 
-				messages.Add(ConvertToReceivedMessage(pulsarMessage, receiptHandle));
+				messages.Add(ConvertToReceivedMessage(pulsarMessage, receiptHandle, entry));
 				LogMessageReceived(receiptHandle, Source);
 			}
 		}
@@ -135,23 +138,32 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 	public async Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
-		var receiptHandle = GetReceiptHandle(message);
-		if (!_unsettled.TryGetValue(receiptHandle, out var messageId))
-		{
-			throw new InvalidOperationException(
-				$"Message with receipt handle '{receiptHandle}' not found in the unsettled cache. It may have already been settled.");
-		}
 
 		try
 		{
-			await _consumer.Acknowledge(messageId, cancellationToken).ConfigureAwait(false);
-			_ = _unsettled.TryRemove(receiptHandle, out _);
+			var receiptHandle = GetReceiptHandle(message);
+			var entry = GetReceiptEntry(message);
+
+			if (!await SettleReceiptAsync(receiptHandle, entry,
+				() => _consumer.Acknowledge(entry.MessageId, cancellationToken), cancellationToken).ConfigureAwait(false))
+			{
+				throw CreateSettlementException("acknowledge", message.Id,
+					new InvalidOperationException($"Receipt '{receiptHandle}' has already been settled."), SettlementRetryability.Permanent);
+			}
 			LogMessageAcknowledged(receiptHandle, Source);
+		}
+		catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested && ex.CancellationToken == cancellationToken)
+		{
+			throw;
+		}
+		catch (TransportSettlementException)
+		{
+			throw;
 		}
 		catch (Exception ex)
 		{
-			LogAcknowledgeError(receiptHandle, Source, ex);
-			throw;
+			LogAcknowledgeError(message.Id, Source, ex);
+			throw CreateSettlementException("acknowledge", message.Id, ex, SettlementRetryability.Unspecified);
 		}
 	}
 
@@ -159,27 +171,106 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 	public async Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
-		var receiptHandle = GetReceiptHandle(message);
-		if (!_unsettled.TryGetValue(receiptHandle, out var messageId))
-		{
-			return;
-		}
 
-		if (requeue)
+		try
 		{
-			// Negative-acknowledge so Pulsar redelivers after the negative-ack delay.
-			await _consumer.RedeliverUnacknowledgedMessages([messageId], cancellationToken).ConfigureAwait(false);
-			_ = _unsettled.TryRemove(receiptHandle, out _);
-			LogMessageRejectedRequeue(receiptHandle, Source, reason ?? "no reason");
+			var receiptHandle = GetReceiptHandle(message);
+			var entry = GetReceiptEntry(message);
+
+			if (!await SettleReceiptAsync(receiptHandle, entry,
+				() => requeue
+					? _consumer.RedeliverUnacknowledgedMessages([entry.MessageId], cancellationToken)
+					: _consumer.Acknowledge(entry.MessageId, cancellationToken), cancellationToken).ConfigureAwait(false))
+			{
+				throw CreateSettlementException("reject", message.Id,
+					new InvalidOperationException($"Receipt '{receiptHandle}' has already been settled."), SettlementRetryability.Permanent);
+			}
+
+			if (requeue)
+			{
+				// Negative-acknowledge so Pulsar redelivers after the negative-ack delay.
+				LogMessageRejectedRequeue(receiptHandle, Source, reason ?? "no reason");
+			}
+			else
+			{
+				// Acknowledge to skip the message (DLQ routing handled by the decorator layer).
+				LogMessageRejected(receiptHandle, Source, reason ?? "no reason");
+			}
 		}
-		else
+		catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested && ex.CancellationToken == cancellationToken)
 		{
-			// Acknowledge to skip the message (DLQ routing handled by the decorator layer).
-			await _consumer.Acknowledge(messageId, cancellationToken).ConfigureAwait(false);
-			_ = _unsettled.TryRemove(receiptHandle, out _);
-			LogMessageRejected(receiptHandle, Source, reason ?? "no reason");
+			throw;
+		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw CreateSettlementException("reject", message.Id, ex, SettlementRetryability.Unspecified);
 		}
 	}
+
+	private async Task<bool> SettleReceiptAsync(string receiptHandle, ReceiptEntry entry, Func<ValueTask> settle, CancellationToken cancellationToken)
+	{
+		await entry.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			// A duplicate delivery can share this entry while its owner settles it. Only this explicit
+			// successful outcome permits the poison path to continue without issuing another native call.
+			if (entry.SuccessfullySettled)
+			{
+				return false;
+			}
+			if (!_unsettled.TryGetValue(receiptHandle, out var current) || !ReferenceEquals(current, entry))
+			{
+				throw CreateSettlementException("settle", receiptHandle,
+					new InvalidOperationException($"Receipt '{receiptHandle}' is no longer the active receipt entry."), SettlementRetryability.Permanent);
+			}
+
+			await settle().ConfigureAwait(false);
+			entry.SuccessfullySettled = true;
+			_ = _unsettled.TryRemove(new KeyValuePair<string, ReceiptEntry>(receiptHandle, entry));
+			return true;
+		}
+		catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested && ex.CancellationToken == cancellationToken)
+		{
+			throw;
+		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw CreateSettlementException("settle", receiptHandle, ex, SettlementRetryability.Unspecified);
+		}
+		finally
+		{
+			entry.Gate.Release();
+		}
+	}
+
+	private sealed class ReceiptEntry(MessageId messageId)
+	{
+		public MessageId MessageId { get; } = messageId;
+
+		// Do not dispose on removal: callers may still be waiting on this exact entry. No wait handle
+		// is requested, so the semaphore and entry can be collected once those callers finish.
+		public SemaphoreSlim Gate { get; } = new(1, 1);
+
+		public bool SuccessfullySettled { get; set; }
+	}
+
+	private static TransportSettlementException CreateSettlementException(
+		string operation, string messageId, Exception cause, SettlementRetryability retryability) =>
+		new($"Failed to {operation} Pulsar message '{messageId}'.", cause)
+		{
+			TransportName = "Pulsar",
+			RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+			// Native failures retain the receipt, but do not establish whether the broker accepted settlement.
+			Retryability = retryability,
+		};
 
 	/// <inheritdoc />
 	public object? GetService(Type serviceType)
@@ -201,7 +292,7 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 		GC.SuppressFinalize(this);
 	}
 
-	private TransportReceivedMessage ConvertToReceivedMessage(IMessage<byte[]> pulsarMessage, string receiptHandle)
+	private TransportReceivedMessage ConvertToReceivedMessage(IMessage<byte[]> pulsarMessage, string receiptHandle, ReceiptEntry entry)
 	{
 		var properties = new Dictionary<string, object>(StringComparer.Ordinal);
 		foreach (var (key, value) in pulsarMessage.Properties)
@@ -230,8 +321,21 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 			{
 				["pulsar.message_id"] = receiptHandle,
 				["pulsar.receipt_handle"] = receiptHandle,
+				// Bind this envelope to its received lifetime even if the broker identity recurs later.
+				["pulsar.receipt_entry"] = entry,
 			},
 		};
+	}
+
+	private static ReceiptEntry GetReceiptEntry(TransportReceivedMessage message)
+	{
+		if (message.ProviderData.TryGetValue("pulsar.receipt_entry", out var entry) && entry is ReceiptEntry receiptEntry)
+		{
+			return receiptEntry;
+		}
+		throw CreateSettlementException("settle", message.Id,
+			new InvalidOperationException("Message does not contain its original Pulsar receipt entry in ProviderData."),
+			SettlementRetryability.Permanent);
 	}
 
 	private static string GetReceiptHandle(TransportReceivedMessage message)
@@ -240,7 +344,9 @@ internal sealed partial class PulsarTransportReceiver : ITransportReceiver
 		{
 			return handleStr;
 		}
-		throw new InvalidOperationException("Message does not contain a Pulsar receipt handle in ProviderData.");
+		throw CreateSettlementException("settle", message.Id,
+			new InvalidOperationException("Message does not contain a Pulsar receipt handle in ProviderData."),
+			SettlementRetryability.Permanent);
 	}
 
 	[LoggerMessage(PulsarEventId.TransportReceiverMessageReceived, LogLevel.Debug,

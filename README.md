@@ -141,51 +141,93 @@ The table above names the entry points rather than the whole set; every package 
 
 ## Performance
 
-Dispatch is optimized for high-throughput, low-latency messaging with lean local hot paths and transport-aware pipeline profiles.
+Dispatch is built for low allocation and predictable latency on the local dispatch path. The
+figures below are measurements taken on one machine under stated conditions. They are not
+guarantees, and the only number that matters for your service is the one you measure in it.
 
-### Key Metrics
+### Local dispatch overhead
 
-Median of the WarmPath comparison epoch of 2026-09-05 (BenchmarkDotNet 0.15.8, .NET 10.0.11 / SDK 10.0.400, i9-14900K, `InProcessEmitToolchain`). Allocation was byte-identical across runs; latency varied about 4% run to run on our arms and about 8.6% on MediatR's, which is several times BenchmarkDotNet's reported error — that error describes spread within a single process, not reproducibility between processes. Read the byte figures as exact and the nanosecond figures as indicative, and do not read a ratio inside that band as a finding.
+Median of independent processes: commands and queries measured 19 October 2026. BenchmarkDotNet 0.15.8, adaptive
+warm-path job, in-process emit toolchain; .NET 10.0.12, SDK 10.0.401, x64 RyuJIT; Intel Core
+i9-14900K, Windows 11 build 26300.9711. Rounded to the precision the between-process spread
+supports.
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| **Standard dispatch** | 45.6 ns / 96 B | `DispatchAsync` with a caller-supplied context (`MediatRWarmPathComparisonBenchmarks`) |
-| **Context-less 2-arg overload** | 53.0 ns / 96 B | `DispatchAsync(message, ct)` — the framework creates the context for you |
-| **Singleton-promoted handler** | 53.9 ns / 96 B | Context-less overload against a promoted singleton handler |
-| **Query with return value** | 63.7 ns / 192 B | Typed result materialised |
-| **Three-middleware pipeline** | 71.7 ns / 240 B | Logging + validation + timing (`PipelineWarmPathComparisonBenchmarks`) |
-| **100 concurrent commands** | 5,584 ns / 12,160 B | Scales linearly |
+Each row comes from three separate original-observation processes. Query rows use
+the current selected runtime after the fixture rental-lifecycle repair. They do
+not certify the entire rebuilt checkout or actual NativeAOT performance. The
+earlier isolated-marker query experiment remains dated history.
 
-**Read the 96 B as a floor, not a fixed cost.** A dispatch publishes an ambient message context so a nested dispatch inherits causation, correlation, tenant and user instead of silently starting a fresh root. That costs one `ExecutionContext` copy-on-write, and the copy is of the whole async-local value map — so what you actually pay scales with how many `AsyncLocal` values *your* application has live: 72 of the 96 bytes when there are none, roughly 160 B with one other, roughly 992 B with fifteen. A real host carries several before it reaches us, and this framework itself declares two.
+| Path | Latency | Allocation |
+|---|---:|---:|
+| Single command | **~65 ns** | **96 B** |
+| Typed query, default pipeline | **~136 ns** | **288 B** |
+| Typed query, context-less overload | ~146 ns | 288 B |
+| Typed query, singleton promotion configured | ~149 ns | 288 B |
 
-**Competitor comparisons** (same epoch). Against **Wolverine** in-process we are **3.8× faster** on `InvokeAsync` (47.0 ns vs 179.1 ns) at 6.1× less memory, and against **MassTransit**'s in-memory bus **370× faster** on a single command (46.3 ns vs 17,118 ns) at 230× less memory. On a three-middleware pipeline we lead every framework measured: **71.7 ns / 240 B** against MediatR's 124.9 ns / 680 B, Wolverine's 236.3 ns / 680 B and MassTransit's 2,128.0 ns / 4,568 B.
+The command handler is a no-op; query handlers double the input ID. These fixtures
+measure dispatch and completion overhead rather than application work. Query timing
+increased from the earlier isolated experiment on both peers; its cause remains
+unresolved. What the allocation buys is described below.
 
-Against **MediatR** the answer splits, and the half that goes against us belongs first:
+These figures measure Excalibur's overhead and do not establish a competitive ranking.
+Comparative fixtures live in `benchmarks/Excalibur.Dispatch.Benchmarks`; their results remain
+pending validation of equivalent completed work, matched runtime and job settings, and documented
+library configurations. Comparisons must disclose versions, project affiliation, raw results and
+failures so others can reproduce and challenge them. Measure your own workload before choosing
+a framework.
 
-| | Dispatch | MediatR | |
-|---|---|---|---|
-| Single command | 45.6 ns / **96 B** | 41.3 ns / 152 B | MediatR is 1.10× faster; we allocate 1.58× less |
-| Notification → 3 handlers | 135.0 ns / **96 B** | 95.0 ns / 616 B | MediatR is 1.42× faster; we allocate 6.4× less |
-| 10 concurrent commands | 596.1 ns / **1,360 B** | 541.7 ns / 1,856 B | MediatR is 1.10× faster; we allocate 1.36× less |
-| 100 concurrent commands | 5,584 ns / **12,160 B** | 5,146 ns / 17,064 B | MediatR is 1.09× faster; we allocate 1.40× less |
-| Three-middleware pipeline | **71.7 ns / 240 B** | 124.9 ns / 680 B | we are 1.74× faster; we allocate 2.83× less |
+Full records, with per-process figures and the retained distribution warnings:
+[benchmark results](docs-site/docs/performance/competitor-comparison.md).
 
-So: **MediatR is a few nanoseconds ahead on the bare paths, we allocate less on every scenario, and we lead once middleware is in the pipeline** — which is the shape most applications actually run. The two concurrency gaps sit inside the run-to-run band described above; the single-command and notification gaps do not, and are stated as measured.
 
-The query comparison is deliberately absent. MediatR's own query row moved about 21% between epochs for reasons that have nothing to do with this framework and were consistent across every run of the new one; until that is explained the ratio means nothing in either direction. Dispatch's own query figures are in the table above.
+### What the allocation buys
 
-> MediatR, MassTransit, Wolverine and NServiceBus are trademarks of their respective owners. They are
-> named here only to identify the products measured; no affiliation or endorsement is implied.
+Every dispatch publishes an ambient message context, so a nested dispatch inherits causation,
+correlation, tenant and user instead of starting a fresh root. That costs one
+`ExecutionContext` copy-on-write, and the copy covers the whole async-local value map: 72 of
+the 96 bytes on a command dispatch, measured with no other async-local values present. With
+one other value it measured roughly 160 B, and with fifteen, roughly 992 B. **This figure
+scales with your application's async-local density, not ours** -- measure it in your own
+process before budgeting for it.
 
-> **Reading these numbers.** They come from BenchmarkDotNet's warm job (`WarmPathBenchmarkConfig`), which is the configuration used for published comparisons; the cold job is a CI latency gate and does not report allocation. Every arm calls its library directly from the benchmark method with no intermediate `async` frame, so the allocation column compares libraries rather than harness — an extra `async` frame returning a reference costs ~72 bytes on x64 and would silently charge one side for the measurement itself. Your own call site adds whatever your `await` costs on top of the figures above.
+### Earlier measurements, and what has not been re-measured
 
-### Optimizations Included
-- **C# 12 Interceptors** - Compile-time dispatch resolution
-- **FrozenDictionary Caches** - Lock-free handler and middleware lookup
-- **Static Pipelines** - Pre-built execution chains for message types whose route is known
-- **Auto-Freeze on Startup** - Zero-configuration production optimization
-- **LightMode** - Opt-in minimal overhead (skips correlation-ID generation)
-- **LightMode** - Opt-in minimal overhead (disables AsyncLocal context flow + correlation)
+The command and query figures above replace the corresponding rows of a September 2026
+comparison epoch, which measured a single command at 45.6 ns before a correction that restored
+default correlation and causation initialization. That epoch is not a baseline for the current
+source.
+
+Its notification, multi-middleware pipeline and concurrent-batch comparisons are preserved
+in [`benchmarks/BENCHMARKS.md`](benchmarks/BENCHMARKS.md) with their own conditions.
+Later, separately scoped October observations do not refresh those September comparisons.
+They describe that epoch's code. Do not quote them as current.
+
+### Reading any of these numbers
+
+- **Allocations in the local-overhead table were byte-identical per method across processes.**
+  The October 19 command observations ranged from 58.10 to 65.27 ns (about 12.3% maximum/minimum spread). The October 19 query process
+  ranges were 134–141 ns (default), 144–147 ns (context-less) and 143–153 ns
+  (promotion configured). BenchmarkDotNet's error describes spread within one
+  process, not reproducibility between processes; these observations establish no
+  stable latency.
+- **These fixture calls omit an extra `async` wrapper.** Wrapper allocation depends on the exact
+  call shape, completion path and runtime. These observations do not establish a universal byte
+  cost for an async frame or your own `await`.
+- **No sustained-throughput, percentile or cold-start claim follows from these fixtures.** They are
+  warm, in-process, single-operation measurements. The command handler is a no-op;
+  query handlers double an input ID.
+
+> MediatR is a trademark of its owner. It is named here only to describe API compatibility; no
+> affiliation or endorsement is implied.
+
+### Optimizations included
+
+- **C# 12 interceptors** -- compile-time dispatch resolution
+- **FrozenDictionary caches** -- lock-free handler and middleware lookup
+- **Static pipelines** -- pre-built execution chains for message types whose route is known
+- **Auto-freeze on startup** -- applied by default; no configuration required
+- **LightMode** -- opt-in minimal overhead; disables AsyncLocal context flow and correlation-ID generation
+
 
 ### Quick Configuration
 
@@ -200,8 +242,9 @@ services.Configure<DispatchOptions>(o => o.CrossCutting.Performance.AutoFreezeOn
 ```
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
-- [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260905/` (the epoch quoted above)
+- [Benchmark results](docs-site/docs/performance/competitor-comparison.md)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260905/` (historical September 5 comparison epoch)
+- `benchmarks/baselines/net10.0/dispatch-warmpath-20260905-lean/` (separate post-correction command measurements)
 - `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
 - `benchmarks/experiments/` (auto-optimize experiment logs)
 
@@ -243,6 +286,11 @@ choice ([LICENSE](LICENSE)). Under the Excalibur License you may build, sell, ho
 applications on the framework, including commercially. You may not resell the framework itself or
 offer it to others as a hosted service. See the [plain-language summary](docs-site/docs/legal/index.md)
 and the full texts in [`licenses/`](licenses/).
+
+There is no licence key, no activation step, and no per-message, per-endpoint or per-seat metering.
+Building, shipping and operating your own applications on Excalibur costs nothing — including
+commercially, and including when you run those applications as a hosted service for your own
+customers. The restrictions are on the framework itself, not on what you build with it.
 
 ---
 

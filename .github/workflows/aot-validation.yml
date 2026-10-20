@@ -4,23 +4,27 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/aot-validation.yml'
       - 'src/**'
       - 'samples/10-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotCoverageGate.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
       - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
+      - 'eng/ci/Invoke-AotSuppressionAudit.Parser.Tests.ps1'
       - 'eng/ci/aot-warning-baseline.json'
       - 'eng/ci/aot-suppression-baseline.json'
   pull_request:
     branches: [main]
     paths:
+      - '.github/workflows/aot-validation.yml'
       - 'src/**'
       - 'samples/10-aot/**'
       - 'eng/ci/Invoke-AotPublishValidation.ps1'
       - 'eng/ci/Invoke-AotCoverageGate.ps1'
       - 'eng/ci/Invoke-AotBuildAnalysis.ps1'
       - 'eng/ci/Invoke-AotSuppressionAudit.ps1'
+      - 'eng/ci/Invoke-AotSuppressionAudit.Parser.Tests.ps1'
       - 'eng/ci/aot-warning-baseline.json'
       - 'eng/ci/aot-suppression-baseline.json'
   workflow_dispatch:
@@ -66,13 +70,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify suppression parser controls
+        shell: pwsh
+        run: ./eng/ci/Invoke-AotSuppressionAudit.Parser.Tests.ps1
+
       - name: Run suppression audit
         shell: pwsh
         run: |
           ./eng/ci/Invoke-AotSuppressionAudit.ps1 `
             -OutputPath ./suppression-audit-results
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::AOT suppression audit failed -- new unapproved suppressions detected"
+            Write-Host "::error::AOT suppression audit did not pass -- inspect the verdict and extraction diagnostics"
             exit $LASTEXITCODE
           }
 
@@ -86,6 +94,14 @@ jobs:
             "" >> $env:GITHUB_STEP_SUMMARY
             "## AOT Suppression Audit" >> $env:GITHUB_STEP_SUMMARY
             "" >> $env:GITHUB_STEP_SUMMARY
+            if ($report.Outcome -eq 'REFUSE') {
+              "**REFUSE:** extraction or source identity could not be verified. No suppression population counts are certified." >> $env:GITHUB_STEP_SUMMARY
+              "" >> $env:GITHUB_STEP_SUMMARY
+              foreach ($failure in $report.Refusals) {
+                "- ``$($failure.File):$($failure.Line)`` $($failure.Reason)" >> $env:GITHUB_STEP_SUMMARY
+              }
+              exit 0
+            }
             "| Metric | Value |" >> $env:GITHUB_STEP_SUMMARY
             "|--------|-------|" >> $env:GITHUB_STEP_SUMMARY
             "| Source Suppressions | $($report.SourceSuppressions) |" >> $env:GITHUB_STEP_SUMMARY
@@ -290,12 +306,37 @@ jobs:
           echo "AOT smoke test PASSED (exit 0)"
           echo "## AOT Smoke Test: PASS" >> $GITHUB_STEP_SUMMARY
 
+      - name: Publish scheduled delivery AOT binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish samples/10-aot/Excalibur.Dispatch.Scheduling.Aot.Sample/Excalibur.Dispatch.Scheduling.Aot.Sample.csproj \
+            --configuration Release \
+            --runtime linux-x64 \
+            --verbosity minimal \
+            -p:BuildExamplesAndTests=true \
+            -p:SuppressTrimAnalysisWarnings=false \
+            -p:TrimmerSingleWarn=false
+
+      - name: Run scheduled delivery AOT acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          BINARY="samples/10-aot/Excalibur.Dispatch.Scheduling.Aot.Sample/bin/Release/net10.0/linux-x64/publish/Excalibur.Dispatch.Scheduling.Aot.Sample"
+          test -f "$BINARY"
+          chmod +x "$BINARY"
+          timeout 60 "$BINARY" --require-native 2>&1 | tee aot-scheduling-smoke-test.log
+          grep -Fq "Scheduling acceptance passed: action and document delivered once; payload, tenant, correlation preserved; 2 schedules retired; missing metadata stored 0; dynamicCode=False; jsonReflection=False." aot-scheduling-smoke-test.log
+          echo "## Scheduled Delivery AOT Acceptance: PASS" >> $GITHUB_STEP_SUMMARY
+
       - name: Upload smoke test log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: aot-smoke-test-log
-          path: aot-smoke-test.log
+          path: |
+            aot-smoke-test.log
+            aot-scheduling-smoke-test.log
 
   aot-coverage-gate:
     name: AOT Coverage Gate (declaring-set derived, report-only)

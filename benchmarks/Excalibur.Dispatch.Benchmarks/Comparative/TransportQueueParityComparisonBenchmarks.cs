@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 
 using BenchmarkDotNet.Attributes;
 
+using Excalibur.Dispatch.Benchmarks.Infrastructure;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Features;
@@ -300,21 +301,9 @@ public class TransportQueueParityComparisonBenchmarks
 		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout))).ConfigureAwait(false);
 	}
 
-	private async Task<IMessageResult> DispatchWithRouteAsync(IDispatchMessage message, RoutingDecision routingDecision)
+	private Task<IMessageResult> DispatchWithRouteAsync(IDispatchMessage message, RoutingDecision routingDecision)
 	{
-		var dispatcher = _dispatcher!;
-		var contextFactory = _contextFactory!;
-		var context = contextFactory.CreateContext();
-		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
-
-		try
-		{
-			return await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
+		return RoutingBenchmarkDispatch.DispatchQueuedAsync(_dispatcher!, _contextFactory!, message, routingDecision);
 	}
 }
 

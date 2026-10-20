@@ -74,7 +74,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 			using var content = new StringContent(json, Encoding.UTF8, "application/json");
 			using var request = CreateRequest(content);
 
-			var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+			using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			if (response.IsSuccessStatusCode)
 			{
@@ -172,7 +172,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 					}
 				}
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
 				LogAuditExportBatchChunkError(ex);
 
@@ -211,7 +211,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 			using var request = new HttpRequestMessage(HttpMethod.Get, _options.Connection.HecEndpoint);
 			request.Headers.Authorization = new AuthenticationHeaderValue("Splunk", _options.Connection.HecToken);
 
-			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+			using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 			// HEC returns 400 for GET requests but that indicates it's reachable
 			var isHealthy = response.StatusCode is HttpStatusCode.OK
@@ -278,7 +278,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		using var content = new StringContent(sb.ToString(), Encoding.UTF8, "application/json");
 		using var request = CreateRequest(content);
 
-		var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+		using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
 
 		if (response.IsSuccessStatusCode)
 		{
@@ -309,7 +309,8 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 	{
 		// Transient-fault retry (408/429/5xx + HttpRequestException/timeout) is handled by the standard
 		// resilience pipeline attached to the typed HttpClient in DI. The buffered StringContent is
-		// replayable, so the pipeline can safely re-send across attempts.
+		// replayable. Ambiguous server acceptance can still cause duplicate logs on retry;
+		// replayability does not provide idempotency.
 		return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 	}
 

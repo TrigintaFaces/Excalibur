@@ -39,7 +39,7 @@ public sealed class OutboxDeadLetteredNotReclaimedShould
 			.ShouldContain(m => m.Id == msg.Id);
 
 		// Retries exhausted → terminal DeadLettered.
-		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", CancellationToken.None);
+		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", 0, CancellationToken.None);
 
 		// AC-4: never re-claimed (no re-delivery, no re-dead-letter).
 		(await store.GetUnsentMessagesAsync(10, CancellationToken.None))
@@ -53,7 +53,7 @@ public sealed class OutboxDeadLetteredNotReclaimedShould
 		using var store = CreateStore();
 		var msg = NewMessage();
 		await store.StageMessageAsync(msg, CancellationToken.None);
-		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", CancellationToken.None);
+		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", 0, CancellationToken.None);
 
 		var failed = await store.GetAllTenantsFailedMessagesAsync(
 			maxRetries: 100, olderThan: null, batchSize: 10, CancellationToken.None);
@@ -69,7 +69,7 @@ public sealed class OutboxDeadLetteredNotReclaimedShould
 		var msg = NewMessage();
 		await store.StageMessageAsync(msg, CancellationToken.None);
 
-		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", CancellationToken.None);
+		await store.MarkDeadLetteredAsync(msg.Id, "retries exhausted", 0, CancellationToken.None);
 
 		msg.Status.ShouldBe(OutboxStatus.DeadLettered);
 	}

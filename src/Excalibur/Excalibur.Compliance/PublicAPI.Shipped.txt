@@ -37,7 +37,7 @@ Excalibur.Compliance.Consent.ConsentService.GetConsentAsync(string! subjectId, s
 Excalibur.Compliance.Consent.ConsentService.RecordConsentAsync(Excalibur.Compliance.ConsentRecord! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.Compliance.Consent.ConsentService.WithdrawConsentAsync(string! subjectId, string! purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor
-Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.DecryptFieldsAsync(object! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.DecryptFieldsAsync(object! record, string? expectedTenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.EncryptFieldsAsync(object! record, string? aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Compliance.CryptoShredding.SubjectFieldCryptor.SubjectFieldCryptor(Excalibur.Compliance.IFieldEncryptor! fieldEncryptor) -> void
 Excalibur.Compliance.Encryption.AesGcmEncryptionOptions

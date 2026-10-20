@@ -43,7 +43,7 @@ public sealed class KafkaSubscriberCommitFailureIsNotAHandlerFailureShould
 		var commitCalls = 0;
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var queue = new Queue<KafkaConsumeResult>([Record(0), Record(1)]);
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() => queue.Count > 0 ? queue.Dequeue() : null);
 		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._))
 			.Invokes((IEnumerable<TopicPartitionOffset> offsets) =>
@@ -92,7 +92,7 @@ public sealed class KafkaSubscriberCommitFailureIsNotAHandlerFailureShould
 		var commitCalls = 0;
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var queue = new Queue<KafkaConsumeResult>([Record(0), Record(1)]);
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() => queue.Count > 0 ? queue.Dequeue() : null);
 		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._))
 			.Invokes(() =>

@@ -89,12 +89,14 @@ The failure that follows does not look like an outage. A user whose grants have 
 
 Register full A3 services using the builder pattern. `AddExcaliburA3()` internally calls `AddExcaliburA3Core()`, then adds CQRS, Dispatch pipeline, and authentication:
 
-:::caution Two prerequisites, or the container will not build
+:::caution Prerequisites for full A3
 
 `AddExcaliburA3()` composes services that depend on two things it does not register itself. Supply
-both **before** it, or building the provider throws — and in the Development environment
-`WebApplicationBuilder` turns on `ValidateOnBuild`, so this is what you hit on the machine you are
-developing on.
+both before building the provider. The cache registrations can come before or after `AddExcaliburA3()`.
+Missing application-scoped caches report the corrective registration at host startup or service
+activation. Container build validation does not execute cache factories, so a successful build alone
+does not establish that the cache is usable. Missing structural dependencies such as
+`IAuthenticationToken` can still fail container build validation.
 
 ```csharp
 // 1. An application-scoped distributed cache — TWO registrations, not one. The keyed wrapper wraps
@@ -108,14 +110,26 @@ services.AddHttpGrantAuthorization();
 ```
 
 The `Scope` string is what keeps two applications sharing one cache from reading each other's grants.
+The standard scoped wrapper requires its unkeyed base cache. A custom self-contained application-scoped
+keyed cache does not require an additional unkeyed cache.
 :::
 
 ### How long an authorization decision stays cached
 
-Authorization results are cached, so a grant you revoke can still authorize until its cache entry
-expires. `AuthorizationCacheOptions.AbsoluteExpirationRelativeToNow` is the upper bound on that
-window: it is measured from when the entry was written, and reads do not extend it, so the delay
-between a revocation and its taking effect can never exceed it. The default is 5 minutes.
+Stores exposing `IAtomicGrantRevocationStore` pair grants with an authoritative user revision. Each
+policy acquisition checks that revision before and after loading its snapshot, including repeated calls
+within one request scope. A committed revocation changes the revision atomically with the grant rows.
+An older cache fill can write only an obsolete revision key; a later acquisition cannot accept it.
+Grant expiration is checked on every acquisition even when the revision has not changed.
+
+An already-returned `IAuthorizationPolicy` is a snapshot. Acquire a new policy for a new authorization
+decision after changing grants; retaining the old object does not provide live revocation checks.
+Stores without the revision capability read grants directly rather than sharing grant cache entries.
+Volatile stores also bypass distributed grant and catalogue caches: their revision numbers can restart
+while a shared cache survives. Durable stores retain a separate tenant-scoped catalogue cache.
+
+`AuthorizationCacheOptions.AbsoluteExpirationRelativeToNow` bounds cache entry retention, with a
+default of 5 minutes. Reads do not extend this absolute bound.
 
 ```csharp
 services.Configure<AuthorizationCacheOptions>(o =>
@@ -123,8 +137,8 @@ services.Configure<AuthorizationCacheOptions>(o =>
 ```
 
 The value must be a positive duration; it is validated at startup, so an invalid one fails the host
-rather than silently disabling the bound. Shorten it when your revocations must take effect sooner,
-at the cost of more reads reaching the grant store.
+rather than silently disabling the bound. Shorter retention increases store reads; revision fencing
+does not depend on waiting for an entry to expire.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -578,13 +592,47 @@ await dispatcher.DispatchAsync(new RevokeGrantCommand(
     correlationId: correlationId,
     tenantId: "tenant-abc"), cancellationToken);
 
-// Revoke all grants for a user
+// Revoke every grant type for this user in this tenant, including activity-group grants.
 await dispatcher.DispatchAsync(new RevokeAllGrantsCommand(
     userId: "user-123",
     fullName: "John Doe",
     correlationId: correlationId,
     tenantId: "tenant-abc"), cancellationToken);
 ```
+
+`RevokeAllGrantsCommand` requires the store's atomic revocation capability. Unsupported stores refuse
+before changing grants; there is no sequential-delete fallback. The command is tenant-confined: its
+`RevocationScope`, command tenant and authorized ambient tenant must match. An all-tenants command
+scope is refused because a tenant permission does not confer global administration. An empty tenant
+is rejected rather than widened to all tenants. Explicitly authorized administrative tools can use
+`IAtomicGrantRevocationStore.RevokeAllAsync` with `GrantRevocationScope.AllTenants` directly.
+
+| Grant store | Atomic revoke-all capability |
+| --- | --- |
+| InMemory | Yes; volatile, development/test use |
+| SQL Server, PostgreSQL | Yes; revision, audit and operation receipt share a transaction |
+| Cosmos DB, DynamoDB, Firestore, MongoDB | Current implementations do not advertise this capability; command refuses before mutation |
+
+Relational authority operations require the primary database connection and own their transaction;
+ambient transactions are refused. Every framework grant writer advances revisions. Direct SQL changes,
+database restores that reuse old revisions and independently writable replicas are outside this protocol.
+
+The command's `OperationId` identifies one revocation independently of its correlation ID. Persist and
+reuse it when retrying after cancellation, a lost response, or cache-cleanup failure. The store records
+the committed result in the same transaction as the revocation. Repeating the same operation returns
+that result and preserves grants added afterward; reusing the ID with different scope or actor is
+rejected. Cancellation or connection failure after commit can leave the outcome unknown, so do not
+invent a new operation ID to retry an uncertain commit.
+
+The relational receipt records the operation target as `ScopeTenantId` (SQL Server) or
+`scope_tenant_id` (PostgreSQL). A null target means the explicitly requested all-tenants scope.
+Grant and grant-history tenant columns remain nonnull; the explicit untenanted partition is a
+specific scope and is distinct from all tenants.
+
+Cache cleanup uses a token independent of caller cancellation. A cleanup failure is surfaced rather
+than reported as audited success, but does not roll back a committed store operation. Revision fencing
+prevents stale refills regardless of cleanup. SQL providers retain per-grant revocation history in the
+atomic transaction; revoke-all does not replay aggregate domain events for individual grants.
 
 ### Grant Events
 
@@ -661,7 +709,7 @@ For the durable audit store, retention, and the annotation surface, see
 
 ## Conditional Authorization (When Expressions)
 
-The `[RequirePermission]` attribute supports a `When` property for runtime conditional checks. Expressions are parsed at startup and cached as ASTs for zero-allocation evaluation.
+The `[RequirePermission]` attribute supports a `When` property for runtime conditional checks. Expressions are parsed at startup and cached as ASTs to avoid reparsing. Measure allocations for the complete authorization operation, including dictionary access and application callbacks.
 
 ### Basic Usage
 
@@ -817,7 +865,8 @@ inserts is denied access the snapshot confers, and a sync that fails part-way le
 until the next one succeeds.
 
 **SQL Server, PostgreSQL and the in-memory store implement `IActivityGroupGrantReplacement` and do this
-in one transaction.** Cosmos DB, DynamoDB, Firestore and MongoDB cannot, so composing one of them fails
+in one transaction.** Current Cosmos DB, DynamoDB, Firestore and MongoDB implementations do not expose this
+replacement capability, so composing one of them fails
 at start-up until you say that you accept the non-atomic sync:
 
 ```csharp

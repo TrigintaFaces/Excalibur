@@ -824,6 +824,7 @@ internal sealed partial class LocalMessageBus(
 					return false;
 				}
 
+
 				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				invocation = precompiledInvocation.IsCompletedSuccessfully
 					? ValueTask.CompletedTask
@@ -925,7 +926,8 @@ internal sealed partial class LocalMessageBus(
 				return false;
 			}
 
-			var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
+
+				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 			invocation = precompiledInvocation.IsCompletedSuccessfully
 				? ValueTask.CompletedTask
 				: AwaitNoResponseValueTaskAsync(precompiledInvocation);
@@ -1059,6 +1061,11 @@ internal sealed partial class LocalMessageBus(
 				{
 					withResponseInvoker = (action, cancellationToken) =>
 					{
+						if (resolvedPlan.RequiresContext)
+						{
+							return InvokeExportedWithContextAsync(action, cancellationToken);
+						}
+
 						return syncInvoker(this, action, context: null, cancellationToken, out var result, out var pendingInvocation)
 							? new ValueTask<object?>(result)
 							: pendingInvocation;
@@ -1069,7 +1076,9 @@ internal sealed partial class LocalMessageBus(
 
 				if (resolvedPlan.InvokeWithResponseAsync is { } asyncInvoker)
 				{
-					withResponseInvoker = (action, cancellationToken) => asyncInvoker(this, action, context: null, cancellationToken);
+					withResponseInvoker = (action, cancellationToken) => resolvedPlan.RequiresContext
+						? InvokeExportedWithContextAsync(action, cancellationToken)
+						: asyncInvoker(this, action, context: null, cancellationToken);
 					noResponseInvoker = null;
 					return true;
 				}
@@ -1083,6 +1092,11 @@ internal sealed partial class LocalMessageBus(
 			{
 				noResponseInvoker = (action, cancellationToken) =>
 				{
+					if (resolvedPlan.RequiresContext)
+					{
+						return InvokeExportedNoResponseWithContext(action, cancellationToken);
+					}
+
 					_ = syncNoResponseInvoker(this, action, context: null, cancellationToken, out var pendingInvocation);
 					return pendingInvocation;
 				};
@@ -1092,7 +1106,9 @@ internal sealed partial class LocalMessageBus(
 
 			if (resolvedPlan.InvokeNoResponseAsync is { } asyncNoResponseInvoker)
 			{
-				noResponseInvoker = (action, cancellationToken) => asyncNoResponseInvoker(this, action, context: null, cancellationToken);
+				noResponseInvoker = (action, cancellationToken) => resolvedPlan.RequiresContext
+					? InvokeExportedNoResponseWithContext(action, cancellationToken)
+					: asyncNoResponseInvoker(this, action, context: null, cancellationToken);
 				withResponseInvoker = null;
 				return true;
 			}
@@ -1116,13 +1132,20 @@ internal sealed partial class LocalMessageBus(
 			if (expectsResponse)
 			{
 				withResponseInvoker = (action, cancellationToken) =>
-					precompiledPlan.Invoke(action, provider, null, cancellationToken);
+					ResolveRequiresContext(actionType, precompiledPlan.RequiresContext)
+						? InvokeExportedWithContextAsync(action, cancellationToken)
+						: precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				noResponseInvoker = null;
 				return true;
 			}
 
 			noResponseInvoker = (action, cancellationToken) =>
 			{
+				if (ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+				{
+					return InvokeExportedNoResponseWithContext(action, cancellationToken);
+				}
+
 				var precompiledInvocation = precompiledPlan.Invoke(action, provider, null, cancellationToken);
 				return precompiledInvocation.IsCompletedSuccessfully
 					? ValueTask.CompletedTask
@@ -1169,6 +1192,28 @@ internal sealed partial class LocalMessageBus(
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	// Exported delegates have no caller context parameter. Retained delegates therefore create
+	// an invocation-local context only after a late setter makes the original null-context plan invalid.
+	private ValueTask InvokeExportedNoResponseWithContext(IDispatchAction action, CancellationToken cancellationToken) =>
+		AwaitNoResponseValueTaskAsync(InvokeExportedWithContextAsync(action, cancellationToken));
+
+	private async ValueTask<object?> InvokeExportedWithContextAsync(IDispatchAction action, CancellationToken cancellationToken)
+	{
+		var factory = provider.GetService<IMessageContextFactory>() ?? new MessageContextFactory(provider);
+		var context = factory.CreateContext();
+		try
+		{
+			await SendAsync(action, context, cancellationToken).ConfigureAwait(false);
+			return context.Result;
+		}
+		finally
+		{
+			factory.Return(context);
+		}
+	}
+
+	internal bool RequiresLiveHandlerContext(Type actionType) => ResolveRequiresContext(actionType, false);
+
 	private bool ResolveRequiresContext(Type actionType, bool precompiledRequiresContext)
 	{
 		if (precompiledRequiresContext)
@@ -1373,7 +1418,7 @@ internal sealed partial class LocalMessageBus(
 		return new DirectActionDispatchPlan(
 			entry.HandlerType,
 			entry.ExpectsResponse,
-			RequiresContext: HandlerActivator.RequiresContextInjection(entry.HandlerType),
+			RequiresStructuralContext: HandlerActivator.RequiresContextInjection(entry.HandlerType),
 			TryInvokeNoResponseSync: entry.ExpectsResponse ? null : CreateDirectActionNoResponseSyncInvoker(entry.HandlerType),
 			InvokeNoResponseAsync: entry.ExpectsResponse ? null : CreateDirectActionNoResponseAsyncInvoker(entry.HandlerType),
 			TryInvokeWithResponseSync: entry.ExpectsResponse ? CreateDirectActionWithResponseSyncInvoker(entry.HandlerType) : null,
@@ -1396,7 +1441,7 @@ internal sealed partial class LocalMessageBus(
 			plan = new DirectActionDispatchPlan(
 				HandlerType: entry.HandlerType,
 				ExpectsResponse: false,
-				RequiresContext: HandlerActivator.RequiresContextInjection(entry.HandlerType),
+				RequiresStructuralContext: HandlerActivator.RequiresContextInjection(entry.HandlerType),
 				TryInvokeNoResponseSync: CreateDirectActionNoResponseSyncInvoker(invokeNoResponseAsync),
 				InvokeNoResponseAsync: invokeNoResponseAsync,
 				TryInvokeWithResponseSync: null,
@@ -1416,7 +1461,7 @@ internal sealed partial class LocalMessageBus(
 		plan = new DirectActionDispatchPlan(
 			HandlerType: entry.HandlerType,
 			ExpectsResponse: true,
-			RequiresContext: HandlerActivator.RequiresContextInjection(entry.HandlerType),
+			RequiresStructuralContext: HandlerActivator.RequiresContextInjection(entry.HandlerType),
 			TryInvokeNoResponseSync: null,
 			InvokeNoResponseAsync: null,
 			TryInvokeWithResponseSync: CreateDirectActionWithResponseSyncInvoker(invokeWithResponseAsync),
@@ -2230,7 +2275,10 @@ internal sealed partial class LocalMessageBus(
 		var activationPlan = GetContextActivationPlan(handlerType);
 		return activationPlan.Mode switch
 		{
-			ContextActivationMode.SingletonCached => (_, _) => activationPlan.SingletonHandler!,
+			ContextActivationMode.SingletonCached => (messageContext, activationProvider) =>
+				HandlerActivatorRegistry.HasContextSetter(handlerType)
+					? activator.ActivateHandler(handlerType, messageContext, activationProvider)
+					: activationPlan.SingletonHandler!,
 			ContextActivationMode.RegisteredOptimized => (messageContext, activationProvider) => ((HandlerActivator)activator)
 				.ActivateRegisteredHandler(handlerType, messageContext, activationProvider),
 			ContextActivationMode.FactoryOptimized => (messageContext, activationProvider) => ((HandlerActivator)activator)
@@ -2326,6 +2374,11 @@ internal sealed partial class LocalMessageBus(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
+		if (HandlerActivatorRegistry.HasContextSetter(handlerType))
+		{
+			return false;
+		}
+
 		if (_singletonNoContextEligibilityCache.TryGetValue(handlerType, out var cached))
 		{
 			return cached;
@@ -2355,7 +2408,8 @@ internal sealed partial class LocalMessageBus(
 		Type handlerType,
 		out object handler)
 	{
-		if (_singletonNoContextHandlerCache.TryGetValue(handlerType, out handler!))
+		if (!HandlerActivatorRegistry.HasContextSetter(handlerType) &&
+			_singletonNoContextHandlerCache.TryGetValue(handlerType, out handler!))
 		{
 			return true;
 		}
@@ -2452,6 +2506,11 @@ internal sealed partial class LocalMessageBus(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
+		if (HandlerActivatorRegistry.HasContextSetter(handlerType))
+		{
+			return false;
+		}
+
 		if (_parameterlessStatelessPromotionEligibilityCache.TryGetValue(handlerType, out var cached))
 		{
 			return cached;
@@ -2807,11 +2866,16 @@ internal sealed partial class LocalMessageBus(
 		[field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
 		bool ExpectsResponse,
-		bool RequiresContext,
+		bool RequiresStructuralContext,
 		DirectActionNoResponseSyncInvoker? TryInvokeNoResponseSync,
 		DirectActionNoResponseAsyncInvoker? InvokeNoResponseAsync,
 		DirectActionWithResponseSyncInvoker? TryInvokeWithResponseSync,
-		DirectActionWithResponseAsyncInvoker? InvokeWithResponseAsync);
+		DirectActionWithResponseAsyncInvoker? InvokeWithResponseAsync)
+	{
+		private readonly bool _structuralRequiresContext = RequiresStructuralContext;
+		private readonly HandlerActivatorRegistry.ContextSetterSlot _setterSlot = HandlerActivatorRegistry.GetContextSetterSlot(HandlerType);
+		public bool RequiresContext => _structuralRequiresContext || _setterSlot?.HasSetter == true;
+	}
 
 	private readonly record struct PrecompiledDirectActionDispatchPlan(
 		bool ExpectsResponse,
@@ -2852,8 +2916,13 @@ internal sealed partial class LocalMessageBus(
 		[property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		[field: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type HandlerType,
-		bool RequiresContext,
-		EventHandlerAsyncInvoker Invoke);
+		bool RequiresStructuralContext,
+		EventHandlerAsyncInvoker Invoke)
+	{
+		private readonly bool _structuralRequiresContext = RequiresStructuralContext;
+		private readonly HandlerActivatorRegistry.ContextSetterSlot _setterSlot = HandlerActivatorRegistry.GetContextSetterSlot(HandlerType);
+		public bool RequiresContext => _structuralRequiresContext || _setterSlot?.HasSetter == true;
+	}
 
 	// Source-generated logging methods
 	[LoggerMessage(DeliveryEventId.NoHandlersForEvent, LogLevel.Warning,

@@ -8,6 +8,12 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
+	<PropertyGroup Condition="'$(StandaloneA3NativeAot)' == 'true'">
+		<PublishAot>true</PublishAot>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<EnableAotAnalyzer>true</EnableAotAnalyzer>
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+	</PropertyGroup>
   <!-- Standalone A3: uses ONLY A3.Core (no Dispatch pipeline, no CQRS, no database) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.A3.Core\Excalibur.A3.Core.csproj" />

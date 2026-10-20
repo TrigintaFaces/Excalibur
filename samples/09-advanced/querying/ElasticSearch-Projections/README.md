@@ -30,7 +30,7 @@ docker run -d --name es -p 9200:9200 \
 builder.Services.AddElasticsearchServices(builder.Configuration, registry: null);
 
 // Register projection infrastructure
-builder.Services.AddElasticsearchProjections(builder.Configuration);
+builder.Services.AddElasticSearchProjectionManagement(builder.Configuration);
 
 // Register per-type projection stores with named options
 builder.Services.AddElasticSearchProjectionStore<OrderSummary>(options =>

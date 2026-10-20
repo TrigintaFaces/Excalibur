@@ -66,6 +66,60 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 
 	public void Dispose() => _store.Dispose();
 
+	[Theory]
+	[InlineData(false, 1, 2, 2)]
+	[InlineData(true, 1, 2, 2)]
+	[InlineData(false, 2, 2, 2)]
+	[InlineData(true, 2, 2, 2)]
+	[InlineData(false, 0, 0, 0)]
+	[InlineData(true, 0, 0, 0)]
+	[InlineData(false, 3, 0, 3)]
+	[InlineData(true, 3, 0, 3)]
+	public async Task RecordObservedRetirementCountAtomicallyWithoutDoubleCounting(bool fenced, int stored, int observed, int expected)
+	{
+		var row = new OutboundMessage("test.message", [1], "dest") { RetryCount = stored };
+		await _store.StageMessageAsync(row, CancellationToken.None);
+		if (fenced)
+		{
+			(await _store.MarkDeadLetteredAsync(row.Id, "counted", observed, LiveTenure, CancellationToken.None))
+				.ShouldBe(OutboxCompletionOutcome.Applied);
+		}
+		else
+		{
+			await _store.MarkDeadLetteredAsync(row.Id, "counted", observed, CancellationToken.None);
+		}
+		row.Status.ShouldBe(OutboxStatus.DeadLettered);
+		row.RetryCount.ShouldBe(expected);
+		await _store.MarkDeadLetteredAsync(row.Id, "late", expected + 10, CancellationToken.None);
+		(await _store.MarkDeadLetteredAsync(row.Id, "late-fenced", expected + 10, LiveTenure, CancellationToken.None))
+			.ShouldBe(OutboxCompletionOutcome.AlreadyTerminal);
+		row.RetryCount.ShouldBe(expected, "a repeated terminal report must not change the recorded count");
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task RejectNegativeRetirementCountBeforeAnyMutation(bool fenced)
+	{
+		var row = new OutboundMessage("test.message", [1], "dest") { RetryCount = 1 };
+		await _store.StageMessageAsync(row, CancellationToken.None);
+		await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+		{
+			if (fenced)
+			{
+				await _store.MarkDeadLetteredAsync(row.Id, "invalid", -1, LiveTenure, CancellationToken.None);
+			}
+			else
+			{
+				await _store.MarkDeadLetteredAsync(row.Id, "invalid", -1, CancellationToken.None);
+			}
+		});
+		row.Status.ShouldBe(OutboxStatus.Staged);
+		row.RetryCount.ShouldBe(1);
+		(await _store.MarkDeadLetteredAsync(row.Id, "valid-lower-tenure", 2, SupersededTenure, CancellationToken.None))
+			.ShouldBe(OutboxCompletionOutcome.Applied, "invalid input must not have advanced the fence");
+	}
+
 	private async Task<string> StageAsync()
 	{
 		var msg = new OutboundMessage("test.message", [1], "dest");
@@ -240,7 +294,9 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 	[Fact]
 	public async Task RefuseADeadLetterFromASupersededTenure()
 	{
-		var id = await StageAsync();
+		var row = new OutboundMessage("test.message", [1], "dest");
+		await _store.StageMessageAsync(row, CancellationToken.None);
+		var id = row.Id;
 		var handover = await StageAsync();
 		_ = await ClaimUnderAsync(SupersededTenure);
 
@@ -248,16 +304,17 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		await _store.MarkSentAsync(handover, LiveTenure, CancellationToken.None);
 
 		var outcome = await _store.MarkDeadLetteredAsync(
-			id, "max retries exceeded", SupersededTenure, CancellationToken.None);
+			id, "max retries exceeded", 99, SupersededTenure, CancellationToken.None);
 
 		outcome.ShouldBe(OutboxCompletionOutcome.FenceRefused);
+		row.RetryCount.ShouldBe(0, "a refused transition must not record the supplied count");
 
 		// The row survives, which is what lets the live tenure still deliver it. The unfenced transition
 		// destroys the row on a message-id match alone, so a superseded tenure reaching its attempt ceiling
 		// would bury a message a successor still holds and has not delivered.
 		// Proven by the live tenure still being able to apply its OWN terminal transition to the same
 		// message: the row survived, which is what lets that tenure still deliver or resolve it.
-		(await _store.MarkDeadLetteredAsync(id, "live tenure decides", LiveTenure, CancellationToken.None))
+		(await _store.MarkDeadLetteredAsync(id, "live tenure decides", 0, LiveTenure, CancellationToken.None))
 			.ShouldBe(OutboxCompletionOutcome.Applied,
 				"a refused dead-letter must leave the message present and resolvable by the tenure that owns it");
 	}
@@ -270,12 +327,12 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		_ = await ClaimUnderAsync(LiveTenure);
 
 		var outcome = await _store.MarkDeadLetteredAsync(
-			id, "max retries exceeded", LiveTenure, CancellationToken.None);
+			id, "max retries exceeded", 0, LiveTenure, CancellationToken.None);
 
 		outcome.ShouldBe(OutboxCompletionOutcome.Applied);
 
 		// Terminal, and observably so: a second dead-letter finds nothing left to transition.
-		(await _store.MarkDeadLetteredAsync(id, "again", LiveTenure, CancellationToken.None))
+		(await _store.MarkDeadLetteredAsync(id, "again", 0, LiveTenure, CancellationToken.None))
 			.ShouldNotBe(OutboxCompletionOutcome.Applied, "DeadLettered is terminal - it cannot be applied twice");
 	}
 
@@ -291,7 +348,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 		await _store.MarkSentAsync(id, LiveTenure, CancellationToken.None);
 
 		var outcome = await _store.MarkDeadLetteredAsync(
-			id, "max retries exceeded", LiveTenure, CancellationToken.None);
+			id, "max retries exceeded", 0, LiveTenure, CancellationToken.None);
 
 		outcome.ShouldBe(OutboxCompletionOutcome.AlreadyTerminal,
 			"the drain withdraws its external dead-letter entry on any non-Applied outcome, and a delivered "
@@ -313,7 +370,7 @@ public sealed class InMemoryOutboxFencedCompletionPathShould : IDisposable
 			first, "boom", 1, null, new OutboxWriteAuthority(LiveTenure, claim), CancellationToken.None))
 			.ShouldBe(OutboxCompletionOutcome.Applied);
 
-		(await _store.MarkDeadLetteredAsync(second, "ceiling", LiveTenure, CancellationToken.None))
+		(await _store.MarkDeadLetteredAsync(second, "ceiling", 0, LiveTenure, CancellationToken.None))
 			.ShouldBe(OutboxCompletionOutcome.Applied);
 	}
 }

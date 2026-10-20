@@ -64,8 +64,8 @@ public sealed class KafkaReceiverRequeueRefusalShould
 			SettlementRetryability.Permanent,
 			"the receipt belongs to a tenure that has ended, so repeating the call can only fail the same way");
 		refusal.RedeliveryExpectation.ShouldBe(
-			TransportRedeliveryExpectation.Expected,
-			"the offset was never marked terminal, so the partition's new owner resumes before it");
+			TransportRedeliveryExpectation.Unspecified,
+			"the ended tenure cannot establish the broker outcome for the new owner");
 		seeks.ShouldBeEmpty("a consumer that no longer owns the partition must not seek it");
 	}
 
@@ -101,13 +101,14 @@ public sealed class KafkaReceiverRequeueRefusalShould
 		var seeks = new List<long>();
 		var consumer = FakeConsumer([Record(0), null], seeks);
 		var failNextSeek = true;
+		var cause = new KafkaException(ErrorCode.Local_State);
 		A.CallTo(() => consumer.Seek(A<TopicPartitionOffset>._))
 			.Invokes((TopicPartitionOffset tpo) =>
 			{
 				if (failNextSeek)
 				{
 					failNextSeek = false;
-					throw new KafkaException(ErrorCode.Local_State);
+					throw cause;
 				}
 
 				seeks.Add(tpo.Offset.Value);
@@ -116,12 +117,100 @@ public sealed class KafkaReceiverRequeueRefusalShould
 		var receiver = CreateReceiver(consumer, new KafkaPartitionProgress());
 		var received = await receiver.ReceiveAsync(10, CancellationToken.None);
 
-		_ = await Should.ThrowAsync<KafkaException>(
+		var failure = await Should.ThrowAsync<TransportSettlementException>(
 			() => receiver.RejectAsync(received[0], "retry", requeue: true, CancellationToken.None));
+		failure.TransportName.ShouldBe("Kafka");
+		failure.Retryability.ShouldBe(SettlementRetryability.Unspecified);
+		failure.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		failure.InnerException.ShouldBeSameAs(cause);
 
 		await receiver.RejectAsync(received[0], "retry", requeue: true, CancellationToken.None);
 
 		seeks.ShouldBe([0L], "the retry found its receipt and sought back");
+	}
+
+	[Fact]
+	public async Task RefuseOpposingAcknowledgment_AfterPausedRequeueSucceeds()
+	{
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var release = new ManualResetEventSlim();
+		var acknowledgeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var commitEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var consumer = FakeConsumer([Record(7), null], []);
+		A.CallTo(() => consumer.Seek(A<TopicPartitionOffset>._)).Invokes(() =>
+		{
+			entered.TrySetResult();
+			if (!release.Wait(TimeSpan.FromSeconds(10)))
+				{
+					throw new TimeoutException("The paused native operation was not released by its test owner.");
+				}
+		});
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).Invokes(() => commitEntered.TrySetResult());
+		var receiver = CreateReceiver(consumer, new KafkaPartitionProgress());
+		var message = (await receiver.ReceiveAsync(1, CancellationToken.None))[0];
+		var requeue = Task.Factory.StartNew(() => receiver.RejectAsync(message, "retry", true, CancellationToken.None),
+			CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+		Task<TransportSettlementException>? opposing = null;
+		try
+		{
+			await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			opposing = Task.Factory.StartNew(async () =>
+			{
+				acknowledgeStarted.TrySetResult();
+				return await Should.ThrowAsync<TransportSettlementException>(() => receiver.AcknowledgeAsync(message, CancellationToken.None));
+			}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+			await acknowledgeStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			try
+			{
+				await commitEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+				throw new InvalidOperationException("Acknowledgment committed a receipt while its requeue Seek was still in flight.");
+			}
+			catch (TimeoutException)
+			{
+				// An opposing settlement must wait until the receipt's native owner finishes.
+			}
+		}
+		finally
+		{
+			release.Set();
+			await requeue.WaitAsync(TimeSpan.FromSeconds(5));
+			if (opposing is not null)
+			{
+				var refusal = await opposing.WaitAsync(TimeSpan.FromSeconds(5));
+				refusal.Retryability.ShouldBe(SettlementRetryability.Permanent);
+				refusal.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+			}
+		}
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).MustNotHaveHappened();
+		A.CallTo(() => consumer.Seek(A<TopicPartitionOffset>._)).MustHaveHappenedOnceExactly();
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task RefuseAnOldDelivery_AfterTheSameOffsetWasRedelivered(bool reject, bool requeue)
+	{
+		var seeks = new List<long>();
+		var consumer = FakeConsumer([Record(7), Record(7)], seeks);
+		var receiver = CreateReceiver(consumer, new KafkaPartitionProgress());
+		var original = (await receiver.ReceiveAsync(1, CancellationToken.None))[0];
+		await receiver.RejectAsync(original, "retry", true, CancellationToken.None);
+		var redelivered = (await receiver.ReceiveAsync(1, CancellationToken.None))[0];
+		redelivered.ProviderData["kafka.receipt_handle"].ShouldBe(original.ProviderData["kafka.receipt_handle"],
+			"the native topic, partition, offset and assignment generation remain unchanged");
+		var refusal = await Should.ThrowAsync<TransportSettlementException>(() => reject
+			? receiver.RejectAsync(original, "delayed old delivery", requeue, CancellationToken.None)
+			: receiver.AcknowledgeAsync(original, CancellationToken.None));
+		refusal.TransportName.ShouldBe("Kafka");
+		refusal.Retryability.ShouldBe(SettlementRetryability.Permanent);
+		refusal.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).MustNotHaveHappened();
+		seeks.ShouldBe([7L], "the obsolete delivery must neither requeue nor remove the replacement receipt");
+		await receiver.AcknowledgeAsync(redelivered, CancellationToken.None);
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>.That.Matches(offsets =>
+			offsets.Count() == 1 && offsets.Single().Offset.Value == 8))).MustHaveHappenedOnceExactly();
+		seeks.ShouldBe([7L]);
 	}
 
 	private static KafkaConsumeResult Record(long offset) =>

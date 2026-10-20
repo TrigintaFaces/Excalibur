@@ -75,7 +75,7 @@ public sealed class OutboxConfigurationShould : UnitTestBase
 	}
 
 	[Fact]
-	public void ToOptions_HasDefaultEnableBackgroundProcessing()
+	public void ToOptions_LeavesBackgroundProcessingOffUnlessTheConsumerOptsIn()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -86,7 +86,11 @@ public sealed class OutboxConfigurationShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableBackgroundProcessing.ShouldBeTrue();
+		options.EnableBackgroundProcessing.ShouldBeFalse(
+			"this route registers no OutboxBackgroundService, so reporting the drain as enabled told the"
+			+ " consumer something false about their own host. The arm previously asserted true and was"
+			+ " named ToOptions_HasDefaultEnableBackgroundProcessing -- it recorded the defect as the"
+			+ " requirement.");
 	}
 
 	[Fact]

@@ -45,7 +45,7 @@ public sealed class InlineProjectionIntegrationShould
 	public async Task AchieveImmediateConsistencyAfterInlineProjection()
 	{
 		// Arrange
-		var projectionStore = new InMemoryProjectionStore<OrderSummary>();
+		var projectionStore = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -88,7 +88,7 @@ public sealed class InlineProjectionIntegrationShould
 		// provider threw "Cannot resolve scoped service ... from root provider" under DI scope
 		// validation -- the default in the Development host and the path Quartz jobs hit. The
 		// processor must resolve stores from a freshly created scope.
-		var projectionStore = new InMemoryProjectionStore<OrderSummary>();
+		var projectionStore = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);
@@ -147,7 +147,7 @@ public sealed class InlineProjectionIntegrationShould
 	{
 		// Arrange
 		var executionOrder = new List<string>();
-		var projectionStore = new InMemoryProjectionStore<OrderSummary>();
+		var projectionStore = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		registry.Register(new ProjectionRegistration(
@@ -196,7 +196,7 @@ public sealed class InlineProjectionIntegrationShould
 				Task.FromException(new InvalidOperationException("store unavailable"))));
 
 		var services = new ServiceCollection()
-			.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>())
+			.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>())
 			.BuildServiceProvider();
 
 		var processor = CreateProcessor(registry, services);
@@ -232,7 +232,7 @@ public sealed class InlineProjectionIntegrationShould
 				Task.FromException(new InvalidOperationException("store unavailable"))));
 
 		var services = new ServiceCollection()
-			.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>())
+			.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>())
 			.BuildServiceProvider();
 
 		var processor = CreateProcessor(registry, services);
@@ -256,8 +256,8 @@ public sealed class InlineProjectionIntegrationShould
 	public async Task UpdateMultipleConcurrentProjectionTypes()
 	{
 		// Arrange
-		var orderStore = new InMemoryProjectionStore<OrderSummary>();
-		var inventoryStore = new InMemoryProjectionStore<InventoryView>();
+		var orderStore = new TestProjectionStore<OrderSummary>();
+		var inventoryStore = new TestProjectionStore<InventoryView>();
 		var registry = new InMemoryProjectionRegistry();
 
 		// Build OrderSummary projection
@@ -308,7 +308,7 @@ public sealed class InlineProjectionIntegrationShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+		services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 		services.AddLogging();
 		services.AddMetrics();
 
@@ -334,7 +334,7 @@ public sealed class InlineProjectionIntegrationShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<OrderSummary>>(new InMemoryProjectionStore<OrderSummary>());
+		services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
 		services.AddLogging();
 		services.AddMetrics();
 
@@ -359,7 +359,7 @@ public sealed class InlineProjectionIntegrationShould
 	public async Task ApplyMultipleEventsInOrder()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ProjectionBuilder<OrderSummary>(registry);

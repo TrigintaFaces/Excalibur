@@ -53,6 +53,19 @@ public static class TestCategories
 	public const string RequiresCredentials = "RequiresCredentials";
 
 	/// <summary>
+	/// Tests whose assertion requires faulting the backing store, in an environment where that fault
+	/// cannot be induced. The test body is kept and still reports a skip wherever it CAN be induced, so
+	/// the category describes the environment and never the test's worth.
+	/// </summary>
+	/// <remarks>
+	/// Carried per-test, never per-class: a sibling arm that needs no fault must keep running. Excluded
+	/// from the nightly integration filter for the same reason credential-bound tests are -- a test that
+	/// cannot run in an environment is not required to pass there, and an excluded category is a visible
+	/// absence, where a skip inside a required set is an argument with the gate.
+	/// </remarks>
+	public const string RequiresFaultInjection = "RequiresFaultInjection";
+
+	/// <summary>
 	/// Long-running tests that may timeout in CI.
 	/// </summary>
 	public const string LongRunning = "LongRunning";

@@ -44,6 +44,7 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequestBase<IDbConnect
 	/// Initializes a new instance of the <see cref="FencedMarkMessageDeadLettered"/> class.
 	/// </summary>
 	/// <param name="messageId">The message being buried.</param>
+	/// <param name="attemptCount">The absolute number of observed logical send attempts.</param>
 	/// <param name="reason">The reason recorded against the burial.</param>
 	/// <param name="fencingToken">The presented tenure token.</param>
 	/// <param name="outboxTableName">The qualified outbox table name.</param>
@@ -54,6 +55,7 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequestBase<IDbConnect
 	public FencedMarkMessageDeadLettered(
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		string outboxTableName,
 		string deadLetterTableName,
@@ -61,33 +63,48 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequestBase<IDbConnect
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
+		// Lock the source before copying. Check archive/delete counts inside the command
+		// so trigger-suppressed deletion raises and rolls back the entire terminal transition.
 		var sql = $"""
 		   DECLARE
-		       v_high NUMBER;
-		       v_moved NUMBER := 0;
+		   v_high NUMBER;
+		   v_moved NUMBER := 0;
+		   v_inserted NUMBER;
+		   v_deleted NUMBER;
 		   BEGIN
-		       BEGIN
-		           MERGE INTO {fenceTableName} f
-		           USING (SELECT :ScopeKey AS scope_key, :Token AS tok FROM dual) src
-		           ON (f.scope_key = src.scope_key)
-		           WHEN MATCHED THEN UPDATE SET f.high_water_token = GREATEST(f.high_water_token, src.tok)
-		           WHEN NOT MATCHED THEN INSERT (scope_key, high_water_token) VALUES (src.scope_key, src.tok);
-		       EXCEPTION
-		           WHEN DUP_VAL_ON_INDEX THEN
-		               UPDATE {fenceTableName} SET high_water_token = GREATEST(high_water_token, :Token) WHERE scope_key = :ScopeKey;
-		       END;
-		       SELECT high_water_token INTO v_high FROM {fenceTableName} WHERE scope_key = :ScopeKey;
-		       IF v_high = :Token THEN
-		           INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-		           SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, :Reason
-		           FROM {outboxTableName}
-		           WHERE message_id = :MessageId;
-
-		           DELETE FROM {outboxTableName} WHERE message_id = :MessageId;
-		           v_moved := SQL%ROWCOUNT;
-		       END IF;
-		       :OutHigh := v_high;
-		       :OutDeleted := v_moved;
+		   BEGIN
+		   MERGE INTO {fenceTableName} f
+		   USING (SELECT :ScopeKey AS scope_key, :Token AS tok FROM dual) src
+		   ON (f.scope_key = src.scope_key)
+		   WHEN MATCHED THEN UPDATE SET f.high_water_token = GREATEST(f.high_water_token, src.tok)
+		   WHEN NOT MATCHED THEN INSERT (scope_key, high_water_token) VALUES (src.scope_key, src.tok);
+		   EXCEPTION
+		   WHEN DUP_VAL_ON_INDEX THEN
+		   UPDATE {fenceTableName} SET high_water_token = GREATEST(high_water_token, :Token) WHERE scope_key = :ScopeKey;
+		   END;
+		   SELECT high_water_token INTO v_high FROM {fenceTableName} WHERE scope_key = :ScopeKey;
+		   IF v_high = :Token THEN
+		   FOR src IN (SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts FROM {outboxTableName}
+		   WHERE message_id = :MessageId FOR UPDATE) LOOP
+		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+		   VALUES (src.message_id, src.tenant_id, src.message_type, src.message_metadata, src.message_body,
+		   src.occurred_on, GREATEST(src.attempts, :AttemptCount), :Reason);
+		   v_inserted := SQL%ROWCOUNT;
+		   IF v_inserted = 1 THEN
+		   DELETE FROM {outboxTableName} WHERE message_id = src.message_id;
+		   v_deleted := SQL%ROWCOUNT;
+		   IF v_deleted != v_inserted THEN
+		   RAISE_APPLICATION_ERROR(-20001, 'Dead-letter archive/delete count mismatch');
+		   END IF;
+		   v_moved := v_inserted;
+		   ELSIF v_inserted != 0 THEN
+		   RAISE_APPLICATION_ERROR(-20001, 'Unexpected dead-letter archive count');
+		   END IF;
+		   END LOOP;
+		   END IF;
+		   :OutHigh := v_high;
+		   :OutDeleted := v_moved;
 		   END;
 		   """;
 
@@ -95,6 +112,7 @@ internal sealed class FencedMarkMessageDeadLettered : DataRequestBase<IDbConnect
 		parameters.Add("ScopeKey", outboxTableName, direction: ParameterDirection.Input);
 		parameters.Add("Token", fencingToken, direction: ParameterDirection.Input);
 		parameters.Add("Reason", reason, direction: ParameterDirection.Input);
+		parameters.Add("AttemptCount", attemptCount, direction: ParameterDirection.Input);
 		parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
 		parameters.Add("OutHigh", dbType: DbType.Int64, direction: ParameterDirection.Output);
 		parameters.Add("OutDeleted", dbType: DbType.Int64, direction: ParameterDirection.Output);

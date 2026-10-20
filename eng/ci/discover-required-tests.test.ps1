@@ -8,6 +8,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'discover-required-tests.functions.ps1')
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $root = Join-Path $repo ('artifacts/tools/required-discovery-control-' + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($root)
@@ -81,6 +82,14 @@ function Invoke-Control([string]$Name, [string]$Filter, [int]$Count, [bool]$Pass
     if ($Pass) {
         $census = Get-Content $censusPath -Raw | ConvertFrom-Json
         if ($census.discoveredCount -ne $Count) { throw "${Name}: expected $Count identities, got $($census.discoveredCount)." }
+        if ($census.filter -cne $Filter -or $census.context.filter -cne $Filter) {
+            throw "${Name}: full filter changed in the discovery evidence or context."
+        }
+        if ($census.runSettingsSha256 -cne (Get-FileHash -LiteralPath $settingsPath -Algorithm SHA256).Hash -or
+            $census.assemblySha256 -cne (Get-FileHash -LiteralPath $assembly -Algorithm SHA256).Hash -or
+            @($census.fullyDiscoveredSources).Count -ne 1 -or $census.fullyDiscoveredSources[0] -cne $assembly) {
+            throw "${Name}: discovery source/settings binding changed."
+        }
         if ($Count -gt 0) {
             & $dotnet test $project -c Release --no-build --no-restore --settings $settingsPath `
                 --logger 'trx;LogFileName=execution.trx' --results-directory $directory *> (Join-Path $directory 'execution.log')
@@ -97,10 +106,54 @@ function Invoke-Control([string]$Name, [string]$Filter, [int]$Count, [bool]$Pass
     return $directory
 }
 try {
+    $diagnosticAssembly = 'D:\fixture\CensusFixture.dll'
+    $shortFilter = 'Group=never'
+    $longFilter = 'FullyQualifiedName=' + ('x' * 412)
+    $shortMessage = 'Warning: No test matches the given testcase filter `Group=never` in D:\fixture\CensusFixture.dll'
+    $longMessage = 'Warning: No test matches the given testcase filter `' + $longFilter.Substring(0,256) + '...` in ' + $diagnosticAssembly
+    $diagnosticCases = @(
+        @{name='exact-short';message=$shortMessage;filter=$shortFilter;accept=$true},
+        @{name='exact-long';message=$longMessage;accept=$true},
+        @{name='wrong-source';message=$longMessage.Replace('CensusFixture.dll','Other.dll');accept=$false},
+        @{name='error-level';message=$longMessage.Replace('Warning:','Error:');accept=$false},
+        @{name='wrong-case';message=$longMessage.Replace('No test','no test');accept=$false},
+        @{name='unrelated-warning';message='Warning: Adapter could not load tests.';accept=$false},
+        @{name='additional-warning';message=($longMessage + "`nWarning: Adapter failed.");accept=$false},
+        @{name='empty-filter';message=$shortMessage;filter='';accept=$false},
+        @{name='positive-count';message=$longMessage;total=1;accept=$false},
+        @{name='unexpected-received-case';message=$longMessage;received=1;accept=$false},
+        @{name='wrong-prefix';message=$longMessage.Replace('FullyQualifiedName=','FullyQualifiedName!');accept=$false},
+        @{name='wrong-prefix-length';message=$longMessage.Replace($longFilter.Substring(0,256),$longFilter.Substring(0,255));accept=$false},
+        @{name='two-dots';message=$longMessage.Replace('...`','..`');accept=$false},
+        @{name='four-dots';message=$longMessage.Replace('...`','....`');accept=$false},
+        @{name='unicode-ellipsis';message=$longMessage.Replace('...`',([string][char]0x2026 + '`'));accept=$false},
+        @{name='unabbreviated-long';message=$longMessage.Replace($longFilter.Substring(0,256)+'...',$longFilter);accept=$false},
+        @{name='abbreviated-short';message=$shortMessage.Replace('Group=never`','Group=never...`');filter=$shortFilter;accept=$false},
+        @{name='multiple-sources';message=($longMessage + ', D:\fixture\Other.dll');accept=$false}
+    )
+    foreach ($case in $diagnosticCases) {
+        $caseFilter = if ($case.ContainsKey('filter')) { $case.filter } else { $longFilter }
+        $total = if ($case.ContainsKey('total')) { $case.total } else { 0 }
+        $received = if ($case.ContainsKey('received')) { $case.received } else { 0 }
+        $accepted = Test-ExpectedZeroMatchDiagnostic -Diagnostic $case.message -Filter $caseFilter `
+            -AssemblyPath $diagnosticAssembly -DiscoveredCount $total -ReceivedCount $received
+        if ($accepted -ne $case.accept) { throw "Diagnostic control '$($case.name)': expected acceptance=$($case.accept), got $accepted." }
+    }
+    Write-Host "PASS: $($diagnosticCases.Count) strict diagnostic controls."
     $null = Invoke-Control 'serializable-and-duplicate-display' 'Group=valid' 4
     $null = Invoke-Control 'compound-and-negative' '(Group=valid|Group=never)&Group!=never&FullyQualifiedName!~Unstable' 4
     $null = Invoke-Control 'multi-valued-trait' 'Group=shared' 1
     $null = Invoke-Control 'zero-match' 'FullyQualifiedName=NoSuchTest' 0
+    foreach ($length in @(256,257,431,600)) {
+        $prefix = 'FullyQualifiedName=NoSuchTest'
+        $longFilter = $prefix + ('x' * ($length - $prefix.Length))
+        $null = Invoke-Control "zero-match-filter-$length" $longFilter 0
+    }
+    # The two filters have the same abbreviated display but different execution populations.
+    # Their complete suffix must survive in runsettings, context, census and actual execution.
+    $sharedPrefix = ((1..30 | ForEach-Object { 'Group!=never' }) -join '&')
+    $null = Invoke-Control 'long-shared-prefix-matching-tail' ($sharedPrefix + '&Group=valid') 4
+    $null = Invoke-Control 'long-shared-prefix-nonmatching-tail' ($sharedPrefix + '&Group=absent') 0
     $null = Invoke-Control 'identical-inline-data' 'FullyQualifiedName~Duplicated' 1
     $null = Invoke-Control 'deferred-nonserializable' 'FullyQualifiedName~Deferred' 0 $false
     $null = Invoke-Control 'invalid-filter' 'Group=' 0 $false

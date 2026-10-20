@@ -257,14 +257,14 @@ public sealed class OutboxDeadLetterLoopIsolationShould
 		public ValueTask EnqueueAsync(IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)
 			=> ValueTask.CompletedTask;
 
-		public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 		{
 			lock (_gate)
 			{
 				_deadLettered.Add(messageId);
 			}
 
-			return ValueTask.CompletedTask;
+			return ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 		}
 	}
 }

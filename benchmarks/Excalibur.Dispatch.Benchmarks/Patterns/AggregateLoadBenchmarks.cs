@@ -6,7 +6,6 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.MsSql;
 
@@ -39,24 +38,35 @@ public class AggregateLoadBenchmarks
 	[GlobalSetup]
 	public async Task GlobalSetup()
 	{
-		// Start SQL Server container
-		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-			.Build();
+		try
+		{
+			// Start SQL Server container
+			_sqlContainer = new MsSqlBuilder()
+				.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024)
+				.Build();
 
-		await _sqlContainer.StartAsync();
-		_connectionString = _sqlContainer.GetConnectionString();
+			using var startupDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+			await _sqlContainer.StartAsync(startupDeadline.Token);
+			_connectionString = _sqlContainer.GetConnectionString();
 
-		// Create EventStore table
-		await CreateEventStoreTableAsync();
+			// Create EventStore table
+			await CreateEventStoreTableAsync();
 
-		// Initialize event store
-		_eventStore = new SqlServerEventStore(_connectionString, NullLogger<SqlServerEventStore>.Instance, BenchmarkTenantContext.SingleTenant);
+			// Initialize event store
+			_eventStore = new SqlServerEventStore(_connectionString, NullLogger<SqlServerEventStore>.Instance, BenchmarkTenantContext.SingleTenant);
 
-		// Pre-populate aggregates with different event counts
-		_aggregateWith10Events = await CreateAggregateWithEventsAsync(10);
-		_aggregateWith100Events = await CreateAggregateWithEventsAsync(100);
-		_aggregateWith1000Events = await CreateAggregateWithEventsAsync(1000);
+			// Pre-populate aggregates with different event counts
+			_aggregateWith10Events = await CreateAggregateWithEventsAsync(10);
+			_aggregateWith100Events = await CreateAggregateWithEventsAsync(100);
+			_aggregateWith1000Events = await CreateAggregateWithEventsAsync(1000);
+		}
+		catch (Exception setupFailure)
+		{
+			try { await GlobalCleanup(); }
+			catch (Exception cleanupFailure) { setupFailure.Data["BenchmarkCleanupFailure"] = cleanupFailure; }
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -65,9 +75,13 @@ public class AggregateLoadBenchmarks
 	[GlobalCleanup]
 	public async Task GlobalCleanup()
 	{
-		if (_sqlContainer != null)
+		var container = _sqlContainer;
+		_sqlContainer = null;
+		_eventStore = null;
+		_connectionString = null;
+		if (container != null)
 		{
-			await _sqlContainer.DisposeAsync();
+			await container.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30));
 		}
 	}
 
@@ -108,7 +122,7 @@ public class AggregateLoadBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Load aggregate from specific version (partial load, last 50 events of 1000).
+	/// Benchmark: Load versions 951 through 999 (49 events; the lower bound is exclusive).
 	/// </summary>
 	[Benchmark]
 	public async Task<IReadOnlyList<StoredEvent>> LoadAggregateFromVersion950()
@@ -121,7 +135,7 @@ public class AggregateLoadBenchmarks
 	}
 
 	/// <summary>
-	/// Benchmark: Concurrent load of 10 different aggregates (simulates high read load).
+	/// Benchmark: Ten concurrent reads of the same 100-event aggregate.
 	/// </summary>
 	[Benchmark]
 	public async Task ConcurrentLoad10Aggregates()
@@ -168,55 +182,38 @@ public class AggregateLoadBenchmarks
 			events.Add(CreateTestEvent(aggregateId, i));
 		}
 
-		_ = await _eventStore.AppendAsync(
+		using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+		var result = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			events,
 			expectedVersion: -1,
-			CancellationToken.None);
+			deadline.Token);
+
+		if (result.Outcome != AppendOutcome.Committed || result.NextExpectedVersion != eventCount - 1)
+		{
+			throw new InvalidOperationException($"Benchmark seed did not commit {eventCount} events: {result.Outcome}");
+		}
+
+		var stored = await _eventStore.LoadAsync(aggregateId, "TestAggregate", deadline.Token);
+		if (stored.Count != eventCount)
+		{
+			throw new InvalidOperationException("Benchmark seed durable event count differs");
+		}
+
+		for (int i = 0; i < stored.Count; i++)
+		{
+			var value = stored[i];
+			if (value.Version != i || value.AggregateId != aggregateId || value.AggregateType != "TestAggregate"
+				|| value.TenantId != BenchmarkTenantContext.SingleTenant.TenantId || value.GlobalPosition <= 0
+				|| value.EventData is not { Length: > 0 } || value.Metadata is not { Length: > 0 } || value.ArchivedAt != null)
+			{
+				throw new InvalidOperationException("Benchmark seed durable event identity differs");
+			}
+		}
 
 		return aggregateId;
 	}
 
-	private async Task CreateEventStoreTableAsync()
-	{
-		const string createTableSql = """
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
-            BEGIN
-                CREATE TABLE EventStoreEvents (
-                    Position BIGINT NOT NULL PRIMARY KEY,
-                    EventId NVARCHAR(50) NOT NULL UNIQUE,
-                    AggregateId NVARCHAR(50) NOT NULL,
-                    AggregateType NVARCHAR(100) NOT NULL,
-                    EventType NVARCHAR(200) NOT NULL,
-                    EventData VARBINARY(MAX) NOT NULL,
-                    Metadata VARBINARY(MAX) NULL,
-                    Version BIGINT NOT NULL,
-                    Timestamp DATETIMEOFFSET NOT NULL,
-                    IsDispatched BIT NOT NULL DEFAULT 0,
-                    INDEX IX_AggregateId_Version (AggregateId, Version),
-                    INDEX IX_IsDispatched (IsDispatched)
-                );
-            END
-
-            -- The store allocates Position from this counter row inside the appending transaction
-            -- rather than from an IDENTITY, so an aborted append burns no position and the committed
-            -- stream stays contiguous. An IDENTITY column here rejects the store's explicit insert.
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEventsPosition')
-            BEGIN
-                CREATE TABLE EventStoreEventsPosition (
-                    Id TINYINT NOT NULL PRIMARY KEY CHECK (Id = 1),
-                    Value BIGINT NOT NULL
-                );
-                INSERT INTO EventStoreEventsPosition (Id, Value)
-                SELECT 1, ISNULL((SELECT MAX(Position) FROM EventStoreEvents), 0);
-            END
-            """;
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync();
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync();
-	}
+	private Task CreateEventStoreTableAsync() => SqlServerBenchmarkSchema.CreateAsync(_sqlContainer!);
 }

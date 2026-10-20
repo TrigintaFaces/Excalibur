@@ -781,11 +781,18 @@ jobs:
       - name: Prove the promoted commit actually passed its tests (self-test)
         run: bash eng/ci/release-test-verdict-gate.sh --self-test
 
+      # The wait mirrors the official-build wait above, and exists for the same reason: this release
+      # and the commit's CI run are started by the same push, so CI is routinely still in flight when
+      # this step first looks. Without a budget that is a RACE reported as a refusal -- measured twice
+      # in four consecutive releases, both 'Latest eligible run is incomplete' on a run that went on to
+      # finish. The budget bounds patience only; an incomplete run at expiry still refuses, and the
+      # wait is scoped to this commit's own run (never the ancestor walk, never the freshness re-check).
+      # Observed cost of this job to date: 13-22 seconds against a 120-minute cap.
       - name: Prove the promoted commit actually passed its tests
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: bash eng/ci/release-test-verdict-gate.sh --sha "$(git rev-parse HEAD)"
+        run: bash eng/ci/release-test-verdict-gate.sh --sha "$(git rev-parse HEAD)" --wait-minutes 50
 
       # The immutable artifact, fetched from the run that produced it. Not rebuilt, not repacked --
       # these are the bytes the official build hashed and attested, or the checks below will say so.
@@ -1809,11 +1816,9 @@ jobs:
           echo "::warning::Release v${VERSION} left as a draft: publish-nuget = ${PUBLISH_RESULT}"
 
   post-release:
-    # Publishes to NuGet. id-token is present for OIDC/trusted publishing; contents stays
-    # read because this job must not be able to alter the repository it is publishing from.
+    # Writes the release summary and follow-up guidance; contents: read supports checkout.
     permissions:
       contents: read
-      id-token: write
     name: Post-Release Tasks
     runs-on: ubuntu-latest
     timeout-minutes: 120

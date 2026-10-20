@@ -49,28 +49,47 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 		CancellationToken cancellationToken)
 	{
 		// Oracle: two DML statements must run in a single PL/SQL anonymous block (no client-side ';' batching).
+		// Lock the source before copying. Check archive/delete counts inside the command
+		// so trigger-suppressed deletion raises and rolls back the entire terminal transition.
 		var sql = $"""
+		   DECLARE
+		   v_inserted NUMBER;
+		   v_deleted NUMBER;
+		   v_moved NUMBER := 0;
 		   BEGIN
-		           INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-		           SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, :ErrorMessage
-		           FROM {outboxTableName}
-		           WHERE message_id = :MessageIdInsert;
-
-		           DELETE FROM {outboxTableName}
-		           WHERE message_id = :MessageIdDelete;
+		   FOR src IN (SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts FROM {outboxTableName}
+		   WHERE message_id = :MessageId FOR UPDATE) LOOP
+		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
+		   VALUES (src.message_id, src.tenant_id, src.message_type, src.message_metadata, src.message_body,
+		   src.occurred_on, src.attempts, :ErrorMessage);
+		   v_inserted := SQL%ROWCOUNT;
+		   IF v_inserted = 1 THEN
+		   DELETE FROM {outboxTableName} WHERE message_id = src.message_id;
+		   v_deleted := SQL%ROWCOUNT;
+		   IF v_deleted != v_inserted THEN
+		   RAISE_APPLICATION_ERROR(-20001, 'Dead-letter archive/delete count mismatch');
+		   END IF;
+		   v_moved := v_inserted;
+		   ELSIF v_inserted != 0 THEN
+		   RAISE_APPLICATION_ERROR(-20001, 'Unexpected dead-letter archive count');
+		   END IF;
+		   END LOOP;
+		   :MovedCount := v_moved;
 		   END;
 		   """;
 
-		// ODP.NET binds positionally (this store does not set BindByName), so a placeholder appearing more
-		// than once consumes one parameter PER occurrence and parameters must be added in textual order.
-		// The reused message_id is given a distinct name per occurrence, both bound to the same id, so the
-		// block binds correctly regardless of BindByName.
-		var parameters = new DynamicParameters();
-		parameters.Add("ErrorMessage", string.Empty, direction: ParameterDirection.Input);
-		parameters.Add("MessageIdInsert", messageId, direction: ParameterDirection.Input);
-		parameters.Add("MessageIdDelete", messageId, direction: ParameterDirection.Input);
+		// Anonymous PL/SQL blocks return -1 from ExecuteNonQuery; export the actual move count.
+        var parameters = new DynamicParameters();
+        parameters.Add("MessageId", messageId, direction: ParameterDirection.Input);
+        parameters.Add("ErrorMessage", string.Empty, direction: ParameterDirection.Input);
+		parameters.Add("MovedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		Command = new CommandDefinition(sql, new OracleDynamicParameters(parameters),
+			commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
+		ResolveAsync = async conn =>
+		{
+			_ = await conn.ExecuteAsync(Command).ConfigureAwait(false);
+			return parameters.Get<int>("MovedCount");
+		};
 	}
 }

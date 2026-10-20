@@ -103,15 +103,19 @@ public static class ElasticsearchServiceCollectionExtensions
 		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience). Per-attempt node
 		// failover is preserved by an inner NodeFailoverHandler that re-selects the next cluster node on
 		// every SendAsync, so each resilience retry re-enters it and targets a new node. The pipeline owns
-		// timeouts, so the HttpClient timeout is left infinite.
-		var httpClientBuilder = services.AddHttpClient<ElasticsearchAuditExporter>(static (_, client) =>
-		{
-			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
-		});
+		// per-attempt timeouts; the client also bounds response-body buffering.
+		var httpClientBuilder = services.AddHttpClient<ElasticsearchAuditExporter>();
 
 		// Resilience handler is OUTER, node-failover handler is INNER (added second), so each retry
 		// re-enters the failover handler and round-robins to the next node.
-		_ = httpClientBuilder.AddStandardResilienceHandler();
+		var resilienceBuilder = httpClientBuilder.AddStandardResilienceHandler();
+		// The standard handler resets HttpClient.Timeout to infinite. Restore a total deadline afterward
+		// so response-body buffering is also bounded, without adding another retry layer.
+		_ = httpClientBuilder.ConfigureHttpClient(static (provider, client) =>
+		{
+			var options = provider.GetRequiredService<IOptions<ElasticsearchExporterOptions>>().Value;
+			client.Timeout = options.Timeout * (options.MaxRetryAttempts + 1);
+		});
 
 		_ = httpClientBuilder.AddHttpMessageHandler(static sp =>
 		{
@@ -122,9 +126,9 @@ public static class ElasticsearchServiceCollectionExtensions
 			return new NodeFailoverHandler(ToNodeUris(nodeUrls));
 		});
 
-		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
+		// Configure the standard resilience pipeline (keyed by its returned pipeline name) from the exporter's
 		// retry options, so config-bound overrides flow through the DI options system.
-		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+		_ = services.AddOptions<HttpStandardResilienceOptions>(resilienceBuilder.PipelineName)
 			.Configure<IOptions<ElasticsearchExporterOptions>>(static (resilience, exporterOptions) =>
 				ConfigureResilience(resilience, exporterOptions.Value.MaxRetryAttempts,
 					exporterOptions.Value.RetryBaseDelay, exporterOptions.Value.Timeout));
@@ -148,7 +152,12 @@ public static class ElasticsearchServiceCollectionExtensions
 		TimeSpan retryBaseDelay,
 		TimeSpan requestTimeout)
 	{
-		resilience.Retry.MaxRetryAttempts = maxRetryAttempts;
+		resilience.Retry.MaxRetryAttempts = maxRetryAttempts == 0 ? 1 : maxRetryAttempts;
+		if (maxRetryAttempts == 0)
+		{
+			// Keep timeout and circuit-breaker protection while executing without retries.
+			resilience.Retry.ShouldHandle = static _ => ValueTask.FromResult(false);
+		}
 		resilience.Retry.Delay = retryBaseDelay;
 		resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
 

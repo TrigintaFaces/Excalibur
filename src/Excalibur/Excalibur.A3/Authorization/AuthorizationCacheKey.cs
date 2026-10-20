@@ -100,6 +100,6 @@ public static class AuthorizationCacheKey
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 
-		return $"authorization/{tenantId}/activity-groups/v3";
+		return $"authorization/{tenantId}/activity-groups/v4";
 	}
 }

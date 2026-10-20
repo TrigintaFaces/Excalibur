@@ -46,6 +46,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Dispatch projects -->
+	<ProjectReference Include="..\..\..\src\Excalibur\Excalibur.A3\Excalibur.A3.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Patterns.Azure\Excalibur.Dispatch.Patterns.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.ClaimCheck.AwsS3\Excalibur.Dispatch.ClaimCheck.AwsS3.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.csproj" />
@@ -189,4 +190,26 @@
       material; this is what makes that edit fail here first.
     -->
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Scripts\004_CreateScheduleSchema.sql" Link="Schema\SqlServer\004_CreateScheduleSchema.sql" />
+    <ProjectReference Include="..\..\harnesses\SqlServerScheduleProcessProbe\SqlServerScheduleProcessProbe.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyScheduleProcessProbe" AfterTargets="Build">
+    <MSBuild Projects="..\..\harnesses\SqlServerScheduleProcessProbe\SqlServerScheduleProcessProbe.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);TargetFramework=net10.0">
+      <Output TaskParameter="TargetOutputs" ItemName="ScheduleProbeTargetPath" />
+    </MSBuild>
+    <PropertyGroup>
+      <ScheduleProbeOutputRoot>@(ScheduleProbeTargetPath->'%(RootDir)%(Directory)')</ScheduleProbeOutputRoot>
+    </PropertyGroup>
+    <MSBuild Projects="..\..\harnesses\SqlServerScheduleProcessProbe\SqlServerScheduleProcessProbe.csproj" Targets="GetScheduleProbeFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0">
+      <Output TaskParameter="TargetOutputs" ItemName="ScheduleProbeOutput" />
+    </MSBuild>
+    <!-- Returned items retain identity, but not the child's RecursiveDir/custom metadata. -->
+    <ItemGroup>
+      <ScheduleProbeCopy Include="@(ScheduleProbeOutput)">
+        <Destination>$(TargetDir)schedule-process-probe/$([MSBuild]::MakeRelative('$(ScheduleProbeOutputRoot)', '%(ScheduleProbeOutput.FullPath)'))</Destination>
+      </ScheduleProbeCopy>
+    </ItemGroup>
+    <Copy SourceFiles="@(ScheduleProbeCopy)" DestinationFiles="@(ScheduleProbeCopy->'%(Destination)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

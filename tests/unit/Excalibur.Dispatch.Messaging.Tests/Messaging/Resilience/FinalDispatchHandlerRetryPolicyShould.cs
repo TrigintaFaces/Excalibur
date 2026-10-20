@@ -8,6 +8,9 @@ using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
+using Excalibur.Dispatch.Middleware.Resilience;
+using Excalibur.Dispatch.Resilience.Polly;
+using Excalibur.Dispatch.Telemetry;
 using Tests.Shared.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,6 +26,379 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 [Trait("Component", "Dispatch.Core")]
 public sealed class FinalDispatchHandlerRetryPolicyShould
 {
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task PreserveOuterRetryBudgetAndOriginalFailure(bool transient)
+	{
+		_busOptionsMap["Local"] = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
+		var policy = CreatePollyPolicy();
+		var handler = CreateHandler(policy);
+		var middleware = CreateRetryMiddleware();
+		var action = A.Fake<IDispatchAction>();
+		var context = CreateContext();
+		var calls = 0;
+		Exception fault = transient ? new IOException("before effect") : new ArgumentException("permanent");
+		A.CallTo(() => _messageBus.PublishAsync(action, context, A<CancellationToken>._))
+			.Invokes(() => { calls++; throw fault; });
+		Exception? observed = null;
+		try
+		{
+			await middleware.InvokeAsync(action, context, (message, ctx, token) => handler.HandleAsync(message, ctx, token), CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (Exception exception)
+		{
+			observed = exception;
+		}
+		calls.ShouldBe(transient ? 2 : 1, "one owner controls the total downstream attempt budget");
+		observed.ShouldBeSameAs(fault, "classification must see the original fault, not a generic 500 result");
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RecoverWithOneEffectWithOrWithoutOuterOwner(bool outerOwner)
+	{
+		_busOptionsMap["Local"] = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
+		var handler = CreateHandler(CreatePollyPolicy());
+		var action = A.Fake<IDispatchAction>();
+		var context = CreateContext();
+		var calls = 0;
+		var effects = 0;
+		A.CallTo(() => _messageBus.PublishAsync(action, context, A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				calls++;
+				if (calls == 1) { throw new IOException("before effect"); }
+				effects++;
+			}).Returns(Task.CompletedTask);
+		var result = outerOwner
+			? await CreateRetryMiddleware().InvokeAsync(action, context, (message, ctx, token) => handler.HandleAsync(message, ctx, token), CancellationToken.None).ConfigureAwait(false)
+			: await handler.HandleAsync(action, context, CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBeTrue();
+		calls.ShouldBe(2);
+		effects.ShouldBe(1);
+	}
+
+	private static PollyRetryPolicyAdapter CreatePollyPolicy() => new(
+		Microsoft.Extensions.Options.Options.Create(new PollyRetryOptions
+		{
+			MaxRetryAttempts = 1,
+			BaseDelay = TimeSpan.Zero,
+			UseJitter = false,
+			ShouldRetry = static exception => exception is IOException,
+		}));
+
+	[Fact]
+	public async Task PropagateCallerCancellationWithoutAnotherAttempt()
+	{
+		_busOptionsMap["Local"] = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
+		var handler = CreateHandler(CreatePollyPolicy());
+		var action = A.Fake<IDispatchAction>();
+		var context = CreateContext();
+		using var caller = new CancellationTokenSource();
+		var calls = 0;
+		A.CallTo(() => _messageBus.PublishAsync(action, context, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				calls++;
+				caller.Cancel();
+				return Task.FromCanceled(caller.Token);
+			});
+		await Should.ThrowAsync<OperationCanceledException>(async () =>
+			await CreateRetryMiddleware().InvokeAsync(action, context, (message, ctx, token) => handler.HandleAsync(message, ctx, token), caller.Token).ConfigureAwait(false));
+		calls.ShouldBe(1);
+		RetryOwnershipScope.Owns(action, context).ShouldBeFalse();
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task OwnEventAndDocumentRetriesEvenWithPriorActionResult(bool dispatchEvent)
+	{
+		_busOptionsMap["Local"] = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
+		var handler = CreateHandler(CreatePollyPolicy());
+		var context = CreateContext();
+		context.Result = "previous action";
+		var calls = 0;
+		Task Publish()
+		{
+			calls++;
+			return Task.FromException(new IOException("before effect"));
+		}
+		IDispatchMessage message;
+		if (dispatchEvent)
+		{
+			var evt = A.Fake<IDispatchEvent>();
+			message = evt;
+			A.CallTo(() => _messageBus.PublishAsync(evt, context, A<CancellationToken>._)).ReturnsLazily(Publish);
+		}
+		else
+		{
+			var doc = A.Fake<IDispatchDocument>();
+			message = doc;
+			A.CallTo(() => _messageBus.PublishAsync(doc, context, A<CancellationToken>._)).ReturnsLazily(Publish);
+		}
+		await Should.ThrowAsync<IOException>(async () =>
+			await CreateRetryMiddleware().InvokeAsync(message, context, (payload, ctx, token) => handler.HandleAsync(payload, ctx, token), CancellationToken.None).ConfigureAwait(false));
+		calls.ShouldBe(2);
+	}
+
+	private static RetryMiddleware CreateRetryMiddleware() => new(
+		Microsoft.Extensions.Options.Options.Create(new RetryOptions
+		{
+			MaxRetryAttempts = 1,
+			BaseDelay = TimeSpan.Zero,
+			UseJitter = false,
+		}), NullTelemetrySanitizer.Instance, NullLogger<RetryMiddleware>.Instance);
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RetryOnlyFailedFanoutDestinationWithinOneBudget(bool persistent)
+	{
+		var message = A.Fake<IDispatchEvent>();
+		var context = CreateContext();
+		context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Success("A", ["A", "B"]);
+		var first = A.Fake<IMessageBus>();
+		var second = A.Fake<IMessageBus>();
+		IMessageBus? firstOut = first;
+		IMessageBus? secondOut = second;
+		A.CallTo(() => _busProvider.TryGet("A", out firstOut)).Returns(true).AssignsOutAndRefParameters(first);
+		A.CallTo(() => _busProvider.TryGet("B", out secondOut)).Returns(true).AssignsOutAndRefParameters(second);
+		_busOptionsMap["A"] = new TestMessageBusOptions { Name = "A", EnableRetries = true };
+		_busOptionsMap["B"] = new TestMessageBusOptions { Name = "B", EnableRetries = true };
+		var firstCalls = 0;
+		var secondCalls = 0;
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._))
+			.Invokes(() => firstCalls++).Returns(Task.CompletedTask);
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				secondCalls++;
+				return persistent || secondCalls == 1 ? Task.FromException(new IOException("before effect")) : Task.CompletedTask;
+			});
+		var handler = CreateHandler(CreatePollyPolicy());
+		var middleware = CreateRetryMiddleware();
+		var result = await middleware.InvokeAsync(message, context,
+			(payload, ctx, token) => handler.HandleAsync(payload, ctx, token), CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBe(!persistent);
+		firstCalls.ShouldBe(1, "a destination already delivered in this retry sequence must not be replayed");
+		secondCalls.ShouldBe(2, "the outer budget must not multiply the inner Polly budget");
+		if (!persistent)
+		{
+			// The same message/context in a NEW logical dispatch must publish again.
+			var next = await middleware.InvokeAsync(message, context,
+				(payload, ctx, token) => handler.HandleAsync(payload, ctx, token), CancellationToken.None).ConfigureAwait(false);
+			next.Succeeded.ShouldBeTrue();
+			firstCalls.ShouldBe(2);
+			secondCalls.ShouldBe(3);
+		}
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RetryIndependentFailureAfterFanoutWithoutRepublishing(bool returnedFailure)
+	{
+		var message = A.Fake<IDispatchEvent>();
+		var context = CreateContext();
+		context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Success("A", ["A", "B"]);
+		var first = A.Fake<IMessageBus>();
+		var second = A.Fake<IMessageBus>();
+		IMessageBus? firstOut = first;
+		IMessageBus? secondOut = second;
+		A.CallTo(() => _busProvider.TryGet("A", out firstOut)).Returns(true).AssignsOutAndRefParameters(first);
+		A.CallTo(() => _busProvider.TryGet("B", out secondOut)).Returns(true).AssignsOutAndRefParameters(second);
+		var firstCalls = 0;
+		var secondCalls = 0;
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).Invokes(() => firstCalls++).Returns(Task.CompletedTask);
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._)).Invokes(() => secondCalls++).Returns(Task.CompletedTask);
+		var handler = CreateHandler(CreatePollyPolicy());
+		var callbacks = 0;
+		var result = await CreateRetryMiddleware().InvokeAsync(message, context, async (payload, ctx, token) =>
+		{
+			callbacks++;
+			var delivered = await handler.HandleAsync(payload, ctx, token).ConfigureAwait(false);
+			if (callbacks == 1)
+			{
+				if (returnedFailure)
+				{
+					return MessageResult.Failed(new MessageProblemDetails { Status = 503, Title = "Independent upstream fault" });
+				}
+				throw new IOException("independent upstream fault");
+			}
+			return delivered;
+		}, CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBeTrue();
+		callbacks.ShouldBe(2);
+		firstCalls.ShouldBe(1);
+		secondCalls.ShouldBe(1);
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RetainPermanentFanoutFailureWhileRecoveringTransientDestination(bool transient)
+	{
+		var (message, context, first, second, third) = ConfigureThreeDestinationFanout();
+		var firstCalls = 0;
+		var secondCalls = 0;
+		var thirdCalls = 0;
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).ReturnsLazily(() =>
+		{
+			firstCalls++;
+			return Task.FromException(new ArgumentException("PERMANENT-A"));
+		});
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._)).ReturnsLazily(() =>
+		{
+			secondCalls++;
+			return transient && secondCalls == 1 ? Task.FromException(new IOException("before effect")) : Task.CompletedTask;
+		});
+		A.CallTo(() => third.PublishAsync(message, context, A<CancellationToken>._)).Invokes(() => thirdCalls++).Returns(Task.CompletedTask);
+		var handler = CreateHandler(CreatePollyPolicy());
+		var attempts = 0;
+		var result = await CreateRetryMiddleware().InvokeAsync(message, context, (payload, ctx, token) =>
+		{
+			attempts++;
+			return handler.HandleAsync(payload, ctx, token);
+		}, CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBeFalse();
+		result.ProblemDetails.ShouldNotBeNull().Detail.ShouldContain("PERMANENT-A");
+		firstCalls.ShouldBe(1);
+		secondCalls.ShouldBe(transient ? 2 : 1);
+		thirdCalls.ShouldBe(1);
+		attempts.ShouldBe(transient ? 2 : 1);
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task StopPendingFanoutDestinationsOnCallerCancellation(bool beforeEffect)
+	{
+		var (message, context, first, second, third) = ConfigureThreeDestinationFanout();
+		using var caller = new CancellationTokenSource();
+		var firstCalls = 0;
+		var effects = 0;
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).ReturnsLazily(() =>
+		{
+			firstCalls++;
+			caller.Cancel();
+			if (beforeEffect) { return Task.FromCanceled(caller.Token); }
+			effects++;
+			return Task.CompletedTask;
+		});
+		var handler = CreateHandler(CreatePollyPolicy());
+		await Should.ThrowAsync<OperationCanceledException>(async () =>
+			await CreateRetryMiddleware().InvokeAsync(message, context, (payload, ctx, token) => handler.HandleAsync(payload, ctx, token), caller.Token).ConfigureAwait(false));
+		firstCalls.ShouldBe(1);
+		effects.ShouldBe(beforeEffect ? 0 : 1);
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._)).MustNotHaveHappened();
+		A.CallTo(() => third.PublishAsync(message, context, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task RetainUncancelledDestinationCancellationAsPermanentFanoutFailure()
+	{
+		var (message, context, first, second, third) = ConfigureThreeDestinationFanout();
+		var firstCalls = 0;
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).ReturnsLazily(() =>
+		{
+			firstCalls++;
+			return Task.FromException(new OperationCanceledException("attempt-local cancellation"));
+		});
+		var handler = CreateHandler(CreatePollyPolicy());
+		var result = await CreateRetryMiddleware().InvokeAsync(message, context,
+			(payload, ctx, token) => handler.HandleAsync(payload, ctx, token), CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBeFalse();
+		firstCalls.ShouldBe(1);
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => third.PublishAsync(message, context, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+	}
+
+	private (IDispatchEvent Message, FakeMessageContext Context, IMessageBus First, IMessageBus Second, IMessageBus Third) ConfigureThreeDestinationFanout()
+	{
+		var message = A.Fake<IDispatchEvent>();
+		var context = CreateContext();
+		context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Success("A", ["A", "B", "C"]);
+		var first = A.Fake<IMessageBus>();
+		var second = A.Fake<IMessageBus>();
+		var third = A.Fake<IMessageBus>();
+		IMessageBus? firstOut = first;
+		IMessageBus? secondOut = second;
+		IMessageBus? thirdOut = third;
+		A.CallTo(() => _busProvider.TryGet("A", out firstOut)).Returns(true).AssignsOutAndRefParameters(first);
+		A.CallTo(() => _busProvider.TryGet("B", out secondOut)).Returns(true).AssignsOutAndRefParameters(second);
+		A.CallTo(() => _busProvider.TryGet("C", out thirdOut)).Returns(true).AssignsOutAndRefParameters(third);
+		foreach (var name in new[] { "A", "B", "C" })
+		{
+			_busOptionsMap[name] = new TestMessageBusOptions { Name = name, EnableRetries = true };
+		}
+		return (message, context, first, second, third);
+	}
+
+	[Fact]
+	public async Task PropagateClassifierFaultWithoutReplayingSuccessfulDestination()
+	{
+		var (message, context, first, second, third) = ConfigureThreeDestinationFanout();
+		var fault = new InvalidOperationException("classifier configuration fault");
+		var classifier = A.Fake<IMessageFailureClassifier>();
+		A.CallTo(() => classifier.Classify(A<Exception>._)).Throws(fault);
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._))
+			.Returns(Task.FromException(new IOException("before effect")));
+		var middleware = new RetryMiddleware(Microsoft.Extensions.Options.Options.Create(new RetryOptions
+		{
+			MaxRetryAttempts = 1,
+			BaseDelay = TimeSpan.Zero,
+			UseJitter = false,
+		}), NullTelemetrySanitizer.Instance, NullLogger<RetryMiddleware>.Instance, classifier);
+		var handler = CreateHandler(CreatePollyPolicy());
+		var observed = await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await middleware.InvokeAsync(message, context, (payload, ctx, token) => handler.HandleAsync(payload, ctx, token), CancellationToken.None).ConfigureAwait(false));
+		observed.ShouldBeSameAs(fault);
+		A.CallTo(() => first.PublishAsync(message, context, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => second.PublishAsync(message, context, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => third.PublishAsync(message, context, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task PreserveCachedActionWithoutPublishing(bool namedEndpoint)
+	{
+		var handler = CreateHandler(CreatePollyPolicy());
+		var action = A.Fake<IDispatchAction<string>>();
+		var context = CreateContext();
+		if (!namedEndpoint)
+		{
+			context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Success("local", []);
+		}
+		context.Result = "cached payload";
+		var result = await CreateRetryMiddleware().InvokeAsync(action, context,
+			(message, ctx, token) => handler.HandleAsync(message, ctx, token), CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBeTrue();
+		result.ShouldBeAssignableTo<IMessageResult<string>>().ReturnValue.ShouldBe("cached payload");
+		A.CallTo(() => _messageBus.PublishAsync(action, context, A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task PreserveStandalonePolicyForNestedDifferentMessage()
+	{
+		_busOptionsMap["Local"] = new TestMessageBusOptions { Name = "Local", EnableRetries = true };
+		var handler = CreateHandler(CreatePollyPolicy());
+		var outer = A.Fake<IDispatchAction>();
+		var nested = A.Fake<IDispatchAction>();
+		var context = CreateContext();
+		var calls = 0;
+		A.CallTo(() => _messageBus.PublishAsync(nested, context, A<CancellationToken>._))
+			.Invokes(() => { if (++calls == 1) { throw new IOException("before effect"); } })
+			.Returns(Task.CompletedTask);
+		var result = await CreateRetryMiddleware().InvokeAsync(outer, context,
+			(_, ctx, token) => handler.HandleAsync(nested, ctx, token), CancellationToken.None).ConfigureAwait(false);
+		result.Succeeded.ShouldBeTrue();
+		calls.ShouldBe(2, "a different message retains its independent policy even with the same context");
+	}
+
 	private readonly ILogger<FinalDispatchHandler> _logger;
 	private readonly IMessageBusProvider _busProvider;
 	private readonly IDictionary<string, MessageBusOptions> _busOptionsMap;

@@ -392,7 +392,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 
 		var owner = GetProcessorId();
 
-		var applied = await TryApplyNonSuccessTransitionAsync(
+		var failedOutcome = await TryApplyNonSuccessTransitionAsync(
 			messageId,
 			// Ownership guard: an unleased message (failed without ever being claimed) proceeds, and so does one
 			// leased by this dispatcher. A message leased by somebody else does not - that report comes from a
@@ -412,7 +412,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			_options.FailureBackoffFloorSeconds,
 			cancellationToken).ConfigureAwait(false);
 
-		if (applied)
+		if (failedOutcome == OutboxCompletionOutcome.Applied)
 		{
 			LogMessageFailed(messageId, errorMessage, retryCount);
 		}
@@ -424,12 +424,13 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// already been marked sent is never reopened, so a late dead-letter report cannot resurrect a
 	/// delivered message.
 	/// </remarks>
-	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 
-		var applied = await TryApplyNonSuccessTransitionAsync(
+		var outcome = await TryApplyNonSuccessTransitionAsync(
 			messageId,
 			// Ownership-guarded, like every other completion. The previous reasoning here -- that dead-lettering
 			// is safe unguarded BECAUSE it is terminal -- had it backwards: terminal is what makes an
@@ -438,16 +439,26 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			GetProcessorId(),
 			(int)OutboxStatus.DeadLettered,
 			reason,
-			// Dead-lettering records no attempt count of its own and needs no floor: the message is terminal,
-			// so there is no next attempt for a floor to gate.
-			monotonicRetryCount: null,
+			// Count and terminal status are committed in the same guarded CAS update.
+			monotonicRetryCount: attemptCount,
 			floorSeconds: null,
 			cancellationToken).ConfigureAwait(false);
 
-		if (applied)
+		if (outcome == OutboxCompletionOutcome.Applied)
 		{
 			_logger.LogWarning("Marked outbox message {MessageId} as dead-lettered: {Reason}", messageId, reason);
 		}
+		else
+		{
+			_logger.LogError(
+				"MarkDeadLettered for outbox message {MessageId} was refused ({Outcome}). The message was NOT "
+				+ "dead-lettered: {Reason}",
+				messageId,
+				outcome,
+				reason);
+		}
+
+		return outcome;
 	}
 
 	/// <inheritdoc/>
@@ -962,7 +973,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// come from one machine.
 	/// </param>
 	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <returns><see langword="true"/> when the transition was applied.</returns>
+	/// <returns>The outcome of the transition; only <see cref="OutboxCompletionOutcome.Applied"/> means it was written.</returns>
 	/// <remarks>
 	/// The read establishes the guards and the write applies the transition, and the compare-and-swap between
 	/// them is what makes that pair sound: a document that changed after the read is refused, so a guard
@@ -970,7 +981,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 	/// write is a partial script rather than a re-indexed document, which is both what lets the node supply
 	/// the instants and what keeps a field this model does not know about from being dropped.
 	/// </remarks>
-	private async Task<bool> TryApplyNonSuccessTransitionAsync(
+	private async Task<OutboxCompletionOutcome> TryApplyNonSuccessTransitionAsync(
 		string messageId,
 		string requiredLeaseOwner,
 		int status,
@@ -987,7 +998,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			if (!get.IsValidResponse || !get.Found || get.Source is null)
 			{
 				// Absent - the message may have been cleaned up. Silent, per the store contract.
-				return false;
+				return OutboxCompletionOutcome.MessageNotFound;
 			}
 
 			if (get.Source.Status is (int)OutboxStatus.Sent or (int)OutboxStatus.DeadLettered)
@@ -997,7 +1008,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 				// it delivers a message we had decided to stop delivering. Neither exclusion depends on who the
 				// caller is -- it holds for the current claim holder as much as a stale one.
 				LogTerminalTransitionSkippedForSentMessage(messageId);
-				return false;
+				return OutboxCompletionOutcome.AlreadyTerminal;
 			}
 
 			// The == operator on string is an ordinal comparison, which is what a dispatcher identity wants:
@@ -1015,7 +1026,7 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 			{
 				// The caller is not entitled to this transition. Silent, like the absent case: such a report is
 				// stale rather than erroneous, and the message is left exactly as its owner holds it.
-				return false;
+				return OutboxCompletionOutcome.ClaimLost;
 			}
 
 			// The script releases the lease as well, so the message is not counted in-flight. What governs
@@ -1037,11 +1048,11 @@ public sealed partial class ElasticsearchOutboxStore : IOutboxStore, IOutboxStor
 					"transition",
 					cancellationToken).ConfigureAwait(false))
 			{
-				return true;
+				return OutboxCompletionOutcome.Applied;
 			}
 		}
 
-		return false;
+		return OutboxCompletionOutcome.Unknown;
 	}
 
 	// Resolves the lease-owner identifier once: the configured ProcessorId, or a stable generated id.

@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -283,6 +284,114 @@ class EvidenceTests(unittest.TestCase):
         missing.rename(self.root / "withheld-core")
         with self.assertRaisesRegex(ValueError, "Missing or unexpected unit artifact context"):
             gate.verify_unit_artifacts(artifacts, repo, "a"*40, "12", "2", "")
+
+
+class ProductionCallerTests(unittest.TestCase):
+    """Lock the supported CI caller shape, not arbitrary PowerShell semantics or hosted success.
+
+    The step name is a locator. Renaming or restructuring it requires reviewing this
+    lock alongside the workflow. Exact leading statements prevent comments, quoted
+    examples, conditionals, and overwritten exit codes from satisfying the lock.
+    """
+
+    prefix = """name: Verify honest aggregation (expected set compiled + ran, de-duped)
+        shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $filter = ./eng/ci/get-test-filter.ps1 -Mode Exclude -BaseFilter '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          python eng/ci/required-test-evidence.py --unit-artifacts AggregatedTrx `
+            --candidate $env:EXPECTED_SHA --run-id $env:GITHUB_RUN_ID --attempt $env:GITHUB_RUN_ATTEMPT --filter $filter
+          if ($LASTEXITCODE -ne 0) { throw 'Independent per-context test evidence failed.' }
+"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
+        release_spec = importlib.util.spec_from_file_location(
+            'caller_release_gate', Path(__file__).with_name('release-test-verdict-gate.py'))
+        cls.release = importlib.util.module_from_spec(release_spec)
+        release_spec.loader.exec_module(cls.release)
+
+    def check_caller(self, workflow):
+        body = self.release.job_sections(workflow).get('unit-shard-aggregation', '')
+        eligibility = re.findall(r'^    if: (.+)$', body, re.M)
+        if eligibility != ["always() && needs.changes.outputs.docs_only != 'true'"]:
+            raise ValueError('Production aggregation job eligibility changed')
+        if re.search(r'^    continue-on-error:', body, re.M):
+            raise ValueError('Production aggregation job must enforce failures')
+        steps = re.split(r'(?m)^      - ', body)
+        locator = self.prefix.splitlines()[0]
+        callers = [step for step in steps if step.splitlines() and step.splitlines()[0] == locator]
+        if len(callers) != 1 or not callers[0].startswith(self.prefix):
+            raise ValueError('Production aggregation caller changed or is not executable in the supported shape')
+        keys = re.findall(r'^        ([a-z][a-z-]*):', callers[0], re.M)
+        if keys != ['shell', 'env', 'run']:
+            raise ValueError('Unsupported or duplicate caller step keys')
+
+    def test_current_ci_executes_bound_production_checker(self):
+        self.check_caller(self.workflow)
+
+    def test_refuse_nonexecuting_or_unbound_production_callers(self):
+        command = '          python eng/ci/required-test-evidence.py --unit-artifacts AggregatedTrx `'
+        fatal = "          if ($LASTEXITCODE -ne 0) { throw 'Independent per-context test evidence failed.' }"
+        changes = {
+            'removed': (command, ''),
+            'commented': (command, command.replace('python', '# python', 1)),
+            'quoted': (command, "          Write-Host 'python eng/ci/required-test-evidence.py --unit-artifacts AggregatedTrx'"),
+            'self_test_only': (command, '          python eng/ci/required-test-evidence.py --self-test'),
+            'early_return': (command, '          return\n' + command),
+            'conditional': (command, '          if ($false) {\n' + command),
+            'missing_failure_check': (fatal, ''),
+            'overwritten_exit_code': (fatal, '          python -c "exit(0)"\n' + fatal),
+            'unbound_candidate': ('--candidate $env:EXPECTED_SHA', '--candidate "fixture"'),
+            'unbound_filter': ('--filter $filter', '--filter "Category=Unit"'),
+            'disabled_step': ('        shell: pwsh\n        env:', '        if: false\n        shell: pwsh\n        env:'),
+            'nonfatal_step': ('        shell: pwsh\n        env:', '        continue-on-error: true\n        shell: pwsh\n        env:'),
+        }
+        for name, (before, after) in changes.items():
+            with self.subTest(name=name):
+                self.assertIn(before, self.workflow)
+                changed = self.workflow.replace(before, after, 1)
+                with self.assertRaises(ValueError):
+                    self.check_caller(changed)
+
+    def test_refuse_duplicate_or_relocated_caller(self):
+        locator = '      - ' + self.prefix.splitlines()[0] + '\n'
+        self.assertIn(locator, self.workflow)
+        for changed in (
+            self.workflow.replace(locator, locator + '        run: echo duplicate\n' + locator, 1),
+            self.workflow.replace('  unit-shard-aggregation:\n', '  replaced-aggregation:\n', 1),
+        ):
+            with self.assertRaises(ValueError):
+                self.check_caller(changed)
+
+    def test_refuse_job_level_bypasses(self):
+        before = "    if: always() && needs.changes.outputs.docs_only != 'true'"
+        self.assertIn(before, self.workflow)
+        for after in ('    if: false', before + '\n    continue-on-error: true'):
+            changed = self.workflow.replace(before, after, 1)
+            with self.assertRaises(ValueError):
+                self.check_caller(changed)
+
+    def test_refuse_later_duplicate_or_disabled_step_keys(self):
+        for extra in ('        if: false\n', '        run: echo bypass\n', '        env: {}\n'):
+            changed = self.workflow.replace(self.prefix, self.prefix + extra, 1)
+            with self.assertRaises(ValueError):
+                self.check_caller(changed)
+
+    def test_harness_executes_caller_lock(self):
+        harness = (Path(__file__).with_name('harness-gates-ci.sh')).read_text()
+        line = 'run "self-test: required-test-evidence" python3 eng/ci/required-test-evidence.test.py'
+
+        def check_harness(text):
+            if len(re.findall('^' + re.escape(line) + '$', text, re.M)) != 1:
+                raise ValueError('Evidence caller lock is not invoked by the harness')
+
+        check_harness(harness)
+        for replacement in ('', '# ' + line):
+            with self.assertRaises(ValueError):
+                check_harness(harness.replace(line, replacement, 1))
 
 
 if __name__ == '__main__':

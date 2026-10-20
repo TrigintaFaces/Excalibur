@@ -713,7 +713,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 				+ "nothing about the dead-letter transition.");
 		}
 
-		await deadLetterable.MarkDeadLetteredAsync(buried.Id, "retries exhausted", CancellationToken.None)
+		await deadLetterable.MarkDeadLetteredAsync(buried.Id, "retries exhausted", 0, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// The late failure report. A refusal is permitted; applying it is not.
@@ -786,7 +786,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	/// </para>
 	/// <para>
 	/// <b>It binds the FENCED member deliberately.</b> The unfenced
-	/// <c>MarkDeadLetteredAsync(id, reason, ct)</c> takes no argument identifying the caller's authority, so
+	/// <c>MarkDeadLetteredAsync(id, reason, 0, ct)</c> takes no argument identifying the caller's authority, so
 	/// no store can perform this check through it and no conformance arm can assert it there — the property
 	/// is not expressible on that signature. The fenced overload carries the token and returns an outcome,
 	/// so it can both refuse and say that it refused.
@@ -818,6 +818,20 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 		var held = CreateTestMessage();
 		await store.StageMessageAsync(held, CancellationToken.None).ConfigureAwait(false);
+		var rejectedNegativeCount = false;
+		try
+		{
+			await fencedDeadLetter.MarkDeadLetteredAsync(held.Id, "invalid count", -1, current + 1, CancellationToken.None)
+				.ConfigureAwait(false);
+		}
+		catch (ArgumentOutOfRangeException)
+		{
+			rejectedNegativeCount = true;
+		}
+		if (!rejectedNegativeCount)
+		{
+			throw new TestFixtureAssertionException("A negative retirement count must be rejected before advancing the fence or mutating the row.");
+		}
 
 		// The claim is the whole point: it advances the high-water to `current` AND leaves the row live and
 		// owned. A later absence here would otherwise prove nothing about the burial.
@@ -834,7 +848,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 		// SAFETY. The superseded tenure reports the burial. It must not be applied.
 		var refused = await fencedDeadLetter
-			.MarkDeadLetteredAsync(held.Id, "retries exhausted", stale, CancellationToken.None)
+			.MarkDeadLetteredAsync(held.Id, "retries exhausted", 99, stale, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (refused == OutboxCompletionOutcome.Applied)
@@ -869,7 +883,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 		// LIVENESS, in the SAME state, differing only in the caller's authority. Without this, every
 		// assertion above is satisfied by a store that refuses to bury any claimed message at all.
 		var applied = await fencedDeadLetter
-			.MarkDeadLetteredAsync(held.Id, "retries exhausted", current, CancellationToken.None)
+			.MarkDeadLetteredAsync(held.Id, "retries exhausted", 2, current, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		if (applied != OutboxCompletionOutcome.Applied)
@@ -4090,6 +4104,35 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 			RecordArmExecuted(nameof(DeadLettered_ShouldBeTerminalOnBothRetrievalPaths));
 			var message = CreateTestMessage();
 			await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+			var rejectedNegativeCount = false;
+			try
+			{
+				await deadLetterable.MarkDeadLetteredAsync(message.Id, "invalid count", -1, CancellationToken.None)
+					.ConfigureAwait(false);
+			}
+			catch (ArgumentOutOfRangeException)
+			{
+				rejectedNegativeCount = true;
+			}
+			if (!rejectedNegativeCount)
+			{
+				throw new TestFixtureAssertionException("A negative retirement count must be rejected before mutating the message.");
+			}
+			// A refusal must be REPORTED. The caller writes the dead-letter entry BEFORE asking for this
+			// transition, so a refusal it cannot see leaves the message simultaneously delivered by
+			// whoever holds the claim and sitting unreplayed in the queue, where an operator redrive
+			// re-executes a message that already succeeded. An absent row is the unambiguous case and
+			// every provider must name it.
+			var missingOutcome = await deadLetterable
+				.MarkDeadLetteredAsync(Guid.NewGuid().ToString(), "missing message", 99, CancellationToken.None)
+				.ConfigureAwait(false);
+			if (missingOutcome != OutboxCompletionOutcome.MessageNotFound)
+			{
+				throw new TestFixtureAssertionException(
+					$"Dead-lettering an identifier no row carries reported '{missingOutcome}'. It must report "
+					+ $"'{OutboxCompletionOutcome.MessageNotFound}' so the caller can withdraw the dead-letter "
+					+ "entry it already wrote.");
+			}
 
 			// The message is claimable before it is dead-lettered, so the assertions below cannot pass
 			// because it was never visible in the first place.
@@ -4100,9 +4143,39 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 					$"A freshly staged message ('{message.Id}') was not claimable, so terminality cannot be "
 					+ "distinguished from never having been visible.");
 			}
+			var visible = claimable.Single(m => string.Equals(m.Id, message.Id, StringComparison.Ordinal));
+			if (visible.RetryCount != 0)
+			{
+				throw new TestFixtureAssertionException("A negative or missing-row retirement changed the surviving message's count.");
+			}
 
-			await deadLetterable.MarkDeadLetteredAsync(message.Id, "retries exhausted", CancellationToken.None)
+			var appliedOutcome = await deadLetterable
+				.MarkDeadLetteredAsync(message.Id, "retries exhausted", 2, CancellationToken.None)
 				.ConfigureAwait(false);
+			if (appliedOutcome != OutboxCompletionOutcome.Applied)
+			{
+				throw new TestFixtureAssertionException(
+					$"Dead-lettering a live, claimable message reported '{appliedOutcome}'. A transition that "
+					+ $"mutated the row must report '{OutboxCompletionOutcome.Applied}', and it is the only "
+					+ "value the caller reads as success.");
+			}
+
+			// The repeat must NOT report success. Which refusal it names is allowed to differ by provider:
+			// a store that MOVES the row into a dead-letter table (the relational move-based providers do)
+			// has nothing left to inspect, so 'the row is gone' and 'the row is terminal' are the same
+			// observable there and reporting the weaker one is honest. What no provider may do is call it
+			// Applied, which would have the caller keep a second dead-letter entry for one message.
+			var repeatOutcome = await deadLetterable
+				.MarkDeadLetteredAsync(message.Id, "repeated terminal report", 99, CancellationToken.None)
+				.ConfigureAwait(false);
+			if (repeatOutcome is not (OutboxCompletionOutcome.AlreadyTerminal or OutboxCompletionOutcome.MessageNotFound))
+			{
+				throw new TestFixtureAssertionException(
+					$"Repeating the dead-letter transition reported '{repeatOutcome}'. A message that is "
+					+ $"already terminal must report '{OutboxCompletionOutcome.AlreadyTerminal}', or "
+					+ $"'{OutboxCompletionOutcome.MessageNotFound}' where the provider moved the row out, so "
+					+ "the caller does not leave a second dead-letter entry standing for one message.");
+			}
 
 			var afterClaim = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
 			if (afterClaim.Any(m => string.Equals(m.Id, message.Id, StringComparison.Ordinal)))

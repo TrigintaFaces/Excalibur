@@ -9,6 +9,12 @@ namespace Excalibur.Compliance;
 /// </summary>
 /// <remarks>
 /// <para>
+/// Default crypto-shredding registrations retain this collaborator in singleton services. Replacement
+/// implementations retained by that default graph must support concurrent calls and lifetime-compatible
+/// dependencies. Existing registrations are preserved; scoped replacements are not promoted or made
+/// singleton-safe by this registration.
+/// </para>
+/// <para>
 /// Each data subject IN EACH TENANT is assigned its own key handle — the tenant is part of the key's
 /// identity, not a filter applied around it, because a handle is a name in a key store with no row beside
 /// it to carry a tenant column. Encrypting a subject's personal data under that key

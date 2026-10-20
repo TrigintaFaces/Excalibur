@@ -33,4 +33,8 @@
     <!--#endif -->
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Company.DispatchApi.Tests/**/*.cs" />
+  </ItemGroup>
+
 </Project>

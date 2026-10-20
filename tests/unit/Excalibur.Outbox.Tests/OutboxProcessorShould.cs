@@ -238,7 +238,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -257,7 +257,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -276,7 +276,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			null!,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -295,7 +295,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			null!,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -324,7 +324,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance));
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance));
 	}
 
 	[Fact]
@@ -344,14 +344,14 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			serializer,
 			serviceProvider,
 			logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		_ = processor.ShouldNotBeNull();
 	}
 
 	[Fact]
-	public async Task Constructor_UsesNullObjectPatternDefaults_WhenOptionalDependenciesNotProvided()
+	public async Task Constructor_AcceptsExplicitDiscard_WhenOtherOptionalDependenciesNotProvided()
 	{
 		// Arrange
 		var options = CreateValidOptions();
@@ -369,7 +369,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			logger,
 
 			envelopeDeserializer: null,
-			deadLetterQueue: null,
+			deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: null,
 			deliveryGuaranteeOptions: null);
@@ -575,7 +575,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
 		// Assert
-		processed.ShouldBe(1);
+		processed.ShouldBe(0, "a refused delivery is not a successful dispatch");
 		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync("message-retry", "dispatch failed", 1, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.OutboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._))
@@ -602,7 +602,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
 		// Assert
-		processed.ShouldBe(1);
+		processed.ShouldBe(0, "a refused delivery is not a successful dispatch");
 		A.CallTo(() => scenario.DeadLetterQueue.EnqueueAsync(
 				A<IOutboxMessage>.That.Matches(m => m.MessageId == "message-dlq"),
 				DeadLetterReason.MaxRetriesExceeded,
@@ -614,7 +614,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		// MarkFailedAsync — so a retry-exhausted message is never re-claimed.
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-dlq",
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => scenario.OutboxStore.MarkSentAsync(A<string>._, A<CancellationToken>._))
@@ -713,7 +713,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		A.CallTo(() => deadLetterQueue.EnqueueAsync(
 				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._, A<IDictionary<string, string>?>._))
 			.MustNotHaveHappened();
-		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -878,7 +878,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		// SAFETY. The row survives for the tenure that now owns it.
 		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
-				A<string>._, A<string>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
@@ -916,7 +916,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		// The store REFUSES the fenced mark: a newer tenure has advanced the high-water.
 		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
-				A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<int>._, A<long>._, A<CancellationToken>._))
 			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.FenceRefused));
 
 		var processor = CreateProcessor(
@@ -940,10 +940,13 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		// configured return value: a processor that never asked the store and purged for some other reason
 		// would otherwise pass this arm, and "never called" would read as "refused".
 		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
-				MessageId, A<string>._, A<long>._, A<CancellationToken>._))
+				MessageId, A<string>._, A<int>._, A<long>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly()
 			// SAFETY -- and the entry was withdrawn, by its own id, AFTER the refusal it compensates.
 			.Then(A.CallTo(() => admin.PurgeAsync(entryId, A<CancellationToken>._)).MustHaveHappenedOnceExactly());
+
+		Fake.GetCalls(outboxStore).Count(call => call.Method.Name.StartsWith("MarkFailed", StringComparison.Ordinal))
+			.ShouldBe(0, "a refused recovery transfer must not trigger alternate failure bookkeeping under stale authority");
 	}
 
 	/// <summary>
@@ -988,7 +991,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		// ... AND the row is not destroyed by the unfenced transition.
 		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
-				A<string>._, A<string>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -1014,7 +1017,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 
 		// The store ACCEPTS the fenced mark: this tenure genuinely owns the row.
 		A.CallTo(() => ((IFencedDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(
-				A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<int>._, A<long>._, A<CancellationToken>._))
 			.Returns(new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied));
 
 		var processor = CreateProcessor(
@@ -1208,7 +1211,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		processed.ShouldBe(1);
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
-		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => deadLetterQueue.EnqueueAsync(
 				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._, A<IDictionary<string, string>?>._))
@@ -1350,7 +1353,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		// superseded caller reaching it would write with no authority. It is unreachable on either partition.
 		A.CallTo(() => outboxStore.MarkFailedAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
-		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<CancellationToken>._))
+		A.CallTo(() => ((IDeadLetterableOutboxStore)outboxStore).MarkDeadLetteredAsync(A<string>._, A<string>._, A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => deadLetterQueue.EnqueueAsync(
 				A<IOutboxMessage>._, A<DeadLetterReason>._, A<CancellationToken>._, A<Exception?>._, A<IDictionary<string, string>?>._))
@@ -1498,7 +1501,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-failure",
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -1526,7 +1529,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			.MustNotHaveHappened();
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				A<string>._,
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustNotHaveHappened();
 
@@ -1581,7 +1584,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			.MustNotHaveHappened();
 		A.CallTo(() => ((IDeadLetterableOutboxStore)scenario.OutboxStore).MarkDeadLetteredAsync(
 				"message-single-open",
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustNotHaveHappened();
 
@@ -1618,7 +1621,7 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var processed = await scenario.Processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
 		// Assert
-		processed.ShouldBe(1);
+		processed.ShouldBe(0, "a refused delivery is not a successful dispatch");
 		A.CallTo(() => scenario.OutboxStore.MarkFailedAsync("message-no-auto-retry", "dispatch failed", 1, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => backoffCalculator.CalculateDelay(A<int>._)).MustNotHaveHappened();
@@ -1818,10 +1821,10 @@ public sealed class OutboxProcessorShould : UnitTestBase
 		var processed = await processor.DispatchPendingMessagesAsync(CancellationToken.None);
 
 		// Assert -- the terminal transition landed on the INNER store, through the decorator.
-		processed.ShouldBe(1);
+		processed.ShouldBe(0, "a refused delivery is not a successful dispatch");
 		A.CallTo(() => ((IDeadLetterableOutboxStore)inner).MarkDeadLetteredAsync(
 				MessageId,
-				A<string>._,
+				A<string>._, A<int>._,
 				A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -2172,11 +2175,50 @@ public sealed class OutboxProcessorShould : UnitTestBase
 			logger ?? NullLogger<OutboxProcessor>.Instance,
 
 			envelopeDeserializer: envelopeDeserializer,
-			deadLetterQueue: deadLetterQueue,
+			deadLetterQueue: deadLetterQueue ?? Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: circuitBreakerRegistry ?? PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: backoffCalculator,
 			deliveryGuaranteeOptions: deliveryGuaranteeOptions,
 			leaderGate: leaderGate);
+	}
+
+	[Theory]
+	[InlineData(1, "healthy")]
+	[InlineData(2, "healthy")]
+	[InlineData(1, "open")]
+	[InlineData(2, "open")]
+	[InlineData(1, "poison")]
+	[InlineData(2, "poison")]
+	[InlineData(1, "refused")]
+	[InlineData(2, "refused")]
+	public async Task CountOnlyAcceptedDispatchesAcrossSequentialAndParallelProcessing(int degree, string outcome)
+	{
+		MessageTypeRegistry.RegisterType<TestOutboxIntegrationEvent>();
+		var message = CreateOutboundMessageWithEnvelope("count-" + outcome,
+			outcome == "poison" ? "UNREGISTERED-COUNT-CONTROL" : typeof(TestOutboxIntegrationEvent).Name,
+			new TestOutboxIntegrationEvent(outcome));
+		var store = CreateSingleMessageOutboxStore(message);
+		var dispatcher = A.Fake<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<IMessageResult>(outcome == "refused"
+				? DispatchMessageResult.Failed("CONTROLLED-REFUSAL") : DispatchMessageResult.Success()));
+		var services = CreateServiceProvider(dispatcher);
+		var options = CreateSingleMessageOptions(3);
+		options.Value.BatchProcessing.ParallelProcessingDegree = degree;
+		var processor = CreateProcessor(options: options, outboxStore: store, serviceProvider: services,
+			deadLetterQueue: CreateDeadLetterQueue(), circuitBreakerRegistry: outcome == "open"
+				? CreateCircuitOpenRegistry() : PassThroughCircuitBreakerRegistry.Instance);
+		processor.Init("native-count-control");
+		await using var scenario = new DispatchScenario(processor, store, CreateDeadLetterQueue(), services, dispatcher);
+		(await processor.DispatchPendingMessagesAsync(CancellationToken.None)).ShouldBe(outcome == "healthy" ? 1 : 0);
+		if (outcome is "open" or "poison")
+		{
+			A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
+		}
+		else
+		{
+			A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		}
 	}
 
 	private static async Task<DispatchScenario> CreateDispatchScenarioAsync(

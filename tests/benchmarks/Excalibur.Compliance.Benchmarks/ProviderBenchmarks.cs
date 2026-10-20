@@ -18,7 +18,7 @@ namespace Excalibur.Compliance.Benchmarks;
 /// These benchmarks help identify boxing and allocation issues in provider lookup.
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class ProviderBenchmarks
 {
 	private IEncryptionProviderRegistry _registry = null!;

@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// Benchmarks for handler resolution and registration performance.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class HandlerResolutionBenchmarks
 {
 	private Dictionary<Type, Type> _dictionaryRegistry = null!;

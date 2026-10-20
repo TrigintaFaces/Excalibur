@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 WORKFLOW = ".github/workflows/ci.yml"
 # This policy is independent of API results. Validate it against the candidate's
@@ -279,18 +280,37 @@ class GitHub:
             raise Refuse(f"Duplicate {member} identities")
         return values
 
-    def run(self, sha):
-        runs = self.pages(f"repos/{self.repo}/actions/workflows/ci.yml/runs?head_sha={sha}&event=push&per_page=100", "workflow_runs")
-        eligible = [run for run in runs if run["head_sha"] == sha and run["event"] == "push"
-                    and run["path"].split("@", 1)[0] == WORKFLOW
-                    and run["head_repository"]["full_name"] == self.repo]
-        if not eligible:
-            raise Refuse(f"No eligible push CI run for {sha}")
-        run = max(eligible, key=lambda item: (item["id"], item["run_attempt"]))
-        if type(run["id"]) is not int or type(run["run_attempt"]) is not int or run["run_attempt"] < 1:
-            raise Refuse("Invalid run/attempt identity")
-        if run["status"] != "completed":
-            raise Refuse("Latest eligible run is incomplete")
+    def run(self, sha, wait_seconds=0):
+        # wait_seconds is opt-in per call, and the DEFAULT OF ZERO IS LOAD-BEARING. Only the release
+        # candidate's own run may be waited for: the release and CI are triggered by the same push, so
+        # the candidate's run is legitimately still in flight when this gate first looks, and refusing
+        # on that is a race rather than a verdict. The ancestor walk must NOT wait -- it would multiply
+        # the budget by the walk bound -- and the freshness re-check must NOT wait, because its whole
+        # purpose is to notice a run or attempt that changed underneath us.
+        deadline = time.monotonic() + max(0.0, wait_seconds)
+        announced = False
+        while True:
+            runs = self.pages(f"repos/{self.repo}/actions/workflows/ci.yml/runs?head_sha={sha}&event=push&per_page=100", "workflow_runs")
+            eligible = [run for run in runs if run["head_sha"] == sha and run["event"] == "push"
+                        and run["path"].split("@", 1)[0] == WORKFLOW
+                        and run["head_repository"]["full_name"] == self.repo]
+            if not eligible:
+                raise Refuse(f"No eligible push CI run for {sha}")
+            # Re-selected every poll on purpose: a re-run started while we waited is the run that counts.
+            run = max(eligible, key=lambda item: (item["id"], item["run_attempt"]))
+            if type(run["id"]) is not int or type(run["run_attempt"]) is not int or run["run_attempt"] < 1:
+                raise Refuse("Invalid run/attempt identity")
+            if run["status"] == "completed":
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                # Unchanged verdict and unchanged wording: an incomplete run is still never a pass.
+                raise Refuse("Latest eligible run is incomplete")
+            if not announced:
+                announced = True
+                print(f"waiting for CI run {run['id']} attempt {run['run_attempt']} on {sha} "
+                      f"({run['status']}, up to {max(0.0, wait_seconds) / 60:.0f}m)", file=sys.stderr)
+            time.sleep(min(POLL_SECONDS, remaining))
         if run["conclusion"] != "success":
             raise Failed(f"CI run {run['id']} attempt {run['run_attempt']}: {run['conclusion']}")
         return run
@@ -370,7 +390,7 @@ def jobs_verdict(jobs, run):
     raise Refuse("Partially executed required matrix")
 
 
-def evaluate(sha, api, max_walk):
+def evaluate(sha, api, max_walk, wait_seconds=0):
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):
         raise Refuse("--sha must be an exact commit ID")
     current = sha
@@ -381,7 +401,8 @@ def evaluate(sha, api, max_walk):
         verify_workflow(workflow)
         for filename, names in REUSABLE.values():
             verify_reusable(git("show", f"{current}:.github/workflows/{filename}"), names)
-        run = api.run(current)
+        # Only the candidate itself, and only on the first look.
+        run = api.run(current, wait_seconds if current == sha and not inspected else 0)
         jobs = api.pages(f"repos/{api.repo}/actions/runs/{run['id']}/attempts/{run['run_attempt']}/jobs?per_page=100", "jobs")
         jobs_examined += len(jobs)
         verdict = jobs_verdict(jobs, run)
@@ -413,11 +434,17 @@ def evaluate(sha, api, max_walk):
     raise Refuse("Ancestor search bound exhausted without a tested verdict")
 
 
+POLL_SECONDS = 15
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", required=True)
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--max-walk", type=int, default=25)
+    parser.add_argument("--wait-minutes", type=float, default=0.0,
+                        help="Bounded wait for the candidate's own CI run to COMPLETE before judging it. "
+                             "Zero preserves the single-sample behaviour for every other caller.")
     parser.add_argument("--classify-base", help="Only classify base-to-sha change for CI")
     parser.add_argument("--out", default="artifacts/reports/release-test-verdict.json")
     args = parser.parse_args(argv)
@@ -429,7 +456,9 @@ def main(argv=None):
             return 0
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo) or args.max_walk < 1:
             raise Refuse("Repository and positive ancestor bound required")
-        tested_sha = evaluate(args.sha, api, args.max_walk)
+        if args.wait_minutes < 0:
+            raise Refuse("Wait budget cannot be negative")
+        tested_sha = evaluate(args.sha, api, args.max_walk, args.wait_minutes * 60.0)
         report.update(verdict="GREEN", tested_sha=tested_sha)
         print(f"GREEN: {args.sha} verified against tested commit {tested_sha}")
         return 0

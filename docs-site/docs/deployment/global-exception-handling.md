@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: Global Exception Handling
-description: Standardized RFC 7807 problem details responses with environment-aware behavior, validation errors, and OpenAPI support.
+description: Standardized RFC 9457 problem details responses with environment-aware behavior, validation errors, and OpenAPI support.
 ---
 
 # Global Exception Handling
 
-`Excalibur.Hosting.Web` provides a production-ready global exception handler that converts unhandled exceptions into standardized [RFC 7807 Problem Details](https://datatracker.ietf.org/doc/html/rfc7807) JSON responses. It integrates with ASP.NET Core's `IExceptionHandler`, supports FluentValidation errors, provides environment-aware stack traces, and includes an OpenAPI schema for Swagger documentation.
+`Excalibur.Hosting.Web` provides a global exception handler that converts unhandled exceptions into [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html) JSON responses. It integrates with ASP.NET Core's `IExceptionHandler`, supports FluentValidation errors, provides environment-aware stack traces, and includes an OpenAPI schema for Swagger documentation. RFC 9457 supersedes RFC 7807 and permits extension members such as `traceId` and validation `errors`.
 
 ## Before You Start
 
@@ -38,9 +38,16 @@ app.UseExcaliburWebHost();
 app.Run();
 ```
 
-`AddGlobalExceptionHandler()` registers `GlobalExceptionHandler` as an `IExceptionHandler`, configures ASP.NET Core's `ProblemDetailsService`, and binds `ProblemDetailsOptions` from configuration.
+`AddGlobalExceptionHandler()` registers `GlobalExceptionHandler` as an `IExceptionHandler`, configures ASP.NET Core's `ProblemDetailsService`, and applies the optional `ProblemDetailsOptions` callback.
+
+Dispatch-only applications can use `Excalibur.Dispatch.Hosting.AspNetCore` and
+`builder.Services.AddDispatchExceptionHandler()` with `app.UseExceptionHandler()`. Both entry points
+share status mapping and response construction. In Development, the Excalibur entry point preserves
+demystified stack traces; the lean Dispatch entry point uses standard exception diagnostic text.
 
 `UseExcaliburWebHost()` adds the exception handler middleware along with tenant ID, correlation ID, ETag, and client address middleware.
+
+The handler also covers ordinary exceptions from controllers, minimal endpoints, services and middleware downstream of `UseExceptionHandler()`, without requiring a Dispatch pipeline. Place that middleware before the components it should protect. It cannot rewrite an already-started response, catch exceptions upstream of it, or handle background-worker exceptions. Returned error statuses without a thrown exception use separate response handling.
 
 ## How It Works
 
@@ -50,7 +57,7 @@ When an unhandled exception reaches the middleware pipeline:
 2. **Exception ID** — If the exception is an `ApiException`, its `Id` is used. Otherwise, a new UUID v7 is generated for correlation.
 3. **Trace ID** — Pulled from `Activity.Current?.Id` (OpenTelemetry) or `HttpContext.TraceIdentifier`.
 4. **Problem Details construction** — A `ProblemDetails` object is built with localized MDN type URI, HTTP reason phrase, instance URN, and trace/exception IDs.
-5. **Environment-aware response** — In production (non-Development), 5xx errors are sanitized: generic title, no stack trace, no error codes. In Development, full details are included.
+5. **Environment-aware response** — Outside Development, all responses omit internal exception messages, stack traces and error codes. Public field validation errors remain available. The public reason title remains stable across environments, and the mapped HTTP status and body status remain identical. In Development, diagnostic details are included.
 6. **Response writing** — Attempts `IProblemDetailsService` first (for customization hooks), falls back to `WriteAsJsonAsync` with `application/problem+json` content type.
 
 ## Response Format
@@ -65,7 +72,7 @@ When an unhandled exception reaches the middleware pipeline:
   "detail": "Order with ID 'abc-123' was not found.",
   "instance": "urn:my-api:error:019478a2-3b4c-7d8e-9f01-234567890abc",
   "traceId": "00-abcdef1234567890-abcdef12-01",
-  "errorCode": 1042,
+  "errorCode": "1042",
   "stack": "OrderNotFoundException at OrderService.GetByIdAsync(...) ..."
 }
 ```
@@ -75,32 +82,36 @@ When an unhandled exception reaches the middleware pipeline:
 ```json
 {
   "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500",
-  "title": "An unhandled exception has occurred.",
+  "title": "Internal Server Error",
   "status": 500,
-  "detail": "Oops, something went wrong",
+  "detail": "The request could not be completed.",
   "instance": "urn:my-api:error:019478a2-3b4c-7d8e-9f01-234567890abc",
   "traceId": "00-abcdef1234567890-abcdef12-01"
 }
 ```
 
-For non-5xx errors (e.g., 400, 404, 409), the full detail message is shown in all environments.
+The HTTP reason phrase remains the title in every environment. Internal exception messages are still
+suppressed outside Development. A mapped 503 remains 503 in both the HTTP response and JSON body.
 
 ### Validation Errors (FluentValidation)
 
-When a `FluentValidation.ValidationException` is thrown, the response includes a `validationErrors` array:
+Dispatch validation exceptions map to 400 and include an `errors` dictionary. The Excalibur handler
+also extracts errors from directly thrown FluentValidation exceptions. A FluentValidation exception
+needs explicit status metadata (for example `exception.Data["StatusCode"] = 400`) to map to 400;
+otherwise it retains the default 500 status. Here is a production validation response with status 400:
 
 ```json
 {
   "type": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
   "title": "Bad Request",
   "status": 400,
-  "detail": "Validation failed: ...",
+  "detail": "One or more validation errors occurred.",
   "instance": "urn:my-api:error:...",
   "traceId": "...",
-  "validationErrors": [
-    { "propertyName": "Email", "errorMessage": "'Email' must not be empty." },
-    { "propertyName": "Name", "errorMessage": "'Name' must be between 2 and 100 characters." }
-  ]
+  "errors": {
+    "Email": ["'Email' must not be empty."],
+    "Name": ["'Name' must be between 2 and 100 characters."]
+  }
 }
 ```
 
@@ -136,6 +147,55 @@ throw ex;
 
 Similarly, `GetErrorCode()` returns the error code as text. A `DispatchException` answers with its own `ErrorCode`; any other exception answers with an `"ErrorCode"` entry in its `Data` dictionary, then its inner exceptions (every inner exception of an `AggregateException`). A numeric code is rendered as text.
 
+## Extending the handler
+
+`GlobalExceptionHandler` exposes two `protected virtual` members. Everything else about the response —
+status mapping, the `type` link, `traceId`, the production/development split — is fixed, so these are the
+only two seams, and they are the ones the Excalibur handler itself uses.
+
+| member | called | override it to |
+|---|---|---|
+| `GetValidationErrors(Exception)` | always | publish per-property validation errors from a library the base does not recognize |
+| `FormatDiagnosticStack(Exception)` | Development only | change how the exception is rendered into the `stack` member |
+
+```csharp
+public sealed class MyExceptionHandler : GlobalExceptionHandler
+{
+    public MyExceptionHandler(IHostEnvironment environment,
+        IOptions<ProblemDetailsOptions> options, ILogger<GlobalExceptionHandler> logger)
+        : base(environment, options, logger) { }
+
+    protected override IDictionary<string, string[]>? GetValidationErrors(Exception exception)
+    {
+        // Let the framework's own validation exception win, then add your library.
+        return base.GetValidationErrors(exception)
+            ?? (exception is MyLibraryValidationException v ? v.ToDictionary() : null);
+    }
+}
+
+// Replace the registered handler with your subclass.
+builder.Services.AddDispatchExceptionHandler();
+builder.Services.AddSingleton<IExceptionHandler, MyExceptionHandler>();
+```
+
+:::danger `GetValidationErrors` output reaches production responses unsanitized
+The `errors` member is written whenever this method returns anything, in **every** environment — it is
+not inside the development-only branch that guards `detail`, `errorCode` and `stack`. The handler copies
+the dictionary before serializing it but does not filter it, so whatever you return is what the caller
+receives. Return only what an unauthenticated caller may see: property names and validation messages, not
+internal identifiers, SQL, or values echoed back from the record being validated.
+
+`FormatDiagnosticStack` is the opposite case and is safe by construction: it is called only while the
+environment is Development, so an override there cannot widen what a production response discloses.
+:::
+
+**The shipped Excalibur handler is the worked example of both.** `Excalibur.Hosting.Web`'s
+`GlobalExceptionHandler` overrides `GetValidationErrors` to fall back to FluentValidation — calling `base`
+first, then grouping `ValidationFailure` by `PropertyName` — which is where the behavior described under
+[Validation Errors](#validation-errors-fluentvalidation) comes from. It overrides `FormatDiagnosticStack`
+to return a demystified stack trace, which is why the two entry points differ in development output while
+sharing one status mapping.
+
 ## Configuration
 
 ### ProblemDetailsOptions
@@ -169,7 +229,14 @@ builder.Services.AddSwaggerGen(options =>
 });
 ```
 
-This registers a standardized `ProblemDetails` schema in your OpenAPI specification with all extension fields (`traceId`, `exceptionId`, `errorCode`, `stack`, `validationErrors`).
+This registers the standard fields plus `traceId`, optional development-only string `errorCode` and
+`stack`, and optional `errors` containing arrays of messages by field name. Exception identity is
+encoded in `instance`, rather than a separate `exceptionId` response member. Custom problem-details
+writers may add extensions.
+
+Regenerate clients produced from the older schema: it incorrectly described an integer `errorCode`,
+a `validationErrors` array and a separate `exceptionId`, and the Swagger mapping omitted `type`.
+The corrected schema describes the payload the handler actually emits.
 
 ### OpenAPI YAML Schema
 

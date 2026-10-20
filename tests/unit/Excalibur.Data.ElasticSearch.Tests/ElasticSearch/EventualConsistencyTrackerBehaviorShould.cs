@@ -238,7 +238,7 @@ public sealed class EventualConsistencyTrackerBehaviorShould : UnitTestBase
 		IProjectionEventLookup Lookup,
 		IProjectionEventScan Scan,
 		IProjectionIndexProvisioning Provisioning,
-		IOptions<ProjectionOptions> Options,
+		IOptions<ElasticSearchProjectionManagementOptions> Options,
 		ILogger<EventualConsistencyTracker> Logger)
 		CreateSeamFakes(bool enabled = false)
 	{
@@ -246,7 +246,7 @@ public sealed class EventualConsistencyTrackerBehaviorShould : UnitTestBase
 		var lookup = A.Fake<IProjectionEventLookup>();
 		var scan = A.Fake<IProjectionEventScan>();
 		var provisioning = A.Fake<IProjectionIndexProvisioning>();
-		var options = Options.Create(new ProjectionOptions
+		var options = Options.Create(new ElasticSearchProjectionManagementOptions
 		{
 			IndexPrefix = IndexPrefix,
 			ConsistencyTracking = new ConsistencyTrackingOptions

@@ -10,6 +10,18 @@ namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 public sealed class ElasticSearchProjectionStoreExtensionsShould
 {
 	[Fact]
+	public void IgnoreKeyedCollectionStateWhenClaimingProjectionOptions()
+	{
+		IServiceCollection services = new ServiceCollection();
+		services.AddElasticSearchProjectionStore<TestProjection>("http://localhost:9200");
+		var claims = services.Single(static descriptor => descriptor.ServiceType.Name == "ProjectionOptionsNameClaims");
+		services.Remove(claims);
+		services.Add(ServiceDescriptor.KeyedSingleton(claims.ServiceType, "unrelated", claims.GetImplementationInstance()!));
+		Should.NotThrow(() => services.AddElasticSearchProjectionStore<TestProjection>("http://localhost:9200"));
+		services.Count(static descriptor => descriptor.ServiceType.Name == "ProjectionOptionsNameClaims" && !descriptor.IsKeyedService).ShouldBe(1);
+	}
+
+	[Fact]
 	public void ThrowWhenServicesIsNullForConfigureOverload()
 	{
 		IServiceCollection services = null!;
@@ -116,7 +128,11 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 	{
 		var services = new ServiceCollection();
 		services.AddElasticSearchProjectionStore<TestProjection>(
-			o => o.Index.IndexPrefix = "test-proj");
+			o =>
+			{
+				o.NodeUri = "http://localhost:9200";
+				o.Index.IndexPrefix = "test-proj";
+			});
 
 		using var sp = services.BuildServiceProvider();
 		// Named options keyed by projection type name

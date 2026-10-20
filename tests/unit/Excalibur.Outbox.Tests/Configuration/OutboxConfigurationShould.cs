@@ -17,7 +17,12 @@ public sealed class OutboxConfigurationShould
 		config.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
 		config.MaxRetryCount.ShouldBe(3);
 		config.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		config.EnableBackgroundProcessing.ShouldBeTrue();
+		config.EnableBackgroundProcessing.ShouldBeFalse(
+			"the drain is opt-in. This asserted true, which is the value the type used to carry and the"
+			+ " reason the options reported a running drain to hosts that had none: the builder route that"
+			+ " creates this object registers no hosted service and never reads the flag. False is now the"
+			+ " only honest default -- EnableBackgroundProcessing() is the sole writer of true, and it"
+			+ " registers the service in the same call.");
 		config.ProcessorId.ShouldBeNull();
 		config.EnableParallelProcessing.ShouldBeFalse();
 		config.MaxDegreeOfParallelism.ShouldBe(4);

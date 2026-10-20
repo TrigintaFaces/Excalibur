@@ -25,10 +25,13 @@ public static class DbConnectionExtensions
 	/// This is the execute path over an <see cref="IDb"/> connection. An <see cref="ApiException"/> raised by the
 	/// resolver — including a <see cref="ConcurrencyException"/> signalling an optimistic-concurrency conflict —
 	/// surfaces to the caller <em>unchanged</em>, preserving its type and metadata so the caller can react to the
-	/// conflict (for example, reload and retry). Only a non-<see cref="ApiException"/> infrastructure fault is
-	/// wrapped as an <see cref="OperationFailedException"/>.
+	/// conflict (for example, reload and retry). Resolver cancellation also propagates unchanged, retaining
+	/// its cancellation token and canceled task status. Other infrastructure faults, including timeouts,
+	/// are wrapped as an <see cref="OperationFailedException"/>. An infrastructure exception containing a
+	/// cancellation exception is still a fault; this method does not unwrap its cause.
 	/// </remarks>
 	/// <exception cref="ConcurrencyException"> Propagated unchanged when the resolver reports an optimistic-concurrency conflict. </exception>
+	/// <exception cref="OperationCanceledException"> Propagated unchanged when the resolver reports cancellation. </exception>
 	/// <exception cref="OperationFailedException"> Thrown when a non-application (infrastructure) error occurs while executing the request. </exception>
 	public static async Task<TModel> ResolveAsync<TModel>(this IDbConnection connection, IDataRequest<IDbConnection, TModel> dataRequest)
 	{
@@ -38,7 +41,7 @@ public static class DbConnectionExtensions
 		{
 			return await dataRequest.ResolveAsync(connection).ConfigureAwait(false);
 		}
-		catch (Exception ex) when (ex is not ApiException)
+		catch (Exception ex) when (ex is not (ApiException or OperationCanceledException))
 		{
 			throw new OperationFailedException(
 				TypeNameHelper.GetTypeDisplayName(typeof(TModel), fullName: false, includeGenericParameterNames: true),

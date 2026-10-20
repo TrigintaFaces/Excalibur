@@ -330,6 +330,9 @@ public sealed partial class SagaCoordinator(IServiceProvider serviceProvider, IS
 		}
 
 		var saga = ActivatorUtilities.CreateInstance<TSaga>(serviceProvider, sagaState);
+		// Timeout support is optional. Preserve a store supplied by the saga itself, otherwise use
+		// the registered store before the handler can schedule or cancel a timeout.
+		saga.TimeoutStore ??= serviceProvider.GetService<ISagaTimeoutStore>();
 
 		// Hand the saga the context it is handling under, so the commands and events it emits can be
 		// correlated as children of this one. Previously read from a flow-local static inside the saga.

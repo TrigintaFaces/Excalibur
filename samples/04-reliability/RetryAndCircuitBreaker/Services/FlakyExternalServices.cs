@@ -13,6 +13,13 @@ public sealed class FlakyPaymentService
 	private readonly ILogger<FlakyPaymentService> _logger;
 	private int _callCount;
 	private int _successThreshold = 3; // Succeed after this many attempts
+	private int _completedPayments;
+
+	/// <summary>Gets actual dependency attempts in the current scenario.</summary>
+	public int CallCount => Volatile.Read(ref _callCount);
+
+	/// <summary>Gets completed payment effects in the current scenario.</summary>
+	public int CompletedPayments => Volatile.Read(ref _completedPayments);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FlakyPaymentService"/> class.
@@ -29,6 +36,7 @@ public sealed class FlakyPaymentService
 	{
 		_successThreshold = failures + 1;
 		_callCount = 0;
+		_completedPayments = 0;
 	}
 
 	/// <summary>
@@ -43,9 +51,9 @@ public sealed class FlakyPaymentService
 	{
 		await Task.Delay(50, cancellationToken).ConfigureAwait(false); // Simulate network latency
 
-		_callCount++;
+		var attempt = Interlocked.Increment(ref _callCount);
 
-		if (_callCount < _successThreshold)
+		if (attempt < _successThreshold)
 		{
 			_logger.LogWarning(
 				"[PaymentService] Payment {PaymentId} failed (attempt {Attempt}/{Threshold})",
@@ -56,6 +64,7 @@ public sealed class FlakyPaymentService
 			throw new PaymentServiceException($"Payment processing failed for {paymentId} - temporary error");
 		}
 
+		_ = Interlocked.Increment(ref _completedPayments);
 		var transactionId = $"TXN-{Guid.NewGuid():N}"[..16].ToUpperInvariant();
 		_logger.LogInformation(
 			"[PaymentService] Payment {PaymentId} succeeded on attempt {Attempt}: Transaction {TransactionId}",
@@ -76,6 +85,10 @@ public sealed class UnreliableInventoryService
 	private bool _isHealthy = true;
 	private int _consecutiveFailures;
 	private readonly int _failureThreshold = 3;
+	private int _callCount;
+
+	/// <summary>Gets actual inventory dependency attempts.</summary>
+	public int CallCount => Volatile.Read(ref _callCount);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="UnreliableInventoryService"/> class.
@@ -107,6 +120,7 @@ public sealed class UnreliableInventoryService
 	/// </summary>
 	public async Task<(bool Available, int Quantity)> CheckInventoryAsync(string sku, int requested, CancellationToken cancellationToken)
 	{
+		_ = Interlocked.Increment(ref _callCount);
 		await Task.Delay(100, cancellationToken).ConfigureAwait(false); // Simulate network latency
 
 		if (!_isHealthy)
@@ -152,6 +166,14 @@ public sealed class SlowNotificationService
 {
 	private readonly ILogger<SlowNotificationService> _logger;
 	private TimeSpan _responseDelay = TimeSpan.FromMilliseconds(100);
+	private int _completedNotifications;
+	private int _canceledNotifications;
+
+	/// <summary>Gets completed notification effects.</summary>
+	public int CompletedNotifications => Volatile.Read(ref _completedNotifications);
+
+	/// <summary>Gets operations that observed cancellation.</summary>
+	public int CanceledNotifications => Volatile.Read(ref _canceledNotifications);
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SlowNotificationService"/> class.
@@ -181,7 +203,17 @@ public sealed class SlowNotificationService
 			recipient,
 			_responseDelay.TotalMilliseconds);
 
-		await Task.Delay(_responseDelay, cancellationToken).ConfigureAwait(false);
+		try
+		{
+			await Task.Delay(_responseDelay, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			_ = Interlocked.Increment(ref _canceledNotifications);
+			throw;
+		}
+
+		_ = Interlocked.Increment(ref _completedNotifications);
 
 		_logger.LogInformation(
 			"[NotificationService] {Type} notification sent to {Recipient}",

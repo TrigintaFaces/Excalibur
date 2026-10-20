@@ -99,23 +99,31 @@ public static class SentinelServiceCollectionExtensions
 		// Transient-fault retry (formerly hand-rolled in the exporter) is delegated to the standard
 		// Polly-backed resilience pipeline (Microsoft.Extensions.Http.Resilience), which retries the same
 		// transient responses (408/429/5xx + HttpRequestException/timeout) the exporter used to classify.
-		// The pipeline owns timeouts, so the HttpClient timeout is left infinite — the handler's per-attempt
-		// and total-request timeouts bound each call instead.
-		var httpClientBuilder = services.AddHttpClient<SentinelAuditExporter>(static (_, client) =>
+		// Handler timeouts bound each send attempt; the client also bounds response-body buffering.
+		var httpClientBuilder = services.AddHttpClient<SentinelAuditExporter>();
+
+		var resilienceBuilder = httpClientBuilder.AddStandardResilienceHandler();
+		// The standard handler resets HttpClient.Timeout to infinite. Restore a total deadline afterward
+		// so response-body buffering is also bounded, without adding another retry layer.
+		_ = httpClientBuilder.ConfigureHttpClient(static (provider, client) =>
 		{
-			client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+			var options = provider.GetRequiredService<IOptions<SentinelExporterOptions>>().Value;
+			client.Timeout = options.Timeout * (options.MaxRetryAttempts + 1);
 		});
 
-		_ = httpClientBuilder.AddStandardResilienceHandler();
-
-		// Configure the standard resilience pipeline (keyed by the typed client's name) from the exporter's
+		// Configure the standard resilience pipeline (keyed by its returned pipeline name) from the exporter's
 		// retry options, so config-bound overrides flow through the DI options system.
-		_ = services.AddOptions<HttpStandardResilienceOptions>(httpClientBuilder.Name)
+		_ = services.AddOptions<HttpStandardResilienceOptions>(resilienceBuilder.PipelineName)
 			.Configure<IOptions<SentinelExporterOptions>>(static (resilience, exporterOptions) =>
 			{
 				var retry = exporterOptions.Value;
 
-				resilience.Retry.MaxRetryAttempts = retry.MaxRetryAttempts;
+				resilience.Retry.MaxRetryAttempts = retry.MaxRetryAttempts == 0 ? 1 : retry.MaxRetryAttempts;
+				if (retry.MaxRetryAttempts == 0)
+				{
+					// Keep timeout and circuit-breaker protection while executing without retries.
+					resilience.Retry.ShouldHandle = static _ => ValueTask.FromResult(false);
+				}
 				resilience.Retry.Delay = retry.RetryBaseDelay;
 				resilience.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
 

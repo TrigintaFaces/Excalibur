@@ -27,6 +27,7 @@ public sealed class CacheModeIntegrationShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
@@ -34,11 +35,12 @@ public sealed class CacheModeIntegrationShould
 
 		// Distributed and Hybrid modes need a real IDistributedCache backend
 		// (HybridCache treats MemoryDistributedCache as a no-op L2)
-		if (mode is CacheMode.Distributed or CacheMode.Hybrid)
+		await using var distProvider = mode is CacheMode.Distributed or CacheMode.Hybrid
+			? new ServiceCollection().AddDistributedMemoryCache().BuildServiceProvider()
+			: null;
+		if (distProvider is not null)
 		{
-			var distSvc = new ServiceCollection();
-			_ = distSvc.AddDistributedMemoryCache();
-			var distCache = distSvc.BuildServiceProvider().GetRequiredService<IDistributedCache>();
+			var distCache = distProvider.GetRequiredService<IDistributedCache>();
 			_ = services.AddSingleton<IDistributedCache>(new ForwardingDistributedCache(distCache));
 		}
 
@@ -58,12 +60,11 @@ public sealed class CacheModeIntegrationShould
 				});
 		});
 
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		var query = new CachingTestQuery { Value = 1000 + (int)mode };
-		CachingTestQueryHandler.CallCount = 0;
 
 		// Act 1 — first call populates cache
 		var result1 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
@@ -78,7 +79,7 @@ public sealed class CacheModeIntegrationShould
 		result2.Succeeded.ShouldBeTrue();
 		result2.Disposition.ShouldBe(MessageDisposition.ServedFromCache);
 		result1.ReturnValue.Value.ShouldBe(result2.ReturnValue.Value);
-		CachingTestQueryHandler.CallCount.ShouldBe(1);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(1);
 
 		// Act 3 — invalidate by tag
 		var invalidate = new InvalidateCacheCommand { TagsToInvalidate = ["test-tag"] };
@@ -90,7 +91,7 @@ public sealed class CacheModeIntegrationShould
 			query, new MessageContext(new TestDispatchAction(), provider), cancellationToken: default);
 
 		// Assert — cache miss after invalidation
-		CachingTestQueryHandler.CallCount.ShouldBe(2);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBe(2);
 		result3.Disposition.ShouldBe(MessageDisposition.Handled);
 	}
 
@@ -102,16 +103,18 @@ public sealed class CacheModeIntegrationShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
+		_ = services.AddSingleton(typeof(CachingHandlerCallTracker<>));
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
 		_ = services.AddSingleton<DispatchJsonSerializer>();
 
-		if (mode is CacheMode.Distributed or CacheMode.Hybrid)
+		await using var distProvider = mode is CacheMode.Distributed or CacheMode.Hybrid
+			? new ServiceCollection().AddDistributedMemoryCache().BuildServiceProvider()
+			: null;
+		if (distProvider is not null)
 		{
-			var distSvc = new ServiceCollection();
-			_ = distSvc.AddDistributedMemoryCache();
-			var distCache = distSvc.BuildServiceProvider().GetRequiredService<IDistributedCache>();
+			var distCache = distProvider.GetRequiredService<IDistributedCache>();
 			_ = services.AddSingleton<IDistributedCache>(new ForwardingDistributedCache(distCache));
 		}
 
@@ -130,12 +133,11 @@ public sealed class CacheModeIntegrationShould
 				});
 		});
 
-		var provider = services.BuildServiceProvider();
+		await using var provider = services.BuildServiceProvider();
 		_ = provider.GetRequiredKeyedService<IMessageBus>("Local");
 		var dispatcher = provider.GetRequiredService<IDispatcher>();
 
 		var query = new CachingTestQuery { Value = 2000 + (int)mode };
-		CachingTestQueryHandler.CallCount = 0;
 
 		// Act — 5 concurrent dispatches
 		var tasks = Enumerable.Range(0, 5)
@@ -152,7 +154,7 @@ public sealed class CacheModeIntegrationShould
 		// Stampede protection coalesces most concurrent calls, but under heavy load
 		// a second call can slip through before the first result is cached -- this is
 		// true for all cache modes (Memory, Distributed, Hybrid).
-		CachingTestQueryHandler.CallCount.ShouldBeGreaterThan(0);
-		CachingTestQueryHandler.CallCount.ShouldBeLessThanOrEqualTo(2);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBeGreaterThan(0);
+		provider.GetRequiredService<CachingHandlerCallTracker<CachingTestQueryHandler>>().CallCount.ShouldBeLessThanOrEqualTo(2);
 	}
 }

@@ -761,7 +761,7 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 		var newest = CreateTestMessage("newest");
 
 		await store.StageMessageAsync(deadLettered, CancellationToken.None).ConfigureAwait(false);
-		await store.MarkDeadLetteredAsync(deadLettered.Id, "exhausted", CancellationToken.None)
+		await store.MarkDeadLetteredAsync(deadLettered.Id, "exhausted", 0, CancellationToken.None)
 			.ConfigureAwait(false);
 		await store.StageMessageAsync(staged, CancellationToken.None).ConfigureAwait(false);
 

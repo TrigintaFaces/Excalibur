@@ -7,19 +7,19 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.Tests.Configuration;
 
 /// <summary>
-/// Verifies cross-property validation in <see cref="ProjectionOptionsValidator"/>.
+/// Verifies cross-property validation in <see cref="ElasticSearchProjectionManagementOptionsValidator"/>.
 /// Sprint 564 S564.54: Projection IValidateOptions tests.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class ProjectionOptionsValidatorShould
 {
-	private readonly ProjectionOptionsValidator _sut = new();
+	private readonly ElasticSearchProjectionManagementOptionsValidator _sut = new();
 
 	[Fact]
 	public void Succeed_WithValidDefaults()
 	{
-		var options = new ProjectionOptions();
+		var options = new ElasticSearchProjectionManagementOptions();
 		var result = _sut.Validate(null, options);
 		result.Succeeded.ShouldBeTrue();
 	}
@@ -32,10 +32,10 @@ public sealed class ProjectionOptionsValidatorShould
 	[InlineData("   ")]
 	public void Fail_WhenIndexPrefixIsNullOrWhitespace(string? value)
 	{
-		var options = new ProjectionOptions { IndexPrefix = value! };
+		var options = new ElasticSearchProjectionManagementOptions { IndexPrefix = value! };
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(ProjectionOptions.IndexPrefix));
+		result.FailureMessage.ShouldContain(nameof(ElasticSearchProjectionManagementOptions.IndexPrefix));
 	}
 
 	#endregion
@@ -45,7 +45,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenRetryBaseDelayExceedsMaxDelay()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RetryPolicy = new ProjectionRetryOptions
 			{
@@ -62,7 +62,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Succeed_WhenRetryBaseDelayEqualsMaxDelay()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RetryPolicy = new ProjectionRetryOptions
 			{
@@ -78,7 +78,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenRetryMaxIndexAttemptsIsZero()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RetryPolicy = new ProjectionRetryOptions
 			{
@@ -94,7 +94,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenRetryMaxBulkAttemptsIsZero()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RetryPolicy = new ProjectionRetryOptions
 			{
@@ -110,7 +110,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Skip_RetryValidation_WhenDisabled()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RetryPolicy = new ProjectionRetryOptions
 			{
@@ -131,7 +131,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenRebuildBatchSizeIsZero()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RebuildManager = new RebuildManagerOptions
 			{
@@ -147,7 +147,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenRebuildMaxDegreeOfParallelismIsZero()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RebuildManager = new RebuildManagerOptions
 			{
@@ -163,7 +163,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Skip_RebuildValidation_WhenDisabled()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			RebuildManager = new RebuildManagerOptions
 			{
@@ -186,7 +186,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[InlineData(101.0)]
 	public void Fail_WhenSLAPercentageOutOfRange(double value)
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			ConsistencyTracking = new ConsistencyTrackingOptions
 			{
@@ -202,7 +202,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenMetricsIntervalIsZero()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			ConsistencyTracking = new ConsistencyTrackingOptions
 			{
@@ -218,7 +218,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Fail_WhenExpectedMaxLagIsZero()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			ConsistencyTracking = new ConsistencyTrackingOptions
 			{
@@ -234,7 +234,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void Skip_ConsistencyTrackingValidation_WhenDisabled()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			ConsistencyTracking = new ConsistencyTrackingOptions
 			{
@@ -253,7 +253,7 @@ public sealed class ProjectionOptionsValidatorShould
 	[Fact]
 	public void CollectMultipleFailures()
 	{
-		var options = new ProjectionOptions
+		var options = new ElasticSearchProjectionManagementOptions
 		{
 			IndexPrefix = "",
 			RetryPolicy = new ProjectionRetryOptions
@@ -271,7 +271,7 @@ public sealed class ProjectionOptionsValidatorShould
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(ProjectionOptions.IndexPrefix));
+		result.FailureMessage.ShouldContain(nameof(ElasticSearchProjectionManagementOptions.IndexPrefix));
 		result.FailureMessage.ShouldContain(nameof(ProjectionRetryOptions.BaseDelay));
 		result.FailureMessage.ShouldContain(nameof(RebuildManagerOptions.DefaultBatchSize));
 	}

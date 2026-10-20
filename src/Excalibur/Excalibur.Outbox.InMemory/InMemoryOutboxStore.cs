@@ -34,7 +34,7 @@ namespace Excalibur.Outbox.InMemory;
 /// interface states the claim this store's own behaviour otherwise leaves silent.
 /// </para>
 /// </remarks>
-public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
+public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedClaimScopedOutboxStore, IFencedDeadLetterableOutboxStore, IFencedOutboxStoreDiagnostics, IOutboxStoreAdmin, IDeadLetterableOutboxStore, IBackoffSchedulableOutboxStore, ITenantPartitionedStore, IAsyncDisposable, IDisposable
 {
 	private readonly ConcurrentDictionary<string, OutboundMessage> _messages = new(StringComparer.Ordinal);
 
@@ -362,6 +362,14 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 
 	/// <inheritdoc/>
 	public ValueTask MarkFailedAsync(string messageId, string errorMessage, int retryCount, CancellationToken cancellationToken)
+		=> MarkFailedCore(messageId, errorMessage, retryCount, nextAttemptAt: null);
+
+	/// <inheritdoc/>
+	public ValueTask MarkFailedWithBackoffAsync(string messageId, string errorMessage, int retryCount,
+		DateTimeOffset nextAttemptAt, CancellationToken cancellationToken)
+		=> MarkFailedCore(messageId, errorMessage, retryCount, nextAttemptAt);
+
+	private ValueTask MarkFailedCore(string messageId, string errorMessage, int retryCount, DateTimeOffset? nextAttemptAt)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(errorMessage);
@@ -391,8 +399,6 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 				return default;
 			}
 
-			var now = DateTimeOffset.UtcNow;
-
 			// R2 — reservation-ownership guard: a MarkFailed reported against a reservation a DIFFERENT
 			// processor now holds is a no-op. A superseded/zombie processor's late failure report cannot free a
 			// live successor's lease, so it can never trigger a second concurrent delivery. Mirrors the SQL
@@ -404,37 +410,33 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 				return default;
 			}
 
-			// R3 — attempts are non-decreasing across re-claims: never let a stale late writer move the count
-			// DOWN, which would weaken the processor's DLQ-ceiling (termination) guarantee. Capture the prior
-			// persisted count BEFORE MarkFailed (which itself increments RetryCount) and take the max against
-			// the caller-reported count, so a stale lower report cannot lower the authoritative value.
-			var priorRetryCount = message.RetryCount;
-			message.MarkFailed(errorMessage);
-			message.RetryCount = Math.Max(priorRetryCount, retryCount);
-			message.LastAttemptAt = now;
-
-			// R1 — failure-anchored visibility floor: the message re-enters the claimable set only after the
-			// dedicated failure-backoff floor F elapses FROM THE FAILURE INSTANT — never the same drain cycle (no
-			// zero-backoff hot-loop), never terminally (at-least-once; the outbox must not silently drop it). F is
-			// decoupled from the crash-recovery lease window and sized to exceed the poll interval. The failure
-			// stays observable via GetFailedMessages / GetStatistics (Status == Failed). Fine-grained backoff
-			// remains the separate MarkFailedWithBackoffAsync path. Free the caller-owned reservation so the
-			// floor — not a lingering lease — governs the next claim.
-			_nextAttempt[messageId] = now + TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds);
-			_ = _leases.TryRemove(messageId, out _);
-
-			LogMessageFailed(messageId, errorMessage, retryCount);
-
+			ApplyFailureUnderClaimLock(messageId, message, errorMessage, retryCount, nextAttemptAt);
 		}
 
 		return default;
 	}
 
+	// Called only after route-specific ownership/fencing guards while _claimLock is held.
+	// State, schedule and lease release must be one transition: a successor cannot claim in a gap.
+	private void ApplyFailureUnderClaimLock(string messageId, OutboundMessage message, string errorMessage, int retryCount, DateTimeOffset? requestedNextAttempt)
+	{
+		var now = DateTimeOffset.UtcNow;
+		var floor = now + TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds);
+		var priorRetryCount = message.RetryCount;
+		message.MarkFailed(errorMessage);
+		message.RetryCount = Math.Max(priorRetryCount, retryCount);
+		message.LastAttemptAt = now;
+		_nextAttempt[messageId] = requestedNextAttempt is { } requested && requested > floor ? requested : floor;
+		_ = _leases.TryRemove(messageId, out _);
+		LogMessageFailed(messageId, errorMessage, retryCount);
+	}
+
 	/// <inheritdoc/>
-	public ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		// Under the same lock as every other completion on this type, for the reason stated on
@@ -444,8 +446,9 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 		{
 			if (!_messages.TryGetValue(messageId, out var message))
 			{
-				// Mirror MarkFailedAsync: silent return for missing messages
-				return default;
+				// Reported, not silent: the caller has already written the dead-letter entry, so a
+				// refusal it cannot see strands that entry against a row that is not here.
+				return ValueTask.FromResult(OutboxCompletionOutcome.MessageNotFound);
 			}
 
 			// Terminal exclusion, mirroring MarkFailedAsync. A dead-letter applied to an already-sent message
@@ -453,10 +456,11 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 			// a second dead-letter for one message. Binds the current claim holder as much as a stale caller.
 			if (message.Status is OutboxStatus.Sent or OutboxStatus.DeadLettered)
 			{
-				return default;
+				return ValueTask.FromResult(OutboxCompletionOutcome.AlreadyTerminal);
 			}
 
 			message.Status = OutboxStatus.DeadLettered;
+			message.RetryCount = Math.Max(message.RetryCount, attemptCount);
 			message.LastError = reason;
 
 			// Clear the claim lease and failure-visibility floor for hygiene. DeadLettered is
@@ -466,7 +470,7 @@ public sealed partial class InMemoryOutboxStore : IFencedOutboxStore, IFencedCla
 
 		}
 
-		return default;
+		return ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 	}
 
 	/// <inheritdoc/>

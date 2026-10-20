@@ -96,7 +96,7 @@ MessagePack Union allows polymorphic serialization...
 
 | Scenario | Recommendation |
 |----------|----------------|
-| High throughput required | ✅ MessagePack (3-5x faster than JSON) |
+| High throughput required | Compare MessagePack and JSON with the actual payload and API |
 | Bandwidth-constrained | ✅ MessagePack + LZ4 compression |
 | Cross-language systems | ✅ MessagePack (broad language support) |
 | Polymorphic messages | ✅ Union types for C#-to-C# |
@@ -104,6 +104,12 @@ MessagePack Union allows polymorphic serialization...
 | Schema evolution needed | ⚠️ Use Protobuf for complex evolution |
 
 ## Performance Comparison
+
+This earlier sample table has no verified matched payload/API/runtime provenance.
+It is retained as an unverified historical illustration, not a current ranking or
+sample-specific speed guarantee. The [framework envelope report](../../../docs/performance/memorypack-2026-10-16.md)
+contains scoped JSON/MessagePack observations for different benchmark representations;
+it does not validate the ratios in this table.
 
 | Serializer | Serialize (µs) | Deserialize (µs) | Size (bytes) |
 |------------|----------------|------------------|--------------|
@@ -140,25 +146,23 @@ MessagePackSample/
 
 ## Configuration Options
 
-In `appsettings.json`:
+MessagePack is configured in code, not from configuration. `AddMessagePackSerializer` takes
+MessagePack's own `MessagePackSerializerOptions`, so every option the library supports is available —
+including LZ4 compression — and there is no `appsettings.json` section to bind:
 
-```json
-{
-  "Serialization": {
-    "MessagePack": {
-      "UseLz4Compression": true
-    }
-  }
-}
+```csharp
+var lz4Options = MessagePackSerializerOptions.Standard
+    .WithCompression(MessagePackCompression.Lz4BlockArray);
+
+builder.Services.AddMessagePackSerializer(lz4Options);
 ```
 
-Options:
-- `UseLz4Compression` - Enable LZ4 block compression for smaller payloads
-- `IncludePrivateMembers` - Include private members during serialization
-- `StringEncoding` - String encoding format (default: UTF8)
+Calling `AddMessagePackSerializer()` with no argument uses `MessagePackSerializerOptions.Standard`,
+which applies no compression. Options come from the MessagePack library rather than from this
+framework, so consult its documentation for the full set; `WithCompression` is the one this sample uses.
 
 ## Related Samples
 
 - [Protobuf Serialization](../Protobuf/) - Schema-based binary serialization
-- [MemoryPack Serialization](../MemoryPackSample/) - Zero-allocation .NET serialization
+- [MemoryPack Serialization](../MemoryPackSample/) - Source-generated .NET serialization
 

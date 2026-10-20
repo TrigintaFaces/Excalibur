@@ -99,6 +99,20 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		return this;
 	}
 
+	internal IPipelineBuilder UseDeferredMetadata(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type middlewareType,
+		IDispatchMiddleware metadata)
+	{
+		var capturedKinds = _messageKinds;
+		var filteredMetadata = capturedKinds.HasValue
+			? new MessageKindFilteringMiddleware(metadata, capturedKinds.Value & metadata.ApplicableMessageKinds)
+			: metadata;
+		_middlewares.Add(new MiddlewareRegistration(middlewareType,
+			_ => filteredMetadata,
+			stage: null, condition: null, MiddlewareCriticality.Required, isDeferredMetadata: true));
+		return this;
+	}
+
 	/// <summary>
 	/// Registers middleware from a factory while retaining the middleware's type.
 	/// </summary>
@@ -265,10 +279,13 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		// therefore skip it precisely on the path that needs it. A scope nested inside a genuine child
 		// scope costs one allocation at start-up and resolves the same services.
 		var owned = _serviceProvider.GetService<IServiceScopeFactory>()?.CreateScope();
+		var ambient = owned is null
+			? (_serviceProvider.GetService(typeof(IDispatchAmbientScopeAccessor)) as IDispatchAmbientScopeAccessor)?.CurrentServiceProvider
+			: null;
 
 		try
 		{
-			return BuildFrom(owned?.ServiceProvider ?? _serviceProvider);
+			return BuildFrom(owned?.ServiceProvider ?? ambient ?? _serviceProvider, owned is not null || ambient is not null);
 		}
 		finally
 		{
@@ -276,19 +293,16 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		}
 	}
 
-	private IDispatchPipeline BuildFrom(IServiceProvider resolutionProvider)
+	private IDispatchPipeline BuildFrom(IServiceProvider resolutionProvider, bool hasProbeScope)
 	{
 		// Resolve all middleware instances
 		var resolvedMiddleware = new List<IDispatchMiddleware>();
 		List<(Type? Type, string Reason)>? unresolvedRequired = null;
 
 		// Decides, per middleware type, whether an instance resolved here may be reused by every dispatch
-		// or must be resolved per dispatch. The same verdict function the scoped-handler path uses, and for
-		// the same question: would holding this from the root be a captive dependency? Null when the
-		// composition has no scoping infrastructure at all, in which case there is no scope to resolve from
-		// and every entry is held as before.
+		// or must be resolved per dispatch. Availability cannot establish root safety. Deferred entries
+		// carry explicit metadata and do not activate their real middleware during composition.
 		var scopeResolver = new HandlerScopeResolver(_serviceProvider);
-		var canResolvePerDispatch = scopeResolver.CanCreateScope;
 
 		foreach (var registration in _middlewares)
 		{
@@ -298,8 +312,24 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 				continue;
 			}
 
-			// A middleware entry can fail to materialize in exactly two ways, and BOTH are
-			// gated by the entry's criticality — never by which of the two occurred:
+			var requiresScope = registration.IsDeferredMetadata
+				|| registration.Type is null || scopeResolver.RequiresScope(registration.Type);
+			if (requiresScope && !hasProbeScope && !registration.IsDeferredMetadata)
+			{
+				if (registration.Criticality == MiddlewareCriticality.Required)
+				{
+					(unresolvedRequired ??= []).Add((registration.Type,
+						"No composition scope is available. Supply a scope factory or ambient scope, or use UseDeferred with explicit stage and message-kind metadata."));
+				}
+				else
+				{
+					LogSkippedMiddleware(resolutionProvider, registration.Type, "No composition scope is available");
+				}
+				continue;
+			}
+
+			// After scope safety has been established, a middleware entry can still fail to
+			// materialize in these ways. Both follow the entry's declared criticality:
 			//
 			//   null result       the service is not registered at all
 			//   activation throw  the service is registered but a required constructor
@@ -350,8 +380,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			// this pipeline is a singleton. Those entries become a per-dispatch resolver instead, and the
 			// instance resolved above is released with the composition scope.
 			IDispatchMiddleware entry;
-			if (canResolvePerDispatch
-				&& (registration.Type is null || scopeResolver.RequiresScope(registration.Type)))
+			if (requiresScope)
 			{
 				entry = new ScopeResolvedMiddleware(
 					registration.Type ?? MiddlewareIdentity.TypeOf(middleware),
@@ -363,7 +392,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 					registration.Criticality,
 					registration.Type is not null);
 			}
-			else if (canResolvePerDispatch && registration.Type is not null)
+			else if (hasProbeScope && registration.Type is not null)
 			{
 				// Held by this singleton pipeline for its whole lifetime, so it must come from the ROOT
 				// provider -- never from the composition scope, which Build() disposes on return. A transient
@@ -452,7 +481,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 			details.ToString());
 	}
 
-	private static void LogSkippedMiddleware(IServiceProvider serviceProvider, Type? middlewareType)
+	private static void LogSkippedMiddleware(IServiceProvider serviceProvider, Type? middlewareType,
+		string reason = "not registered in the service provider")
 	{
 		if (middlewareType is null)
 		{
@@ -462,7 +492,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<PipelineBuilder>();
 		if (logger is not null)
 		{
-			LogPipelineMiddlewareSkipped(logger, middlewareType.FullName ?? middlewareType.Name);
+			LogPipelineMiddlewareSkipped(logger, middlewareType.FullName ?? middlewareType.Name, reason);
 		}
 	}
 
@@ -474,7 +504,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		Func<IServiceProvider, IDispatchMiddleware?> factory,
 		DispatchMiddlewareStage? stage,
 		Func<IServiceProvider, bool>? condition,
-		MiddlewareCriticality criticality)
+		MiddlewareCriticality criticality,
+		bool isDeferredMetadata = false)
 	{
 		/// <summary>
 		/// Gets the middleware implementation type, or <see langword="null" /> for a factory registration.
@@ -497,6 +528,8 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 		/// Gets a value indicating whether this entry may be omitted when it cannot be materialized.
 		/// </summary>
 		public MiddlewareCriticality Criticality { get; } = criticality;
+
+		public bool IsDeferredMetadata { get; } = isDeferredMetadata;
 	}
 
 	// Warning, not Debug. A configured pipeline stage that is not present changes what the pipeline
@@ -505,7 +538,7 @@ public sealed partial class PipelineBuilder : IPipelineBuilder
 	// production configuration, which makes it the level at which this particular fact is useless.
 	// A deliberate omission costs one suppressible warning; an accidental one is now visible.
 	[LoggerMessage(CoreEventId.InvokerMiddlewareSkipped, LogLevel.Warning,
-		"Skipping configured pipeline middleware {MiddlewareType}: not registered in the service provider. "
-		+ "This stage will not run. Register it (for example via the matching Use* call) or remove it from the profile.")]
-	private static partial void LogPipelineMiddlewareSkipped(ILogger logger, string middlewareType);
+		"Skipping configured pipeline middleware {MiddlewareType}: {Reason}. "
+		+ "This stage will not run. Check service registration and scope support, or remove it from the profile.")]
+	private static partial void LogPipelineMiddlewareSkipped(ILogger logger, string middlewareType, string reason);
 }

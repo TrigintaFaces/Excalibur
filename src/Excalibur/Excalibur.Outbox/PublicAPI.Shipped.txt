@@ -318,3 +318,5 @@ static Microsoft.Extensions.DependencyInjection.OutboxStoreHealthChecksBuilderEx
 static Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions.UsePartitionedProcessing(this Excalibur.Outbox.IOutboxBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Outbox.IOutboxBuilder!
 static Microsoft.Extensions.DependencyInjection.PartitionedOutboxBuilderExtensions.UsePartitionedProcessing(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Partitioning.OutboxPartitionOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
 virtual Excalibur.Outbox.OutboxMessage.Equals(Excalibur.Outbox.OutboxMessage? other) -> bool
+Excalibur.Outbox.OutboxMessage.LastError.get -> string?
+Excalibur.Outbox.OutboxMessage.LastError.init -> void

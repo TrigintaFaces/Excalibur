@@ -21,9 +21,11 @@ namespace Excalibur.Dispatch.Transport.Mqtt;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Both rejection outcomes are honored, and they are honored by different mechanisms.</b>
-/// <see cref="RejectAsync"/> with <c>requeue: true</c> withholds the acknowledgement, so the broker
-/// redelivers the unacknowledged QoS 1/2 message when the session resumes. With <c>requeue: false</c> it
+/// <b>The rejection outcomes use different mechanisms.</b>
+/// <see cref="RejectAsync"/> with <c>requeue: true</c> requires a connection request with clean start
+/// disabled and positive session expiry. It withholds the acknowledgement for possible redelivery on
+/// session resume; these requested settings do not prove broker retention. An unavailable requeue is
+/// refused before the receipt is claimed, leaving acknowledgement and drop usable. With <c>requeue: false</c> it
 /// sends the acknowledgement carrying a <i>failure</i> reason code: under MQTT 5 that completes the
 /// delivery flow and transfers ownership of the message to this client, so the broker does not redeliver
 /// it. This provider pins MQTT 5 (<see cref="MqttConnectionProvider"/>), so the reason code is always
@@ -74,12 +76,16 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 			SingleWriter = false,
 		});
 
-	private readonly ConcurrentDictionary<string, MqttApplicationMessageReceivedEventArgs> _pendingAcks =
+	private readonly ConcurrentDictionary<string, PendingAcknowledgement> _pendingAcks =
 		new(StringComparer.Ordinal);
 
 	private readonly SemaphoreSlim _connectGate = new(1, 1);
 	private IMqttClient? _client;
+	private volatile bool _connectionRequestsSessionRetention;
+	private bool _sessionRetentionRequestInitialized;
 	private volatile bool _disposed;
+
+	private sealed record PendingAcknowledgement(MqttApplicationMessageReceivedEventArgs Args, bool CanRequeue);
 
 	public MqttTransportReceiver(
 		IMqttConnectionProvider connectionProvider,
@@ -122,7 +128,40 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 		ArgumentNullException.ThrowIfNull(message);
 
 		var args = ClaimSettlement(message.Id, "acknowledge");
-		await args.AcknowledgeAsync(cancellationToken).ConfigureAwait(false);
+		await AcknowledgeClaimedAsync(args, message.Id, "acknowledge", cancellationToken).ConfigureAwait(false);
+	}
+
+	private static async Task AcknowledgeClaimedAsync(
+		MqttApplicationMessageReceivedEventArgs args,
+		string messageId,
+		string action,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await args.AcknowledgeAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (TransportSettlementException)
+		{
+			throw;
+		}
+		catch (OperationCanceledException ex) when (
+			cancellationToken.IsCancellationRequested && ex.CancellationToken == cancellationToken)
+		{
+			throw;
+		}
+		catch (Exception ex)
+		{
+			throw new TransportSettlementException(
+				$"MQTT could not determine the outcome of {action} for message '{messageId}'.", ex)
+			{
+				TransportName = "Mqtt",
+				// The callback may fail after sending the acknowledgement; broker state is unknown.
+				RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+				// ClaimSettlement consumed the handle before invoking this callback.
+				Retryability = SettlementRetryability.Permanent,
+			};
+		}
 	}
 
 	/// <summary>
@@ -142,11 +181,21 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 	/// A claim whose loser reports success is not a claim, so the loser raises instead.
 	/// </para>
 	/// </remarks>
-	private MqttApplicationMessageReceivedEventArgs ClaimSettlement(string id, string outcome)
+	private MqttApplicationMessageReceivedEventArgs ClaimSettlement(string id, string outcome, bool requiresSessionRetention = false)
 	{
-		if (_pendingAcks.TryRemove(id, out var args))
+		if (requiresSessionRetention && _pendingAcks.TryGetValue(id, out var pending) && !pending.CanRequeue)
 		{
-			return args;
+			throw new TransportSettlementException(
+				$"MQTT cannot requeue message '{id}': its connection request did not retain the session. The receipt remains available for acknowledgement or rejection without requeue.")
+			{
+				TransportName = "Mqtt",
+				RedeliveryExpectation = TransportRedeliveryExpectation.Unspecified,
+				Retryability = SettlementRetryability.Permanent,
+			};
+		}
+		if (_pendingAcks.TryRemove(id, out var receipt))
+		{
+			return receipt.Args;
 		}
 
 		throw new TransportSettlementException(
@@ -172,7 +221,7 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var args = ClaimSettlement(message.Id, requeue ? "requeue" : "reject");
+		var args = ClaimSettlement(message.Id, requeue ? "requeue" : "reject", requiresSessionRetention: requeue);
 
 		if (requeue)
 		{
@@ -181,13 +230,9 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 			// then sends no acknowledgement packet for this delivery -- saying it outright rather than
 			// relying on the handle being dropped before anything acknowledged it.
 			//
-			// THIS IS A PROMISE ABOUT THE BROKER, AND MqttOptions.PersistentSession IS WHAT KEEPS IT.
-			// Redelivery happens only if the session outlives the disconnect; with a clean start, or a zero
-			// expiry interval, the broker drops the session with the connection and the message withheld
-			// here is gone. That combination was the shipped default, so this method described a recovery
-			// that could not occur; registration now refuses it. Resuming also requires the same client id,
-			// so a consumer who randomises MqttOptions.ClientId per process has no redelivery either -- that
-			// one is a property of a string and cannot be checked at startup.
+			// Eligibility is pinned to the reused client's initial actual connection request.
+			// It is not negotiated broker evidence: resumption still requires the same client id, an
+			// unexpired session, and broker retention. Later mutable options cannot change this receipt.
 			args.ProcessingFailed = true;
 			LogMessageRequeued(message.Id, Source, reason ?? "unspecified");
 			return;
@@ -206,7 +251,7 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 		args.ReasonCode = MqttApplicationMessageReceivedReasonCode.UnspecifiedError;
 		args.ResponseReasonString = Truncate(reason);
 
-		await args.AcknowledgeAsync(cancellationToken).ConfigureAwait(false);
+		await AcknowledgeClaimedAsync(args, message.Id, "reject", cancellationToken).ConfigureAwait(false);
 		LogMessageRejected(message.Id, Source, reason ?? "unspecified");
 	}
 
@@ -339,7 +384,21 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 				_client.ApplicationMessageReceivedAsync += OnMessageReceivedAsync;
 			}
 
-			await _client.ConnectAsync(_connectionProvider.BuildClientOptions("sub"), cancellationToken).ConfigureAwait(false);
+			var connectionRequest = _connectionProvider.BuildClientOptions("sub");
+			var requestsSessionRetention = !connectionRequest.CleanSession && connectionRequest.SessionExpiryInterval > 0;
+			if (_sessionRetentionRequestInitialized && requestsSessionRetention != _connectionRequestsSessionRetention)
+			{
+				throw new InvalidOperationException(
+					"MQTT cannot change session-retention eligibility on a reused receiver client. Create a new receiver to use different session-retention settings.");
+			}
+			if (!_sessionRetentionRequestInitialized)
+			{
+				// Publish once before Connect can raise any delivery callbacks. The connection gate owns
+				// initialization; delayed callbacks cannot acquire eligibility from a later reconnect.
+				_connectionRequestsSessionRetention = requestsSessionRetention;
+				_sessionRetentionRequestInitialized = true;
+			}
+			await _client.ConnectAsync(connectionRequest, cancellationToken).ConfigureAwait(false);
 
 			var topicFilter = BuildTopicFilter(_options);
 
@@ -418,16 +477,16 @@ internal sealed partial class MqttTransportReceiver : ITransportReceiver
 			DeliveryCount = args.ApplicationMessage.Dup ? 2 : 1,
 		};
 
-		_pendingAcks[id] = args;
+		_pendingAcks[id] = new PendingAcknowledgement(args, _connectionRequestsSessionRetention);
 		await _buffer.Writer.WriteAsync(received).ConfigureAwait(false);
 	}
 
 	[LoggerMessage(EventId = 6130, Level = LogLevel.Warning,
-		Message = "MQTT message {MessageId} from {Source} rejected without requeue (reason {Reason}); acknowledged with a failure reason code, so the broker does not redeliver it.")]
+		Message = "MQTT message {MessageId} from {Source} rejected without requeue (reason {Reason}); acknowledgement with a failure reason code was handed to the native callback.")]
 	private partial void LogMessageRejected(string messageId, string source, string reason);
 
 	[LoggerMessage(EventId = 6131, Level = LogLevel.Warning,
-		Message = "MQTT message {MessageId} from {Source} rejected with requeue (reason {Reason}); the acknowledgement is withheld, so the broker redelivers it when the session resumes.")]
+		Message = "MQTT message {MessageId} from {Source} rejected with requeue (reason {Reason}); the acknowledgement is withheld for possible redelivery if the session resumes.")]
 	private partial void LogMessageRequeued(string messageId, string source, string reason);
 
 	[LoggerMessage(EventId = 6132, Level = LogLevel.Warning,

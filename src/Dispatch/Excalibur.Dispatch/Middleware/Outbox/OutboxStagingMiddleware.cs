@@ -141,7 +141,7 @@ public sealed partial class OutboxStagingMiddleware : IDispatchMiddleware
 			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 
 			// Stage any outbound messages that were added during processing
-			if (_outboxStore != null)
+			if (result.Succeeded && _outboxStore != null)
 			{
 				await StageOutboundMessagesWithStoreAsync(outboxContext, context, cancellationToken).ConfigureAwait(false);
 			}

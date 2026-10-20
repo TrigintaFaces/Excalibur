@@ -36,6 +36,7 @@ public sealed class ElasticSearchViewPositionShould(ElasticSearchViewPositionCon
 
 		var options = Options.Create(new ElasticSearchMaterializedViewStoreOptions
 		{
+			NodeUri = fixture.NodeUri.AbsoluteUri,
 			ViewsIndexName = fixture.ViewsIndexName,
 			PositionsIndexName = fixture.PositionsIndexName,
 			RefreshPolicy = "true",

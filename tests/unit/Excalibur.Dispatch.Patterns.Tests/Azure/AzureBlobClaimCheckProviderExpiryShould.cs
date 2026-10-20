@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
 
 using Azure;
 using Azure.Storage.Blobs;
@@ -111,12 +110,8 @@ public sealed class AzureBlobClaimCheckProviderExpiryShould
 			IdPrefix = "claim-",
 		};
 
-		var provider = new AzureBlobClaimCheckProvider(
-			Microsoft.Extensions.Options.Options.Create(options),
-			NullLogger<AzureBlobClaimCheckProvider>.Instance);
-
-		var fakeContainer = A.Fake<BlobContainerClient>();
-		var fakeBlob = A.Fake<BlobClient>();
+		var fakeContainer = A.Fake<global::Azure.Storage.Blobs.BlobContainerClient>();
+		var fakeBlob = A.Fake<global::Azure.Storage.Blobs.BlobClient>();
 
 		A.CallTo(() => fakeContainer.CreateIfNotExistsAsync(
 				A<PublicAccessType>._,
@@ -128,10 +123,9 @@ public sealed class AzureBlobClaimCheckProviderExpiryShould
 		A.CallTo(() => fakeContainer.GetBlobClient(A<string>._)).Returns(fakeBlob);
 		A.CallTo(() => fakeBlob.Uri).Returns(new Uri("https://unit-tests.local/container/blob"));
 
-		var field = typeof(AzureBlobClaimCheckProvider)
-			.GetField("_containerClient", BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(provider, fakeContainer);
+		var provider = new AzureBlobClaimCheckProvider(
+			Microsoft.Extensions.Options.Options.Create(options),
+			NullLogger<AzureBlobClaimCheckProvider>.Instance, fakeContainer);
 
 		return (provider, fakeBlob);
 	}

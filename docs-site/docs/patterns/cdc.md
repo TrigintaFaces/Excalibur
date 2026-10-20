@@ -1409,7 +1409,7 @@ Old records are cleaned up periodically based on the configured `RetentionPeriod
 |---|---|---|
 | **Durability** | Lost on restart | Survives restarts |
 | **Multi-instance** | No (single consumer only) | Yes (concurrent consumers) |
-| **Performance** | Fastest (dictionary lookup) | Fast (clustered PK point lookup) |
+| **Access path** | In-process dictionary lookup | Database point lookup |
 | **Capacity** | Bounded at 10,000 entries | Limited only by disk |
 | **Maintenance** | None | Retention cleanup (automatic) |
 | **Best for** | Dev/test, single-instance prod | Multi-instance production |

@@ -121,8 +121,6 @@ Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeDuration
 Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeRetryAttempts
 Excalibur.Data.ElasticSearch.Monitoring.MetricsOptions::IncludeSuccessFailureRates
 Excalibur.Data.ElasticSearch.Monitoring.TracingOptions::RecordOperationDetails
-Excalibur.Data.ElasticSearch.ProjectionRetryOptions::JitterFactor
-Excalibur.Data.ElasticSearch.ProjectionRetryOptions::UseExponentialBackoff
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorHandlingOptions::RetentionPeriod
 Excalibur.Data.ElasticSearch.RebuildManagerOptions::OperationTimeout
 Excalibur.Data.ElasticSearch.SchemaEvolutionOptions::AutoBackup
@@ -290,7 +288,6 @@ Excalibur.Dispatch.Transport.ReprocessOptions::ProcessInParallel
 Excalibur.Dispatch.Transport.ReprocessOptions::RemoveFromDlq
 Excalibur.Dispatch.Transport.ReprocessOptions::TimeToLive
 Excalibur.Dispatch.Transport.TransportRetryPolicyOptions::MaxRetryAttempts
-Excalibur.Dispatch.Transport.TransportRetryPolicyOptions::UseExponentialBackoff
 Excalibur.Domain.ApplicationContextOptions::ApplicationDisplayName
 Excalibur.Domain.ApplicationContextOptions::AuthenticationServiceAudience
 Excalibur.Domain.ApplicationContextOptions::AuthenticationServicePublicKeyPath
@@ -300,7 +297,6 @@ Excalibur.Domain.ApplicationContextOptions::ServiceAccountPrivateKeyPath
 Excalibur.Domain.BoundedContext.BoundedContextOptions::ValidateOnStartup
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions::CreateCollectionIfNotExists
 Excalibur.EventSourcing.Migration.MigrationRunnerOptions::MigrationAssembly
-Excalibur.EventSourcing.Projections.ProjectionOptions::WarningThreshold
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions::MaxParallelism
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions::RebuildOnStartup
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions::BufferSize
@@ -317,7 +313,6 @@ Excalibur.Outbox.Firestore.FirestoreOutboxOptions::CreateCollectionIfNotExists
 Excalibur.Outbox.Firestore.FirestoreOutboxOptions::MaxRetryAttempts
 Excalibur.Outbox.Oracle.OracleOutboxStoreOptions::FenceTableName
 Excalibur.Outbox.Outbox.OutboxProcessingOptions::DrainTimeoutSeconds
-Excalibur.Outbox.Postgres.PostgresOutboxStoreOptions::FenceTableName
 Excalibur.Outbox.SqlServer.SqlServerDeadLetterQueueOptions::DefaultRetentionPeriod
 Excalibur.Saga.Firestore.FirestoreSagaOptions::TimeoutInSeconds
 #
@@ -359,7 +354,6 @@ Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::Lifecycle
 Excalibur.Data.ElasticSearch.IndexManagement.IndexManagementOptions::Optimization
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions::NumberOfReplicas
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchPersistenceOptions::NumberOfShards
-Excalibur.Data.ElasticSearch.ProjectionOptions::RetryPolicy
 Excalibur.Data.IdentityMap.IdentityMapOptions::DefaultExternalSystem
 Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions::MaxSnapshotsPerAggregate
 Excalibur.Data.OpenSearch.Persistence.OpenSearchPersistenceOptions::NumberOfReplicas
@@ -386,9 +380,7 @@ Excalibur.Dispatch.Transport.Kafka.KafkaAdminOptions::BootstrapServers
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::MaxDeliveryAttempts
 Excalibur.Dispatch.Transport.Kafka.KafkaDeadLetterOptions::TopicSuffix
 Excalibur.Dispatch.Transport.ProviderOptions::DefaultTimeoutMs
-Excalibur.Dispatch.Transport.ProviderOptions::RetryPolicy
 Excalibur.Domain.BoundedContext.BoundedContextOptions::EnforcementMode
-Excalibur.EventSourcing.EventNotificationOptions::InlineProjectionWarningThreshold
 Excalibur.EventSourcing.Redis.RedisEventStoreOptions::DefaultBatchSize
 Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions::ConnectionString
 Excalibur.EventSourcing.Services.MaterializedViewRefreshOptions::BatchSize
@@ -510,3 +502,11 @@ Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::MaxConcurrentRequests
 Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::ReplyQueueName
 Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::ReplyTimeout
 Excalibur.Dispatch.Transport.Azure.RequestReplyOptions::RequestTimeToLive
+#
+# Application/provider extension state, not a built-in SDK or broker-header setting.
+# AwsProviderMetadataConsumerShould drives the actual AddAwsMessageBus registration, configures
+# AwsProviderOptions, and resolves an application consumer which observes the exact metadata and
+# the same IOptions instance used by the real SDK factory. The SDK endpoint remains configured.
+# The reader belongs to the consumer's assembly and is deliberately outside this shipped census.
+# Collection-initialization replacement remains supported and is separately exercised there.
+Excalibur.Dispatch.Transport.ProviderOptions::Metadata

@@ -180,7 +180,7 @@ public sealed class OutboxFencingDefaultFlipShould
 			A.Fake<IServiceProvider>(),
 			logger,
 			envelopeDeserializer: null,
-			deadLetterQueue: null,
+			deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance,
 			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance,
 			backoffCalculator: null,
 			deliveryGuaranteeOptions: null,
@@ -242,7 +242,7 @@ public sealed class OutboxFencingDefaultFlipShould
 
 		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
 			string messageId,
-			string reason,
+			string reason, int attemptCount,
 			long fencingToken,
 			CancellationToken cancellationToken) =>
 			new(OutboxCompletionOutcome.Applied);

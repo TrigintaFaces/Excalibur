@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Linq;
+using System.Text.Json;
 
 using Excalibur.Dispatch;
 using Excalibur.Outbox.SqlServer;
@@ -32,6 +33,7 @@ namespace Excalibur.Integration.Tests.Data.Outbox;
 [Trait("Category", "Integration")]
 [Trait("Component", "Core")]
 [Trait("Database", "SqlServer")]
+[Trait("Pattern", "Serialization")]
 public sealed class SqlServerOutboxKeystoneRoundTripShould : IClassFixture<SqlServerOutboxStoreContainerFixture>
 {
 	private readonly SqlServerOutboxStoreContainerFixture _fixture;
@@ -69,10 +71,22 @@ public sealed class SqlServerOutboxKeystoneRoundTripShould : IClassFixture<SqlSe
 			IsMultiTransport = true,
 		};
 		message.Headers["header-one"] = "value-one";
+		message.Headers["Header"] = "upper";
+		message.Headers["header"] = "lower";
+		message.Headers["integer"] = 42;
+		message.Headers["decimal"] = 1.25m;
+		message.Headers["true"] = true;
+		message.Headers["false"] = false;
+		message.Headers["null"] = null!;
+		using var structuredHeaders = JsonDocument.Parse("{\"array\":[1,\"two\",null],\"object\":{\"Name\":\"nested\"}}");
+		message.Headers["array"] = structuredHeaders.RootElement.GetProperty("array").Clone();
+		message.Headers["object"] = structuredHeaders.RootElement.GetProperty("object").Clone();
 
 		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		var reloaded = (await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false))
+		// A fresh store must read persisted JSON; a retained in-memory message cannot satisfy this lock.
+		var reader = CreateStore();
+		var reloaded = (await reader.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false))
 			.Single(m => m.Id == message.Id);
 
 		// The keystone guarantee: the caller's CreatedAt survives (RED against the pre-fix NOW() stamp).
@@ -95,6 +109,24 @@ public sealed class SqlServerOutboxKeystoneRoundTripShould : IClassFixture<SqlSe
 		reloaded.TargetTransports.ShouldBe("kafka,rabbitmq");
 		reloaded.IsMultiTransport.ShouldBeTrue();
 		reloaded.Headers.ShouldContainKey("header-one");
+		reloaded.Headers.Count.ShouldBe(10);
+		reloaded.Headers["header-one"].ShouldBeOfType<JsonElement>().GetString().ShouldBe("value-one");
+		reloaded.Headers["Header"].ShouldBeOfType<JsonElement>().GetString().ShouldBe("upper");
+		reloaded.Headers["header"].ShouldBeOfType<JsonElement>().GetString().ShouldBe("lower");
+		reloaded.Headers["integer"].ShouldBeOfType<JsonElement>().GetInt32().ShouldBe(42);
+		reloaded.Headers["decimal"].ShouldBeOfType<JsonElement>().GetDecimal().ShouldBe(1.25m);
+		reloaded.Headers["true"].ShouldBeOfType<JsonElement>().GetBoolean().ShouldBeTrue();
+		reloaded.Headers["false"].ShouldBeOfType<JsonElement>().GetBoolean().ShouldBeFalse();
+		reloaded.Headers["null"].ShouldBeNull();
+		var array = reloaded.Headers["array"].ShouldBeOfType<JsonElement>();
+		array.ValueKind.ShouldBe(JsonValueKind.Array);
+		array.GetArrayLength().ShouldBe(3);
+		array[0].GetInt32().ShouldBe(1);
+		array[1].GetString().ShouldBe("two");
+		array[2].ValueKind.ShouldBe(JsonValueKind.Null);
+		var nested = reloaded.Headers["object"].ShouldBeOfType<JsonElement>();
+		nested.ValueKind.ShouldBe(JsonValueKind.Object);
+		nested.GetProperty("Name").GetString().ShouldBe("nested");
 	}
 
 	private async Task EnsureReadyAsync()

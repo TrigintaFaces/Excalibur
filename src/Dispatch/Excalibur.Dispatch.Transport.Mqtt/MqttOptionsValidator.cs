@@ -93,20 +93,6 @@ internal sealed class MqttOptionsValidator : IValidateOptions<MqttOptions>
 			}
 		}
 
-		else
-		{
-			// A NON-PERSISTENT SESSION REMOVES THE ONLY MECHANISM BY WHICH A REQUEUE CAN BE HONOURED.
-			// Rejecting with requeue:true withholds the acknowledgement and relies on the broker resuming
-			// the session to redeliver. Under a clean start the broker discards the session with the
-			// connection, so the withheld message is gone -- the caller asked for redelivery and got a
-			// silent discard. Refused for the same reason as QoS 0 above, and by the same test: it is
-			// decidable from configuration alone.
-			failures.Add(
-				$"{nameof(MqttOptions.PersistentSession)} must be enabled for a receiver: with a clean start the "
-				+ "broker discards the session when the connection closes, so a message rejected with "
-				+ "requeue is never redelivered and is silently lost instead.");
-		}
-
 		if (options.UseSharedSubscription && string.IsNullOrWhiteSpace(options.SharedSubscriptionGroup))
 		{
 			failures.Add($"{nameof(MqttOptions.SharedSubscriptionGroup)} is required when {nameof(MqttOptions.UseSharedSubscription)} is enabled.");

@@ -58,7 +58,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		var sql = $"""
 			SELECT EVENTID AS EventId, AGGREGATEID AS AggregateId, AGGREGATETYPE AS AggregateType,
 			       EVENTTYPE AS EventType, EVENTDATA AS EventData, METADATA AS Metadata,
-			       VERSION AS Version, EVENTTIMESTAMP AS "Timestamp"
+			       VERSION AS Version, EVENTTIMESTAMP AS "Timestamp", TENANTID AS TenantId
 			FROM {qualifiedTable}
 			WHERE AGGREGATEID = :AggregateId AND AGGREGATETYPE = :AggregateType AND VERSION > :FromVersion{tenantPredicate}
 			ORDER BY VERSION ASC
@@ -90,7 +90,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 				r.EventData,
 				r.Metadata,
 				(long)r.Version,
-				r.Timestamp.ToUniversalTime())).ToList();
+				r.Timestamp.ToUniversalTime()) { TenantId = r.TenantId ?? KeyedTenantPartition.Untenanted.TenantId }).ToList();
 		};
 	}
 
@@ -107,5 +107,6 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		byte[] EventData,
 		byte[]? Metadata,
 		decimal Version,
-		DateTimeOffset Timestamp);
+		DateTimeOffset Timestamp,
+		string? TenantId);
 }

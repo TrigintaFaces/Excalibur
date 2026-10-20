@@ -124,7 +124,7 @@ public sealed class KafkaTransportSubscriberShould : IAsyncDisposable
 		await cts.CancelAsync();
 
 		// Arrange: Consume throws OperationCanceledException when cancelled
-		A.CallTo(() => _fakeConsumer.Consume(A<CancellationToken>._))
+		A.CallTo(() => _fakeConsumer.Consume(A<TimeSpan>._))
 			.Throws(() => new OperationCanceledException(cts.Token));
 
 		// Act
@@ -139,6 +139,56 @@ public sealed class KafkaTransportSubscriberShould : IAsyncDisposable
 		// Assert: Close was called in the finally block
 		A.CallTo(() => _fakeConsumer.Close())
 			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task AllowSettlementBetweenBoundedIdlePolls()
+	{
+		using var caller = new CancellationTokenSource();
+		using var wakePoll = new ManualResetEventSlim();
+		var pollEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var consumer = A.Fake<IConsumer<string, byte[]>>();
+		var progress = new KafkaPartitionProgress();
+		var partition = new TopicPartition(TestSource, new Partition(0));
+		progress.OnPartitionsAssigned([partition]);
+		progress.TryBeginDelivery(partition, 7, out var generation).ShouldBeTrue();
+		A.CallTo<global::Confluent.Kafka.ConsumeResult<string, byte[]>?>(() => consumer.Consume(A<TimeSpan>._))
+			.ReturnsLazily((TimeSpan timeout) =>
+			{
+				timeout.ShouldBeGreaterThan(TimeSpan.Zero);
+				timeout.ShouldBeLessThanOrEqualTo(TimeSpan.FromMilliseconds(100));
+				pollEntered.TrySetResult();
+				_ = wakePoll.Wait(timeout);
+				return null;
+			});
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).Invokes(() => caller.Cancel());
+		var subscriber = new KafkaTransportSubscriber(consumer, TestSource, NullLogger<KafkaTransportSubscriber>.Instance,
+			progress: progress);
+		var settler = new KafkaOffsetSettler(consumer, progress, TestSource, NullLogger.Instance);
+		var subscription = Task.Factory.StartNew(() => subscriber.SubscribeAsync(
+			(_, _) => throw new InvalidOperationException("An idle poll cannot dispatch a handler."), caller.Token),
+			CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+		Task<bool>? settlement = null;
+		try
+		{
+			await pollEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			settlement = Task.Factory.StartNew(() => settler.SettleTerminal(partition, 7, generation),
+				CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+			(await settlement.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBeTrue();
+		}
+		finally
+		{
+			await caller.CancelAsync();
+			wakePoll.Set();
+			if (settlement is not null)
+			{
+				await settlement.WaitAsync(TimeSpan.FromSeconds(5));
+			}
+			await subscription.WaitAsync(TimeSpan.FromSeconds(5));
+		}
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => consumer.Close()).MustHaveHappenedOnceExactly();
+		A.CallTo(() => consumer.Consume(A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	public async ValueTask DisposeAsync()

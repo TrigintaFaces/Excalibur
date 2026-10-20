@@ -115,8 +115,15 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(nextDelegate);
 
+		if (RetryOwnershipScope.Owns(message, context))
+		{
+			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
+		}
+
 		// Get effective options (attribute takes precedence over global options)
 		var effectiveOptions = GetEffectiveOptions(message.GetType());
+		using var retryOwnership = RetryOwnershipScope.Enter(message, context,
+			exception => exception is not (OperationCanceledException or HandlerNotRegisteredException) && IsExceptionRetryable(effectiveOptions, exception), _classifier);
 
 		// RetryOptions.MaxRetryAttempts is retries AFTER the first attempt (matching Polly's
 		// RetryStrategyOptions.MaxRetryAttempts, which every Polly-based policy sharing these options
@@ -143,6 +150,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		while (attempt < totalAttempts)
 		{
 			attempt++;
+			var retryAttempt = retryOwnership.BeginAttempt();
 
 			try
 			{
@@ -166,7 +174,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 				}
 
 				// Failed result: retry only while the policy allows it AND attempts remain.
-				if (ShouldRetry(result, attempt, totalAttempts))
+				if (ShouldRetry(result, attempt, totalAttempts) && RetryOwnershipScope.AllowsRetryAfterResult(retryAttempt, result))
 				{
 					LogMessageFailedWillRetry(context.MessageId ?? string.Empty, attempt);
 				}
@@ -381,7 +389,7 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 		// retry-vs-dead-letter decision is consistent across every component. Only transient failures
 		// are retried; permanent and poison failures (deserialization, validation, argument, auth, …)
 		// are abandoned immediately rather than retried to the attempt cap.
-		return _classifier.Classify(exception) == MessageFailureKind.Transient;
+		return _classifier.Classify(exception) is MessageFailureKind.Transient or MessageFailureKind.Uncertain;
 	}
 
 }

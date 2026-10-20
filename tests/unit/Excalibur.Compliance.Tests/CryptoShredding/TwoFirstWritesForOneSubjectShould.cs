@@ -175,7 +175,7 @@ public sealed class TwoFirstWritesForOneSubjectShould
 		for (var i = 0; i < Writers; i++)
 		{
 			var plaintext = await encryptor
-				.DecryptAsync(envelopes[i], TestContext.Current.CancellationToken)
+				.DecryptAsync(envelopes[i], TenantDefaults.DefaultTenantId, TestContext.Current.CancellationToken)
 				.ConfigureAwait(true);
 
 			plaintext.ShouldBe(

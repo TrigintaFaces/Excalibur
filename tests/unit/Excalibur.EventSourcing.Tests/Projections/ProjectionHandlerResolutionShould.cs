@@ -22,7 +22,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task ResolveHandlerFromDiAndApplyEvent()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddTransient<OrderPlacedHandler>()
@@ -54,7 +54,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task ResolveHandlerWithConstructorInjection()
 	{
 		// Arrange -- OrderShippedHandler requires ILogger<OrderShippedHandler>
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddSingleton<ILogger<OrderShippedHandler>>(NullLogger<OrderShippedHandler>.Instance)
@@ -88,7 +88,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task MixSyncLambdaWithAsyncHandlerInSameProjection()
 	{
 		// Arrange -- When<T> lambda (sync) + WhenHandledBy (async DI handler)
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddSingleton<ILogger<OrderShippedHandler>>(NullLogger<OrderShippedHandler>.Instance)
@@ -129,7 +129,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task SkipUnhandledEventTypes()
 	{
 		// Arrange -- only handle TestOrderPlaced, not TestOrderShipped
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddTransient<OrderPlacedHandler>()
@@ -163,7 +163,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task PropagateHandlerExceptionPerD2()
 	{
 		// Arrange -- D2: error handling follows NotificationFailurePolicy (abort on throw)
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddTransient<ThrowingHandler>()
@@ -191,7 +191,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task ApplyOverrideProjectionIdFromHandler()
 	{
 		// Arrange -- handler sets OverrideProjectionId (D1)
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddTransient<OrderCancelledWithOverrideHandler>()
@@ -296,7 +296,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task UseSyncOnlyFastPathWhenNoAsyncHandlers()
 	{
 		// Arrange -- all sync handlers -> sync-only fast path (no Dictionary allocation)
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -343,7 +343,7 @@ public sealed class ProjectionHandlerResolutionShould
 	public async Task HandleMultipleEventsSequentially()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddTransient<OrderPlacedHandler>()
@@ -378,7 +378,7 @@ public sealed class ProjectionHandlerResolutionShould
 	{
 		// Arrange -- two async handlers: first sets OverrideProjectionId, second should see it reset
 		// This validates the per-event reset behavior in CreateInlineApplyDelegate
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.AddTransient<OrderCancelledWithOverrideHandler>()
@@ -424,7 +424,7 @@ public sealed class ProjectionHandlerResolutionShould
 		// touch the store (no GetByIdAsync, no UpsertAsync). Before the fix,
 		// the fast path loaded and upserted default-constructed state even
 		// when no handlers matched, creating "ghost" projections.
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -465,7 +465,7 @@ public sealed class ProjectionHandlerResolutionShould
 		// Arrange -- empty event list should result in no store interaction
 		// and no ghost projection. Validates the lazy-load guard handles the
 		// degenerate case where state never gets initialized.
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();
@@ -499,7 +499,7 @@ public sealed class ProjectionHandlerResolutionShould
 		// handled (TestOrderPlaced) and unhandled (TestOrderShipped) events.
 		// Only the handled event should cause a store load + upsert, and the
 		// unhandled event should be silently skipped.
-		var store = new InMemoryProjectionStore<OrderSummary>();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderSummary>>(store)
 			.BuildServiceProvider();

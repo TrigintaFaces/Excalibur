@@ -161,19 +161,34 @@ public static class AwsSnsTransportServiceCollectionExtensions
 		// service URL that did not reach the client would send a host aimed at a local emulator or a
 		// VPC endpoint to the real SNS service instead, and static keys that did not reach it would
 		// fall back to the ambient credential chain under a configuration that reads as explicit.
-		services.TryAddSingleton<IAmazonSimpleNotificationService>(sp =>
-			CreateSnsClient(transportOptions.Connection));
+		services.TryAddKeyedSingleton<AwsSnsClientRegistration>(name, static (_, _) => new AwsSnsClientRegistration());
+		services.TryAddKeyedSingleton<IAmazonSimpleNotificationService>(name, (sp, key) =>
+		{
+			var managementConfig = CreateSnsConfig(transportOptions.Connection);
+			var sendConfig = CreateSnsConfig(transportOptions.Connection);
+			sendConfig.MaxErrorRetry = 0;
+			sendConfig.MaxStaleConnectionRetries = 0;
+			sendConfig.DefaultAWSCredentials = managementConfig.DefaultAWSCredentials;
+			sendConfig.IdentityResolverConfiguration = managementConfig.IdentityResolverConfiguration;
+			var management = new AmazonSimpleNotificationServiceClient(managementConfig);
+			sp.GetRequiredKeyedService<AwsSnsClientRegistration>(key).Register(management,
+				() => new AmazonSimpleNotificationServiceClient(sendConfig));
+			return management;
+		});
 
 		// Register SNS message bus
-		services.TryAddSingleton(sp =>
+		services.TryAddKeyedSingleton<AwsSnsMessageBus>(name, (sp, key) =>
 		{
-			var client = sp.GetRequiredService<IAmazonSimpleNotificationService>();
+			var client = sp.GetRequiredKeyedService<IAmazonSimpleNotificationService>(key);
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
 			var options = sp.GetRequiredService<IOptionsMonitor<AwsSnsOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<AwsSnsMessageBus>>();
 
-			return new AwsSnsMessageBus(client, serializer, options, logger);
+			client = sp.GetRequiredKeyedService<AwsSnsClientRegistration>(key).Resolve(client);
+			return new AwsSnsMessageBus(client, serializer, options, logger,
+				failureClassifier: sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>());
 		});
+		_ = services.AddRemoteMessageBus(name, sp => sp.GetRequiredKeyedService<AwsSnsMessageBus>(name));
 
 		// Server-side encryption on SNS is a topic attribute, so a requested KMS key has to be applied
 		// to the topic at start-up; without this the key would stay in configuration and never reach AWS.
@@ -181,7 +196,7 @@ public static class AwsSnsTransportServiceCollectionExtensions
 		// One applier PER NAMED TRANSPORT, each reading its own named options. Registering the type
 		// itself would collapse two named transports onto a single applier reading one configuration.
 		_ = services.AddSingleton<IHostedService>(sp => new AwsSnsTopicEncryptionService(
-			sp.GetRequiredService<IAmazonSimpleNotificationService>(),
+			sp.GetRequiredKeyedService<IAmazonSimpleNotificationService>(name),
 			sp.GetRequiredService<IOptionsMonitor<AwsSnsOptions>>(),
 			name,
 			sp.GetRequiredService<ILogger<AwsSnsTopicEncryptionService>>()));
@@ -192,7 +207,7 @@ public static class AwsSnsTransportServiceCollectionExtensions
 	/// </summary>
 	/// <param name="connection">The configured connection options.</param>
 	/// <returns>The configured SNS client.</returns>
-	private static AmazonSimpleNotificationServiceClient CreateSnsClient(AwsSnsConnectionOptions connection)
+	internal static AmazonSimpleNotificationServiceConfig CreateSnsConfig(AwsSnsConnectionOptions connection)
 	{
 		var config = new AmazonSimpleNotificationServiceConfig
 		{
@@ -211,10 +226,11 @@ public static class AwsSnsTransportServiceCollectionExtensions
 			config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(connection.RegionEndpoint);
 		}
 
-		return string.IsNullOrEmpty(connection.AccessKey) || string.IsNullOrEmpty(connection.SecretKey)
-			? new AmazonSimpleNotificationServiceClient(config)
-			: new AmazonSimpleNotificationServiceClient(
-				new Amazon.Runtime.BasicAWSCredentials(connection.AccessKey, connection.SecretKey), config);
+		if (!string.IsNullOrEmpty(connection.AccessKey) && !string.IsNullOrEmpty(connection.SecretKey))
+		{
+			config.DefaultAWSCredentials = new Amazon.Runtime.BasicAWSCredentials(connection.AccessKey, connection.SecretKey);
+		}
+		return config;
 	}
 
 	/// <summary>
@@ -247,19 +263,11 @@ public static class AwsSnsTransportServiceCollectionExtensions
 		// Create adapter options
 		var adapterOptions = new AwsSnsTransportAdapterOptions { Name = name };
 
-		// Register the transport adapter in DI for direct injection
-		_ = services.AddSingleton(sp =>
-		{
-			var logger = sp.GetRequiredService<ILogger<AwsSnsTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AwsSnsMessageBus>();
-			return new AwsSnsTransportAdapter(logger, messageBus, sp, adapterOptions);
-		});
-
 		// Register as a keyed service for multi-transport scenarios
 		_ = services.AddKeyedSingleton(name, (sp, _) =>
 		{
 			var logger = sp.GetRequiredService<ILogger<AwsSnsTransportAdapter>>();
-			var messageBus = sp.GetRequiredService<AwsSnsMessageBus>();
+			var messageBus = sp.GetRequiredKeyedService<AwsSnsMessageBus>(name);
 			return new AwsSnsTransportAdapter(logger, messageBus, sp, adapterOptions);
 		});
 

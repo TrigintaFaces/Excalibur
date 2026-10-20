@@ -122,7 +122,7 @@ public sealed class OutboxUnrecognisedOutcomeShould
 			A.Fake<IServiceProvider>(),
 			log,
 			envelopeDeserializer: null,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		processor.Init("unrecognised-outcome-test");
 
@@ -219,9 +219,9 @@ public sealed class OutboxUnrecognisedOutcomeShould
 		public ValueTask StageMessageAsync(OutboundMessage message, CancellationToken cancellationToken)
 			=> ValueTask.CompletedTask;
 
-		public ValueTask MarkDeadLetteredAsync(
-			string messageId, string reason, CancellationToken cancellationToken)
-			=> ValueTask.CompletedTask;
+		public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
+			string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
+			=> ValueTask.FromResult(OutboxCompletionOutcome.Applied);
 
 		public ValueTask EnqueueAsync(
 			IDispatchMessage message, IMessageContext context, CancellationToken cancellationToken)

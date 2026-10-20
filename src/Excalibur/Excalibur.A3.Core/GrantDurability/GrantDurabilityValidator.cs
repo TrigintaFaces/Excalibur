@@ -50,8 +50,8 @@ internal sealed class GrantDurabilityValidator : IValidateOptions<GrantDurabilit
 		return ValidateOptionsResult.Fail(
 			"Authorization is configured with a volatile in-memory grant store. Every grant would be lost " +
 			"when the process exits, after each was reported as saved, and authorization would then deny " +
-			"every user rather than fail visibly. Register a durable grant store (for example the Postgres, " +
-			"Cosmos DB, DynamoDB, Firestore, or MongoDB grant store), or, for development and test hosts only, " +
+			"every user rather than fail visibly. Register a durable grant store (for example the SQL Server, " +
+			"Postgres, Cosmos DB, DynamoDB, Firestore, or MongoDB grant store), or, for development and test hosts only, " +
 			"accept the volatile store explicitly by setting " +
 			$"{nameof(GrantDurabilityOptions)}.{nameof(GrantDurabilityOptions.AllowVolatileGrantStore)} to true.");
 	}

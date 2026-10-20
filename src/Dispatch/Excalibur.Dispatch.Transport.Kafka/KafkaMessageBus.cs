@@ -28,6 +28,8 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <param name="cloudEventEncoder"> Optional CloudEvents encoder for structured events. </param>
 /// <param name="cloudEventOptions"> Optional CloudEvents options for Kafka-specific behavior. </param>
 /// <param name="cloudEventBridge"> Optional envelope-to-CloudEvent bridge; when supplied with <paramref name="cloudEventEncoder"/>, every publish is emitted as a CloudEvent instead of the native envelope format. </param>
+/// <param name="ownsProducer">Whether this bus owns and disposes its producer.</param>
+/// <param name="topicMappings">Optional exact message-type topic mappings.</param>
 /// <remarks>
 /// <para>
 /// This message bus uses <see cref="IPayloadSerializer"/> for message body serialization,
@@ -52,7 +54,9 @@ internal sealed partial class KafkaMessageBus(
 		ILogger<KafkaMessageBus> logger,
 		ICloudEventEncoder<Message<string, string>>? cloudEventEncoder = null,
 		KafkaCloudEventOptions? cloudEventOptions = null,
-		IEnvelopeCloudEventBridge? cloudEventBridge = null) : IMessageBus, IAsyncDisposable
+		IEnvelopeCloudEventBridge? cloudEventBridge = null,
+		bool ownsProducer = true,
+		IReadOnlyDictionary<Type, string>? topicMappings = null) : IMessageBus, IAsyncDisposable
 {
 	private static readonly TimeSpan TransactionTimeout = TimeSpan.FromSeconds(30);
 
@@ -80,6 +84,8 @@ internal sealed partial class KafkaMessageBus(
 	private readonly ConcurrentDictionary<string, Lazy<Task>> _topicInitialization =
 			new(StringComparer.Ordinal);
 	private bool _transactionsInitialized;
+	private int _disposed;
+	private readonly Dictionary<Type, string> _topicMappings = topicMappings is null ? [] : new(topicMappings);
 
 	/// <summary>
 	/// ///
@@ -106,7 +112,7 @@ internal sealed partial class KafkaMessageBus(
 				context,
 				action.GetType().Name,
 				LogSentAction,
-				cancellationToken).ConfigureAwait(false);
+				ResolveTopic(action.GetType()), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -134,7 +140,7 @@ internal sealed partial class KafkaMessageBus(
 				context,
 				evt.GetType().Name,
 				LogPublishedEvent,
-				cancellationToken).ConfigureAwait(false);
+				ResolveTopic(evt.GetType()), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -162,14 +168,37 @@ internal sealed partial class KafkaMessageBus(
 				context,
 				doc.GetType().Name,
 				LogSentDocument,
-				cancellationToken).ConfigureAwait(false);
+				ResolveTopic(doc.GetType()), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	public ValueTask DisposeAsync()
 	{
-		_ = _producer.Flush(TimeSpan.FromSeconds(5));
-		_producer.Dispose();
+		if (Interlocked.Exchange(ref _disposed, 1) != 0)
+		{
+			return ValueTask.CompletedTask;
+		}
+
+		if (ownsProducer)
+		{
+			try
+			{
+				_ = _producer.Flush(TimeSpan.FromSeconds(5));
+			}
+			finally
+			{
+				try
+				{
+					_producer.Dispose();
+				}
+				finally
+				{
+					_transactionLock.Dispose();
+					_transactionInitLock.Dispose();
+				}
+			}
+			return ValueTask.CompletedTask;
+		}
 		_transactionLock.Dispose();
 		_transactionInitLock.Dispose();
 		return ValueTask.CompletedTask;
@@ -180,6 +209,7 @@ internal sealed partial class KafkaMessageBus(
 			IMessageContext context,
 			string messageType,
 			Action<string> logAction,
+			string topic,
 			CancellationToken cancellationToken)
 	{
 		var traceParent = context.GetTraceParent();
@@ -195,7 +225,7 @@ internal sealed partial class KafkaMessageBus(
 			message.Headers.Add("traceparent", Encoding.UTF8.GetBytes(traceParent));
 		}
 
-		await SendMessageAsync(message, context, messageType, logAction, cancellationToken).ConfigureAwait(false);
+		await SendMessageAsync(message, context, messageType, logAction, topic, cancellationToken).ConfigureAwait(false);
 	}
 
 	private static MessageEnvelope CreateEnvelope(IDispatchMessage message, IMessageContext context)
@@ -263,7 +293,7 @@ internal sealed partial class KafkaMessageBus(
 			LogCloudEventEncoderResolved(dispatchMessage.GetType().Name);
 		}
 
-		await SendMessageAsync(message, context, dispatchMessage.GetType().Name, logAction, cancellationToken)
+		await SendMessageAsync(message, context, dispatchMessage.GetType().Name, logAction, ResolveTopic(dispatchMessage.GetType()), cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -272,27 +302,28 @@ internal sealed partial class KafkaMessageBus(
 			IMessageContext context,
 			string messageType,
 			Action<string> logAction,
+			string topic,
 			CancellationToken cancellationToken)
 	{
-		if (string.IsNullOrWhiteSpace(_topic))
+		if (string.IsNullOrWhiteSpace(topic))
 		{
 			throw new InvalidOperationException("Kafka topic is not configured.");
 		}
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, _topic, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.Kafka, topic, context.MessageId);
 
-		await EnsureTopicExistsAsync(_topic, cancellationToken).ConfigureAwait(false);
+		await EnsureTopicExistsAsync(topic, cancellationToken).ConfigureAwait(false);
 
 		if (_enableTransactions)
 		{
-			await PublishTransactionalAsync(_topic, message, cancellationToken)
+			await PublishTransactionalAsync(topic, message, cancellationToken)
 					.ConfigureAwait(false);
 		}
 		else
 		{
 			_ = await _producer
-					.ProduceAsync(_topic, message, cancellationToken)
+					.ProduceAsync(topic, message, cancellationToken)
 					.ConfigureAwait(false);
 		}
 
@@ -301,6 +332,8 @@ internal sealed partial class KafkaMessageBus(
 			logAction(messageType);
 		}
 	}
+
+	private string ResolveTopic(Type messageType) => _topicMappings.TryGetValue(messageType, out var topic) ? topic : _topic;
 
 	private Task EnsureTopicExistsAsync(string topic, CancellationToken cancellationToken)
 	{

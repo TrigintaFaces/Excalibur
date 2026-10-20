@@ -255,6 +255,9 @@ jobs:
       - name: Install PyYAML (the inventory generator parses workflow YAML)
         run: python3 -m pip install --quiet pyyaml
 
+      - name: Coverage diff uses the base SDK and candidate helpers
+        run: python3 eng/ci/coverage-diff-layout.test.py
+
       - name: Workflow inventory is current (generated, not hand-maintained)
         run: python3 eng/ci/generate-workflow-inventory.py --check
 

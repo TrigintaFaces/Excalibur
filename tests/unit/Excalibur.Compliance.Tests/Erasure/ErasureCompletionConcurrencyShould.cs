@@ -147,6 +147,7 @@ public sealed class ErasureCompletionConcurrencyShould
 
 	private static ErasureStatus StatusOf(Guid requestId, ErasureRequestStatus status) => new()
 	{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 		RequestId = requestId,
 		DataSubjectIdHash = "hash",
 		IdType = DataSubjectIdType.Email,

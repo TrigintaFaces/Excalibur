@@ -526,11 +526,89 @@ $refLines
                 New-Item -ItemType Directory -Path $directory -Force | Out-Null
                 Copy-Item (Join-Path $surfaceDir 'nuget.config') (Join-Path $directory 'NuGet.Config')
                 $project = Join-Path $directory 'Consumer.csproj'
+                $entryPoint = $null
+                $expectOutbox = 'false'
+                $providerConnectionString = ''
+                switch ($package.Id) {
+                    'Excalibur.SqlServer' {
+                        $entryPoint = 'AddExcaliburSqlServer'
+                        $expectOutbox = 'true'
+                        $providerConnectionString = 'Server=localhost;Database=composition;User Id=u;Password=p;TrustServerCertificate=true'
+                    }
+                    'Excalibur.Postgres' {
+                        $entryPoint = 'AddExcaliburPostgres'
+                        $providerConnectionString = 'Host=localhost;Database=composition;Username=u;Password=p'
+                    }
+                }
+                $executableProperties = if ($entryPoint) { '<OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings>' } else { '' }
                 @"
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFrameworks>$frameworks</TargetFrameworks></PropertyGroup><ItemGroup><PackageReference Include="$($package.Id)" Version="$($package.Version)"/></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFrameworks>$frameworks</TargetFrameworks>$executableProperties</PropertyGroup><ItemGroup><PackageReference Include="$($package.Id)" Version="$($package.Version)"/></ItemGroup></Project>
 "@ | Set-Content -LiteralPath $project -Encoding utf8
+                if ($entryPoint) {
+                    @"
+using System;
+using System.Linq;
+using Excalibur.Compliance;
+using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
+using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.LeaderElection;
+using Excalibur.EventSourcing;
+using Microsoft.Extensions.DependencyInjection;
+
+var services = new ServiceCollection();
+services.AddLogging();
+services.Configure<DataSubjectHashingOptions>(o => o.Pepper = "test-only-not-a-secret-0123456789abcdefghij");
+if (Array.IndexOf(args, "--omit-registration") < 0)
+    services.$entryPoint(o => o.ConnectionString = "$providerConnectionString");
+Require<IDispatcher>(services);
+Require<IEventStore>(services);
+Require<IInboxStore>(services);
+Require<ISagaStore>(services);
+Require<ILeaderElection>(services);
+Require<IAuditStore>(services);
+Require<IErasureStore>(services);
+Require<ILegalHoldStore>(services);
+Require<IDataInventoryStore>(services);
+Require<ILegalHoldService>(services);
+if (Has<IOutboxStore>(services) != $expectOutbox)
+    throw new InvalidOperationException("P06_OUTBOX_POLICY_MISMATCH");
+using var provider = services.BuildServiceProvider();
+using var scope = provider.CreateScope();
+_ = scope.ServiceProvider.GetRequiredService<IErasureStore>();
+_ = scope.ServiceProvider.GetRequiredService<ILegalHoldService>();
+Console.WriteLine("PASS: P06 packaged metapackage types, default registrations and local scoped services");
+
+static bool Has<T>(IServiceCollection services) => services.Any(d => d.ServiceType == typeof(T) && (!d.IsKeyedService || Equals(d.ServiceKey, "default")));
+static void Require<T>(IServiceCollection services)
+{
+    if (!Has<T>(services)) throw new InvalidOperationException("P06_MISSING_SERVICE: " + typeof(T).FullName);
+}
+"@ | Set-Content -LiteralPath (Join-Path $directory 'Program.cs') -Encoding utf8
+                }
                 Invoke-PackageCommand $Script:Dotnet @('build',$project,'-c','Release','--verbosity','minimal','--disable-build-servers') (Join-Path $directory 'build') $directory
                 $null = Assert-CompositionAssets (Join-Path $directory 'obj/project.assets.json') $packages $cacheDir -PackageOnly -RequiredByTarget $requiredTargets
+                if ($entryPoint) {
+                    foreach ($framework in ($requiredTargets.Keys | Sort-Object)) {
+                        $binary = Join-Path $directory "bin/Release/$framework/Consumer.dll"
+                        $positiveLog = Join-Path $directory "scenario.$framework"
+                        Invoke-PackageCommand $Script:Dotnet @($binary) $positiveLog $directory -TimeoutSeconds 30
+                        $negativeLog = Join-Path $directory "scenario-omitted.$framework"
+                        $refused = $false
+                        try {
+                            Invoke-PackageCommand $Script:Dotnet @($binary, '--omit-registration') $negativeLog $directory -TimeoutSeconds 30
+                        } catch {
+                            $receipt = Get-Content -LiteralPath "$negativeLog.receipt.json" -Raw | ConvertFrom-Json
+                            $diagnosis = Get-Content -LiteralPath "$negativeLog.stderr.log" -Raw
+                            if ($null -eq $receipt.exitCode -or $receipt.exitCode -eq 0 -or $receipt.timedOut -or
+                                -not $diagnosis.Contains('P06_MISSING_SERVICE: Excalibur.Dispatch.IDispatcher')) { throw }
+                            $refused = $true
+                        }
+                        if (-not $refused) { throw "Omitted metapackage registration was accepted: $($package.Id)/$framework" }
+                        [ordered]@{ status='passed'; package=$package.Id; framework=$framework; registration='passed'; omittedRegistration='refused'; scope='public types, default DI registrations and local constructors; no database I/O' } |
+                            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $directory "service-contract.$framework.json") -Encoding utf8
+                    }
+                }
             }
             foreach ($tool in $tools) {
                 $directory = Join-Path $Script:TempDir ("tools/" + $tool)

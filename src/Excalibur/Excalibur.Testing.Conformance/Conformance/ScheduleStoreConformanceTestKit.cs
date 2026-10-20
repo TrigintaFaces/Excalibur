@@ -18,11 +18,15 @@ namespace Excalibur.Testing.Conformance;
 /// </para>
 /// <para>
 /// The test kit verifies core schedule store operations including store, retrieval,
-/// completion, and integration scenarios.
+/// completion, and integration scenarios. These legacy arms do not certify atomic execution admission,
+/// detached versioned snapshots, fencing, durability or distributed recovery. Providers supporting
+/// IScheduleExecutionStore can additionally derive from ScheduleExecutionStoreConformanceTestKit.
 /// </para>
 /// <para>
-/// <strong>IMPORTANT:</strong> CompleteAsync sets Enabled=false on the scheduled message;
-/// it does NOT remove the message from the store. Messages remain retrievable via GetAllAsync.
+/// Completion may retain an inactive record, delete it, or move it to historical storage,
+/// as allowed by IScheduleStore. Every retained match must be inactive and preserve its message
+/// name and body. Unrelated schedules must preserve their persisted identity, payload and metadata.
+/// Historical arm names containing "Persisted" do not impose a retention policy.
 /// </para>
 /// </remarks>
 /// <example>
@@ -69,7 +73,7 @@ public abstract class ScheduleStoreConformanceTestKit : ConformanceTestKit
 	/// <para>
 	/// Defaults to <see cref="CleanupAsync"/>, which is correct for any suite whose teardown only deletes
 	/// rows, keys or documents. A suite whose <see cref="CleanupAsync"/> <em>also</em> disposes a
-	/// connection or client MUST override this with the data-only half — otherwise it disposes the store
+	/// connection or client MUST override this with the data-only half â€” otherwise it disposes the store
 	/// the arm is about to use, and every arm fails on a disposed handle rather than on the contract.
 	/// </para>
 	/// <para>
@@ -306,79 +310,59 @@ public abstract class ScheduleStoreConformanceTestKit : ConformanceTestKit
 	#region Completion Tests
 
 	/// <summary>
-	/// Verifies that CompleteAsync sets Enabled to false on the message.
+	/// Verifies that completion leaves the schedule absent or inactive and preserves retained name and body.
 	/// </summary>
 	public virtual async Task CompleteAsync_ShouldSetEnabledFalse()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 		((TestScheduledMessage)message).Enabled = true;
-
+		var expected = ScheduleRecordSnapshot.Capture(message);
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
-
-		await store.CompleteAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
-
-		var all = await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false);
-		var retrieved = all.FirstOrDefault(m => m.Id == message.Id);
-
-		if (retrieved is null)
-		{
-			throw new TestFixtureAssertionException(
-				"Message should remain in store after CompleteAsync");
-		}
-
-		if (retrieved.Enabled)
-		{
-			throw new TestFixtureAssertionException(
-				"Enabled should be false after CompleteAsync");
-		}
+		var unrelated = await CaptureInventoryAsync(store).ConfigureAwait(false);
+		AssertStoredIdentity(unrelated, expected);
+		await CompleteAndVerifyAsync(store, expected, unrelated).ConfigureAwait(false);
 	}
 
 	/// <summary>
-	/// Verifies that CompleteAsync is idempotent for non-existent schedules.
+	/// Verifies that completing a missing identifier is harmless to existing schedules.
 	/// </summary>
 	public virtual async Task CompleteAsync_NonExistent_ShouldBeIdempotent()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
+		var message = CreateScheduledMessage();
+		var expected = ScheduleRecordSnapshot.Capture(message);
 		var nonExistentId = GenerateScheduleId();
-
-		// Should not throw - idempotent operation
+		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
+		var unrelated = await CaptureInventoryAsync(store).ConfigureAwait(false);
+		AssertStoredIdentity(unrelated, expected);
+		if (unrelated.Any(snapshot => snapshot.Id == nonExistentId))
+		{
+			throw new TestFixtureAssertionException("The missing schedule identifier must differ from every existing schedule identifier.");
+		}
 		await store.CompleteAsync(nonExistentId, CancellationToken.None).ConfigureAwait(false);
-
-		// Success - no exception thrown
+		var all = (await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false)).ToArray();
+		if (all.Any(row => row.Id == nonExistentId && row.Enabled))
+		{
+			throw new TestFixtureAssertionException("Completing a missing identifier must not introduce an active schedule.");
+		}
+		AssertUnrelatedUnchanged(all, unrelated, nonExistentId);
 	}
 
 	/// <summary>
-	/// Verifies that CompleteAsync is idempotent for already completed schedules.
+	/// Verifies that repeated completion leaves the schedule absent or inactive and unrelated schedules unchanged.
 	/// </summary>
 	public virtual async Task CompleteAsync_AlreadyCompleted_ShouldBeIdempotent()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 		((TestScheduledMessage)message).Enabled = true;
-
+		var expected = ScheduleRecordSnapshot.Capture(message);
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
-
-		// Complete once
-		await store.CompleteAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
-
-		// Complete again - should not throw
-		await store.CompleteAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
-
-		var all = await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false);
-		var retrieved = all.FirstOrDefault(m => m.Id == message.Id);
-
-		if (retrieved is null)
-		{
-			throw new TestFixtureAssertionException(
-				"Message should remain in store after double CompleteAsync");
-		}
-
-		if (retrieved.Enabled)
-		{
-			throw new TestFixtureAssertionException(
-				"Enabled should still be false after double CompleteAsync");
-		}
+		var unrelated = await CaptureInventoryAsync(store).ConfigureAwait(false);
+		AssertStoredIdentity(unrelated, expected);
+		await CompleteAndVerifyAsync(store, expected, unrelated).ConfigureAwait(false);
+		await CompleteAndVerifyAsync(store, expected, unrelated).ConfigureAwait(false);
 	}
 
 	#endregion
@@ -386,82 +370,111 @@ public abstract class ScheduleStoreConformanceTestKit : ConformanceTestKit
 	#region Integration Tests
 
 	/// <summary>
-	/// Verifies that a message remains persisted after completion.
+	/// Verifies that completion ends execution eligibility and preserves name and body when a record is retained.
 	/// </summary>
+	/// <remarks>The historical method name does not require completed records to remain in the active inventory.</remarks>
 	public virtual async Task StoreAsync_ThenComplete_MessageRemainsPersisted()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 		var message = CreateScheduledMessage();
 		((TestScheduledMessage)message).Enabled = true;
-
-		// Store
+		var expected = ScheduleRecordSnapshot.Capture(message);
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
-
-		// Complete
-		await store.CompleteAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
-
-		// Verify still retrievable
-		var all = await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false);
-		var retrieved = all.FirstOrDefault(m => m.Id == message.Id);
-
-		if (retrieved is null)
-		{
-			throw new TestFixtureAssertionException(
-				"Completed message should remain retrievable via GetAllAsync");
-		}
-
-		if (retrieved.MessageName != message.MessageName)
-		{
-			throw new TestFixtureAssertionException(
-				$"MessageName mismatch after complete. Expected: {message.MessageName}, Actual: {retrieved.MessageName}");
-		}
+		var unrelated = await CaptureInventoryAsync(store).ConfigureAwait(false);
+		AssertStoredIdentity(unrelated, expected);
+		await CompleteAndVerifyAsync(store, expected, unrelated).ConfigureAwait(false);
 	}
 
 	/// <summary>
-	/// Verifies that completing one message does not affect others.
+	/// Verifies that completing one message preserves every unrelated schedule's identity, payload and metadata.
 	/// </summary>
 	public virtual async Task MultipleMessages_CompleteOne_OthersUnaffected()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-
 		var message1 = CreateScheduledMessage();
 		((TestScheduledMessage)message1).Enabled = true;
-
 		var message2 = CreateScheduledMessage();
 		((TestScheduledMessage)message2).Enabled = true;
-
+		var expected = ScheduleRecordSnapshot.Capture(message1);
+		var expectedPeer = ScheduleRecordSnapshot.Capture(message2);
 		await store.StoreAsync(message1, CancellationToken.None).ConfigureAwait(false);
 		await store.StoreAsync(message2, CancellationToken.None).ConfigureAwait(false);
-
-		// Complete only message1
-		await store.CompleteAsync(message1.Id, CancellationToken.None).ConfigureAwait(false);
-
-		var all = await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false);
-		var allList = all.ToList();
-
-		var retrieved1 = allList.FirstOrDefault(m => m.Id == message1.Id);
-		var retrieved2 = allList.FirstOrDefault(m => m.Id == message2.Id);
-
-		if (retrieved1 is null || retrieved2 is null)
-		{
-			throw new TestFixtureAssertionException(
-				"Both messages should remain in store after completing one");
-		}
-
-		if (retrieved1.Enabled)
-		{
-			throw new TestFixtureAssertionException(
-				"Message1 Enabled should be false after CompleteAsync");
-		}
-
-		if (!retrieved2.Enabled)
-		{
-			throw new TestFixtureAssertionException(
-				"Message2 Enabled should still be true (unaffected by completing message1)");
-		}
+		var unrelated = await CaptureInventoryAsync(store).ConfigureAwait(false);
+		AssertStoredIdentity(unrelated, expected);
+		AssertStoredIdentity(unrelated, expectedPeer);
+		await CompleteAndVerifyAsync(store, expected, unrelated).ConfigureAwait(false);
 	}
 
 	#endregion
+
+	private static async Task<ScheduleRecordSnapshot[]> CaptureInventoryAsync(IScheduleStore store) =>
+		(await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false))
+			.Select(ScheduleRecordSnapshot.Capture).ToArray();
+
+	private static void AssertStoredIdentity(IEnumerable<ScheduleRecordSnapshot> persisted, ScheduleRecordSnapshot expected)
+	{
+		var matching = persisted.Where(snapshot => snapshot.Id == expected.Id).ToArray();
+		if (matching.Length == 0 || matching.Any(snapshot => snapshot.MessageName != expected.MessageName || snapshot.MessageBody != expected.MessageBody))
+		{
+			throw new TestFixtureAssertionException($"StoreAsync did not preserve schedule {expected.Id} and its original message name and body.");
+		}
+	}
+
+	private static async Task CompleteAndVerifyAsync(IScheduleStore store, ScheduleRecordSnapshot expected,
+		IEnumerable<ScheduleRecordSnapshot> unrelated)
+	{
+		await store.CompleteAsync(expected.Id, CancellationToken.None).ConfigureAwait(false);
+		var all = (await store.GetAllAsync(CancellationToken.None).ConfigureAwait(false)).ToArray();
+		foreach (var row in all.Where(row => row.Id == expected.Id))
+		{
+			if (row.Enabled)
+			{
+				throw new TestFixtureAssertionException($"Schedule {expected.Id} remains active after completion.");
+			}
+			if (row.MessageName != expected.MessageName || row.MessageBody != expected.MessageBody)
+			{
+				throw new TestFixtureAssertionException($"Retained schedule {expected.Id} changed its message name or body during completion.");
+			}
+		}
+		AssertUnrelatedUnchanged(all, unrelated, expected.Id);
+	}
+
+	private static void AssertUnrelatedUnchanged(IEnumerable<IScheduledMessage> inventory,
+		IEnumerable<ScheduleRecordSnapshot> expected, Guid completedId)
+	{
+		var remaining = expected.Where(snapshot => snapshot.Id != completedId)
+			.GroupBy(static snapshot => snapshot)
+			.ToDictionary(static group => group.Key, static group => group.Count());
+		foreach (var row in inventory.Where(row => row.Id != completedId))
+		{
+			var observed = ScheduleRecordSnapshot.Capture(row);
+			if (!remaining.TryGetValue(observed, out var count))
+			{
+				throw new TestFixtureAssertionException($"Unrelated schedule {row.Id} was introduced or changed during completion.");
+			}
+			if (count == 1) { _ = remaining.Remove(observed); }
+			else { remaining[observed] = count - 1; }
+		}
+		if (remaining.Count != 0)
+		{
+			throw new TestFixtureAssertionException("Completion removed one or more unrelated schedules.");
+		}
+	}
+
+	// Preserve original name/body before storage; capture collateral from persisted inventory before completion.
+	// This permits storage normalization while preventing aliases from redefining the completion oracle.
+	// Round-trip date text preserves both timestamp precision and offset, not only the UTC instant.
+	private sealed record ScheduleRecordSnapshot(Guid Id, string MessageName, string MessageBody, bool Enabled,
+		string? CorrelationId, string CronExpression, string? TimeZoneId, TimeSpan? Interval,
+		string? NextExecutionUtc, string? TenantId, string? TraceParent, string? UserId,
+		string? LastExecutionUtc, MissedExecutionBehavior? MissedExecutionBehavior)
+	{
+		public static ScheduleRecordSnapshot Capture(IScheduledMessage row) => new(row.Id, row.MessageName, row.MessageBody,
+			row.Enabled, row.CorrelationId, row.CronExpression, row.TimeZoneId, row.Interval,
+			row.NextExecutionUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+			row.TenantId, row.TraceParent, row.UserId,
+			row.LastExecutionUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture), row.MissedExecutionBehavior);
+	}
 
 	#region Helper Classes
 

@@ -127,4 +127,14 @@ public sealed class KafkaCommitOnRevokeShould
 		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).MustNotHaveHappened();
 		A.CallTo(() => consumer.Commit()).MustNotHaveHappened();
 	}
+	[Fact]
+	public void RejectNullProgress_BeforeAcquiringItsOperationGate()
+	{
+		var consumer = A.Fake<IConsumer<string, byte[]>>();
+		var failure = Should.Throw<ArgumentNullException>(() =>
+			KafkaConsumerRebalance.CommitOnRevoke(consumer, [Partition0], null!, NullLogger.Instance));
+		failure.ParamName.ShouldBe("progress");
+		A.CallTo(() => consumer.Commit(A<IEnumerable<TopicPartitionOffset>>._)).MustNotHaveHappened();
+	}
+
 }

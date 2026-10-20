@@ -326,6 +326,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
 			IdType = DataSubjectIdType.UserId,
@@ -372,6 +373,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
 			IdType = DataSubjectIdType.UserId,
@@ -492,6 +494,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 	private static ErasureStatus CreateStatus(Guid requestId, ErasureRequestStatus status) =>
 		new()
 		{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
 			IdType = DataSubjectIdType.UserId,

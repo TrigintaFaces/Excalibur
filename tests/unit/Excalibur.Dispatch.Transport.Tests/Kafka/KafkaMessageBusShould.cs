@@ -56,7 +56,8 @@ public sealed class KafkaMessageBusShould : UnitTestBase
 			NullLogger<KafkaMessageBus>.Instance,
 			mapper,
 			cloudEventOptions: null,
-			cloudEventBridge: bridge);
+			cloudEventBridge: bridge,
+			topicMappings: new Dictionary<Type, string> { [typeof(TestCloudEventBusEvent)] = "mapped-cloud-events" });
 
 		var evt = new TestCloudEventBusEvent();
 		var context = A.Fake<IMessageContext>();
@@ -67,6 +68,8 @@ public sealed class KafkaMessageBusShould : UnitTestBase
 
 		// The serializer is never consulted on the CloudEvents path -- the mapper owns encoding.
 		A.CallTo(() => serializer.SerializeObject(A<object>._, A<Type>._)).MustNotHaveHappened();
+		A.CallTo(() => producer.ProduceAsync("mapped-cloud-events", A<Message<string, byte[]>>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 
 		_ = captured.ShouldNotBeNull();
 		// Kafka's CloudEvents binding prefixes headers with "ce_" (underscore) -- a Kafka header key

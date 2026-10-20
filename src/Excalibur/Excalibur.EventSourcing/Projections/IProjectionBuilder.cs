@@ -29,6 +29,13 @@ namespace Excalibur.EventSourcing.Projections;
 /// <para>
 /// A second registration for the same projection type replaces the first.
 /// </para>
+/// <para>
+/// <b>This builder says what a projection FOLDS, not where it is stored.</b> A stored projection also
+/// needs a store registration — a provider's <c>Add&lt;T&gt;</c>, or
+/// <c>AddInMemoryProjectionStore&lt;T&gt;</c> for development — and the host refuses to start, naming the
+/// projection, when one is registered with no store. A projection declared <see cref="Ephemeral"/> is
+/// rebuilt on demand and needs none.
+/// </para>
 /// </remarks>
 public interface IProjectionBuilder<TProjection>
 	where TProjection : class, new()
@@ -202,32 +209,6 @@ public interface IProjectionBuilder<TProjection>
 	/// </code>
 	/// </remarks>
 	IProjectionBuilder<TProjection> WhenDeleted(Func<string, CancellationToken, Task> deleteAction);
-
-	/// <summary>
-	/// Overrides the default DI-resolved <see cref="Excalibur.EventSourcing.IProjectionStore{TProjection}"/>
-	/// with a specific store implementation type. The store is resolved from DI by its concrete type.
-	/// </summary>
-	/// <typeparam name="TStore">
-	/// The concrete store implementation type. Must implement
-	/// <see cref="Excalibur.EventSourcing.IProjectionStore{TProjection}"/>.
-	/// </typeparam>
-	/// <returns>This builder for fluent chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// If no store is explicitly bound, the framework resolves
-	/// <c>IProjectionStore&lt;TProjection&gt;</c> from DI (default keyed registration).
-	/// </para>
-	/// <code>
-	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
-	///     .Inline()
-	///     .WithStore&lt;SqlServerProjectionStore&lt;OrderSummary&gt;&gt;()
-	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
-	/// </code>
-	/// </remarks>
-#pragma warning disable RS0016 // Add public types and members to the declared API (constrained generic not representable in baseline)
-	IProjectionBuilder<TProjection> WithStore<TStore>()
-		where TStore : class, IProjectionStore<TProjection>;
-#pragma warning restore RS0016
 
 	/// <summary>
 	/// Configures per-projection options such as warning thresholds.

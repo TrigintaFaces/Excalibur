@@ -17,7 +17,7 @@ namespace Excalibur.Compliance.Erasure;
 /// Data is lost when the application restarts.
 /// </remarks>
 internal sealed class InMemoryErasureStore
-	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IKeyDestructionLedger
+	: IErasureStore, IErasureCertificateStore, IErasureQueryStore, IErasureBackgroundQueryStore, IKeyDestructionLedger
 {
 	private readonly ConcurrentDictionary<Guid, ErasureRequestData> _requests = new();
 
@@ -153,19 +153,20 @@ internal sealed class InMemoryErasureStore
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(request);
+		var tenant = AmbientScope;
+		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
 
 		// The ambient term is authoritative on the write. Stamping the request's own TenantId would let a
 		// caller file a request into another tenant's partition — and, because every scoped read matches on
 		// the ambient term, that row would then be readable only by the tenant it was planted on.
-		var tenant = AmbientScope;
+
 
 		var data = new ErasureRequestData
 		{
 			RequestId = request.RequestId,
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = request.IdType,
-			TenantId = KeyedTenantPartition.FromStoredValue(
-				_requireTenant ? tenant.TenantId : request.TenantId).TenantId,
+			TenantId = owner,
 			Scope = request.Scope,
 			LegalBasis = request.LegalBasis,
 			ExternalReference = request.ExternalReference,
@@ -582,6 +583,23 @@ internal sealed class InMemoryErasureStore
 	}
 
 	/// <inheritdoc />
+	public Task<IReadOnlyList<ErasureStatus>> GetAwaitingKeyDestructionRequestsAsync(
+		int pageNumber, int pageSize, CancellationToken cancellationToken)
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
+		cancellationToken.ThrowIfCancellationRequested();
+		var offset = ((long)pageNumber - 1) * pageSize;
+		var waiting = _requests.Values
+			.Where(row => row.Status == ErasureRequestStatus.AwaitingKeyDestruction)
+			.OrderBy(row => row.RequestedAt).ThenBy(row => row.RequestId).ToArray();
+		return Task.FromResult<IReadOnlyList<ErasureStatus>>(offset >= waiting.Length
+			? []
+			: waiting.Skip((int)offset).Take(pageSize).Select(ToStatus).ToList());
+	}
+
+	/// <inheritdoc />
 	public Task<IReadOnlyList<ErasureStatus>> ListRequestsAsync(
 		ErasureRequestStatus? status,
 		string? tenantId,
@@ -743,7 +761,7 @@ internal sealed class InMemoryErasureStore
 			return this;
 		}
 
-		if (serviceType == typeof(IErasureQueryStore))
+		if (serviceType == typeof(IErasureQueryStore) || serviceType == typeof(IErasureBackgroundQueryStore))
 		{
 			return this;
 		}

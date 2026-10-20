@@ -1,11 +1,9 @@
 name: Quality Gates
 
 on:
-  # This repo integrates by pushing to main, not by pull request: exactly two PRs
-  # have ever been opened. A pull_request-only trigger therefore meant every gate
-  # declared below had effectively never executed -- declared-in-CI is not run-in-CI.
-  # Every step already handles the non-PR case (`github.sha` and `HEAD^` fallbacks),
-  # so the workflow was push-ready by construction; only the trigger was missing.
+  # Development integrates by pushing to main; the public mirror also uses pull requests.
+  # Its pull-request trigger already ran these gates. The push trigger adds
+  # post-merge coverage on the mirror's main branch.
   push:
     branches: [main, develop]
   pull_request:
@@ -225,9 +223,24 @@ jobs:
 
       - name: Validate no test failures
         run: |
-          # Count test results
-          PASSED=$(find ./test-results -name "*.trx" -exec grep -o 'outcome="Passed"' {} \; | wc -l)
-          FAILED=$(find ./test-results -name "*.trx" -exec grep -o 'outcome="Failed"' {} \; | wc -l)
+          # Count execution records, excluding the run-level ResultSummary.
+          COUNTS=$(python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          passed = failed = 0
+          for path in sorted(Path("test-results").rglob("*.trx")):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError as error:
+                  raise ValueError(f"Invalid TRX {path}: {error}") from error
+              for result in root.findall("./{*}Results/{*}UnitTestResult"):
+                  passed += result.get("outcome") == "Passed"
+                  failed += result.get("outcome") == "Failed"
+          print(passed, failed)
+          PY
+          ) || exit "$?"
+          read -r PASSED FAILED <<< "$COUNTS"
 
           echo "Tests passed: $PASSED"
           echo "Tests failed: $FAILED"

@@ -21,7 +21,91 @@ namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 [Trait(TraitNames.Component, TestComponents.Resilience)]
 public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestBase
 {
+	[Fact]
+	public async Task Execute_Named_Circuit_Breaker_And_Isolate_Its_State()
+	{
+		var services = new ServiceCollection();
+		services.AddPollyCircuitBreaker("payment", options =>
+		{
+			options.MinimumThroughput = 2;
+			options.FailureRatio = 1;
+			options.SamplingDuration = TimeSpan.FromDays(1);
+			options.BreakDuration = TimeSpan.FromDays(1);
+		});
+		services.AddPollyCircuitBreaker("healthy");
+		await using var provider = services.BuildServiceProvider();
+		var breaker = provider.GetRequiredKeyedService<ICircuitBreakerPolicy>("payment");
+		provider.GetRequiredKeyedService<ICircuitBreakerPolicy>("payment").ShouldBeSameAs(breaker);
+		var attempts = 0;
+		Task<int> Fail(CancellationToken token) =>
+			Task.FromException<int>(new IOException($"Attempt {++attempts}"));
+
+		await Should.ThrowAsync<IOException>(() => breaker.ExecuteAsync(Fail, CancellationToken.None));
+		await Should.ThrowAsync<IOException>(() => breaker.ExecuteAsync(Fail, CancellationToken.None));
+		await Should.ThrowAsync<CircuitBreakerOpenException>(() => breaker.ExecuteAsync(Fail, CancellationToken.None));
+		attempts.ShouldBe(2);
+		(await provider.GetRequiredKeyedService<ICircuitBreakerPolicy>("healthy")
+			.ExecuteAsync(_ => Task.FromResult(42), CancellationToken.None)).ShouldBe(42);
+	}
+
+	[Fact]
+	public async Task Execute_Named_Bulkhead_Enforce_Limits_And_Recover()
+	{
+		var services = new ServiceCollection();
+		services.AddBulkhead("notifications", options =>
+		{
+			options.MaxConcurrency = 1;
+			options.AllowQueueing = false;
+		});
+		await using var provider = services.BuildServiceProvider();
+		var policy = provider.GetRequiredKeyedService<IBulkheadPolicy>("notifications");
+		provider.GetRequiredKeyedService<IBulkheadPolicy>("notifications").ShouldBeSameAs(policy);
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var first = policy.ExecuteAsync(async () =>
+		{
+			entered.SetResult();
+			await release.Task.ConfigureAwait(false);
+			return 1;
+		}, CancellationToken.None);
+		try
+		{
+			await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			await Should.ThrowAsync<BulkheadRejectedException>(() =>
+				policy.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None));
+		}
+		finally
+		{
+			release.TrySetResult();
+			await first.WaitAsync(TimeSpan.FromSeconds(5));
+		}
+
+		(await policy.ExecuteAsync(() => Task.FromResult(3), CancellationToken.None)).ShouldBe(3);
+		policy.GetMetrics().ActiveExecutions.ShouldBe(0);
+	}
+
 	#region AddPollyResilience Tests
+
+	[Fact]
+	public void Preserve_Custom_Named_Policies_And_Avoid_Duplicate_Registrations()
+	{
+		var services = new ServiceCollection();
+		var customBreaker = A.Fake<ICircuitBreakerPolicy>();
+		var customBulkhead = A.Fake<IBulkheadPolicy>();
+		services.AddKeyedSingleton<ICircuitBreakerPolicy>("custom", customBreaker);
+		services.AddKeyedSingleton<IBulkheadPolicy>("custom", customBulkhead);
+		services.AddPollyCircuitBreaker("custom");
+		services.AddPollyCircuitBreaker("custom");
+		services.AddBulkhead("custom");
+		services.AddBulkhead("custom");
+		using var provider = services.BuildServiceProvider();
+		provider.GetRequiredKeyedService<ICircuitBreakerPolicy>("custom").ShouldBeSameAs(customBreaker);
+		provider.GetRequiredKeyedService<IBulkheadPolicy>("custom").ShouldBeSameAs(customBulkhead);
+		services.Count(descriptor => descriptor.IsKeyedService && Equals(descriptor.ServiceKey, "custom") &&
+			descriptor.ServiceType == typeof(ICircuitBreakerPolicy)).ShouldBe(1);
+		services.Count(descriptor => descriptor.IsKeyedService && Equals(descriptor.ServiceKey, "custom") &&
+			descriptor.ServiceType == typeof(IBulkheadPolicy)).ShouldBe(1);
+	}
 
 	[Fact]
 	public void AddPollyResilience_WithoutConfiguration_RegistersCoreServices()

@@ -442,6 +442,66 @@ switch (status?.Status)
 | `Cancelled` | Cancelled during the grace period. |
 | `Failed` | Erasure failed and requires investigation. |
 | `PartiallyCompleted` | Some data retained under a documented exception. |
+| `AwaitingKeyDestruction` | Everything the erasure required is done except the key-management provider's own deletion window. Not a failure, and **not** completion — no certificate is issued yet. |
+| `CompletedExceptConcurrentWrites` | Everything attempted succeeded, and data for the same subject was written while the erasure ran, so that data was not covered. Not a failure and not completion. |
+
+:::warning Two of these states are easy to mishandle, and neither is a failure
+
+`AwaitingKeyDestruction` and `CompletedExceptConcurrentWrites` both mean *nothing went wrong and the
+request is not finished*. Code that treats anything other than `Completed` as an error will raise alarms
+on correct behavior; code that treats them as success will attest an erasure that has not finished.
+
+**`AwaitingKeyDestruction`** means the remaining obligations are keys the provider has irreversibly
+scheduled for destruction but has not yet destroyed — an AWS KMS pending-deletion period, or an Azure Key
+Vault soft-delete retention that cannot be purged early. Until that window closes the key material is
+still recoverable, so the request is deliberately not `Completed`. A request in this state **cannot be
+cancelled**: the destruction it waits on can no longer be withdrawn.
+
+**`CompletedExceptConcurrentWrites`** means a write for the same subject landed after key destruction had
+already run, minting a live key at a handle the erasure had destroyed. The remedy is a second erasure for
+that subject once writes have stopped — not a retry, because nothing failed. Confidentiality is intact:
+data encrypted under the destroyed key stays unreadable, and what survives is data that was never covered.
+The certificate records what was reached and states that the erasure did not complete, so an auditor reads
+the outcome rather than inferring it.
+:::
+
+### Background completion: from `AwaitingKeyDestruction` to `Completed`
+
+Nothing a consumer calls moves a request out of `AwaitingKeyDestruction`. `IErasureCompletionProcessor`
+does, driven by the erasure scheduler's background service: it discovers waiting requests, asks the
+provider whether each key is genuinely gone, and only on confirmation completes the request and issues its
+certificate. **The provider is the authority on destruction** — the scheduled instant it reported earlier
+is informational and is never treated as proof.
+
+Two configuration requirements, and both fail loudly rather than quietly:
+
+- **The erasure store must expose `IErasureBackgroundQueryStore`.** The processor requests it with
+  `GetService(typeof(IErasureBackgroundQueryStore))` and throws `InvalidOperationException` when it is
+  absent. There is deliberately no fallback to ordinary consumer listing, because that listing is tenant
+  scoped and would silently complete only the current tenant's requests. The shipped SQL Server, PostgreSQL
+  and in-memory stores implement it; a custom store must too.
+- **An `IErasureVerificationService` must be registered.** Without one the processor has no way to ask the
+  provider, so it completes nothing, logs the count still waiting, and says so on **every** pass. Requests
+  stay waiting rather than being completed unconfirmed.
+
+```csharp
+if (erasureStore.GetService(typeof(IErasureBackgroundQueryStore)) is null)
+{
+    // Background completion would throw on its first pass. Fix the registration, not the symptom.
+    throw new InvalidOperationException(
+        "Erasure store cannot support background completion.");
+}
+```
+
+The discovery query is **estate-wide and deliberately ignores ambient tenancy**, which is what lets one
+worker drain every tenant. It is not an authorization boundary: restricting who may run that worker is
+yours. The processor re-establishes the tenant scope per request from the owner recorded on the row, so
+each confirmation runs under the tenant whose data it erases, and a row with a malformed recorded owner is
+logged and skipped without stopping the others.
+
+Paging over waiting requests is **neither a snapshot nor a claim** on those rows. Results are ordered by
+requested time with a request-ID tie-breaker, stable within a provider for an unchanged set; concurrent
+changes are simply revisited on the next pass.
 
 ### Statutory deadline
 

@@ -292,9 +292,12 @@ builder.UseEventSerializer<MyCustomEventSerializer>();
 
 | Serializer | Size | Speed | Human-Readable |
 |------------|------|-------|----------------|
-| JSON | Large | Medium | Yes |
-| MessagePack | Small | Fast | No |
-| MemoryPack | Smallest | Fastest | No |
+| JSON | Payload dependent | Workload dependent | Yes |
+| MessagePack | Payload dependent | Workload dependent | No |
+| MemoryPack | Payload dependent | Workload dependent | No |
+
+Compare the complete snapshot representation and API; this guide establishes no
+serializer ranking. Framework envelope observations do not measure snapshot workloads.
 
 ### Snapshot Size
 

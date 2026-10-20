@@ -191,16 +191,9 @@ public sealed class AnAmbiguousAzureVersionNumberIsRefusedShould
 
 	private static AzureKeyVaultProvider CreateProvider(KeyProperties[] versions)
 	{
-		var sut = new AzureKeyVaultProvider(
-			Options.Create(new AzureKeyVaultOptions
-			{
-				VaultUri = new Uri(VaultUri),
-				KeyNamePrefix = string.Empty,
-			}),
-			new MemoryCache(new MemoryCacheOptions()),
-			NullLogger<AzureKeyVaultProvider>.Instance);
 
-		var keyClient = A.Fake<KeyClient>(o => o.WithArgumentsForConstructor(() =>
+
+		var keyClient = A.Fake<global::Azure.Security.KeyVault.Keys.KeyClient>(o => o.WithArgumentsForConstructor(() =>
 			new KeyClient(new Uri(VaultUri), new global::Azure.Identity.DefaultAzureCredential())));
 
 		A.CallTo(() => keyClient.GetPropertiesOfKeyVersionsAsync(KeyId, A<CancellationToken>._))
@@ -215,10 +208,14 @@ public sealed class AnAmbiguousAzureVersionNumberIsRefusedShould
 				.Returns(Task.FromResult(Response.FromValue(key, A.Fake<Response>())));
 		}
 
-		var field = typeof(AzureKeyVaultProvider).GetField("_keyClient", BindingFlags.Instance | BindingFlags.NonPublic);
-		field.ShouldNotBeNull();
-		field!.SetValue(sut, keyClient);
-
-		return sut;
+		return new AzureKeyVaultProvider(
+			Options.Create(new AzureKeyVaultOptions
+			{
+				VaultUri = new Uri(VaultUri),
+				KeyNamePrefix = string.Empty,
+			}),
+			new MemoryCache(new MemoryCacheOptions()),
+			NullLogger<AzureKeyVaultProvider>.Instance,
+			keyClient);
 	}
 }

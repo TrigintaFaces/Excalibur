@@ -284,10 +284,12 @@ Every transport supports the same resilience features, but each has transport-sp
 | Decision Factor | Kafka | RabbitMQ | Azure SB | AWS SQS | Google Pub/Sub |
 |----------------|-------|----------|----------|---------|----------------|
 | Start here if... | You need event streaming | You need routing flexibility | You're on Azure | You're on AWS | You're on GCP |
-| Throughput ceiling | Millions/sec | Tens of thousands/sec | Hundreds of thousands/sec | Thousands/sec (FIFO) | Hundreds of thousands/sec |
+| Earlier unverified throughput illustrations | Millions/sec | Tens of thousands/sec | Hundreds of thousands/sec | Thousands/sec (FIFO) | Hundreds of thousands/sec |
 | Operational burden | High (self-managed) | Medium | Low (managed) | Low (managed) | Low (managed) |
 | Replay capability | Yes | No | No | No | Yes (seek) |
 | Self-hosted | Yes | Yes | No | No | No |
+
+These earlier throughput illustrations are not provider limits or framework benchmark results. Measure the actual configuration, payload and durability requirements.
 
 The transport you choose today does not lock you in. Dispatch's abstractions mean you can switch or add transports without changing your handlers, middleware, or business logic.
 

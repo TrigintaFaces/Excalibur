@@ -2,9 +2,14 @@
 using Excalibur.EventSourcing.SqlServer;
 #elif (UsePostgreSql)
 using Excalibur.EventSourcing.Postgres;
+#elif (UseInMemoryDatabase)
+using Excalibur.EventSourcing.InMemory;
 #endif
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Metrics;
+using Company.ExcaliburCqrs.Domain.Events;
+using Company.ExcaliburCqrs.Domain.Aggregates;
+using Company.ExcaliburCqrs.ReadModel;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -48,6 +53,14 @@ builder.Services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es =>
     {
+        es.RegisterEventTypesFromAssembly(typeof(OrderCreated).Assembly);
+        es.AddRepository<Order, Guid>(id => new Order(id));
+        // Inline projections run after event persistence. A projection failure does not roll back
+        // committed events; recover the projection rather than retrying the whole create command.
+        es.AddProjection<OrderReadModel>(projection => projection
+            .Inline()
+            .WhenHandledBy<OrderCreated, OrderProjection>()
+            .WhenHandledBy<OrderShipped, OrderProjection>());
 #if (UseSqlServer)
         es.UseSqlServer(sql => sql.ConnectionStringName("EventStore"));
 #elif (UsePostgreSql)

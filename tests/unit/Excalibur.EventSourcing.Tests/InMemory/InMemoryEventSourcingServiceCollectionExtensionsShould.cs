@@ -3,6 +3,11 @@
 
 using Excalibur.Dispatch;
 
+using System.Text.Json;
+
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+
 namespace Excalibur.EventSourcing.Tests.InMemory;
 
 /// <summary>
@@ -12,6 +17,64 @@ namespace Excalibur.EventSourcing.Tests.InMemory;
 [Trait("Component", "EventSourcing")]
 public sealed class InMemoryEventSourcingServiceCollectionExtensionsShould : UnitTestBase
 {
+	[Fact]
+	public async Task ValidateDefaultSerializationOptionsAtHostStart()
+	{
+		AssertReflectionMode();
+		var builder = Host.CreateApplicationBuilder();
+		_ = builder.Services.AddInMemoryEventStore();
+		using var host = builder.Build();
+
+		// Never resolve the store: constructor validation is not startup options validation.
+		if (JsonSerializer.IsReflectionEnabledByDefault)
+		{
+			await host.StartAsync().ConfigureAwait(false);
+			await host.StopAsync().ConfigureAwait(false);
+		}
+		else
+		{
+			var error = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync()).ConfigureAwait(false);
+			error.OptionsType.ShouldBe(typeof(InMemoryEventStoreOptions));
+			error.Message.ShouldContain(nameof(InMemoryEventStoreOptions.EventTypeInfoResolver));
+		}
+	}
+
+	[Fact]
+	public async Task AcceptResolverConfiguredAfterRegistrationAtHostStart()
+	{
+		AssertReflectionMode();
+		var builder = Host.CreateApplicationBuilder();
+		_ = builder.Services.AddInMemoryEventStore();
+		_ = builder.Services.Configure<InMemoryEventStoreOptions>(options =>
+			options.EventTypeInfoResolver = ResolverTestEventContext.Default);
+		using var host = builder.Build();
+		await host.StartAsync().ConfigureAwait(false);
+		await host.StopAsync().ConfigureAwait(false);
+	}
+
+	private static void AssertReflectionMode()
+	{
+		// The isolated-process control sets this to false along with its runtimeconfig switch.
+		var expected = bool.Parse(Environment.GetEnvironmentVariable("EXCALIBUR_TEST_JSON_REFLECTION") ?? "true");
+		JsonSerializer.IsReflectionEnabledByDefault.ShouldBe(expected);
+	}
+
+	[Fact]
+	public async Task LeaveUnconsumedNamedOptionsProfileUnrestricted()
+	{
+		AssertReflectionMode();
+		var builder = Host.CreateApplicationBuilder();
+		_ = builder.Services.AddInMemoryEventStore();
+		_ = builder.Services.Configure<InMemoryEventStoreOptions>(options =>
+			options.EventTypeInfoResolver = ResolverTestEventContext.Default);
+		_ = builder.Services.Configure<InMemoryEventStoreOptions>("unused", static _ => { });
+		using var host = builder.Build();
+		await host.StartAsync().ConfigureAwait(false);
+		host.Services.GetRequiredService<IOptionsMonitor<InMemoryEventStoreOptions>>()
+			.Get("unused").EventTypeInfoResolver.ShouldBeNull();
+		await host.StopAsync().ConfigureAwait(false);
+	}
+
 	[Fact]
 	public void AddInMemoryEventStore_RegistersInMemoryEventStore()
 	{

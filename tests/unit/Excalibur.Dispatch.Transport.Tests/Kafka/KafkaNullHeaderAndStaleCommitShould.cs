@@ -58,7 +58,7 @@ public sealed class KafkaNullHeaderAndStaleCommitShould
 	{
 		var consumer = A.Fake<IConsumer<string, byte[]>>();
 		var queue = new Queue<KafkaConsumeResult>([RecordWithNullHeader(0)]);
-		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<CancellationToken>._))
+		A.CallTo<KafkaConsumeResult?>(() => consumer.Consume(A<TimeSpan>._))
 			.ReturnsLazily(() => queue.Count > 0 ? queue.Dequeue() : null);
 
 		var subscriber = new KafkaTransportSubscriber(

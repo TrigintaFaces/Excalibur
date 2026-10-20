@@ -67,51 +67,63 @@ internal sealed partial class KafkaOffsetSettler
 	/// </returns>
 	public bool SettleTerminal(TopicPartition partition, long offset, long generation)
 	{
-		if (!_progress.IsCurrentGeneration(partition, generation))
+		lock (_progress.OperationGate)
 		{
-			LogStaleGenerationSettleIgnored(_logger, _source, partition.Partition.Value, offset);
-			return false;
-		}
-
-		if (_progress.TrySettle(partition, offset, generation, out var commitOffset))
-		{
-			var settled = new TopicPartitionOffset(partition, new Offset(commitOffset));
-
-			// Store BEFORE committing, and store the same position we commit. The consumer runs
-			// with enable.auto.offset.store=false, so this is the only thing that ever writes the stored
-			// position -- which is what makes the argument-less Commit() on partition revocation commit
-			// settled work rather than everything Consume happened to hand out.
-			//
-			// STORING CAN THROW. librdkafka rejects a store for a partition that is no longer in a
-			// fetchable state -- Local_State, or Local_UnknownPartition once it has been reassigned -- and
-			// the revoke callback can be delivered on a different thread from the one settling, so a revoke
-			// landing between TrySettle and here is an ordinary interleaving rather than a contrivance.
-			//
-			// It is caught HERE, alone, because by this point TrySettle has already mutated the tracker:
-			// the offset has left the owed sets and the position has moved past it, with no
-			// rollback. A bookkeeping call that cannot be undone must not be able to fail the settlement
-			// that already happened. Letting it propagate let a raw KafkaException escape where the contract
-			// is a TransportSettlementException, and on the poison path it aborted an entire batch because
-			// one message could not be stored.
-			//
-			// Losing the store is safe: the commit below names an absolute position, and the next settle
-			// recomputes the position from what is still owed. What is lost is only the revoke-time backstop
-			// until the next settlement writes it again.
-			try
+			var outcome = _progress.SettleTerminal(partition, offset, generation, out var commitOffset);
+			if (outcome == KafkaTerminalSettlementOutcome.StaleGeneration)
 			{
-				_consumer.StoreOffset(settled);
-			}
-			catch (KafkaException ex)
-			{
-				LogOffsetStoreFailed(_logger, _source, partition.Partition.Value, commitOffset, ex);
+				LogStaleGenerationSettleIgnored(_logger, _source, partition.Partition.Value, offset);
+				return false;
 			}
 
-			_consumer.Commit([settled]);
-			_progress.OnCommitted(partition, commitOffset, generation);
-			LogPrefixCommitted(_logger, _source, partition.Partition.Value, commitOffset);
-		}
+			if (outcome == KafkaTerminalSettlementOutcome.CommitRequired)
+			{
+				var settled = new TopicPartitionOffset(partition, new Offset(commitOffset));
 
-		return true;
+				// Store BEFORE committing, and store the same position we commit. The consumer runs
+				// with enable.auto.offset.store=false, so this is the only thing that ever writes the stored
+				// position -- which is what makes the argument-less Commit() on partition revocation commit
+				// settled work rather than everything Consume happened to hand out.
+				//
+				// STORING CAN THROW. librdkafka rejects a store for a partition that is no longer in a
+				// fetchable state -- Local_State, or Local_UnknownPartition once it has been reassigned -- and
+				// the revoke callback can be delivered on a different thread from the one settling, so a revoke
+				// landing between TrySettle and here is an ordinary interleaving rather than a contrivance.
+				//
+				// It is caught HERE, alone, because by this point TrySettle has already mutated the tracker:
+				// the offset has left the owed sets and the position has moved past it, with no
+				// rollback. A bookkeeping call that cannot be undone must not be able to fail the settlement
+				// that already happened. Letting it propagate let a raw KafkaException escape where the contract
+				// is a TransportSettlementException, and on the poison path it aborted an entire batch because
+				// one message could not be stored.
+				//
+				// Losing the store is safe: the commit below names an absolute position, and the next settle
+				// recomputes the position from what is still owed. What is lost is only the revoke-time backstop
+				// until the next settlement writes it again.
+				try
+				{
+					_consumer.StoreOffset(settled);
+				}
+				catch (KafkaException ex)
+				{
+					LogOffsetStoreFailed(_logger, _source, partition.Partition.Value, commitOffset, ex);
+				}
+
+				// Refuse an observed revocation before issuing native I/O. This is not broker fencing:
+				// ownership may still change after this check and the native client must enforce it.
+				if (!_progress.IsCurrentGeneration(partition, generation))
+				{
+					LogStaleGenerationSettleIgnored(_logger, _source, partition.Partition.Value, offset);
+					return false;
+				}
+
+				_consumer.Commit([settled]);
+				_progress.OnCommitted(partition, commitOffset, generation);
+				LogPrefixCommitted(_logger, _source, partition.Partition.Value, commitOffset);
+			}
+
+			return true;
+		}
 	}
 
 	[LoggerMessage(KafkaEventId.TransportReceiverPrefixCommitted, LogLevel.Debug,

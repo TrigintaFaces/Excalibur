@@ -20,20 +20,23 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 
 	private static readonly HashSet<string> AllowedTypeNames = new(StringComparer.Ordinal)
 	{
-		"WebApplicationBuilderExtensions",
-		"EndpointRouteBuilderExtensions",
-		"RouteMessageHandlerFactory",
-		"HttpContextExtensions",
-		"MessageResultExtensions",
-		"ControllerBaseExtensions",
-		"DispatcherWebExtensions",
-		"DispatchAspNetCoreAuthorizationExtensions",
-		"AspNetCoreAuthorizationMiddleware",
-		"AspNetCoreAuthorizationOptions",
-		"DispatchContentNegotiationExtensions",
-		"DispatchInputFormatter",
-		"DispatchOutputFormatter",
-		"DispatchAspNetCoreScopeExtensions"
+		"Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationMiddleware",
+		"Excalibur.Dispatch.Hosting.AspNetCore.AspNetCoreAuthorizationOptions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchInputFormatter",
+		"Excalibur.Dispatch.Hosting.AspNetCore.ContentNegotiation.DispatchOutputFormatter",
+		"Excalibur.Dispatch.Hosting.AspNetCore.ControllerBaseExtensions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.DispatcherWebExtensions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.EndpointRouteBuilderExtensions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.HttpContextExtensions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.MessageResultExtensions",
+		"Excalibur.Dispatch.Hosting.AspNetCore.RouteMessageHandlerFactory",
+		"Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.GlobalExceptionHandler",
+		"Excalibur.Dispatch.Hosting.AspNetCore.Diagnostics.ProblemDetailsOptions",
+		"Microsoft.AspNetCore.Builder.WebApplicationBuilderExtensions",
+		"Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreAuthorizationExtensions",
+		"Microsoft.Extensions.DependencyInjection.DispatchAspNetCoreScopeExtensions",
+		"Microsoft.Extensions.DependencyInjection.DispatchContentNegotiationExtensions",
+		"Microsoft.Extensions.DependencyInjection.DispatchExceptionServiceCollectionExtensions"
 	};
 
 	private static readonly string[] ForbiddenAssemblyPatterns =
@@ -94,7 +97,7 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 
 		// Act
 		var unexpectedTypes = publicTypes
-			.Where(t => !AllowedTypeNames.Contains(t.Name))
+			.Where(t => !AllowedTypeNames.Contains(t.FullName!))
 			.Select(t => t.FullName)
 			.ToList();
 
@@ -178,6 +181,9 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 	[InlineData("DispatchInputFormatter")]
 	[InlineData("DispatchOutputFormatter")]
 	[InlineData("DispatchAspNetCoreScopeExtensions")]
+	[InlineData("GlobalExceptionHandler")]
+	[InlineData("ProblemDetailsOptions")]
+	[InlineData("DispatchExceptionServiceCollectionExtensions")]
 	public void ContainAllowed_Type(string typeName)
 	{
 		// Arrange
@@ -192,17 +198,10 @@ public sealed class HostingBridgeBoundaryShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Have_TenPublicTypes()
+	public void ExposeExactlyTheReviewedPublicTypeSet()
 	{
-		// Arrange
-		var expectedCount = 14;
-
-		// Act
-		var actualCount = HostingAssembly.GetExportedTypes().Length;
-
-		// Assert
-		actualCount.ShouldBe(expectedCount,
-			$"Excalibur.Dispatch.Hosting.AspNetCore should have exactly {expectedCount} public types per AD-326-2. " +
-			$"Adding new public types requires architectural review.");
+		var actualNames = HostingAssembly.GetExportedTypes().Select(type => type.FullName!).Order(StringComparer.Ordinal);
+		actualNames.ShouldBe(AllowedTypeNames.Order(StringComparer.Ordinal),
+			"The exported HTTP integration types must match the reviewed API set, including canonical exception handling.");
 	}
 }

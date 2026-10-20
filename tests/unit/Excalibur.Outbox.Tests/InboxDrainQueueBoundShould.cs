@@ -164,7 +164,7 @@ public sealed class InboxDrainQueueBoundShould
 				new DispatchJsonSerializer(),
 				NullLogger<InboxProcessor>.Instance,
 				deduplicationStore: deduplicationStore,
-				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 			processor.Init("dispatcher-queue-bound");
 

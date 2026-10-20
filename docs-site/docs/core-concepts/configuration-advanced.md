@@ -204,9 +204,133 @@ In practice this means:
 - Selecting a strategy or provider that the active package cannot service is rejected during `IHost.StartAsync()`, not ignored on the hot path.
 - Provider registration paths fail fast on invalid options. For example, every serverless-hosting registration overload (`AddServerlessHosting(...)`) wires `ValidateOnStart()`, so misconfiguration surfaces at startup regardless of which overload you call.
 - A capability that a given store does not implement (for example, retry-backoff scheduling on a store that lacks it) falls back to the documented default behavior rather than throwing — fail-open for optional cross-cutting features, fail-loud for advertised configuration.
-- **Store durability is verified, not assumed.** Wiring a production host with a volatile (in-memory) audit, grant, key, or schedule store is rejected at startup — a volatile store would report every write as saved and then lose it on restart, which is exactly the failure a fail-fast gate exists to prevent. Each subsystem exposes an explicit opt-out for development and test hosts (`AuditLoggingOptions.AllowVolatileAuditStore`, `GrantDurabilityOptions.AllowVolatileGrantStore`, `KeyDurabilityOptions.AllowVolatileKeyProvider`, `ScheduleDurabilityOptions.AllowVolatileScheduleStore`); the default is the protective value you get by saying nothing. These gates run from host startup — a [host-less container](dependency-injection.md#host-less-containers-must-trigger-the-gates-explicitly) must call `ValidateStartupGates()` to trigger them.
+- **Durability prerequisites are checked at startup.** Wiring a production host with a volatile (in-memory) audit, grant, key, or schedule store is rejected at startup — a volatile store would report every write as saved and then lose it on restart, which is exactly the failure a fail-fast gate exists to prevent. Each subsystem exposes an explicit opt-out for development and test hosts (`AuditLoggingOptions.AllowVolatileAuditStore`, `GrantDurabilityOptions.AllowVolatileGrantStore`, `KeyDurabilityOptions.AllowVolatileKeyProvider`, `ScheduleDurabilityOptions.AllowVolatileScheduleStore`); the default is the protective value you get by saying nothing. These gates run from host startup — a [host-less container](dependency-injection.md#host-less-containers-must-trigger-the-gates-explicitly) must call `ValidateStartupGates()` to trigger them.
 
-  **Where the schedule-store gate applies.** It is installed by the compositions that start the scheduler runtime — `AddTimeAwareScheduling`, `AddAdaptiveTimeAwareScheduling`, `AddLightweightTimeAwareScheduling` and `AddThroughputTimeAwareScheduling` — and not by `AddDispatchScheduling` on its own. That split is deliberate. Running the scheduler is what turns a schedule from a request into a promise: the host accepts a delivery now and owes it later, and a volatile store breaks that promise on restart *after* having reported the schedule accepted, so the failure appears only as an absence. A host that composes scheduling without ever starting the runtime — a development host, or one replacing an in-process mediator — is not made to justify a store it never schedules against. Register a durable store with `AddDurableScheduleStore<T>()`, which replaces the in-memory registration in either composition order.
+  **Where the schedule-store gate applies.** It is installed by the compositions that start the scheduler runtime — `AddTimeAwareScheduling`, `AddAdaptiveTimeAwareScheduling`, `AddLightweightTimeAwareScheduling` and `AddThroughputTimeAwareScheduling` — and not by `AddDispatchScheduling` on its own. That split is deliberate. Running the scheduler is what turns a schedule from a request into a promise: the host accepts a delivery now and owes it later, and a volatile store breaks that promise on restart *after* having reported the schedule accepted, so the failure appears only as an absence. A host that composes scheduling without ever starting the runtime — a development host, or one replacing an in-process mediator — is not made to justify a store it never schedules against. Register a durable store with `AddDurableScheduleStore<T>()`, which replaces the in-memory registration in either composition order. This registration declares the custom provider's durability; the gate does not verify its persistence or recovery after process termination. Verify those guarantees against the provider's actual storage.
+
+### Scheduler clock and deadlines
+
+The scheduler uses its injected `TimeProvider` for due-time reads, polling waits, and operation deadlines. Without an explicit clock, it uses `TimeProvider.System`. Tests can supply a controllable clock and advance it to exercise these boundaries without waiting for wall time.
+
+An active finite deadline starts when the operation begins. A zero deadline is already expired when its cancellation scope is created; an infinite deadline or inactive timeout policy creates no deadline timer. Caller cancellation remains effective in every mode. Deadline resources are disposed after the operation settles.
+
+A schedule-change signal can wake polling early. Expiring the polling deadline cancels the pending signal read before the next wait begins, so an abandoned read cannot consume a later notification. When host cancellation is observed, the scheduler stops instead of treating cancellation as another polling wake.
+
+These clock semantics do not establish durable storage or exactly-once delivery. The schedule-store durability gate still applies. Persisting schedules across a process restart requires a durable store; replacing a dependency-injection container around an in-memory store does not provide that guarantee.
+
+### Scheduler admission and cancellation
+
+The public schedule-store interfaces and their message, lease and completion data types
+are defined in `Excalibur.Dispatch.Abstractions`, under the
+`Excalibur.Dispatch.Delivery` namespace. Provider contracts can reference that assembly;
+the scheduler workers and runtime registration remain in `Excalibur.Dispatch`.
+
+The worker uses `IScheduleExecutionStore` when the configured `IScheduleStore` implements
+that optional capability. Do not register a separate execution store: administration and
+execution must operate on the same backing authority. The in-memory store supports this
+capability within one process and remains volatile.
+
+Each execution is admitted against its exact stored occurrence and administrative
+generation before decoding or dispatch. Cancellation or replacement that wins admission
+prevents the invocation. Work already admitted may finish, but its stale progress cannot
+reactivate cancellation or overwrite a replacement. One admission permits one successful
+progress commit. Shutdown releases ownership without advancing the retained occurrence.
+Handlers must tolerate another attempt after an interrupted or ambiguously completed
+execution.
+
+For late recurring schedules, `SkipMissed` skips catch-up, `ExecuteLatestMissed` coalesces
+to one invocation, and `DisableSchedule` disables the schedule. `ExecuteAllMissed` processes
+at most `MaxMissedExecutions` per poll, retaining further occurrences for subsequent polls.
+Zero skips missed catch-up and advances to a future occurrence; on-time and overdue
+one-time deliveries remain eligible. Ordinary interval schedules advance from completion,
+whereas replay advances from each persisted occurrence.
+An undecodable or failed catch-up invocation advances once from completion time and
+coalesces the remaining missed backlog instead of retrying every missed occurrence in
+that poll. Host shutdown retains due work instead. An expired processing deadline is
+honored even if a handler swallows its cancellation and returns success.
+
+A custom provider exposing only `IScheduleStore` retains weaker cancellation semantics:
+reading a row and later saving its progress cannot fence concurrent administrative changes.
+Implement `IScheduleExecutionStore` to provide atomic admission and conditional progress.
+Use `ScheduleExecutionStoreConformanceTestKit` to test the provider contract and wire both
+its inherited administrative arms and its execution arms. Cleanup must target the same
+backing authority used by each test. These controls do not establish durable restart,
+crashed-owner recovery, distributed external-effect fencing or NativeAOT compatibility;
+verify those against the actual provider and application.
+
+### Expiring scheduler ownership
+
+A provider with expiring ownership can additionally implement
+`IScheduleExecutionLeaseRenewal` on that same configured store. `LeaseDuration` is the
+positive duration granted at acquisition and each successful renewal, measured by the
+provider's authoritative clock. Renewal must atomically check the complete lease tuple
+and current expiry. It cannot revive expired, released or replaced ownership, and remains
+available during progress settlement until release.
+
+The worker renews while decoding, invoking the handler and settling progress. A rejected,
+failed or overdue renewal cancels the occurrence and bars new progress requests or catch-up
+admission. An in-flight progress request may still be accepted by the authoritative store
+if its ownership remains current and unexpired. Handlers
+and providers must cooperate with cancellation: cancellation cannot undo an external effect
+or forcibly terminate user code. Matching release uses an independent bounded token during
+shutdown. The built-in in-memory store does not expire ownership and needs no renewal.
+
+Each admitted occurrence receives its own asynchronous dependency-injection scope. Its
+message context exposes that scope through `RequestServices`, so handlers can resolve
+scoped dependencies. The worker keeps the scope alive through progress settlement and
+the matching release attempt, then awaits asynchronous disposal. Catch-up occurrences
+receive separate scopes. Dependency disposal must also cooperate with shutdown; a
+dependency whose `DisposeAsync` never completes can delay worker shutdown.
+
+Renewal protects ownership while work runs; it does not establish durable storage,
+crashed-owner recovery or exactly-once delivery. Test expiry and renewal against the
+provider's own clock, and test process recovery against its actual backing database.
+
+### SQL Server schedule storage
+
+`Excalibur.Data.SqlServer` includes `SqlServerScheduleStore`. Apply the package's
+`scripts/004_CreateScheduleSchema.sql` to the target database before starting the host,
+then configure the same store used by time-aware scheduling:
+
+```csharp
+services.AddTimeAwareScheduling();
+services.AddSqlServerScheduleStore(options =>
+{
+    options.ConnectionString = schedulesConnectionString;
+    options.LeaseDuration = TimeSpan.FromMinutes(1);
+    options.CommandTimeoutSeconds = 30;
+    options.LockTimeoutMilliseconds = 10_000;
+});
+```
+
+The registration supplies the configured `IScheduleStore` and its durability attestation
+together. Cast that configured store to `IScheduleExecutionLeaseRenewal` when using the
+execution capability directly. Registration does not create tables or a second authority.
+Use a writable-primary connection. Command and lock timeouts bound their respective
+operations; connection-opening settings remain part of the connection string.
+
+`AddSqlServerScheduleStore` validates options during host startup. The connection string
+must be nonblank, the lease duration and command timeout must be positive, and the lock
+timeout must be nonnegative. A zero lock timeout fails immediately when the lock is
+contended. These configuration checks do not connect to the database or verify that
+the schema has been provisioned.
+
+The database persists schedules, administrative generations and the logical store identity.
+Acquisition, renewal, progress and administration coordinate at the same transaction boundary.
+Expired ownership becomes eligible for another attempt after a worker dies. Lost commit
+responses can leave an accepted operation uncertain; the provider does not automatically
+retry those responses. Handlers must tolerate duplicate external effects.
+
+Schedule administration is **store-global**. Optional tenant and correlation values are
+message envelope metadata, not a storage partition or an authorization boundary. Null
+tenant metadata is preserved and does not become the explicit untenanted identity. The
+worker's tenant validation still applies when dispatching.
+
+Ownership uses the database server's UTC clock. Clock adjustments can affect expiry, and
+a delayed response can arrive after its grant has elapsed; the worker retains its local
+deadline checks. After database restore or cloning, stop workers and rotate the authority
+epoch while clearing ownership before resuming. Restoring an old epoch while old workers
+remain active is outside the fencing guarantee.
 
 ### Built-In Validators
 

@@ -18,6 +18,11 @@ internal sealed class RuleBasedTtlOptionsValidator : IValidateOptions<RuleBasedT
 
 		var failures = new List<string>();
 
+		if (options.MaxTrackedKeys < 1)
+		{
+			failures.Add($"{nameof(RuleBasedTtlOptions.MaxTrackedKeys)} must be positive.");
+		}
+
 		if (options.HitRate.LowHitRateThreshold > options.HitRate.HighHitRateThreshold)
 		{
 			failures.Add(

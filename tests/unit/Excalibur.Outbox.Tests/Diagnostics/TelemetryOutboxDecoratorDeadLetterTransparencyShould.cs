@@ -60,12 +60,12 @@ public sealed class TelemetryOutboxDecoratorDeadLetterTransparencyShould
 			"The terminal transition must survive decoration. If it does not, a message that exhausted its retries " +
 			"is never dead-lettered and stays re-claimable forever.");
 
-		await deadLetterable.MarkDeadLetteredAsync("msg-1", "retries exhausted", CancellationToken.None);
+		await deadLetterable.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, CancellationToken.None);
 
 		// Discoverability is not forwarding. A wrapper that answers the probe and swallows the call is the
 		// re-claim bug relocated behind the decorator.
 		A.CallTo(() => ((IDeadLetterableOutboxStore)inner)
-				.MarkDeadLetteredAsync("msg-1", "retries exhausted", A<CancellationToken>._))
+				.MarkDeadLetteredAsync("msg-1", "retries exhausted", 7, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 

@@ -26,6 +26,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="logger"> The logger instance for diagnostic information. </param>
 /// <param name="cloudEventBridge"> Optional envelope-to-CloudEvent bridge; when supplied with <paramref name="cloudEventEncoder"/>, every publish is emitted as a CloudEvent instead of the native envelope format. </param>
 /// <param name="cloudEventEncoder"> Optional CloudEvents encoder for SNS <see cref="PublishRequest"/> messages. </param>
+/// <param name="ownsClient">Whether this bus owns and disposes its client.</param>
+/// <param name="failureClassifier">Optional consumer classifier that can veto foreground transient retries.</param>
 /// <remarks>
 /// <para>
 /// This message bus uses <see cref="IPayloadSerializer"/> for message body serialization,
@@ -46,8 +48,12 @@ internal sealed partial class AwsSnsMessageBus(
 	AwsSnsOptions options,
 	ILogger<AwsSnsMessageBus> logger,
 	IEnvelopeCloudEventBridge? cloudEventBridge = null,
-	ICloudEventEncoder<PublishRequest>? cloudEventEncoder = null) : IMessageBus, IAsyncDisposable
+	ICloudEventEncoder<PublishRequest>? cloudEventEncoder = null,
+	bool ownsClient = false,
+	IMessageFailureClassifier? failureClassifier = null) : IMessageBus, IAsyncDisposable
 {
+	private int _disposed;
+	private readonly AwsSnsSendClient _sendClient = new(client, options, logger, failureClassifier);
 	private string TopicArn => options.TopicArn;
 
 	public async Task PublishAsync(IDispatchAction action, IMessageContext context, CancellationToken cancellationToken)
@@ -75,7 +81,7 @@ internal sealed partial class AwsSnsMessageBus(
 			request.MessageAttributes["traceparent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
 		}
 
-		_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
+		await _sendClient.SendAsync(request, action, context, cancellationToken).ConfigureAwait(false);
 
 		LogSentAction(action.GetType().Name);
 	}
@@ -105,7 +111,7 @@ internal sealed partial class AwsSnsMessageBus(
 			request.MessageAttributes["traceparent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
 		}
 
-		_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
+		await _sendClient.SendAsync(request, evt, context, cancellationToken).ConfigureAwait(false);
 
 		LogPublishedEvent(evt.GetType().Name);
 	}
@@ -135,14 +141,14 @@ internal sealed partial class AwsSnsMessageBus(
 			request.MessageAttributes["traceparent"] = new MessageAttributeValue { StringValue = traceParent, DataType = "String" };
 		}
 
-		_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
+		await _sendClient.SendAsync(request, doc, context, cancellationToken).ConfigureAwait(false);
 
 		LogSentDocument(doc.GetType().Name);
 	}
 
 	public ValueTask DisposeAsync()
 	{
-		client.Dispose();
+		if (Interlocked.Exchange(ref _disposed, 1) == 0 && ownsClient) { client.Dispose(); }
 		return ValueTask.CompletedTask;
 	}
 
@@ -193,7 +199,7 @@ internal sealed partial class AwsSnsMessageBus(
 
 			request.TopicArn = TopicArn;
 
-			_ = await client.PublishAsync(request, cancellationToken).ConfigureAwait(false);
+			await _sendClient.SendAsync(request, message, context, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{

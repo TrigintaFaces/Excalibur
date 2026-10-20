@@ -1,0 +1,54 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+namespace Fixture;
+public partial class Outer<T>
+{
+    [global::System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute("type")]
+    public class Nested<U>
+    {
+        [RequiresDynamicCode("wrapped")]
+        [Obsolete(
+            "an unrelated wrapped attribute")]
+        public Dictionary<string,
+            List<T>> Read<V>(in V value, string text = "default") => null!;
+        [RequiresUnreferencedCode("overload")]
+        public void Read(int value) { }
+        [RequiresDynamicCode("constructor")]
+        public Nested(int value) { }
+        [RequiresDynamicCode("delegate")]
+        public delegate void Callback<W>(ref W value);
+    }
+    [RequiresDynamicCode("partial duplicate")]
+    public partial void Partial();
+    [RequiresDynamicCode("partial duplicate")]
+    public partial void Partial() { }
+}
+public interface IContract
+{
+    [RequiresDynamicCode("implicit public")]
+    void Public();
+    [RequiresDynamicCode("private excluded")]
+    private void Private() { }
+    [RequiresDynamicCode("default public")]
+    void Default() { }
+}
+internal class Hidden
+{
+    [RequiresDynamicCode("internal containing type excluded")]
+    public void Public() { }
+}
+public class Implementation : IContract
+{
+    [RequiresDynamicCode("explicit excluded")]
+    void IContract.Public() { }
+    [RequiresDynamicCode("private protected excluded")]
+    private protected void PrivateProtected() { }
+}
+public class Conditional
+{
+#if ANNOTATED_ARM
+    [RequiresDynamicCode("only the explicit conditional manifest includes this")]
+    public void Selected() { }
+#endif
+}

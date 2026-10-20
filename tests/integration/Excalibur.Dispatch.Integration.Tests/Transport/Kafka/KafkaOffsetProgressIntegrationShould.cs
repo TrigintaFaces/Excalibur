@@ -226,7 +226,7 @@ public sealed class KafkaOffsetProgressIntegrationShould
 		remaining.Select(m => m.Id).ShouldBe(["m2"]);
 	}
 
-	// ---- Ownership across a real revocation ----
+	// ---- Injected assignment-generation transition with real broker offset observations ----
 
 	[Fact]
 	public async Task NotSettleTheNewOwnersPosition_WithAReceiptFromBeforeTheRebalance()
@@ -241,9 +241,10 @@ public sealed class KafkaOffsetProgressIntegrationShould
 		{
 			var beforeRebalance = await ReceiveAtLeastAsync(receiver, 2);
 
-			// A real revocation and re-assignment of the same partition, through the same handlers the
-			// composed transport wires. The receipts above belong to the tenure that just ended; the broker
-			// rewinds the new tenure to the last committed position.
+			// Inject a local assignment-generation transition through the progress handlers, then seek
+			// the real consumer to the beginning. This does not exercise broker-driven revocation or its
+			// callback schedule. The receipts above belong to the local generation that just ended;
+			// the commit and subsequent new-consumer redelivery are observed against the real broker.
 			var assignment = consumer.Assignment;
 			assignment.ShouldNotBeEmpty();
 			progress.OnPartitionsRevoked(assignment);
@@ -255,7 +256,12 @@ public sealed class KafkaOffsetProgressIntegrationShould
 			var afterRebalance = await ReceiveAtLeastAsync(receiver, 2);
 			await receiver.AcknowledgeAsync(afterRebalance[0], TestContext.Current.CancellationToken);
 
-			await receiver.AcknowledgeAsync(beforeRebalance[1], TestContext.Current.CancellationToken);
+			var refusal = await Should.ThrowAsync<TransportSettlementException>(() =>
+				receiver.AcknowledgeAsync(beforeRebalance[1], TestContext.Current.CancellationToken));
+			refusal.TransportName.ShouldBe("Kafka");
+			refusal.RedeliveryExpectation.ShouldBe(TransportRedeliveryExpectation.Unspecified);
+			refusal.Retryability.ShouldBe(SettlementRetryability.Permanent);
+			refusal.InnerException.ShouldBeNull();
 			consumer.Close();
 		}
 

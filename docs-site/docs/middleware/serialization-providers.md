@@ -27,16 +27,19 @@ Dispatch has two independent serialization layers: **event storage** (`IEventSer
 
 ## When to Choose Each Provider
 
-| Provider | Package | Binary | Schema | Cross-Language | Performance |
-|----------|---------|--------|--------|---------------|-------------|
-| System.Text.Json | Built-in | No (JSON) | No | Yes | Good |
-| **MemoryPack** | `Excalibur.Dispatch.Serialization.MemoryPack` | Yes | No | .NET only | Fastest |
-| **MessagePack** | `Excalibur.Dispatch.Serialization.MessagePack` | Yes | Optional | Yes | Very fast |
-| **Protobuf** | `Excalibur.Dispatch.Serialization.Protobuf` | Yes | Required (.proto) | Yes | Fast |
-| **Avro** | `Excalibur.Dispatch.Serialization.Avro` | Yes | Required | Yes | Fast |
+| Provider | Package | Binary | Schema | Cross-Language |
+|----------|---------|--------|--------|---------------|
+| System.Text.Json | Built-in | No (JSON) | No | Yes |
+| **MemoryPack** | `Excalibur.Dispatch.Serialization.MemoryPack` | Yes | No | .NET only |
+| **MessagePack** | `Excalibur.Dispatch.Serialization.MessagePack` | Yes | Optional | Yes |
+| **Protobuf** | `Excalibur.Dispatch.Serialization.Protobuf` | Yes | Required (.proto) | Yes |
+| **Avro** | `Excalibur.Dispatch.Serialization.Avro` | Yes | Required | Yes |
+
+Performance depends on the payload and complete serialization API. This table
+describes format capabilities, not a measured speed or allocation ranking.
 
 **Decision guide:**
-- **.NET-only, maximum throughput** -> MemoryPack
+- **.NET-only binary communication** -> Consider MemoryPack and measure the actual workload
 - **Cross-language, compact binary** -> MessagePack
 - **Schema evolution, gRPC integration** -> Protobuf
 - **Hadoop/Kafka ecosystem** -> Avro
@@ -46,7 +49,12 @@ Dispatch has two independent serialization layers: **event storage** (`IEventSer
 
 ## MemoryPack
 
-Zero-encoding, zero-allocation binary serializer optimized for .NET. Produces the smallest payloads and fastest serialization for .NET-to-.NET communication.
+Source-generated binary serialization for .NET-to-.NET communication. Span-based
+input does not guarantee zero allocations when materializing messages. The
+repository report `docs/performance/memorypack-2026-10-16.md` records nonzero
+framework-envelope allocations and unresolved failures; it establishes no universal
+speed or payload-size ranking. See the [performance overview](../performance/index.md)
+for the current refresh's limits.
 
 ### Installation
 
@@ -207,7 +215,7 @@ services.AddAvroSerializer(opts =>
 You can register multiple serializers -- the last one registered wins as the "current" serializer for new writes. Old data remains readable via its magic byte regardless of which serializer is current.
 
 ```csharp
-// MemoryPack for internal event store (fastest)
+// MemoryPack for an internal .NET event store
 services.AddMemoryPackSerializer();
 
 // If you later switch, old MemoryPack data is still readable

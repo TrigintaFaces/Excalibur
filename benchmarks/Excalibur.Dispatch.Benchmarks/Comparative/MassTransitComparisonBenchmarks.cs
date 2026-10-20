@@ -4,6 +4,7 @@
 using BenchmarkDotNet.Attributes;
 using System.Collections.Concurrent;
 
+using Excalibur.Dispatch.Benchmarks.Infrastructure;
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
@@ -395,34 +396,9 @@ public class MassTransitComparisonBenchmarks
 	private Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(_dispatcher);
-		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
-
-		var context = _dispatchContextFactory.CreateContext();
-		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
-		if (dispatchTask.IsCompletedSuccessfully)
-		{
-			_dispatchContextFactory.Return(context);
-			return dispatchTask;
-		}
-
-		return AwaitAndReturnContextAsync(dispatchTask, _dispatchContextFactory, context);
+		return FreshContextBenchmarkDispatch.DispatchAsync<TMessage>(_dispatcher, _dispatchContextFactory, message);
 	}
 
-	private static async Task<IMessageResult> AwaitAndReturnContextAsync(
-		Task<IMessageResult> dispatchTask,
-		IMessageContextFactory contextFactory,
-		IMessageContext context)
-	{
-		try
-		{
-			return await dispatchTask.ConfigureAwait(false);
-		}
-		finally
-		{
-			contextFactory.Return(context);
-		}
-	}
 }
 
 // ============================================================================

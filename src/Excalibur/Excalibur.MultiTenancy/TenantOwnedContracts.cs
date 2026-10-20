@@ -76,8 +76,10 @@ internal static class TenantOwnedContracts
 	/// the same reason as the inbox: each provider applies the ambient tenant predicate inside its own store,
 	/// so wrapping one that already filters would add a second filter without repairing the first. Their
 	/// estate-wide background surfaces — the erasure scheduler's due-request drain, the certificate retention
-	/// sweep, and the legal-hold expiry sweep — are deliberately unscoped and live on the separate query and
-	/// certificate contracts, which a per-tenant caller does not depend on. A decorator over the store
+	/// sweep, awaiting-key-destruction discovery, and the legal-hold expiry sweep — are deliberately unscoped
+	/// and exposed through query, background-query, and certificate facets. Trusted background callers must
+	/// establish each recorded owner's scope before processing; facet separation does not authorize access.
+	/// A decorator over the store
 	/// contract could not make that distinction and would either stall those sweeps or widen the reads.
 	/// </para>
 	/// </remarks>

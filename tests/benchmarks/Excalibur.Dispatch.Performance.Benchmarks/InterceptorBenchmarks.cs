@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// 3. ConcurrentDictionary lookup (runtime, with locking)
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class InterceptorBenchmarks
 {
 	private IServiceProvider _serviceProvider = null!;

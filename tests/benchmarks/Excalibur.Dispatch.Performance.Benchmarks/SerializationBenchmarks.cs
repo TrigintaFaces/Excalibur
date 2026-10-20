@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// Benchmarks for message serialization performance.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class SerializationBenchmarks
 {
 	private TestMessage _smallMessage = null!;

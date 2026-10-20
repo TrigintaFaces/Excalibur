@@ -131,7 +131,8 @@ public sealed class HandlerActivator : IHandlerActivator
 	{
 		ArgumentNullException.ThrowIfNull(handlerType);
 
-		if (BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType)) is not null)
+		if (typeof(IMessageContextAware).IsAssignableFrom(handlerType) ||
+			GetOrCreateContextSetter(handlerType) is not null || HandlerActivatorRegistry.HasContextSetter(handlerType))
 		{
 			return true;
 		}
@@ -266,7 +267,7 @@ public sealed class HandlerActivator : IHandlerActivator
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
-		var contextApplier = BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
+		var contextApplier = GetContextApplier(handlerType);
 		var factory = ActivatorUtilities.CreateFactory(handlerType, NoFactoryArgumentTypes);
 
 		Func<IServiceProvider, IMessageContext, object> activationPlan = contextApplier is null
@@ -293,7 +294,7 @@ public sealed class HandlerActivator : IHandlerActivator
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
-		var contextApplier = BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
+		var contextApplier = GetContextApplier(handlerType);
 
 		Func<IServiceProvider, IMessageContext, object> activationPlan = contextApplier is null
 			? (serviceProvider, _) => serviceProvider.GetRequiredService(handlerType)
@@ -316,7 +317,7 @@ public sealed class HandlerActivator : IHandlerActivator
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
 		Type handlerType)
 	{
-		var contextApplier = BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
+		var contextApplier = GetContextApplier(handlerType);
 		var factory = ActivatorUtilities.CreateFactory(handlerType, NoFactoryArgumentTypes);
 
 		Func<IServiceProvider, IMessageContext, object> activationPlan = contextApplier is null
@@ -404,18 +405,32 @@ public sealed class HandlerActivator : IHandlerActivator
 		return setter;
 	}
 
+	// Interface injection is the public AOT contract. Decide it before even discovering a
+	// property setter, so explicit/inherited implementations and dual declarations agree.
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static Action<object, IMessageContext>? GetContextApplier(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)]
+		Type handlerType)
+	{
+		if (typeof(IMessageContextAware).IsAssignableFrom(handlerType))
+		{
+			return static (handler, context) => ((IMessageContextAware)handler).SetContext(context);
+		}
+
+		return BuildContextApplier(handlerType, GetOrCreateContextSetter(handlerType));
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Action<object, IMessageContext>? BuildContextApplier(
 		Type handlerType,
 		Action<object, IMessageContext>? fallbackSetter)
 	{
-		// Prefer AOT-safe registry-based context setter over expression-compiled fallback.
-		if (HandlerActivatorRegistry.TryGetContextSetter(handlerType, out var registrySetter) && registrySetter is not null)
+		var slot = HandlerActivatorRegistry.GetContextSetterSlot(handlerType);
+		return (handler, context) =>
 		{
-			return registrySetter;
-		}
-
-		return fallbackSetter;
+			var setter = slot.Current ?? fallbackSetter;
+			setter?.Invoke(handler, context);
+		};
 	}
 
 	/// <summary>
@@ -531,7 +546,7 @@ public sealed class HandlerActivator : IHandlerActivator
 			_ = GetOrCreateActivationPlan(type);
 			_ = GetOrCreateRegisteredActivationPlan(type);
 			_ = GetOrCreateFactoryActivationPlan(type);
-			_ = GetOrCreateContextSetter(type);
+			_ = GetContextApplier(type);
 		}
 	}
 

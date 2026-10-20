@@ -109,7 +109,7 @@ public sealed class ResultFactoryCacheShould
 	[Fact]
 	public async Task CreateTypedResult_WithNullableValueTypeResult_HandlesDefault()
 	{
-		// Arrange - Use value type since string class has no parameterless ctor
+		// Arrange - An absent value-type response is represented by default(int).
 		var action = new TestActionWithIntResult();
 		var context = CreateContextWithRouting("TestBus");
 		// Not setting Dispatch:Result - will use default(int) = 0

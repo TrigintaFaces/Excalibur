@@ -68,7 +68,7 @@ opts.WireFormat = ProtobufWireFormat.Binary;
 ```
 
 - Compact binary format
-- Fastest serialization/deserialization
+- Binary serialization/deserialization
 - Best for internal/transport use
 
 ### JSON
@@ -103,11 +103,19 @@ Per Excalibur framework requirements:
 3. **System.Text.Json is the default serializer**
 4. **This package is opt-in only**
 
-## Performance Characteristics
+## Performance characteristics
 
-- **Serialization**: ~100-500 ns/op (binary), ~1-5 us/op (JSON)
-- **Allocations**: Minimal (reuses buffers where possible)
-- **Throughput**: ~1-5 million msg/sec (binary), ~200k-1M msg/sec (JSON)
+Protobuf produces a compact binary payload and is normally faster to serialize, and smaller on
+the wire, than JSON. This package carries no current matched-workload measurement of its own, so
+no latency or throughput figure is published here.
+
+Earlier revisions of this document quoted 100–500 ns/op for binary serialization and figures in
+the millions of messages per second. **Those were never backed by a verified matched workload and
+must not be used for capacity planning.**
+
+To size this for your application, measure complete payload serialization, deserialization and
+allocation for the API you actually call. Sustained throughput needs its own load measurement; it
+cannot be derived by taking the reciprocal of a microbenchmark mean.
 
 ## Schema Evolution
 

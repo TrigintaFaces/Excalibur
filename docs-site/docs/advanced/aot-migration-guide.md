@@ -215,7 +215,8 @@ dotnet publish -c Release
 Expected outcome:
 - Zero IL2xxx/IL3xxx warnings
 - Functional native binary
-- Sub-millisecond startup time
+
+Run the published native executable and verify its behavior. Measure process startup separately in the intended deployment; successful publication, warning review and functional execution do not establish a startup-latency target.
 
 If you see warnings, check:
 1. `Excalibur.Dispatch` is referenced in the entry-point project

@@ -42,6 +42,10 @@ await host.RunAsync();
 
 ### Performance Impact
 
+The following figures are a historical snapshot from 2026-09-04. They have not
+been refreshed by the October benchmark campaign and are not current release
+measurements or a before/after-freeze comparison.
+
 | Metric | Measured | Notes |
 |--------|----------|-------|
 | Handler registry lookup (warm hit) | 4.09-4.12 ns, 0 B | Consistent across transient, scoped and singleton handlers |
@@ -49,8 +53,8 @@ await host.RunAsync();
 | Resolve action handler (singleton) | 5.50 ns, 0 B | |
 | Resolve action handler (transient) | 7.05 ns | |
 | Resolve action handler (scoped) | 69.76 ns | Scope creation dominates; the registry is not the cost here |
-| Memory overhead | Synchronization locks removed | Reduced GC pressure |
-| CPU overhead | Lock-free after freeze | Better scalability |
+| Memory overhead | Not measured in this table | No GC-pressure reduction established by these lookup timings |
+| CPU scalability | Not measured in this table | Lookup latency does not establish throughput under contention |
 
 Measured 2026-09-04, `HandlerResolutionBenchmarks`, BenchmarkDotNet 0.15.8 in-process on
 .NET 10.0.11 (i9-14900K).
@@ -287,4 +291,4 @@ if (!status.AllFrozen)
 
 - [Performance Overview](./index.md) - Full performance guide
 - [MessageContext Best Practices](./messagecontext-best-practices.md) - Hot-path optimization
-- [Competitor Comparison](./competitor-comparison.md) - See performance vs alternatives
+- [Benchmark Results](./competitor-comparison.md) - Measured dispatch overhead and methodology

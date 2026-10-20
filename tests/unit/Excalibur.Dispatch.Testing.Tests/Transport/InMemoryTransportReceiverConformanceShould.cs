@@ -13,6 +13,7 @@ namespace Excalibur.Dispatch.Testing.Tests.Transport;
 [UnitTest]
 [Trait("Category", "Unit")]
 [Trait(TraitNames.Component, TestComponents.Core)]
+[Trait(TraitNames.Pattern, "Regression")]
 public sealed class InMemoryTransportReceiverConformanceShould : TransportReceiverConformanceTests
 {
 	private const string Source = "conformance-test-source";
@@ -53,6 +54,16 @@ public sealed class InMemoryTransportReceiverConformanceShould : TransportReceiv
 	public Task AcknowledgeAsync_Succeeds() => VerifyAcknowledgeSucceeds();
 
 	[Fact]
+	public Task AcknowledgeAsync_HasRecordedEffect() => VerifyAcknowledgeHasObservableEffect((receiver, message) =>
+	{
+		var inMemory = (InMemoryTransportReceiver)receiver;
+		inMemory.AcknowledgedMessages.Count.ShouldBe(1);
+		inMemory.AcknowledgedMessages[0].ShouldBeSameAs(message);
+		inMemory.RejectedMessages.ShouldBeEmpty();
+		return Task.CompletedTask;
+	});
+
+	[Fact]
 	public Task AcknowledgeAsync_ThrowsOnNull() => VerifyAcknowledgeThrowsOnNull();
 
 	[Fact]
@@ -60,6 +71,20 @@ public sealed class InMemoryTransportReceiverConformanceShould : TransportReceiv
 
 	[Fact]
 	public Task RejectAsync_WithRequeue_Succeeds() => VerifyRejectWithRequeueSucceeds();
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public Task RejectAsync_HasRecordedEffect(bool requeue) => VerifyRejectHasObservableEffect(requeue, (receiver, message) =>
+	{
+		var inMemory = (InMemoryTransportReceiver)receiver;
+		inMemory.RejectedMessages.Count.ShouldBe(1);
+		inMemory.RejectedMessages[0].Message.ShouldBeSameAs(message);
+		inMemory.RejectedMessages[0].Reason.ShouldBe(requeue ? "retry" : "test-reason");
+		inMemory.RejectedMessages[0].Requeue.ShouldBe(requeue);
+		inMemory.AcknowledgedMessages.ShouldBeEmpty();
+		return Task.CompletedTask;
+	});
 
 	[Fact]
 	public Task RejectAsync_AcceptsNullReason() => VerifyRejectAcceptsNullReason();

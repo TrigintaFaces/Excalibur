@@ -307,10 +307,10 @@ Key `CosmosDbOutboxOptions` properties:
 ### DynamoDB
 
 ```csharp
-outbox.UseDynamoDb(options =>
+outbox.UseDynamoDb(dynamo =>
 {
-    options.Connection.Region = "us-east-1";
-    options.TableName = "outbox";
+    dynamo.Region(Amazon.RegionEndpoint.USEast1)
+          .TableName("outbox");
 });
 ```
 
@@ -324,6 +324,14 @@ Key `DynamoDbOutboxOptions` properties:
 | `CreateTableIfNotExists` | `bool` | `true` | Auto-create table |
 | `EnableStreams` | `bool` | `true` | Enable DynamoDB Streams |
 | `DefaultTimeToLiveSeconds` | `int` | `604800` (7 days) | TTL for items |
+
+Cloud outbox query continuation tokens are opaque. The DynamoDB writer preserves String, Number and
+Binary key values without reflection, including numeric precision and full binary contents. Its format
+has changed from historical SDK-object JSON; consumers should retain the opaque string rather than
+depending on that representation. An empty filtered result can still have a continuation token and
+`HasMoreResults`. The current `GetPendingAsync` overload does not accept an incoming token, so emission
+alone does not provide a resumable pagination API. Native verification of the closed cursor writer does
+not establish Native AOT compatibility for the complete DynamoDB provider.
 
 ### In-Memory (Testing)
 

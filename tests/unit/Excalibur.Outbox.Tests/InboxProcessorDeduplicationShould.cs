@@ -37,7 +37,7 @@ public sealed class InboxProcessorDeduplicationShould
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
 			deduplicationStore: dedupStore,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		processor.ShouldNotBeNull();
@@ -56,7 +56,7 @@ public sealed class InboxProcessorDeduplicationShould
 		// Act -- should not throw without dedup store (opt-in behavior)
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert
 		processor.ShouldNotBeNull();
@@ -77,7 +77,7 @@ public sealed class InboxProcessorDeduplicationShould
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
 			deduplicationStore: dedupStore,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Assert -- verify the store is actually stored (via reflection)
 		var field = typeof(InboxProcessor)
@@ -98,7 +98,7 @@ public sealed class InboxProcessorDeduplicationShould
 
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		// Access the private IsDuplicateAsync method
 		var method = typeof(InboxProcessor)
@@ -130,7 +130,7 @@ public sealed class InboxProcessorDeduplicationShould
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
 			deduplicationStore: dedupStore,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		var method = typeof(InboxProcessor)
 			.GetMethod("IsDuplicateAsync", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -159,7 +159,7 @@ public sealed class InboxProcessorDeduplicationShould
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
 			deduplicationStore: dedupStore,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		var method = typeof(InboxProcessor)
 			.GetMethod("MarkDeduplicatedAsync", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -185,7 +185,7 @@ public sealed class InboxProcessorDeduplicationShould
 
 		var processor = new InboxProcessor(
 			options, inboxStore, serviceProvider, serializer, logger,
-			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+			circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 
 		var method = typeof(InboxProcessor)
 			.GetMethod("MarkDeduplicatedAsync", BindingFlags.NonPublic | BindingFlags.Instance)

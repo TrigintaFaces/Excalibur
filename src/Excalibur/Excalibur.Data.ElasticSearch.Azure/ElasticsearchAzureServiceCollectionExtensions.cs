@@ -56,6 +56,11 @@ public static class ElasticsearchAzureServiceCollectionExtensions
 		// consumer who puts their key-management configuration in one place has all of it bound.
 		_ = services.AddOptions<AzureKeyVaultOptions>()
 			.Bind(configuration.GetSection("Elasticsearch:Security:Encryption:KeyManagement:AzureKeyVault"))
+			.Validate(options => !string.IsNullOrWhiteSpace(options.VaultUri)
+				&& Uri.TryCreate(options.VaultUri, UriKind.Absolute, out _),
+				$"{nameof(AzureKeyVaultOptions.VaultUri)} must be a nonblank absolute URI.")
+			.Validate(options => options.MaxConcurrentOperations > 0,
+				$"{nameof(AzureKeyVaultOptions.MaxConcurrentOperations)} must be greater than zero.")
 			.ValidateOnStart();
 
 		services.TryAddSingleton<IElasticsearchKeyStorage, AzureKeyVaultProvider>();

@@ -27,31 +27,38 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
+[InvocationCount(1, unrollFactor: 1)]
 public class OutboxPublishingBenchmarks
 {
 	private InMemoryOutboxStore? _outboxStore;
 
 	/// <summary>
-	/// Initialize in-memory outbox store before benchmarks.
+	/// Create an isolated store outside each timed invocation.
 	/// </summary>
-	[GlobalSetup]
-	public void GlobalSetup()
+	[IterationSetup]
+	public void IterationSetup()
 	{
+		if (_outboxStore is not null)
+		{
+			throw new InvalidOperationException("The previous outbox iteration was not cleaned up.");
+		}
+
 		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryOutboxOptions
 		{
-			MaxMessages = 0 // unlimited
+			MaxMessages = 0 // No eviction: one invocation is bounded by the workload itself.
 		});
 		var logger = NullLoggerFactory.Instance.CreateLogger<InMemoryOutboxStore>();
 		_outboxStore = new InMemoryOutboxStore(options, logger);
 	}
 
 	/// <summary>
-	/// Cleanup outbox store after benchmarks.
+	/// Release all staged and sent rows outside the timed invocation.
 	/// </summary>
-	[GlobalCleanup]
-	public void GlobalCleanup()
+	[IterationCleanup]
+	public void IterationCleanup()
 	{
 		_outboxStore?.Dispose();
+		_outboxStore = null;
 	}
 
 	/// <summary>

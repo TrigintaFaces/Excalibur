@@ -29,8 +29,18 @@ the failure mode we would choose for something whose wrong answer is destroyed d
 | `SubjectFieldCryptor.EncryptFieldsAsync` | `(object record, CancellationToken)` | `(object record, string? aggregateType, CancellationToken)` |
 | `EventStoreErasureContributor` | two constructors, the shorter with defaulted parameters | one constructor, ending in a required `IErasureRetentionRegistry?` |
 
-`IFieldEncryptor.DecryptAsync` and `SubjectFieldCryptor.DecryptFieldsAsync` are **unchanged**. An envelope
-records which key protects it, so the read path needs nothing from the caller.
+:::danger Superseded — the read path DID change, later
+
+This page previously said: *"`IFieldEncryptor.DecryptAsync` and `SubjectFieldCryptor.DecryptFieldsAsync`
+are **unchanged**. An envelope records which key protects it, so the read path needs nothing from the
+caller."* That was true of **this** change and is **false now**. Both members gained a required
+`expectedTenantId`, and the stated reason — that the envelope carries everything the read path needs —
+is the exact premise the later fix reverses: an envelope is attacker-supplied input, so its own tenant
+field cannot establish who is allowed to read it.
+
+See **[Decryption requires the caller's tenant](decryption-requires-the-callers-tenant.md)**.
+
+:::
 
 ## `RetentionScope` is a value, and never an absence
 

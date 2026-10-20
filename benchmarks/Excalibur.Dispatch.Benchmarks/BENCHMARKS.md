@@ -2,7 +2,7 @@
 
 ## Overview
 
-This comprehensive BenchmarkDotNet suite validates the performance claims of the Excalibur framework, particularly the zero-allocation guarantees and establishes performance baselines for regression testing.
+A BenchmarkDotNet suite for measuring the dispatch hot path and establishing baselines for regression testing. Published figures live in `docs/performance/`; this document describes how to run the suite and read its output, and deliberately quotes no results of its own.
 
 ## DoD Requirements Validation
 
@@ -150,24 +150,24 @@ Validates zero-allocation patterns:
 
 ### Memory Allocation Validation
 
-Look for these indicators of zero-allocation success:
+The output has this shape. The values below are placeholders, not measurements -- read your own run:
 
 ```
 | Method                          | Mean     | Allocated |
 |-------------------------------- |---------:|----------:|
-| HotPath_ZeroAllocation         | 12.34 ns |       0 B | ✅
-| HotPath_StandardAllocation     | 45.67 ns |      96 B |
+| HotPath_ZeroAllocation         |  <ns>    |       0 B |
+| HotPath_StandardAllocation     |  <ns>    |    <bytes>|
 ```
 
 ### Performance Baselines
 
-Baseline measurements for regression testing:
+Baseline shape for regression testing. Again, placeholders -- the ratio column is what you track:
 
 ```
 | Method                          | Mean      | Ratio | 
 |-------------------------------- |----------:|------:|
-| Envelope_Serialize_Standard    | 1,234 ns  |  1.00 |
-| Envelope_Serialize_Optimized   |   567 ns  |  0.46 | 
+| Envelope_Serialize_Standard    |   <ns>    |  1.00 |
+| Envelope_Serialize_Optimized   |   <ns>    | <ratio>|
 ```
 
 ### Key Performance Indicators
@@ -205,7 +205,7 @@ Based on DoD requirements for "the fastest, cleanest, most dependable .NET messa
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Hot Path Allocations | 0 B | ✅ Validated |
+| Hot Path Allocations | 0 B | Measured per run; see `docs/performance/` |
 | Message Throughput | > 1M msg/sec | Benchmark dependent |
 | Routing Latency P99 | < 1ms | Benchmark dependent |
 | Memory Pool Hit Rate | > 95% | Benchmark dependent |
@@ -241,11 +241,12 @@ When adding new benchmarks:
 
 ## Summary
 
-This comprehensive benchmark suite provides:
-- ✅ Performance baseline measurements
-- ✅ Zero-allocation validation
-- ✅ Cross-provider flow testing
-- ✅ Regression detection capability
-- ✅ DoD compliance validation
+This suite provides:
+- baseline measurements for the dispatch hot path
+- allocation measurement on the paths that target zero
+- cross-provider flow coverage
+- a basis for regression detection between runs
 
-The suite proves that Excalibur achieves its performance goals and maintains zero-allocation guarantees in critical hot paths.
+Running it produces measurements. It does not by itself establish that any target is met --
+that verdict belongs to the published figures in `docs/performance/`, which state their own
+hardware, runtime and run-to-run variance.

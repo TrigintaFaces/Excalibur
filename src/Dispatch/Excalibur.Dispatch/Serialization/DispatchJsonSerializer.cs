@@ -32,6 +32,7 @@ namespace Excalibur.Dispatch.Serialization;
 public sealed class DispatchJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerOptions _options;
+	private readonly System.Threading.Lock _metadataInitializationLock = new();
 	private readonly JsonSerializerContext? _jsonContext;
 	private readonly JsonWriterOptions _writerOptions;
 	private readonly IUtf8JsonWriterPool _writerPool;
@@ -87,14 +88,14 @@ public sealed class DispatchJsonSerializer : IDisposable
 			MaxDepth = 64,
 		};
 
-		if (RuntimeFeature.IsDynamicCodeSupported)
+		if (RuntimeFeature.IsDynamicCodeSupported && JsonSerializer.IsReflectionEnabledByDefault)
 		{
 			// Non-AOT path: add reflection-based converters and fallback resolver.
 			// JsonStringEnumConverter uses reflection for enum serialization.
 			// DefaultJsonTypeInfoResolver provides runtime type resolution for consumer types
 			// not registered in the source-generated context.
 #pragma warning disable IL2026 // Guarded by RuntimeFeature.IsDynamicCodeSupported check; AOT path uses source-gen context only
-#pragma warning disable IL3050
+#pragma warning disable IL3050 // Reflection-based configuration runs only when RuntimeFeature.IsDynamicCodeSupported; the Native AOT branch initializes the resolver from JsonSerializerContext.
 			AddReflectionBasedConfiguration(_options, _jsonContext);
 #pragma warning restore IL3050
 #pragma warning restore IL2026
@@ -136,10 +137,8 @@ public sealed class DispatchJsonSerializer : IDisposable
 		Telemetry = new SerializerTelemetry();
 	}
 
-	[RequiresDynamicCode(
-		"Adds JsonStringEnumConverter and DefaultJsonTypeInfoResolver which require dynamic code generation.")]
-	[RequiresUnreferencedCode(
-		"DefaultJsonTypeInfoResolver uses reflection to discover type metadata at runtime.")]
+	[RequiresDynamicCode("Reflection-based JSON configuration requires runtime code generation.")]
+	[RequiresUnreferencedCode("Reflection-based JSON configuration discovers members at runtime.")]
 	private static void AddReflectionBasedConfiguration(JsonSerializerOptions options, JsonSerializerContext context)
 	{
 		options.Converters.Add(new JsonStringEnumConverter());
@@ -152,6 +151,41 @@ public sealed class DispatchJsonSerializer : IDisposable
 		options.TypeInfoResolver = JsonTypeInfoResolver.Combine(
 			context,
 			new DefaultJsonTypeInfoResolver());
+	}
+
+	// Freeze only at the first metadata operation: constructor configuration and the existing
+	// null fast paths remain lazy. STJ caches contracts on this same configured options instance.
+	private JsonTypeInfo ResolveTypeInfo(Type type)
+	{
+		if (!_options.IsReadOnly)
+		{
+			lock (_metadataInitializationLock)
+			{
+				if (!_options.IsReadOnly)
+				{
+					if (_options.TypeInfoResolver is null)
+					{
+						if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault)
+						{
+							throw new InvalidOperationException(
+								"JSON type metadata is required when reflection-based serialization is unavailable. " +
+								"Configure a source-generated JsonSerializerContext with AddAotJsonSerialization or TypeInfoResolver.");
+						}
+#pragma warning disable IL2026 // The null-resolver JIT fallback is enabled only when both dynamic code and JSON reflection are available.
+#pragma warning disable IL3050 // NativeAOT takes the configured metadata branch and cannot enter this fallback.
+						_options.MakeReadOnly(populateMissingResolver: true);
+#pragma warning restore IL3050
+#pragma warning restore IL2026
+					}
+					else
+					{
+						_options.MakeReadOnly();
+					}
+				}
+			}
+		}
+
+		return _options.GetTypeInfo(type);
 	}
 
 	/// <summary>
@@ -178,14 +212,11 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// Serializes an object directly to a pooled buffer with zero allocations.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode(
-		"Generic JSON serialization may require types that are not statically referenced and could be removed during trimming.")]
-	[RequiresDynamicCode("Generic JSON serialization requires runtime code generation for type-specific serialization logic.")]
 	public PooledSerializationResult SerializeToPooledBuffer<T>(T value)
 	{
 		Telemetry.IncrementSerializationCount();
 
-		if (EqualityComparer<T?>.Default.Equals(value, default(T?)))
+		if (value is null)
 		{
 			var nullBuffer = _bufferManager.RentBuffer(4);
 			"null"u8.CopyTo(nullBuffer.Buffer);
@@ -197,7 +228,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 
 		using (var pooledWriter = _writerPool.RentWriter(bufferWriter, _writerOptions))
 		{
-			JsonSerializer.Serialize(pooledWriter.Writer, value, _options);
+			JsonSerializer.Serialize(pooledWriter.Writer, value, (JsonTypeInfo<T>)ResolveTypeInfo(typeof(T)));
 			pooledWriter.Flush();
 		}
 
@@ -214,15 +245,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// Serializes an object directly to a pooled buffer with zero allocations.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"This method handles runtime type serialization for messages. In AOT scenarios, message types are registered via MessageTypeRegistry or source generation.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "JSON serialization with runtime types uses pre-registered types from MessageTypeRegistry for AOT compatibility.")]
 	public PooledSerializationResult SerializeToPooledBuffer(object? value, Type type)
 	{
 		Telemetry.IncrementSerializationCount();
@@ -241,7 +263,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 
 		using (var pooledWriter = _writerPool.RentWriter(bufferWriter, _writerOptions))
 		{
-			JsonSerializer.Serialize(pooledWriter.Writer, value, type, _options);
+			JsonSerializer.Serialize(pooledWriter.Writer, value, ResolveTypeInfo(type));
 			pooledWriter.Flush();
 		}
 
@@ -258,15 +280,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// Serializes directly to the provided buffer writer with zero intermediate allocations.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Runtime type serialization is handled through registered types in MessageTypeRegistry or DispatchJsonContext for AOT scenarios.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "The serializer uses pre-configured JsonSerializerOptions with TypeInfoResolver for AOT compatibility.")]
 	public void SerializeToWriter(IBufferWriter<byte> writer, object? value, Type type)
 	{
 		ArgumentNullException.ThrowIfNull(writer);
@@ -283,7 +296,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 		using (var pooledWriter = _writerPool.RentWriter(writer, _writerOptions))
 		{
 			var startBytes = pooledWriter.BytesWritten;
-			JsonSerializer.Serialize(pooledWriter.Writer, value, type, _options);
+			JsonSerializer.Serialize(pooledWriter.Writer, value, ResolveTypeInfo(type));
 			pooledWriter.Flush();
 			Telemetry.AddBytesWritten(pooledWriter.BytesWritten - startBytes);
 		}
@@ -293,11 +306,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// Deserializes directly from UTF-8 bytes with minimal allocations.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "The deserializer uses DispatchJsonContext with pre-registered types for AOT compatibility.")]
 	public object? DeserializeFromBytes(ReadOnlySpan<byte> utf8Json, Type type)
 	{
 		ArgumentNullException.ThrowIfNull(type);
@@ -322,7 +330,7 @@ public sealed class DispatchJsonSerializer : IDisposable
 		}
 
 		// a null deserialization result throws NullResult (matches the family), not silent null.
-		return JsonSerializer.Deserialize(utf8Json, type, _options)
+		return JsonSerializer.Deserialize(utf8Json, ResolveTypeInfo(type))
 			?? throw SerializationException.NullResultForType(type);
 	}
 
@@ -330,21 +338,12 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// Deserializes directly from a stream with minimal allocations.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
-		Justification =
-			"Generic async deserialization preserves type T through the async state machine. The type is known at compile time.")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "Async deserialization with generic type T is AOT-compatible through source-generated contexts.")]
 	public async ValueTask<T?> DeserializeFromStreamAsync<T>(Stream utf8Json, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(utf8Json);
 		Telemetry.IncrementDeserializationCount();
 
-		var result = await JsonSerializer.DeserializeAsync<T>(utf8Json, _options, cancellationToken).ConfigureAwait(false);
+		var result = await JsonSerializer.DeserializeAsync(utf8Json, (JsonTypeInfo<T>)ResolveTypeInfo(typeof(T)), cancellationToken).ConfigureAwait(false);
 
 		if (utf8Json.CanSeek)
 		{
@@ -359,18 +358,13 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// Deserializes directly from a stream with minimal allocations.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
-		Justification = "The async deserializer uses pre-configured JsonSerializerOptions with TypeInfoResolver for AOT compatibility.")]
 	public async ValueTask<object?> DeserializeFromStreamAsync(Stream utf8Json, Type type, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(utf8Json);
 		ArgumentNullException.ThrowIfNull(type);
 		Telemetry.IncrementDeserializationCount();
 
-		var result = await JsonSerializer.DeserializeAsync(utf8Json, type, _options, cancellationToken).ConfigureAwait(false);
+		var result = await JsonSerializer.DeserializeAsync(utf8Json, ResolveTypeInfo(type), cancellationToken).ConfigureAwait(false);
 
 		if (utf8Json.CanSeek)
 		{
@@ -393,10 +387,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <returns> The deserialized object of type <typeparamref name="T"/>. </returns>
 	/// <exception cref="ArgumentException"> Thrown when json is null or whitespace. </exception>
 	/// <exception cref="SerializationException"> Thrown when the payload is empty or deserialization yields a null result. </exception>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access",
-		Justification = "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.")]
 	public T? Deserialize<T>(string json)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(json);
@@ -413,8 +403,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <exception cref="ArgumentException"> Thrown when json is null or whitespace. </exception>
 	/// <exception cref="ArgumentNullException"> Thrown when type is null. </exception>
 	/// <exception cref="SerializationException"> Thrown when the payload is empty or deserialization yields a null result. </exception>
-	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
-	[RequiresDynamicCode("JSON deserialization with runtime type requires dynamic code generation")]
 	public object? Deserialize(string json, Type type)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(json);
@@ -429,8 +417,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <typeparam name="T"> The type of object to serialize. </typeparam>
 	/// <param name="value"> The object to serialize. </param>
 	/// <returns> A JSON string representation of the object. </returns>
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public string Serialize<T>(T value)
 	{
 		using var result = SerializeToPooledBuffer(value);
@@ -443,8 +429,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <param name="value"> The object to serialize. </param>
 	/// <param name="type"> The type to use for serialization. </param>
 	/// <returns> A JSON string representation of the object. </returns>
-	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code")]
-	[RequiresDynamicCode("JSON serialization with runtime type requires dynamic code generation")]
 	public string Serialize(object? value, Type type)
 	{
 		using var result = SerializeToPooledBuffer(value, type);
@@ -457,8 +441,6 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <typeparam name="T"> The type of object to serialize. </typeparam>
 	/// <param name="value"> The object to serialize. </param>
 	/// <returns> A JsonElement representing the serialized object. </returns>
-	[RequiresUnreferencedCode("Uses reflection which may break with AOT compilation")]
-	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
 	public JsonElement SerializeToElement<T>(T value)
 	{
 		using var result = SerializeToPooledBuffer(value);
@@ -468,15 +450,11 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <summary>
 	/// Serializes an object to a JSON string asynchronously.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code")]
-	[RequiresDynamicCode("JSON serialization with runtime type requires dynamic code generation")]
 	public ValueTask<string> SerializeAsync(object value, Type type) => ValueTask.FromResult(Serialize(value, type));
 
 	/// <summary>
 	/// Deserializes a JSON string to an object asynchronously.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
-	[RequiresDynamicCode("JSON deserialization with runtime type requires dynamic code generation")]
 	public ValueTask<object?> DeserializeAsync(string json, Type type) => ValueTask.FromResult(Deserialize(json, type));
 
 	#endregion
@@ -500,22 +478,16 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <summary>
 	/// Deserializes from UTF-8 bytes.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	public object? DeserializeFromUtf8(ReadOnlySpan<byte> utf8Json, Type type) => DeserializeFromBytes(utf8Json, type);
 
 	/// <summary>
 	/// Deserializes from UTF-8 memory.
 	/// </summary>
-	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	public object? DeserializeFromUtf8(ReadOnlyMemory<byte> utf8Json, Type type) => DeserializeFromBytes(utf8Json.Span, type);
 
 	/// <summary>
 	/// Deserializes a typed value from UTF-8 bytes.
 	/// </summary>
-	[UnconditionalSuppressMessage(
-		"AOT",
-		"IL2026:RequiresUnreferencedCode",
-		Justification = "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.")]
 	public T? DeserializeFromUtf8<T>(ReadOnlySpan<byte> utf8Json) => (T?)DeserializeFromBytes(utf8Json, typeof(T));
 
 	#endregion
@@ -525,16 +497,12 @@ public sealed class DispatchJsonSerializer : IDisposable
 	/// <summary>
 	/// Serializes a message to a byte array.
 	/// </summary>
-	[RequiresUnreferencedCode("Serialization may require unreferenced code for type-specific handling.")]
-	[RequiresDynamicCode("Serialization may require dynamic code generation for type-specific handling.")]
 	public byte[] SerializeMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message) =>
 		SerializeToUtf8Bytes(message, typeof(T));
 
 	/// <summary>
 	/// Deserializes a message from a byte array.
 	/// </summary>
-	[RequiresUnreferencedCode("Deserialization may require unreferenced code for type-specific handling.")]
-	[RequiresDynamicCode("Deserialization may require dynamic code generation for type-specific handling.")]
 	public T DeserializeMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data)
 	{
 		ArgumentNullException.ThrowIfNull(data);

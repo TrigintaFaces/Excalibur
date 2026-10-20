@@ -108,7 +108,7 @@ public sealed class OutboxCapacityEvictionShould
 		var abandoned = await StageAsync(store);
 		var stillOwed = await StageAsync(store);
 
-		await store.MarkDeadLetteredAsync(abandoned.Id, "retries exhausted", CancellationToken.None);
+		await store.MarkDeadLetteredAsync(abandoned.Id, "retries exhausted", 0, CancellationToken.None);
 
 		// DeadLettered is terminal: the message will never be delivered from this store, so reclaiming it
 		// costs nothing. Refusing here instead would fail closed on a store that did have room.

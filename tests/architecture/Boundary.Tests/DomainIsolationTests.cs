@@ -29,7 +29,7 @@ public sealed class DomainIsolationTests
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Domain");
 
         _ = domainAssembly.ShouldNotBeNull(
-            "The Excalibur.Domain assembly is not loaded — the module initializer force-loads it, so its " +
+            "The Excalibur.Domain assembly is not loaded — the assembly fixture force-loads it, so its " +
             "absence means drift, not a pass.");
 
         // Domain MAY reference Excalibur.Dispatch.Abstractions (for IDomainEvent/IIntegrationEvent); it must
@@ -201,7 +201,7 @@ public sealed class DomainIsolationTests
             .FirstOrDefault(a => a.GetName().Name == "Excalibur.Domain");
 
         _ = domainAssembly.ShouldNotBeNull(
-            "The Excalibur.Domain assembly is not loaded — the module initializer force-loads it, so its " +
+            "The Excalibur.Domain assembly is not loaded — the assembly fixture force-loads it, so its " +
             "absence means drift, not a pass.");
 
         var actualDependencies = domainAssembly.GetReferencedAssemblies()

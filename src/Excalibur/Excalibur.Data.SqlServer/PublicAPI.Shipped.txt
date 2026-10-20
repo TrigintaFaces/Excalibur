@@ -309,3 +309,29 @@ virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.Dispos
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerPersistenceProvider.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.Dispose(bool disposing) -> void
 virtual Excalibur.Data.SqlServer.Persistence.SqlServerTransactionScope.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.ReadUserRevisionAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.ReadUserSnapshotAsync(string! userId, bool includeExpired, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.UserGrantSnapshot!>!
+Excalibur.Data.SqlServer.Authorization.SqlServerGrantStore.RevokeAllAsync(Excalibur.A3.Authorization.GrantRevocationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Authorization.GrantRevocationResult!>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.SqlServerScheduleStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions!>! options) -> void
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.LeaseDuration.get -> System.TimeSpan
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.GetAllAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Delivery.IScheduledMessage!>!>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.GetExecutionSnapshotsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Delivery.ScheduleExecutionSnapshot!>!>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.StoreAsync(Excalibur.Dispatch.Delivery.IScheduledMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.CompleteAsync(System.Guid scheduleId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.TryAcquireExecutionAsync(System.Guid scheduleId, System.Guid generation, System.DateTimeOffset occurrenceUtc, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Delivery.ScheduleExecutionLease?>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.TryRenewExecutionAsync(Excalibur.Dispatch.Delivery.ScheduleExecutionLease! lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.TryUpdateProgressAsync(Excalibur.Dispatch.Delivery.ScheduleExecutionLease! lease, Excalibur.Dispatch.Delivery.ScheduleExecutionResult! result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStore.ReleaseExecutionAsync(Excalibur.Dispatch.Delivery.ScheduleExecutionLease! lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.SqlServerScheduleStoreOptions() -> void
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.ConnectionString.get -> string!
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.ConnectionString.set -> void
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.LeaseDuration.get -> System.TimeSpan
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.LeaseDuration.set -> void
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.LockTimeoutMilliseconds.get -> int
+Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions.LockTimeoutMilliseconds.set -> void
+Microsoft.Extensions.DependencyInjection.SqlServerScheduleStoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SqlServerScheduleStoreServiceCollectionExtensions.AddSqlServerScheduleStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.SqlServer.Scheduling.SqlServerScheduleStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

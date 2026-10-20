@@ -6,10 +6,12 @@
     <Description>Postgres implementation of the transactional outbox pattern for Excalibur, providing reliable message delivery with at-least-once semantics using Postgres as the backing store.</Description>
     <PackageTags>excalibur;outbox;transactional-outbox;messaging;reliable-delivery;postgres;dapper</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.0.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />

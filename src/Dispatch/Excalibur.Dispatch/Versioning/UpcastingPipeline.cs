@@ -20,8 +20,9 @@ namespace Excalibur.Dispatch.Versioning;
 /// the hot path, with write locks only during registration (typically at startup).
 /// </para>
 /// <para>
-/// <b>Performance:</b> Achieves ~15ns per hop through direct delegate invocation,
-/// compared to ~300ns with <c>DynamicInvoke</c>. Zero allocations in cached read path.
+/// <b>Performance:</b> Cached paths avoid repeated BFS searches, and registered
+/// delegates are invoked directly without <c>DynamicInvoke</c>. Transformation
+/// cost and allocation depend on the upcasters and the selected path.
 /// </para>
 /// </remarks>
 public sealed class UpcastingPipeline : IUpcastingPipeline, IDisposable
@@ -112,8 +113,9 @@ public sealed class UpcastingPipeline : IUpcastingPipeline, IDisposable
 		_lock.EnterReadLock();
 		try
 		{
-			foreach (var nextVersion in path)
+			for (var pathIndex = 0; pathIndex < path.Count; pathIndex++)
 			{
+				var nextVersion = path[pathIndex];
 				var key = (messageType, currentVer);
 				if (!_graph.TryGetValue(key, out var edges))
 				{
@@ -122,12 +124,25 @@ public sealed class UpcastingPipeline : IUpcastingPipeline, IDisposable
 						"BFS computed path but upcaster was removed.");
 				}
 
-				var edge = edges.Find(e => e.ToVersion == nextVersion)
-						   ?? throw new InvalidOperationException(
+				UpcasterEdge? edge = null;
+				for (var edgeIndex = 0; edgeIndex < edges.Count; edgeIndex++)
+				{
+					var candidate = edges[edgeIndex];
+					if (candidate.ToVersion == nextVersion)
+					{
+						edge = candidate;
+						break;
+					}
+				}
+
+				if (edge is null)
+				{
+					throw new InvalidOperationException(
 							   $"Upcaster edge not found for {messageType} v{currentVer} -> v{nextVersion}. " +
 							   "BFS computed path but upcaster was removed.");
+				}
 
-				// Direct invocation (~15ns) vs DynamicInvoke (~300ns)
+				// Invoke the registered typed delegate without DynamicInvoke.
 				current = (IDispatchMessage)edge.Upcast(current);
 				currentVer = nextVersion;
 			}

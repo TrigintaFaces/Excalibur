@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Saga;
+using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.DependencyInjection;
 using Excalibur.Saga.Orchestration;
 
@@ -258,7 +259,7 @@ public static class SagaServiceCollectionExtensions
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Registers the reflection-based dispatch pipeline, which requires types that trimming may remove. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Registers the reflection-based dispatch pipeline, which constructs typed invokers at runtime. Use the source-generated handler registration for an ahead-of-time compatible composition.")]
 	public static IServiceCollection AddSaga<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSaga,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.Interfaces)] TSaga,
 		TSagaState>(this IServiceCollection services)
 		where TSaga : SagaBase<TSagaState>
 		where TSagaState : Excalibur.Dispatch.Messaging.SagaState, new()
@@ -279,6 +280,22 @@ public static class SagaServiceCollectionExtensions
 		// (registered as IPostConfigureOptions) which runs on first options resolution.
 		pending.TypeRegistrations.Add(typeof(TSaga));
 		pending.TypeRegistrations.Add(typeof(TSagaState));
+
+		// Typed timeout handlers declare the payloads the delivery service may resolve. Include those
+		// closed contracts (also inherited ones) before the allowlist freezes; do not scan assemblies
+		// or admit arbitrary type names from persisted timeout rows at delivery time.
+		foreach (var contract in typeof(TSaga).GetInterfaces())
+		{
+			if (contract.IsGenericType && !contract.ContainsGenericParameters &&
+				contract.GetGenericTypeDefinition() == typeof(ISagaTimeout<>))
+			{
+				var timeoutType = contract.GetGenericArguments()[0];
+				if (!pending.TypeRegistrations.Contains(timeoutType))
+				{
+					pending.TypeRegistrations.Add(timeoutType);
+				}
+			}
+		}
 
 		// Accumulate typed dispatch delegate for AOT-safe dispatch.
 		// At DI composition time, TSaga and TSagaState are concrete types,

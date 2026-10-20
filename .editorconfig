@@ -4297,7 +4297,7 @@ dotnet_diagnostic.IDE0052.severity = warning
 
 # Sprint 585: PublicAPI Analyzer - Track public API changes
 # Root cause fix: Added PackageReference to src/Directory.Build.props (was missing, analyzer never ran)
-# RS0016: Undeclared public API, warning severity (suppressed via NoWarn during alpha, enable before v3.0.0 stable)
+# RS0016: Undeclared public API, warning severity
 # RS0017: Stale declared API, error to catch removed/renamed types immediately
 # RS0027: Optional parameters backcompat, warning severity (suppressed via NoWarn during alpha)
 dotnet_diagnostic.RS0016.severity = warning

@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.Dispatch.Caching;
@@ -21,26 +21,35 @@ namespace Excalibur.A3.Authorization;
 /// sharing one cache server address the same entry for the same user, and one serves the other's grants.
 /// </para>
 /// <para>
-/// The dependency is already structural — the components resolve the cache by service key, so an
-/// unscoped composition fails to resolve. This validator exists only to replace that failure's message
-/// with one naming the call to add, and to raise it at start-up rather than at first authorization.
+/// The dependency is <b>not</b> structural, and that is why this type exists. The components declare the
+/// cache as <c>IDistributedCache? cache = null</c>, so a container composed without the scoped cache
+/// builds and resolves them: nothing fails until <see cref="RequireCache"/> rejects the null while the
+/// component is being constructed. <c>ValidateOnBuild</c> does not catch it either, because the keyed
+/// descriptor is a factory it never constructs.
 /// </para>
 /// <para>
-/// It reads service descriptors and performs no resolution and no I/O, so it is safe to run twice and
+/// So the remedy message is only half of what this validator provides. The other half is <i>when</i> it
+/// is raised: without the hosted-service registration the first indication of a misconfigured host is a
+/// failed authorization on a live request, which for an authorization component is the worst place to
+/// discover it. Removing this type does not merely degrade an error message — it moves the failure from
+/// start-up to the first authorized request.
+/// </para>
+/// <para>
+/// It probes the built provider's registrations without constructing the cache or performing I/O, so it is safe to run twice and
 /// safe against a container that was built but never started.
 /// </para>
 /// </remarks>
 internal sealed class AuthorizationCachePrerequisiteValidator
 	: IHostedService, IStartupPrerequisiteValidator
 {
-	private readonly IServiceCollection _services;
+	private readonly IServiceProvider _provider;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AuthorizationCachePrerequisiteValidator"/> class.
 	/// </summary>
-	/// <param name="services">The service collection the application was composed from.</param>
-	public AuthorizationCachePrerequisiteValidator(IServiceCollection services) =>
-		_services = services ?? throw new ArgumentNullException(nameof(services));
+	/// <param name="provider">The built provider whose cache registrations are checked.</param>
+	public AuthorizationCachePrerequisiteValidator(IServiceProvider provider) =>
+		_provider = provider ?? throw new ArgumentNullException(nameof(provider));
 
 	/// <inheritdoc />
 	public Task StartAsync(CancellationToken cancellationToken)
@@ -55,16 +64,10 @@ internal sealed class AuthorizationCachePrerequisiteValidator
 	/// <inheritdoc />
 	public void Validate()
 	{
-		// Read descriptors rather than resolving. Resolving the keyed cache here would either succeed --
-		// constructing a second cache instance for a check -- or throw the very DI error this exists to
-		// replace with a better message.
-		var registered = _services.Any(descriptor =>
-			descriptor.ServiceType == typeof(IDistributedCache)
-			&& descriptor.IsKeyedService
-			&& string.Equals(
-				descriptor.ServiceKey as string,
-				DistributedCacheServiceKeys.ApplicationScoped,
-				StringComparison.Ordinal));
+		// Probe the provider snapshot without constructing the keyed cache. Mutating the source
+		// collection after build cannot satisfy a dependency absent from this provider.
+		var registered = _provider.GetRequiredService<IServiceProviderIsKeyedService>()
+			.IsKeyedService(typeof(IDistributedCache), DistributedCacheServiceKeys.ApplicationScoped);
 
 		if (registered)
 		{
@@ -81,7 +84,12 @@ internal sealed class AuthorizationCachePrerequisiteValidator
 		// BUILDS -- the keyed descriptor is a factory, which ValidateOnBuild does not construct -- and then
 		// failed on the first authorized request instead. Naming one of the two calls turned a
 		// composition-time failure into a request-time one, which is the opposite of this type's purpose.
-		throw new InvalidOperationException(
+		throw MissingCache();
+	}
+
+	internal static IDistributedCache RequireCache(IDistributedCache? cache) => cache ?? throw MissingCache();
+
+	private static InvalidOperationException MissingCache() => new(
 			"Authorization caching requires an application-scoped distributed cache, and none is "
 			+ "registered. Authorization cache keys identify a user but not an application, so an "
 			+ "unscoped cache shared by two applications would let one read the other's grants. Reference "
@@ -94,5 +102,4 @@ internal sealed class AuthorizationCachePrerequisiteValidator
 			+ "the container holds, so on its own it has nothing to wrap. Give a scope that is stable for "
 			+ "this application and distinct from any other sharing the cache server -- the configured "
 			+ "application name is the usual choice.");
-	}
 }

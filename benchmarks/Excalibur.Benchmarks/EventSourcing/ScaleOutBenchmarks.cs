@@ -14,7 +14,7 @@ namespace Excalibur.Benchmarks.EventSourcing;
 /// <summary>
 /// T.15 (1ngqu5): BenchmarkDotNet benchmarks for scale-out features --
 /// shard resolution and auto-snapshot policy evaluation.
-/// Internal types accessed via reflection for setup; hot paths measured directly.
+/// Internal types accessed via reflection for setup; snapshot evaluation retains reflected invocation.
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
@@ -39,7 +39,11 @@ public class ScaleOutBenchmarks
 		var esAssembly = typeof(Excalibur.EventSourcing.Projections.MultiStreamProjection<>).Assembly;
 		var shardMapType = esAssembly.GetType("Excalibur.EventSourcing.Sharding.InMemoryTenantShardMap")!;
 		_shardMap = (ITenantShardMap)Activator.CreateInstance(
-			shardMapType, shards, tenantMappings, new ShardMapOptions())!;
+			shardMapType,
+			BindingFlags.Instance | BindingFlags.NonPublic,
+			binder: null,
+			args: [shards, tenantMappings, new ShardMapOptions()],
+			culture: null)!;
 
 		// AutoSnapshotPolicy via reflection
 		_snapshotOptions = new AutoSnapshotOptions { EventCountThreshold = 100 };
@@ -60,11 +64,11 @@ public class ScaleOutBenchmarks
 	}
 
 	/// <summary>
-	/// Auto-snapshot policy evaluation -- pure arithmetic, zero allocation.
+	/// Auto-snapshot policy evaluation including reflected invocation and argument-array allocation.
 	/// </summary>
 	[Benchmark]
 	public object? SnapshotPolicyEval()
 	{
-		return _shouldSnapshotMethod.Invoke(null, [_snapshotOptions, _snapshotContext]);
+		return _shouldSnapshotMethod.Invoke(null, [_snapshotOptions, _snapshotContext, null]);
 	}
 }

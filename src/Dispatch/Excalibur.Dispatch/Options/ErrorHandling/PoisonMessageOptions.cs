@@ -100,10 +100,11 @@ public sealed class PoisonMessageCleanupOptions
 	public TimeSpan DeadLetterRetentionPeriod { get; set; } = TimeSpan.FromDays(30);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to automatically clean up old dead letter messages.
+	/// Gets or sets a value indicating whether to automatically delete old dead letter messages.
+	/// Disabled by default to preserve unreplayed quarantine; enable explicitly to select age-based deletion.
 	/// </summary>
 	/// <value>The current <see cref="EnableAutoCleanup"/> value.</value>
-	public bool EnableAutoCleanup { get; set; } = true;
+	public bool EnableAutoCleanup { get; set; }
 
 	/// <summary>
 	/// Gets or sets the interval for automatic cleanup of old dead letter messages.

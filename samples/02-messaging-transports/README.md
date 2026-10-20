@@ -167,7 +167,7 @@ builder.Services.AddDispatch(dispatch =>
 ## What's Next?
 
 - [04-reliability/](../04-reliability/) - Sagas and distributed transactions
-- [09-advanced/CdcAntiCorruption/](../09-advanced/CdcAntiCorruption/) - CDC anti-corruption integration
+- [09-advanced/CdcAntiCorruption/](../09-advanced/cdc/CdcAntiCorruption/) - CDC anti-corruption integration
 
 ---
 

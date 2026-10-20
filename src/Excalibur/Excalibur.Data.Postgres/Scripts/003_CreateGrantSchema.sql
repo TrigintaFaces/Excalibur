@@ -1,8 +1,8 @@
 -- PostgreSQL Schema for Excalibur.Data.Postgres — AUTHORIZATION GRANTS
 -- Version: 1.0
 --
--- Creates the two tables PostgresGrantStore reads and writes: authz."grant", the grants in force, and
--- authz.grant_history, the record of every grant that was revoked. This provider never creates them at
+-- Creates the grant and history tables plus the durable revision authority and revocation retry ledger.
+-- This provider never creates them at
 -- runtime: run this script against the target database before registering the store. Without it, every
 -- grant operation fails with 'relation "authz.grant" does not exist'.
 --
@@ -52,3 +52,22 @@ CREATE TABLE IF NOT EXISTS "authz"."grant_history" (
 
 CREATE INDEX IF NOT EXISTS ix_grant_history_grant
     ON "authz"."grant_history" (user_id, tenant_id, grant_type, qualifier);
+
+-- Durable authority: never truncate/reset these rows while an authorization cache can survive.
+-- Every provider writer advances its subject's revision in the grant transaction.
+CREATE TABLE IF NOT EXISTS "authz"."grant_revision" (
+    user_id VARCHAR(128) COLLATE "C" PRIMARY KEY,
+    revision BIGINT NOT NULL CHECK (revision >= 0)
+);
+
+-- Retry ledger preserves the first committed result, including an empty revocation. Null tenant is
+-- an explicitly requested all-tenant operation. Retain entries for the supported retry lifetime.
+CREATE TABLE IF NOT EXISTS "authz"."grant_revocation" (
+    user_id VARCHAR(128) COLLATE "C" NOT NULL,
+    operation_id UUID NOT NULL,
+    scope_tenant_id VARCHAR(64) COLLATE "C" NULL,
+    revoked_by TEXT NOT NULL,
+    revision BIGINT NOT NULL CHECK (revision >= 0),
+    revoked_count INTEGER NOT NULL CHECK (revoked_count >= 0),
+    PRIMARY KEY (user_id, operation_id)
+);

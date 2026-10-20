@@ -496,15 +496,15 @@ internal sealed class AwsSqsTransportAdapterOptions
 	public bool HasCloudEventOptions => CloudEventOptions is not null;
 
 	/// <summary>
-	/// Gets or sets the maximum number of SDK-level retries the SQS client performs per request.
+	/// Gets or sets the foreground message bus send retry count and receive client SDK retry count.
 	/// </summary>
 	/// <value>The maximum retry count. Default is 3.</value>
 	public int MaxRetryAttempts { get; set; } = 3;
 
 	/// <summary>
-	/// Gets or sets the per-request timeout applied to the SQS client.
+	/// Gets or sets the total message bus send deadline and receive client SDK request timeout.
 	/// </summary>
-	/// <value>The request timeout, or <see langword="null"/> to use the AWS SDK default.</value>
+	/// <value>The timeout, or <see langword="null"/> to retain the receive SDK default and the 30-second send deadline.</value>
 	public TimeSpan? RequestTimeout { get; set; }
 
 	/// <summary>

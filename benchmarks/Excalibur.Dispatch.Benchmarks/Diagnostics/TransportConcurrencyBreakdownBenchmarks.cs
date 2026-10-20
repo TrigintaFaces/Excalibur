@@ -59,6 +59,10 @@ public class TransportConcurrencyBreakdownBenchmarks
 		_adapter?.ClearSentMessages();
 	}
 
+	// Awaited write batches finish before this untimed cleanup can release their retained messages.
+	[IterationCleanup(Targets = new[] { nameof(PublishPathConcurrent), nameof(PublishReceiveCombinedConcurrent) })]
+	public void CleanupPublishIteration() => _adapter!.ClearSentMessages();
+
 	[GlobalCleanup]
 	public void GlobalCleanup()
 	{
@@ -71,6 +75,7 @@ public class TransportConcurrencyBreakdownBenchmarks
 		_provider?.Dispose();
 	}
 
+	[InvocationCount(1, 1)]
 	[Benchmark(Baseline = true, Description = "Transport publish path concurrent")]
 	public async Task<int> PublishPathConcurrent()
 	{
@@ -97,6 +102,7 @@ public class TransportConcurrencyBreakdownBenchmarks
 		return results.Count(static result => result.Succeeded);
 	}
 
+	[InvocationCount(1, 1)]
 	[Benchmark(Description = "Transport publish+receive combined concurrent")]
 	public async Task<int> PublishReceiveCombinedConcurrent()
 	{

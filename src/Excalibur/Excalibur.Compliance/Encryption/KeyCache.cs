@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
-using System.Collections.Concurrent;
-
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
@@ -28,7 +26,6 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 	private readonly MemoryCache _cache;
 	private readonly KeyCacheOptions _options;
 	private readonly IEncryptionTelemetryDetails? _telemetryDetails;
-	private readonly ConcurrentDictionary<string, byte> _trackedKeys = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, KeyLock> _keyLocks = new(StringComparer.Ordinal);
 	private readonly Lock _keyLocksGate = new();
 	private volatile bool _disposed;
@@ -66,15 +63,19 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 	}
 
 	/// <inheritdoc />
-	public int Count => _trackedKeys.Count;
+	/// <remarks>
+	/// This diagnostic count reflects the backing cache. Expired entries may remain counted until
+	/// they are accessed or expiration scanning removes them. Returns zero after disposal.
+	/// </remarks>
+	public int Count => _disposed ? 0 : _cache.Count;
 
 	/// <inheritdoc />
-	public async Task<KeyMetadata?> GetOrAddAsync(
+	public Task<KeyMetadata?> GetOrAddAsync(
 		string keyId,
 		Func<string, CancellationToken, Task<KeyMetadata?>> factory,
 		CancellationToken cancellationToken)
 	{
-		return await GetOrAddAsync(keyId, _options.DefaultTtl, factory, cancellationToken).ConfigureAwait(false);
+		return GetOrAddAsync(keyId, _options.DefaultTtl, factory, cancellationToken);
 	}
 
 	/// <inheritdoc />
@@ -88,7 +89,7 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 		ArgumentNullException.ThrowIfNull(factory);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var cacheKey = CreateCacheKey(keyId);
+		var cacheKey = keyId;
 
 		if (_cache.TryGetValue(cacheKey, out KeyMetadata? cached))
 		{
@@ -132,7 +133,7 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 		ArgumentNullException.ThrowIfNull(keyId);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var cacheKey = CreateCacheKey(keyId);
+		var cacheKey = keyId;
 
 		if (_cache.TryGetValue(cacheKey, out KeyMetadata? cached))
 		{
@@ -155,8 +156,9 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(keyMetadata);
 		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentNullException.ThrowIfNull(keyMetadata.KeyId);
 
-		var cacheKey = CreateCacheKey(keyMetadata.KeyId);
+		var cacheKey = keyMetadata.KeyId;
 		SetInternal(cacheKey, keyMetadata, ttl);
 	}
 
@@ -166,12 +168,15 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 		ArgumentNullException.ThrowIfNull(keyId);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var cacheKey = CreateCacheKey(keyId);
+		var cacheKey = keyId;
 		_cache.Remove(cacheKey);
-		_ = _trackedKeys.TryRemove(cacheKey, out _);
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Removes the base key and entries whose identifiers start with the ordinal prefix
+	/// <c>keyId + ":v"</c>. Concurrent writes and factories can publish entries after invalidation.
+	/// </remarks>
 	public void Invalidate(string keyId)
 	{
 		ArgumentNullException.ThrowIfNull(keyId);
@@ -181,29 +186,26 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 		Remove(keyId);
 
 		// Also remove any version-specific entries
-		var prefix = $"key:{keyId}:v";
-		var keysToRemove = _trackedKeys.Keys
-			.Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
-			.ToList();
-
-		foreach (var key in keysToRemove)
+		var prefix = $"{keyId}:v";
+		foreach (var key in _cache.Keys)
 		{
-			_cache.Remove(key);
-			_ = _trackedKeys.TryRemove(key, out _);
+			if (key is string text && text.StartsWith(prefix, StringComparison.Ordinal))
+			{
+				_cache.Remove(key);
+			}
 		}
 	}
 
 	/// <inheritdoc />
+	/// <remarks>
+	/// Clears the current backing cache state. A factory already in flight can publish into the
+	/// cache afterward; this operation does not fence factories or revoke key access.
+	/// </remarks>
 	public void Clear()
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		foreach (var key in _trackedKeys.Keys.ToList())
-		{
-			_cache.Remove(key);
-		}
-
-		_trackedKeys.Clear();
+		_cache.Clear();
 	}
 
 	/// <inheritdoc />
@@ -211,8 +213,9 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 	{
 		if (!_disposed)
 		{
+			// Dispose does not clear MemoryCache's backing state. Release owned metadata first.
+			_cache.Clear();
 			_cache.Dispose();
-			_trackedKeys.Clear();
 
 			// Any key lock still present has a factory call in flight; the caller that rented it
 			// disposes it on return, so only the table is cleared here.
@@ -224,8 +227,6 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 			_disposed = true;
 		}
 	}
-
-	private static string CreateCacheKey(string keyId) => $"key:{keyId}";
 
 	/// <summary>
 	/// Takes a reference on the lock for <paramref name="keyId"/>, creating it if no caller currently
@@ -306,16 +307,7 @@ public sealed class KeyCache : IKeyCache, IKeyCacheAdmin, IDisposable
 			options.AbsoluteExpirationRelativeToNow = ttl;
 		}
 
-		_ = options.RegisterPostEvictionCallback((key, value, reason, state) =>
-		{
-			if (key is string keyStr)
-			{
-				_ = _trackedKeys.TryRemove(keyStr, out _);
-			}
-		});
-
 		_ = _cache.Set(cacheKey, metadata, options);
-		_trackedKeys[cacheKey] = 0;
 	}
 
 	/// <summary>

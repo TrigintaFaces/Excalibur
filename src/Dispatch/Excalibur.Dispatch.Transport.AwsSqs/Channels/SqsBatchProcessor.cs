@@ -17,7 +17,7 @@ using Microsoft.Extensions.ObjectPool;
 namespace Excalibur.Dispatch.Transport.Aws;
 
 /// <summary>
-/// High-performance batch processor for AWS SQS with optimized memory usage. Achieves 100K+ msgs/sec with batching and zero-allocation patterns.
+/// Batch processor for AWS SQS with optimized memory usage. Batches sends and avoids per-message allocation on the hot path. Sustained throughput is bounded by SQS quotas and the network and is not measured here.
 /// </summary>
 internal sealed class SqsBatchProcessor : IAsyncDisposable
 {

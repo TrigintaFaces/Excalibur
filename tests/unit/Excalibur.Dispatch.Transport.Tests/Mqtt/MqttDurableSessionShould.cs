@@ -3,6 +3,9 @@
 
 using Excalibur.Dispatch.Transport.Mqtt;
 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
 using Shouldly;
 
 using Xunit;
@@ -31,6 +34,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Mqtt;
 [Trait("Category", "Unit")]
 [Trait("Component", "Transport")]
 [Trait("Transport", "Mqtt")]
+[Trait("Pattern", "Regression")]
 public sealed class MqttDurableSessionShould
 {
 	private static MqttOptions Options() => new()
@@ -162,6 +166,39 @@ public sealed class MqttDurableSessionShould
 	/// The refusal arms above are all satisfied by a validator that rejects every configuration, which would
 	/// take the transport out of service entirely.
 	/// </remarks>
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-1)]
+	[InlineData(90_500)]
+	public void AcceptCleanSessionConfigurationWithIgnoredRecoveryWindow(int ignoredMilliseconds)
+	{
+		var options = Options();
+		options.PersistentSession = false;
+		options.SessionExpiryInterval = TimeSpan.FromMilliseconds(ignoredMilliseconds);
+		new MqttOptionsValidator().Validate(null, options).Succeeded.ShouldBeTrue();
+		var wire = new MqttConnectionProvider(options).BuildClientOptions("sub");
+		wire.CleanSession.ShouldBeTrue();
+		wire.SessionExpiryInterval.ShouldBe(0u);
+	}
+
+	[Fact]
+	public void PermitRegisteredCleanSessionConfigurationDuringStartupValidation()
+	{
+		var services = new ServiceCollection();
+		services.AddMqttTransport("clean", options =>
+		{
+			options.Host = "localhost";
+			options.ClientId = "clean-client";
+			options.Topic = "orders/topic";
+			options.RequireTls = false;
+			options.PersistentSession = false;
+			options.SessionExpiryInterval = TimeSpan.Zero;
+		});
+		using var provider = services.BuildServiceProvider();
+		provider.GetRequiredService<IStartupValidator>().Validate();
+		provider.GetRequiredService<IOptionsMonitor<MqttOptions>>().Get("clean").PersistentSession.ShouldBeFalse();
+	}
+
 	[Fact]
 	public void AcceptAWholeSecondRecoveryWindow()
 	{

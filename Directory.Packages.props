@@ -29,7 +29,7 @@
 		<PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
 		<PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
 		<!-- Serialization / Messaging -->
-		<PackageVersion Include="MessagePack" Version="3.1.7" />
+		<PackageVersion Include="MessagePack" Version="3.1.9" />
 		<PackageVersion Include="CloudNative.CloudEvents" Version="2.8.0" />
 		<PackageVersion Include="CloudNative.CloudEvents.SystemTextJson" Version="2.8.0" />
 		<PackageVersion Include="Google.Protobuf" Version="3.34.1" />
@@ -204,8 +204,19 @@
 		     Bumped to 10.0.10: 10.0.7 carries four high-severity advisories, three DoS
 		     (GHSA-23rf-6693-g89p, GHSA-8q5v-6pqq-x66h, GHSA-cvvh-rhrc-wg4q) and one
 		     EncryptedXml security-feature bypass (GHSA-g8r8-53c2-pm3f, CVSS 8.1) that lets
-		     an attacker read encrypted XML. All four are fixed in 10.0.10. -->
-		<PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
+		     an attacker read encrypted XML. All four are fixed in 10.0.10.
+		     Bumped to 10.0.13: 10.0.10 carries three further high-severity advisories
+		     (GHSA-r955-8q5j-3h83, GHSA-7hqp-7c5m-4vq6, GHSA-c399-9853-6jmj), all first
+		     patched in 10.0.13 per the advisories' own affected ranges (10.0.0-10.0.12). -->
+		<PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
+
+		<!-- Pinned centrally although nothing references it directly: it arrives transitively at
+		     8.0.1, 9.0.13 and 10.0.10 through several chains, and every one of those is inside the
+		     affected range of GHSA-846f-f764-76mx (high) and GHSA-2fmv-rv2c-59x7 (moderate). With
+		     NuGetAuditMode=all those transitive versions are audited, so the nightly audit pipeline
+		     fails the build on them; central transitive pinning is what lifts all three at once.
+		     First patched in the 10.x line is 10.0.13 (affected 10.0.0-10.0.12). -->
+		<PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
 	</ItemGroup>
 	<ItemGroup>
 		<!-- Add missing central versions for packages flagged by NU1008 -->

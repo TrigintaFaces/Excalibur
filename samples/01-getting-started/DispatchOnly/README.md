@@ -30,7 +30,7 @@ pwsh eng/validate-package-composition.ps1 -Version 0.0.0-local
 
 Evidence remains under `artifacts/package-composition/`. A successful build alone does not certify the scenario. See [the contributor gate documentation](../../../docs/ci-gates.md#17-package-composition) for the complete contract.
 
-Use the [ExcaliburCqrs sample](../ExcaliburCqrs) when you need aggregate roots, event sourcing or domain invariants.
+Use the [ExcaliburCqrs template](../../../templates/excalibur-cqrs) when you need aggregate roots, event sourcing or domain invariants.
 
 ## License
 

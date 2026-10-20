@@ -1,0 +1,5 @@
+<Project>
+ <Import Project="../../Directory.Build.props" />
+ <PropertyGroup><IsTestProject>false</IsTestProject></PropertyGroup>
+ <ItemGroup><PackageReference Remove="Microsoft.NET.Test.Sdk;xunit.v3;xunit.runner.visualstudio" /></ItemGroup>
+</Project>

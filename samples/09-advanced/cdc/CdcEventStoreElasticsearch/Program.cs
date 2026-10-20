@@ -90,6 +90,7 @@ using Elastic.Transport;
 
 using Excalibur.Cdc.SqlServer;
 using Excalibur.Data.ElasticSearch.MaterializedViews;
+using Excalibur.Data.ElasticSearch.Projections;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.SqlServer;
 
@@ -428,6 +429,17 @@ startupLogger.LogInformation("Building application...");
 builder.Services.AddGlobalExceptionHandler();
 
 var app = builder.Build();
+
+// Ask the cluster once, before serving anything.
+//
+// Every read endpoint below answers out of Elasticsearch, and the projection stores build their
+// clients lazily -- so without this the API starts, reports healthy, and returns empty results while
+// the writer fails one document at a time. One request here turns that into one answer at start-up.
+//
+// It throws. In production that is a decision you own: under an orchestrator, refusing to start turns
+// a transient blip into a crash-loop, so catching and logging it (leaving the host up and degraded)
+// is an equally defensible choice.
+await app.VerifyElasticSearchProjectionConnectivityAsync().ConfigureAwait(false);
 
 app.UseExceptionHandler();
 

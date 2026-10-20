@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// to measure true framework performance, not isolated component speeds.
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class DispatcherThroughputBenchmarks
 {
 	private IServiceProvider _serviceProvider = null!;

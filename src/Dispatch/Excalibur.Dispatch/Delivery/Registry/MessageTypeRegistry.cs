@@ -80,6 +80,10 @@ public static class MessageTypeRegistry
 		// claimed under it cannot be read back at all. The CLR-derived forms stay claimed so data
 		// written before a type declared a name is still resolvable.
 		Claim(MessageNameHelper.GetDeclaredName(type), type);
+		foreach (var alias in MessageNameHelper.GetDeclaredAliases(type))
+		{
+			Claim(alias, type);
+		}
 		Claim(type.AssemblyQualifiedName, type);
 		Claim(type.FullName, type);
 		Claim(type.Name, type);

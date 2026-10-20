@@ -10,6 +10,7 @@ using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Features;
 using Excalibur.Dispatch.Messaging;
+using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.AwsSqs;
 using Excalibur.Dispatch.Transport.Diagnostics;
@@ -31,6 +32,8 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="logger"> The logger instance for diagnostic information. </param>
 /// <param name="cloudEventBridge"> Optional envelope-to-CloudEvent bridge; when supplied with <paramref name="cloudEventEncoder"/>, every publish is emitted as a CloudEvent instead of the native envelope format. </param>
 /// <param name="cloudEventEncoder"> Optional CloudEvents encoder for SQS <see cref="SendMessageRequest"/> messages. </param>
+/// <param name="ownsClient">Whether this bus owns and disposes its client.</param>
+/// <param name="failureClassifier">Optional consumer classifier that can veto foreground transient retries.</param>
 /// <remarks>
 /// <para>
 /// This message bus uses <see cref="IPayloadSerializer"/> for message body serialization,
@@ -52,9 +55,14 @@ internal sealed partial class AwsSqsMessageBus(
 	IOptions<AwsSqsFifoOptions> fifoOptions,
 	ILogger<AwsSqsMessageBus> logger,
 	IEnvelopeCloudEventBridge? cloudEventBridge = null,
-	ICloudEventEncoder<SendMessageRequest>? cloudEventEncoder = null) : IMessageBus, IAsyncDisposable
+	ICloudEventEncoder<SendMessageRequest>? cloudEventEncoder = null,
+	bool ownsClient = true,
+	IMessageFailureClassifier? failureClassifier = null) : IMessageBus, IAsyncDisposable
 {
 	private const string QueueUrlNotConfiguredMessage = "QueueUrl is not configured";
+	private int _disposed;
+	private readonly AwsSqsSendClient _sendClient = new(client,
+		(options ?? throw new ArgumentNullException(nameof(options))).Value, logger, failureClassifier);
 
 	// SQS configuration, captured once from the options monitor.
 	private readonly AwsSqsOptions _options =
@@ -119,7 +127,7 @@ internal sealed partial class AwsSqsMessageBus(
 		// Apply FIFO ordering/deduplication identifiers when a FIFO queue is configured.
 		ApplyFifo(request, action);
 
-		_ = await client.SendMessageAsync(request, cancellationToken).ConfigureAwait(false);
+		await _sendClient.SendAsync(request, action, context, cancellationToken).ConfigureAwait(false);
 
 		LogSentAction(action.GetType().Name);
 	}
@@ -153,7 +161,7 @@ internal sealed partial class AwsSqsMessageBus(
 		// Apply FIFO ordering/deduplication identifiers when a FIFO queue is configured.
 		ApplyFifo(requestEvt, evt);
 
-		_ = await client.SendMessageAsync(requestEvt, cancellationToken).ConfigureAwait(false);
+		await _sendClient.SendAsync(requestEvt, evt, context, cancellationToken).ConfigureAwait(false);
 
 		LogPublishedEvent(evt.GetType().Name);
 	}
@@ -187,7 +195,7 @@ internal sealed partial class AwsSqsMessageBus(
 		// Apply FIFO ordering/deduplication identifiers when a FIFO queue is configured.
 		ApplyFifo(requestDoc, doc);
 
-		_ = await client.SendMessageAsync(requestDoc, cancellationToken).ConfigureAwait(false);
+		await _sendClient.SendAsync(requestDoc, doc, context, cancellationToken).ConfigureAwait(false);
 
 		LogSentDocument(doc.GetType().Name);
 	}
@@ -245,7 +253,7 @@ internal sealed partial class AwsSqsMessageBus(
 			// change which queue semantics govern delivery.
 			ApplyFifo(request, message);
 
-			_ = await client.SendMessageAsync(request, cancellationToken).ConfigureAwait(false);
+			await _sendClient.SendAsync(request, message, context, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -293,7 +301,10 @@ internal sealed partial class AwsSqsMessageBus(
 	/// <inheritdoc/>
 	public ValueTask DisposeAsync()
 	{
-		client.Dispose();
+		if (Interlocked.Exchange(ref _disposed, 1) == 0 && ownsClient)
+		{
+			client.Dispose();
+		}
 		return ValueTask.CompletedTask;
 	}
 

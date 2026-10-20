@@ -23,9 +23,16 @@ namespace Excalibur.Data.Tests.ElasticSearch.MaterializedViews;
 [Trait(TraitNames.Component, TestComponents.Platform)]
 public sealed class MaterializedViewStoreRefreshPolicyShould
 {
+	/// <summary>
+	/// Stated rather than defaulted. The store validates its options on construction and there is no
+	/// node default, so a node is part of this fixture's precondition -- these arms are about the
+	/// refresh policy, not about configuring a cluster.
+	/// </summary>
+	private const string Node = "http://localhost:9200";
+
 	private static Refresh InvokeElasticGetRefresh(string refreshPolicy)
 	{
-		var options = Options.Create(new ElasticSearchMaterializedViewStoreOptions { RefreshPolicy = refreshPolicy });
+		var options = Options.Create(new ElasticSearchMaterializedViewStoreOptions { NodeUri = Node, RefreshPolicy = refreshPolicy });
 		var store = new ElasticSearchMaterializedViewStore(options, NullLogger<ElasticSearchMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
 		var method = typeof(ElasticSearchMaterializedViewStore)
 			.GetMethod("GetRefresh", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -35,7 +42,7 @@ public sealed class MaterializedViewStoreRefreshPolicyShould
 
 	private static global::OpenSearch.Net.Refresh InvokeOpenSearchGetRefresh(string refreshPolicy)
 	{
-		var options = Options.Create(new OpenSearchMaterializedViewStoreOptions { RefreshPolicy = refreshPolicy });
+		var options = Options.Create(new OpenSearchMaterializedViewStoreOptions { NodeUri = Node, RefreshPolicy = refreshPolicy });
 		var store = new OpenSearchMaterializedViewStore(options, NullLogger<OpenSearchMaterializedViewStore>.Instance, TenantViewFixture.SingleTenant);
 		var method = typeof(OpenSearchMaterializedViewStore)
 			.GetMethod("GetRefresh", BindingFlags.Instance | BindingFlags.NonPublic)

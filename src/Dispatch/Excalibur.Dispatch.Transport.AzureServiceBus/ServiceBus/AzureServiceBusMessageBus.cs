@@ -50,6 +50,7 @@ internal sealed partial class AzureServiceBusMessageBus(
 	private readonly ServiceBusSender _sender = client.CreateSender(serviceBusOptions.Sender.DefaultEntityName ?? string.Empty);
 
 	private readonly string _entityName = serviceBusOptions.Sender.DefaultEntityName ?? string.Empty;
+	private int _disposed;
 
 	/// <summary>
 	/// Publishes a dispatch action to the Service Bus queue.
@@ -227,7 +228,9 @@ internal sealed partial class AzureServiceBusMessageBus(
 	/// Asynchronously disposes the message bus resources.
 	/// </summary>
 	/// <returns> A task representing the asynchronous disposal operation. </returns>
-	public ValueTask DisposeAsync() => _sender.DisposeAsync();
+	public ValueTask DisposeAsync() => Interlocked.Exchange(ref _disposed, 1) == 0
+		? _sender.DisposeAsync()
+		: ValueTask.CompletedTask;
 
 	// Source-generated logging methods
 	[LoggerMessage(AzureServiceBusEventId.ActionSent, LogLevel.Information,

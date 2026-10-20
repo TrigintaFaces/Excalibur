@@ -13,6 +13,9 @@ namespace Excalibur.Outbox.Postgres;
 internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 {
 	private readonly PostgresOutboxStoreOptions _options;
+	private readonly List<Action<PostgresOutboxStoreOptions>> _configurationOverrides = [];
+
+	internal Action<PostgresOutboxStoreOptions>[] ConfigurationOverrides => [.. _configurationOverrides];
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresOutboxBuilder"/> class.
@@ -69,6 +72,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(schema);
 		_options.SchemaName = schema;
+		RecordOverride(options => options.SchemaName = schema);
 		return this;
 	}
 
@@ -77,6 +81,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		_options.OutboxTableName = tableName;
+		RecordOverride(options => options.OutboxTableName = tableName);
 		return this;
 	}
 
@@ -85,6 +90,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		_options.DeadLetterTableName = tableName;
+		RecordOverride(options => options.DeadLetterTableName = tableName);
 		return this;
 	}
 
@@ -98,6 +104,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 
 		// PostgresOutboxStoreOptions inherits from OutboxOptions which has BatchProcessing sub-options
 		_options.BatchProcessing.BatchProcessingTimeout = timeout;
+		RecordOverride(options => options.BatchProcessing.BatchProcessingTimeout = timeout);
 		return this;
 	}
 
@@ -110,6 +117,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 		}
 
 		_options.ReservationTimeout = (int)timeout.TotalSeconds;
+		RecordOverride(options => options.ReservationTimeout = (int)timeout.TotalSeconds);
 		return this;
 	}
 
@@ -118,6 +126,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxAttempts, 0);
 		_options.MaxAttempts = maxAttempts;
+		RecordOverride(options => options.MaxAttempts = maxAttempts);
 		return this;
 	}
 
@@ -139,6 +148,7 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
 		BindConfigurationPath = sectionPath;
+		_configurationOverrides.Clear();
 		ConfiguredConnectionString = null;
 		ConfiguredDbFactory = null;
 		DataSourceInstance = null;
@@ -171,5 +181,13 @@ internal sealed class PostgresOutboxBuilder : IPostgresOutboxBuilder
 		ConnectionStringNameValue = null;
 		BindConfigurationPath = null;
 		return this;
+	}
+
+	private void RecordOverride(Action<PostgresOutboxStoreOptions> configure)
+	{
+		if (BindConfigurationPath is not null)
+		{
+			_configurationOverrides.Add(configure);
+		}
 	}
 }

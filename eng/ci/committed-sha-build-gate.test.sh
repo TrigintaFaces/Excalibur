@@ -10,7 +10,8 @@
 #
 set -uo pipefail
 
-GATE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/committed-sha-build-gate.sh"
+unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
+GATE="${COMMITTED_SHA_GUARD:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/committed-sha-build-gate.sh}"
 [ -x "$GATE" ] || chmod +x "$GATE" 2>/dev/null
 
 pass=0
@@ -19,6 +20,16 @@ fail=0
 report() { # name expected actual
     if [ "$3" -eq "$2" ]; then echo "  ok   $1 (exit $3)"; pass=$((pass + 1))
     else echo "  FAIL $1 — expected exit $2, got $3"; fail=$((fail + 1)); fi
+}
+
+remove_fixture() {
+    local resolved temporary_root
+    temporary_root="$(realpath -e -- "${TMPDIR:-/tmp}")" || exit 99
+    resolved="$(realpath -e -- "${1:?fixture path required}")" || exit 99
+    case "$resolved" in
+        "$temporary_root"/tmp.*) rm -rf -- "$resolved" ;;
+        *) echo "FATAL: refusing fixture cleanup outside the temporary root: $resolved" >&2; exit 99 ;;
+    esac
 }
 
 new_repo() {
@@ -54,7 +65,7 @@ if grep -q "PublicAPI.Unshipped.txt" "$R/out.txt" 2>/dev/null; then
 else
     echo "  FAIL SAFETY: failure output does NOT name the missing file (diagnosis speed is the point)"; fail=$((fail + 1))
 fi
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── SAFETY: an UNTRACKED new file in a touched project is equally invisible to the commit ────────────
 R="$(new_repo)"
@@ -63,7 +74,7 @@ echo "public class B { }" > "$R/src/Widget/B.cs"     # never `git add`ed at all
 git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add src/Widget/A.cs >/dev/null 2>&1
 ( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "SAFETY: untracked sibling in a touched project is REJECTED" 1 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── LIVENESS: the correctly-staged complete commit MUST pass (the arm that gets skipped) ─────────────
 R="$(new_repo)"
@@ -72,7 +83,7 @@ echo "Widget.New() -> void" >> "$R/src/Widget/PublicAPI.Unshipped.txt"
 git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add src/Widget/Widget.cs src/Widget/PublicAPI.Unshipped.txt >/dev/null 2>&1
 ( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "LIVENESS: complete, correctly-staged commit is ACCEPTED" 0 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── LIVENESS: dirt in an UNRELATED project must not block an unrelated commit ────────────────────────
 # Without this the gate becomes "you may never commit with a dirty tree", which is unusable in a
@@ -89,19 +100,19 @@ git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add sr
 echo "// unrelated dirt" >> "$R/src/Other/O.cs"          # dirty, but a DIFFERENT project
 ( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "LIVENESS: dirt in an UNRELATED project does not block the commit" 0 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── LIVENESS: an empty index is not a failure ───────────────────────────────────────────────────────
 R="$(new_repo)"
 ( cd "$R" && bash "$GATE" --staged ) >/dev/null 2>&1; rc=$?
 report "LIVENESS: nothing staged is ACCEPTED" 0 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── ENV: an unresolvable ref must REFUSE, never pass ────────────────────────────────────────────────
 R="$(new_repo)"
 ( cd "$R" && "$GATE" --sha deadbeefdeadbeef ) >/dev/null 2>&1; rc=$?
 report "SAFETY: unresolvable ref REFUSES (exit 2, not a free pass)" 2 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── SAFETY: a coupled set with NO project in common — the shape that put a gate into HEAD ───────────
 # The gate landed and its only caller, a .github composite action, stayed dirty. Neither file has a
@@ -122,7 +133,7 @@ if grep -q "action.yml" "$R/out2.txt" 2>/dev/null; then
 else
     echo "  FAIL SAFETY: failure output does not name the referencing file"; fail=$((fail + 1))
 fi
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── LIVENESS: tracker DATA that merely mentions a filename must NOT block a commit ──────────────────
 # Issue records quote filenames constantly. Measured on the real tree, staging one gate produced five
@@ -137,7 +148,7 @@ echo '{"id":"x","description":"see eng/ci/some-verifier-gate.sh for details"}' >
 git -C "${R:?path is empty -- an empty -C runs in the CURRENT directory}" add eng/ci/some-verifier-gate.sh >/dev/null 2>&1
 ( cd "$R" && bash "$GATE" --staged ) >"$R/out3.txt" 2>&1; rc=$?
 report "LIVENESS: tracker data mentioning a staged file does NOT block" 0 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── PROVIDER SIBLINGS: advisory arm ─────────────────────────────────────────────────────────────────
 # Provider twins never reference each other, so the reference arm cannot see a set split across them.
@@ -167,7 +178,7 @@ fi
 # The ruling is explicit that this must NOT block: a binary collation is REQUIRED on SQL Server and
 # WRONG on PostgreSQL, so a blocking parity arm would reject a correct provider-specific commit.
 report "ADVISORY: naming a sibling does NOT block the commit" 0 "$rc"
-rm -rf "$R"
+remove_fixture "$R"
 
 R="$(sib_repo)"
 echo "b" > "$R/src/Excalibur.Fam.SqlServer/Requests/Save.cs"
@@ -179,7 +190,7 @@ if grep -q "PROVIDER SIBLINGS" "$R/sib2.txt" 2>/dev/null; then
 else
     echo "  ok   LIVENESS: all siblings staged -> arm is silent"; pass=$((pass + 1))
 fi
-rm -rf "$R"
+remove_fixture "$R"
 
 R="$(sib_repo)"
 mkdir -p "$R/src/Excalibur.Solo.OnlyOne/Requests"
@@ -193,7 +204,7 @@ if grep -q "PROVIDER SIBLINGS" "$R/sib3.txt" 2>/dev/null; then
 else
     echo "  ok   LIVENESS: single-provider family -> arm is silent"; pass=$((pass + 1))
 fi
-rm -rf "$R"
+remove_fixture "$R"
 
 # ── SHARED BUILD INPUT: a root props change maps to the SOLUTION, not to nothing ─────────────────────
 #
@@ -228,7 +239,7 @@ if grep -q "touches no project the solution builds" "$R/si.txt" 2>/dev/null; the
 else
     echo "  ok   SAFETY: props-only commit does NOT take the nothing-to-build exit"; pass=$((pass + 1))
 fi
-rm -rf "$R"
+remove_fixture "$R"
 
 # LIVENESS: the mapping must not fire for everything, or it is just "always build the solution".
 R="$(new_repo)"
@@ -240,7 +251,43 @@ if grep -q "shared build input owned by no project" "$R/si2.txt" 2>/dev/null; th
 else
     echo "  ok   LIVENESS: an ordinary source change does NOT map to the solution"; pass=$((pass + 1))
 fi
-rm -rf "$R"
+remove_fixture "$R"
+
+# Resolve a reference rather than infer ownership from a unique basename.
+reference_case() {
+    local label="$1" expected="$2" staged="$3" caller="$4" reference="$5" shadow="${6:-}" fixture rc
+    fixture="$(new_repo)"
+    mkdir -p "$fixture/$(dirname "$staged")" "$fixture/$(dirname "$caller")"
+    printf 'original\n' > "$fixture/$staged"
+    printf 'original\n' > "$fixture/$caller"
+    if [ -n "$shadow" ]; then
+        mkdir -p "$fixture/$(dirname "$shadow")"
+        printf 'different target\n' > "$fixture/$shadow"
+    fi
+    git -C "${fixture:?}" add -A >/dev/null 2>&1
+    git -C "${fixture:?}" commit -qm references >/dev/null 2>&1
+    printf 'changed\n' >> "$fixture/$staged"
+    printf '%s\n' "$reference" >> "$fixture/$caller"
+    git -C "${fixture:?}" add "$staged" >/dev/null 2>&1
+    (cd "$fixture" && bash "$GATE" --staged) >"$fixture/output.txt" 2>&1; rc=$?
+    report "$label" "$expected" "$rc"
+    if [ "$expected" -eq 1 ] && ! grep -q 'COUPLED SET SPLIT' "$fixture/output.txt"; then
+        echo "  FAIL $label: refusal did not identify reference coupling"; fail=$((fail + 1))
+    fi
+    remove_fixture "$fixture"
+}
+
+reference_case "LIVENESS: unique CHANGELOG mention in nested prose is not root coupling" 0 CHANGELOG.md docs/guide.md 'See CHANGELOG.md for details.'
+reference_case "SAFETY: relative root CHANGELOG reference still couples" 1 CHANGELOG.md docs/guide.md '[changes](../CHANGELOG.md)'
+reference_case "SAFETY: root document resolves bare CHANGELOG beside itself" 1 CHANGELOG.md NOTES.md 'See CHANGELOG.md for details.'
+reference_case "LIVENESS: repeated README basename resolves to another directory" 0 docs/a/README.md docs/b/guide.md '[local](README.md)' docs/b/README.md
+reference_case "LIVENESS: full path tail from docs-site is not docs coupling" 0 docs/x/README.md NOTES.md '[site](docs-site/docs/x/README.md)' docs-site/docs/x/README.md
+reference_case "LIVENESS: filename suffix is not an exact reference" 0 eng/ci/verify-gate.sh NOTES.md 'eng/ci/verify-gate.sh.bak'
+reference_case "LIVENESS: external URL is not a repository reference" 0 eng/ci/verify-gate.sh NOTES.md 'https://example.invalid/eng/ci/verify-gate.sh'
+reference_case "LIVENESS: existing local slash target takes precedence over root" 0 eng/ci/verify-gate.sh .github/actions/x/action.yml 'run: bash eng/ci/verify-gate.sh' .github/actions/x/eng/ci/verify-gate.sh
+reference_case "SAFETY: normalized relative path still couples" 1 eng/ci/verify-gate.sh docs/guide.md '[gate](../eng/./ci/verify-gate.sh#details)'
+reference_case "LIVENESS: relative escape above repository root is not coupling" 0 eng/ci/verify-gate.sh docs/guide.md '[outside](../../eng/ci/verify-gate.sh)'
+reference_case "LIVENESS: absolute paths are outside the reference grammar" 0 eng/ci/verify-gate.sh NOTES.md '/eng/ci/verify-gate.sh'
 
 echo "[committed-sha-build-gate.test] $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

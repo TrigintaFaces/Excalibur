@@ -327,7 +327,65 @@ public static class ElasticSearchServiceCollectionExtensions
 		where TRepository : class, TRepositoryInterface, IInitializeElasticIndex
 	{
 		services.TryAddScoped<TRepositoryInterface, TRepository>();
-		services.TryAddSingleton<IInitializeElasticIndex, TRepository>();
+
+		// TryAddEnumerable, not TryAddSingleton: the initializer set is consumed as
+		// IEnumerable<IInitializeElasticIndex>, and TryAdd matches on the service type alone -- so the
+		// second and every later repository was discarded, and its index was never created.
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IInitializeElasticIndex, TRepository>());
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers an Elasticsearch repository and every framework interface it implements against one shared instance.
+	/// </summary>
+	/// <typeparam name="TDocument"> The document type the repository manages. </typeparam>
+	/// <typeparam name="TRepository"> The concrete repository type, typically derived from <see cref="ElasticRepositoryBase{TDocument}" />. </typeparam>
+	/// <param name="services"> The <see cref="IServiceCollection" /> to which the repository will be added. </param>
+	/// <param name="lifetime"> The lifetime of the repository and the interfaces that forward to it. Defaults to singleton. </param>
+	/// <returns> The updated <see cref="IServiceCollection" /> with the repository registered. </returns>
+	/// <remarks>
+	/// <para>
+	/// Use this when consumers inject the framework interfaces directly -- the structured-write surface, the
+	/// search surface, and index initialization -- rather than a repository interface of their own. The
+	/// alternative, <see cref="AddRepository{TRepositoryInterface, TRepository}(IServiceCollection)" />, registers a
+	/// single consumer-declared interface instead.
+	/// </para>
+	/// <para>
+	/// A singleton repository is the usual choice and matches <see cref="ElasticRepositoryBase{TDocument}" />, whose
+	/// own dependency is the singleton client: everything resolves one instance, so the instance whose index was
+	/// initialized is the instance that serves requests.
+	/// </para>
+	/// <para>
+	/// A scoped or transient repository gets its index initialized through a separate singleton instance, because the
+	/// initializer set is enumerated once from the root. The consequence is worth stating: index initialization runs
+	/// on an instance that never serves a request, so a repository must not carry startup state from
+	/// <see cref="IInitializeElasticIndex.InitializeAsync" /> into its query methods. It also means a repository with
+	/// a scoped dependency cannot be registered here at all -- the container rejects the singleton initializer at
+	/// start-up, naming the scoped dependency, rather than failing later.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddElasticRepository<TDocument,
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TRepository>(
+		this IServiceCollection services,
+		ServiceLifetime lifetime = ServiceLifetime.Singleton)
+		where TDocument : class
+		where TRepository : class, IElasticRepositoryBase<TDocument>, IElasticRepositoryBaseQuery<TDocument>, IInitializeElasticIndex
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAdd(new ServiceDescriptor(typeof(TRepository), typeof(TRepository), lifetime));
+		services.TryAdd(new ServiceDescriptor(typeof(IElasticRepositoryBase<TDocument>),
+			static sp => sp.GetRequiredService<TRepository>(), lifetime));
+		services.TryAdd(new ServiceDescriptor(typeof(IElasticRepositoryBaseQuery<TDocument>),
+			static sp => sp.GetRequiredService<TRepository>(), lifetime));
+
+		// The initializer set is enumerated once from the root, so it can only hold singletons. A singleton
+		// repository forwards to the instance that serves requests; a scoped or transient one cannot, and gets
+		// its own singleton instance for initialization alone.
+		services.TryAddEnumerable(lifetime == ServiceLifetime.Singleton
+			? ServiceDescriptor.Singleton<IInitializeElasticIndex, TRepository>(static sp => sp.GetRequiredService<TRepository>())
+			: ServiceDescriptor.Singleton<IInitializeElasticIndex, TRepository>());
 
 		return services;
 	}
@@ -382,23 +440,31 @@ public static class ElasticSearchServiceCollectionExtensions
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
-	public static IServiceCollection AddElasticsearchProjections(
+	public static IServiceCollection AddElasticSearchProjectionManagement(
 		this IServiceCollection services,
 		IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		// Configure projection settings
-		_ = services.AddOptions<ProjectionOptions>()
+		_ = services.AddOptions<ElasticSearchProjectionManagementOptions>()
 			.Bind(configuration.GetSection("ElasticSearch:Projections"))
+			.Bind(configuration.GetSection("ElasticSearch:ProjectionManagement"))
 			.ValidateOnStart();
 
 		// Register cross-property validator
 		services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IValidateOptions<ProjectionOptions>, ProjectionOptionsValidator>());
+			ServiceDescriptor.Singleton<IValidateOptions<ElasticSearchProjectionManagementOptions>, ElasticSearchProjectionManagementOptionsValidator>());
 
 		// Register projection error handler
-		services.TryAddSingleton<IProjectionErrorHandler, ProjectionErrorHandler>();
+		services.TryAddSingleton<IProjectionErrorHandler>(sp => new ProjectionErrorHandler(
+			sp.GetRequiredService<ElasticsearchClient>(),
+			Microsoft.Extensions.Options.Options.Create(new ElasticsearchConfigurationOptions
+			{
+				Projections = sp.GetRequiredService<IOptions<ElasticSearchProjectionManagementOptions>>().Value,
+			}),
+			sp.GetRequiredService<ILogger<ProjectionErrorHandler>>(),
+			sp.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
 
 		// Register projection rebuild manager
 		services.TryAddSingleton<IProjectionRebuildManager, ProjectionRebuildManager>();

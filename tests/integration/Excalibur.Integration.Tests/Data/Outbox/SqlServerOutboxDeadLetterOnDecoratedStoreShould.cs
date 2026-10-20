@@ -1,12 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Text.Json;
+
+using Dapper;
+
 using Excalibur.Dispatch;
+using Excalibur.Dispatch.Delivery.Registry;
+using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Outbox.SqlServer;
 
 using FakeItEasy;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -81,11 +88,14 @@ public sealed class SqlServerOutboxDeadLetterOnDecoratedStoreShould : IClassFixt
 			"this lock only means something on a decorated store - the capability is reachable by probe and "
 			+ "invisible to a type test only once a decorator is in the way");
 
-		var message = new OutboundMessage("PoisonMessage", [9], "orders");
+		MessageTypeRegistry.RegisterType<DeliveryFailureEvent>();
+		var payload = JsonSerializer.SerializeToUtf8Bytes(new DeliveryFailureEvent("controlled-dead-letter"));
+		var message = new OutboundMessage(typeof(DeliveryFailureEvent).AssemblyQualifiedName!, payload, "orders");
 		await store.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 
 		var processor = provider.GetRequiredService<IOutboxProcessor>();
-		processor.Init("e2e-dead-letter");
+		var dispatcherId = "e2e-dead-letter-" + Guid.NewGuid().ToString("N");
+		processor.Init(dispatcherId);
 
 		// One attempt is configured, so the first dispatch failure exhausts the message and takes the
 		// termination path immediately - no sleeps, no backoff window to wait out.
@@ -97,7 +107,41 @@ public sealed class SqlServerOutboxDeadLetterOnDecoratedStoreShould : IClassFixt
 			+ "exposes the dead-letter capability through its probe; a consumer that type-tests the store "
 			+ "cannot see it, so the message never reaches a terminal state and every later drain re-claims "
 			+ "it - at-least-once becomes unbounded redelivery of a message that can never succeed");
+
+		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		A.CallTo(() => dispatcher.DispatchAsync(
+			A<IDispatchMessage>.That.Matches(value => value is DeliveryFailureEvent && ((DeliveryFailureEvent)value).Value == "controlled-dead-letter"),
+			A<IMessageContext>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+
+		await using var connection = new SqlConnection(_fixture.ConnectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		var terminal = await connection.QuerySingleAsync<(int Status, int RetryCount, string? LeasedBy, DateTimeOffset? LeasedAt)>(
+			new CommandDefinition("SELECT Status, RetryCount, LeasedBy, LeasedAt FROM [dbo].[OutboxMessages] WHERE Id=@id",
+				new { id = message.Id }, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		terminal.Status.ShouldBe((int)OutboxStatus.DeadLettered);
+		terminal.RetryCount.ShouldBe(1);
+		terminal.LeasedBy.ShouldBeNull();
+		terminal.LeasedAt.ShouldBeNull();
+
+		var retained = await connection.QuerySingleAsync<(Guid Id, byte[] Payload, int Reason, int OriginalAttempts)>(
+			new CommandDefinition("SELECT Id, Payload, Reason, OriginalAttempts FROM [dbo].[DeadLetterQueue] WHERE JSON_VALUE(Metadata, '$.DispatcherId')=@dispatcherId",
+				new { dispatcherId }, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		retained.Id.ShouldNotBe(Guid.Empty);
+		retained.Reason.ShouldBe((int)DeadLetterReason.MaxRetriesExceeded);
+		retained.OriginalAttempts.ShouldBe(1);
+		using var envelope = JsonDocument.Parse(retained.Payload);
+		envelope.RootElement.GetProperty("messageId").GetString().ShouldBe(message.Id);
+		envelope.RootElement.GetProperty("messageType").GetString().ShouldBe(message.MessageType);
+		envelope.RootElement.GetProperty("messageBody").GetBytesFromBase64().ShouldBe(payload);
+
+		(await processor.DispatchPendingMessagesAsync(cancellationToken).ConfigureAwait(false)).ShouldBe(0);
+		A.CallTo(dispatcher).Where(call => call.Method.Name == nameof(IDispatcher.DispatchAsync)).MustHaveHappenedOnceExactly();
+		(await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+			"SELECT COUNT(*) FROM [dbo].[DeadLetterQueue] WHERE JSON_VALUE(Metadata, '$.DispatcherId')=@dispatcherId",
+			new { dispatcherId }, cancellationToken: cancellationToken)).ConfigureAwait(false)).ShouldBe(1);
 	}
+
+	private sealed record DeliveryFailureEvent(string Value) : IDispatchEvent;
 
 	/// <summary>
 	/// Composes the outbox as the documented consumer path does, with a dispatcher that always fails so the
@@ -120,6 +164,14 @@ public sealed class SqlServerOutboxDeadLetterOnDecoratedStoreShould : IClassFixt
 					.SchemaName(schemaName)
 					.TableName(outboxTableName)
 					.TransportsTableName(transportsTableName))));
+
+
+		_ = services.AddSqlServerDeadLetterQueue(options =>
+		{
+			options.ConnectionString = connectionString;
+			options.SchemaName = schemaName;
+			options.TableName = "DeadLetterQueue";
+		});
 
 		_ = services.AddPluggableSerialization();
 

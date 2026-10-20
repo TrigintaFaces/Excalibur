@@ -16,8 +16,8 @@ namespace Excalibur.AuditLogging.Elasticsearch.Tests;
 /// resolve, so the exporter and sink a consumer actually got were built from the container's
 /// plain HttpClient -- carrying neither the resilience handler nor the node-failover handler.
 /// Every retry, timeout and multi-node setting the options advertise was inert as a result.
-/// The typed client is configured with an infinite HttpClient timeout because the resilience
-/// pipeline owns timeouts, so that value is the discriminator: a default 100-second timeout
+/// The typed client uses the configured total timeout to include response buffering;
+/// its default configured budget is 120 seconds, so a plain 100-second timeout
 /// means the handler chain was bypassed.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -50,6 +50,6 @@ public sealed class ElasticsearchAuditRegistrationShould
 
 		var exporter = provider.GetRequiredService<IAuditLogExporter>();
 
-		HttpClientOf(exporter).Timeout.ShouldBe(Timeout.InfiniteTimeSpan);
+		HttpClientOf(exporter).Timeout.ShouldBe(TimeSpan.FromSeconds(120));
 	}
 }

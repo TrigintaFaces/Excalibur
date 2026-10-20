@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Kafka\Excalibur.Dispatch.Transport.Kafka.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Testing\Excalibur.Dispatch.Testing.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AwsSqs\Excalibur.Dispatch.Transport.AwsSqs.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.GooglePubSub\Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Grpc\Excalibur.Dispatch.Transport.Grpc.csproj" />

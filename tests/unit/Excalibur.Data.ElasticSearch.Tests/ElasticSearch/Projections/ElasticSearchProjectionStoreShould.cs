@@ -373,7 +373,7 @@ public sealed class ElasticSearchProjectionStoreShould
 	{
 		// The store builds field definitions from TProjection's public properties.
 		// After envelope removal, GetFieldPath returns the JSON name directly (no "data." prefix).
-		// We verify via reflection that the static FieldDefinitions dictionary is populated correctly.
+		// We verify via reflection that the field-definition table is populated correctly.
 		var fieldDefinitions = GetFieldDefinitions();
 
 		// TestProjection has: Id, Name, Amount, CreatedAt, IsActive
@@ -390,11 +390,7 @@ public sealed class ElasticSearchProjectionStoreShould
 		// BuildFieldDefinitions uses StringComparer.OrdinalIgnoreCase, so
 		// "Id" and "id" are the same key — TryAdd for camelCase is a no-op
 		// when the PascalCase key already exists. Lookups by either case succeed.
-		var storeType = typeof(ElasticSearchProjectionStore<TestProjection>);
-		var field = storeType.GetField("FieldDefinitions", BindingFlags.NonPublic | BindingFlags.Static);
-		field.ShouldNotBeNull();
-		var value = field.GetValue(null);
-		value.ShouldNotBeNull();
+		var value = GetFieldDefinitionTable<TestProjection>();
 
 		// Use the actual IReadOnlyDictionary interface to verify case-insensitive lookup
 		var dictType = value.GetType();
@@ -425,11 +421,7 @@ public sealed class ElasticSearchProjectionStoreShould
 		// After envelope removal, field paths should NOT have "data." prefix.
 		// GetFieldPath returns fieldDefinition.JsonName directly.
 		// We verify by inspecting the JsonName property of stored FieldDefinitions.
-		var storeType = typeof(ElasticSearchProjectionStore<TestProjection>);
-		var field = storeType.GetField("FieldDefinitions", BindingFlags.NonPublic | BindingFlags.Static);
-		field.ShouldNotBeNull();
-		var definitions = field.GetValue(null);
-		definitions.ShouldNotBeNull();
+		var definitions = GetFieldDefinitionTable<TestProjection>();
 
 		// Access the indexer to get a specific field definition
 		var dictType = definitions.GetType();
@@ -454,10 +446,7 @@ public sealed class ElasticSearchProjectionStoreShould
 	public void FieldDefinitions_ClassifyFieldTypesCorrectly()
 	{
 		// Verify the type classification: String, Numeric, Date, Bool
-		var storeType = typeof(ElasticSearchProjectionStore<TestProjection>);
-		var field = storeType.GetField("FieldDefinitions", BindingFlags.NonPublic | BindingFlags.Static);
-		field.ShouldNotBeNull();
-		var definitions = field.GetValue(null)!;
+		var definitions = GetFieldDefinitionTable<TestProjection>();
 		var dictType = definitions.GetType();
 		var itemProperty = dictType.GetProperty("Item")!;
 
@@ -555,7 +544,37 @@ public sealed class ElasticSearchProjectionStoreShould
 	}
 
 	/// <summary>
-	/// Gets the private static FieldDefinitions dictionary via reflection.
+	/// Gets the store's field-definition table from a constructed instance, via reflection.
+	/// </summary>
+	/// <remarks>
+	/// The table is per-instance rather than static because it is derived from the same mapping object the
+	/// index is created with, and that mapping depends on the instance's options -- a static table could not
+	/// see a configured index-mapping convention at all.
+	/// </remarks>
+	private static object GetFieldDefinitionTable<TProjection>()
+		where TProjection : class
+	{
+		var options = new ElasticSearchProjectionStoreOptions { NodeUri = "http://localhost:9200" };
+		var monitor = A.Fake<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
+		A.CallTo(() => monitor.Get(A<string>._)).Returns(options);
+
+		var store = new ElasticSearchProjectionStore<TProjection>(
+			new ElasticsearchClient(new ElasticsearchClientSettings(new Uri(options.NodeUri))),
+			monitor,
+			NullLogger<ElasticSearchProjectionStore<TProjection>>.Instance);
+
+		var field = typeof(ElasticSearchProjectionStore<TProjection>)
+			.GetField("_fieldDefinitions", BindingFlags.Instance | BindingFlags.NonPublic);
+		field.ShouldNotBeNull("the field-definition table must exist on the store instance");
+
+		var value = field.GetValue(store);
+		value.ShouldNotBeNull();
+
+		return value;
+	}
+
+	/// <summary>
+	/// Gets the field-definition table for the default test projection.
 	/// </summary>
 	private static IDictionary<string, object> GetFieldDefinitions()
 	{
@@ -563,17 +582,12 @@ public sealed class ElasticSearchProjectionStoreShould
 	}
 
 	/// <summary>
-	/// Gets the private static FieldDefinitions dictionary for a given projection type via reflection.
+	/// Gets the field-definition table for a given projection type.
 	/// </summary>
 	private static IDictionary<string, object> GetFieldDefinitionsFor<TProjection>()
 		where TProjection : class
 	{
-		var storeType = typeof(ElasticSearchProjectionStore<TProjection>);
-		var field = storeType.GetField("FieldDefinitions", BindingFlags.NonPublic | BindingFlags.Static);
-		field.ShouldNotBeNull("FieldDefinitions static field should exist");
-
-		var value = field.GetValue(null);
-		value.ShouldNotBeNull();
+		var value = GetFieldDefinitionTable<TProjection>();
 
 		// FieldDefinitions is IReadOnlyDictionary<string, ProjectionFieldDefinition>
 		// where ProjectionFieldDefinition is a private nested record.

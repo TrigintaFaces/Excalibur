@@ -61,10 +61,16 @@ internal sealed partial class PoisonMessageCleanupService : BackgroundService
 		if (!_options.Cleanup.EnableAutoCleanup)
 		{
 			LogPoisonMessageAutoCleanupDisabled();
-			return;
+		}
+		else
+		{
+			LogPoisonMessageCleanupServiceStarted(_options.Cleanup.AutoCleanupInterval, _options.Cleanup.DeadLetterRetentionPeriod);
 		}
 
-		LogPoisonMessageCleanupServiceStarted(_options.Cleanup.AutoCleanupInterval, _options.Cleanup.DeadLetterRetentionPeriod);
+		if (!_options.Cleanup.EnableAutoCleanup && !_options.Alerting.EnableAlerting)
+		{
+			return;
+		}
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
@@ -77,7 +83,10 @@ internal sealed partial class PoisonMessageCleanupService : BackgroundService
 					break;
 				}
 
-				await PerformCleanupAsync(stoppingToken).ConfigureAwait(false);
+				if (_options.Cleanup.EnableAutoCleanup)
+				{
+					await PerformCleanupAsync(stoppingToken).ConfigureAwait(false);
+				}
 				await CheckAlertThresholdAsync(stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

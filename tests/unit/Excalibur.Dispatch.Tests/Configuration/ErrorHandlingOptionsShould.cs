@@ -22,7 +22,7 @@ public sealed class ErrorHandlingOptionsShould
 		options.MaxRetryAttempts.ShouldBe(3);
 		options.MaxProcessingTime.ShouldBe(TimeSpan.FromMinutes(5));
 		options.Cleanup.DeadLetterRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-		options.Cleanup.EnableAutoCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutoCleanup.ShouldBeFalse();
 		options.Cleanup.AutoCleanupInterval.ShouldBe(TimeSpan.FromDays(1));
 		options.CaptureExceptionDetails.ShouldBeTrue();
 		options.EnableMetrics.ShouldBeTrue();

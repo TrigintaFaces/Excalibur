@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
@@ -61,6 +62,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private readonly IOutboxStore _outboxStore;
 
 	private readonly DispatchJsonSerializer _serializer;
+	private readonly IMessageFailureClassifier _failureClassifier;
 	private readonly IBinaryEnvelopeDeserializer? _envelopeDeserializer;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<OutboxProcessor> _logger;
@@ -205,7 +207,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <param name="serviceProvider"> Service provider for dependency injection and message bus resolution. </param>
 	/// <param name="logger"> Logger for outbox processing activities, errors, and performance monitoring. </param>
 	/// <param name="envelopeDeserializer"> Optional binary envelope deserializer for high-performance binary envelope support. </param>
-	/// <param name="deadLetterQueue"> Optional dead letter queue for failed messages. Uses NullDeadLetterQueue if not provided. </param>
+	/// <param name="deadLetterQueue"> Explicit dead letter queue for failed messages. Null is rejected; pass NullDeadLetterQueue.Instance to intentionally discard. </param>
 	/// <param name="circuitBreakerRegistry">
 	/// Required circuit breaker registry for transport resilience. It is required rather than optional
 	/// because a drain that silently ran without a circuit breaker was indistinguishable from one that had
@@ -243,6 +245,9 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		ArgumentNullException.ThrowIfNull(circuitBreakerRegistry);
 		ArgumentNullException.ThrowIfNull(logger);
 
+		_deadLetterQueue = deadLetterQueue
+			?? throw new InvalidOperationException(Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.MissingDeadLetterQueueMessage);
+
 		_options = options.Value;
 
 		_batchCompletionTags = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -262,6 +267,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		_serializer = serializer;
 		_envelopeDeserializer = envelopeDeserializer;
 		_serviceProvider = serviceProvider;
+		_failureClassifier = serviceProvider.GetService(typeof(IMessageFailureClassifier)) as IMessageFailureClassifier
+			?? new DefaultMessageFailureClassifier();
 		_logger = logger;
 		_queueCapacity = options.Value.QueueCapacity;
 		_outboxMessages = Channel.CreateBounded<IOutboxMessage>(new BoundedChannelOptions(options.Value.QueueCapacity)
@@ -273,11 +280,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		});
 		_batchMetrics = new BatchProcessingMetrics($"OutboxProcessor.{nameof(BatchProcessingMetrics)}");
 
-		// Initialize resilience components -- warn when using silent no-op fallbacks
-		_deadLetterQueue = deadLetterQueue ?? NullDeadLetterQueue.Instance;
+		// Explicit discard remains available and is observable.
 		_circuitBreakerRegistry = circuitBreakerRegistry;
 
-		if (deadLetterQueue is null)
+		if (deadLetterQueue is NullDeadLetterQueue)
 		{
 			LogDeadLetterQueueNotConfigured();
 		}
@@ -521,6 +527,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					expiresAt: outboundMessage.ScheduledAt)
 				{
 					Attempts = outboundMessage.RetryCount,
+					LastError = outboundMessage.LastError,
 					// The identity the store stamped when it claimed this row. Dropping it made the
 					// claim-scoped completion members unreachable: the processor selects that route
 					// only when an identity is present, so every store fell back to the unscoped
@@ -551,6 +558,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			expiresAt: outboundMessage.ScheduledAt)
 		{
 			Attempts = outboundMessage.RetryCount,
+			LastError = outboundMessage.LastError,
 			// Carried, not dropped. The comment here claimed OutboundMessage has no such
 			// property; it does (OutboundMessage.DispatcherId). The SAME comment sits on the
 			// line below, where it is TRUE -- which is why checking it against its neighbour
@@ -673,20 +681,25 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				}
 
 				var stopwatch = ValueStopwatch.StartNew();
+				var batchSuccessful = 0;
 
 				if (_options.BatchProcessing.ParallelProcessingDegree > 1)
 				{
 					// Parallel batch processing
 					var processedCount = await ProcessBatchParallelAsync(batch, cancellationToken).ConfigureAwait(false);
 					totalProcessedCount += processedCount;
+					batchSuccessful = processedCount;
 				}
 				else
 				{
 					// Sequential processing (backward compatibility)
 					foreach (var record in batch)
 					{
-						await DispatchReservedRecordAsync(record, cancellationToken).ConfigureAwait(false);
-						totalProcessedCount++;
+						if (await DispatchReservedRecordAsync(record, cancellationToken).ConfigureAwait(false))
+						{
+							totalProcessedCount++;
+							batchSuccessful++;
+						}
 					}
 				}
 
@@ -694,8 +707,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				var duration = stopwatch.Elapsed;
 				_batchMetrics.RecordBatchCompleted(
 					batch.Length,
-					batch.Length, // Will be updated with actual success/failure counts
-					0,
+					batchSuccessful,
+					batch.Length - batchSuccessful,
 					duration,
 					ProcessorTypeTags);
 
@@ -750,7 +763,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		"AOT",
 		"IL3050:Using RequiresDynamicCode member in AOT",
 		Justification = "Outbox dispatch uses runtime deserialization for stored message payloads.")]
-	private async Task DispatchReservedRecordAsync(IOutboxMessage message, CancellationToken cancellationToken)
+	private async Task<bool> DispatchReservedRecordAsync(IOutboxMessage message, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
@@ -766,6 +779,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
 
 		var stopwatch = ValueStopwatch.StartNew();
+		if (await ResumePendingDispositionAsync(message, cancellationToken).ConfigureAwait(false))
+		{
+			return false;
+		}
 		var attempt = message.Attempts + 1;
 
 		// Get circuit breaker for the transport (uses message type as transport name for now)
@@ -779,7 +796,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		{
 			LogCircuitBreakerOpen(message.MessageType, message.MessageId);
 			await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, ErrorConstants.RetryAttempt, message.Attempts, applyBackoff: false, cancellationToken).ConfigureAwait(false);
-			return;
+			return false;
 		}
 
 		using var activity = BackgroundServiceActivitySource.StartMessageDispatch(BackgroundServiceTypes.Outbox, message.MessageId);
@@ -800,16 +817,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
 			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
 
-			await TryRouteToDeadLetterQueueAsync(message, DeadLetterReason.DeserializationFailed, ex, cancellationToken)
+			await RouteObservedFailureAsync(message, DeadLetterReason.DeserializationFailed, ex, message.Attempts, "Poison", cancellationToken)
 				.ConfigureAwait(false);
 
-			return;
+			return false;
 		}
 
 		// Set the instant the transport accepts the message, so the catch clauses below can tell a failure
 		// TO DELIVER from a failure AFTER delivering. Without it both arrive at the same catch and a
 		// successful delivery whose bookkeeping failed is recorded as max-retries-exceeded.
 		var dispatched = false;
+		DispatchAttemptFailure? failure = null;
 
 		try
 		{
@@ -818,21 +836,22 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Execute dispatch through circuit breaker. It records the outcome -- success or failure --
 			// itself; recording it again here would count every delivery failure twice and open the
 			// circuit at half the configured threshold.
-			await circuitBreaker.ExecuteAsync(async ct =>
+			failure = await circuitBreaker.ExecuteAsync(ct => DispatchAsync(message, prepared, ct),
+				static outcome => outcome is not null, cancellationToken).ConfigureAwait(false);
+			if (failure is null)
 			{
-				await DispatchAsync(message, prepared, ct).ConfigureAwait(false);
-				return true;
-			}, cancellationToken).ConfigureAwait(false);
-
-			dispatched = true;
-
-			LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
-
-			BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
-
-			await MarkSentFencedAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
-
-			LogMarkedOutboxRecordSent(message.MessageId);
+				dispatched = true;
+				LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
+				BackgroundServiceMetrics.RecordProcessingDuration(BackgroundServiceTypes.Outbox, stopwatch.Elapsed.TotalMilliseconds);
+				await MarkSentFencedAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
+				LogMarkedOutboxRecordSent(message.MessageId);
+			}
+		}
+		catch (OperationCanceledException) when (!dispatched && cancellationToken.IsCancellationRequested)
+		{
+			// Shutdown/caller cancellation is not a failed delivery and must not consume its retry budget.
+			// Leave the claim intact for ordinary lease recovery instead of recording a synthetic failure.
+			throw;
 		}
 		catch (CircuitBreakerOpenException)
 		{
@@ -869,32 +888,43 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		}
 		catch (Exception ex)
 		{
-			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
-
-			activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
-			BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
-
-			// Check if max retries exceeded
-			if (attempt >= _options.MaxAttempts)
-			{
-				// Route to dead letter queue
-				await TryRouteToDeadLetterQueueAsync(message, DeadLetterReason.MaxRetriesExceeded, ex, cancellationToken)
-					.ConfigureAwait(false);
-			}
-			else if (_deliveryGuaranteeOptions.EnableAutomaticRetry)
-			{
-				// Apply the computed backoff: the claim query won't re-deliver until NextAttemptAt elapses
-				// (for stores that support it; others fall back to the plain failed status).
-				await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, ex.Message, attempt, applyBackoff: true, cancellationToken)
-					.ConfigureAwait(false);
-			}
-			else
-			{
-				// Automatic retry disabled, mark as failed
-				await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, ex.Message, attempt, applyBackoff: false, cancellationToken).ConfigureAwait(false);
-			}
+			failure = new DispatchAttemptFailure(ex.Message, _failureClassifier.Classify(ex), ex);
 		}
+		if (failure is not null)
+		{
+			return await HandleFailedDispatchAsync(message, attempt, failure, activity, cancellationToken).ConfigureAwait(false);
+		}
+
+		return dispatched;
 	}
+
+	private async Task<bool> HandleFailedDispatchAsync(IOutboxMessage message, int attempt,
+		DispatchAttemptFailure failure, Activity? activity, CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		var fault = failure.OriginalFault ?? new InvalidOperationException(failure.ErrorMessage);
+		LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, fault);
+		activity?.SetStatus(ActivityStatusCode.Error, failure.ErrorMessage);
+		BackgroundServiceMetrics.RecordMessagesFailed(BackgroundServiceTypes.Outbox, BackgroundServiceOperations.Dispatch, 1);
+		if (GetFailedDispatchReason(failure, attempt) is { } reason)
+		{
+			await RouteObservedFailureAsync(message, reason, fault, attempt, failure.Kind?.ToString() ?? "Unknown", cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			await MarkFailedForClaimAsync(message.MessageId, message.DispatcherId, failure.ErrorMessage, attempt,
+				applyBackoff: _deliveryGuaranteeOptions.EnableAutomaticRetry, cancellationToken).ConfigureAwait(false);
+		}
+		return false;
+	}
+
+	private DeadLetterReason? GetFailedDispatchReason(DispatchAttemptFailure failure, int attempt) => failure.Kind switch
+	{
+		MessageFailureKind.Permanent => DeadLetterReason.UnhandledException,
+		MessageFailureKind.Poison => DeadLetterReason.PoisonMessage,
+		_ when attempt >= _options.MaxAttempts => DeadLetterReason.MaxRetriesExceeded,
+		_ => null,
+	};
 
 	/// <summary>
 	/// Routes a message to the dead-letter queue without letting a routing fault escape to the caller.
@@ -920,7 +950,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// duplicate delivery of a different message.
 	/// </para>
 	/// </remarks>
-	private async Task TryRouteToDeadLetterQueueAsync(
+	private async Task<DeadLetterRoutingOutcome> TryRouteToDeadLetterQueueAsync(
 		IOutboxMessage message,
 		DeadLetterReason reason,
 		Exception? exception,
@@ -928,7 +958,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	{
 		try
 		{
-			await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
+			return await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -937,7 +967,66 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		catch (Exception ex)
 		{
 			LogDeadLetterRoutingFailed(message.MessageId, ex);
+			return DeadLetterRoutingOutcome.Faulted;
 		}
+	}
+
+	private enum DeadLetterRoutingOutcome { Applied, Refused, Faulted }
+
+	private async Task RouteObservedFailureAsync(IOutboxMessage original, DeadLetterReason reason, Exception? fault,
+		int attempts, string classification, CancellationToken cancellationToken)
+	{
+		// This owned projection carries the observed count while the original retains its claim authority.
+		var envelope = original is OutboxMessage record ? record with { Attempts = attempts }
+			: new OutboxMessage(original.MessageId, original.MessageType, original.MessageMetadata,
+			original.MessageBody, original.CreatedAt, original.ExpiresAt)
+		{
+			Attempts = attempts, DispatcherId = original.DispatcherId, DispatcherTimeout = original.DispatcherTimeout,
+			TenantId = original.TenantId, LastError = original.LastError,
+		};
+		var outcome = await TryRouteToDeadLetterQueueAsync(envelope, reason, fault, cancellationToken).ConfigureAwait(false);
+		if (outcome != DeadLetterRoutingOutcome.Faulted)
+		{
+			return;
+		}
+		var evidence = new OutboxFailureEvidence
+		{
+			Attempts = attempts, Classification = classification, Reason = reason.ToString(),
+			Error = fault?.Message ?? original.LastError ?? reason.ToString(),
+		};
+		using var tenant = TenantContextHolder.BeginScope(KeyedTenantPartition.FromStoredValue(original.TenantId).TenantId);
+		try
+		{
+			await MarkFailedForClaimAsync(original.MessageId, original.DispatcherId, evidence.Encode(), attempts,
+				applyBackoff: false, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) { throw; }
+		catch (Exception ex) { LogDeadLetterRoutingFailed(original.MessageId, ex); }
+	}
+
+	private async Task<bool> ResumePendingDispositionAsync(IOutboxMessage message, CancellationToken cancellationToken)
+	{
+		if (OutboxFailureEvidence.TryRead(message.LastError, out var evidence))
+		{
+			var reason = Enum.Parse<DeadLetterReason>(evidence!.Reason);
+			await RouteObservedFailureAsync(message, reason, new InvalidOperationException(evidence.Error),
+				message.Attempts, evidence.Classification, cancellationToken).ConfigureAwait(false);
+			return true;
+		}
+		if (OutboxFailureEvidence.IsPending(message.LastError))
+		{
+			// An unreadable or future-version disposition never grants permission to deliver again.
+			LogDeadLetterRoutingFailed(message.MessageId, new InvalidOperationException("Pending outbox disposition evidence is unreadable or unsupported."));
+			return true;
+		}
+		if (message.Attempts < _options.MaxAttempts)
+		{
+			return false;
+		}
+		await RouteObservedFailureAsync(message, DeadLetterReason.MaxRetriesExceeded,
+			new InvalidOperationException(message.LastError ?? "Max retries exceeded"), message.Attempts, "Unknown",
+			cancellationToken).ConfigureAwait(false);
+		return true;
 	}
 
 	/// <summary>
@@ -952,7 +1041,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// nullable and the sentinel satisfies it. Establishing the scope at the point of use makes the
 	/// caller's scope irrelevant, so no future caller can reintroduce the gap by deferring the work.
 	/// </remarks>
-	private async Task RouteToDeadLetterQueueAsync(
+	private async Task<DeadLetterRoutingOutcome> RouteToDeadLetterQueueAsync(
 		IOutboxMessage message,
 		DeadLetterReason reason,
 		Exception? exception,
@@ -1012,9 +1101,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// does not keep it there: a later completion reported against the message must also refuse to move it
 		// back, which is the store's obligation under IOutboxStore.MarkFailedAsync rather than something this
 		// processor enforces.
-		await MarkOutboxMessageDeadLetteredAsync(
+		return await MarkOutboxMessageDeadLetteredAsync(
 			message.MessageId,
 			_deadLetterQueue is NullDeadLetterQueue ? $"DISCARDED (no DLQ): {reasonText}" : $"Moved to DLQ: {reasonText}",
+			message.Attempts,
 			enqueuedEntryId,
 			cancellationToken).ConfigureAwait(false);
 	}
@@ -1028,9 +1118,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// that does not implement <see cref="IDeadLetterableOutboxStore"/> fails fast). If the capability is
 	/// nonetheless absent, this fails loud rather than silently leaving the message re-claimable.
 	/// </remarks>
-	private async ValueTask MarkOutboxMessageDeadLetteredAsync(
+	private async ValueTask<DeadLetterRoutingOutcome> MarkOutboxMessageDeadLetteredAsync(
 		string messageId,
 		string reason,
+		int attemptCount,
 		Guid? enqueuedEntryId,
 		CancellationToken cancellationToken)
 	{
@@ -1048,7 +1139,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				is IFencedDeadLetterableOutboxStore fencedDeadLetterable)
 		{
 			var outcome = await fencedDeadLetterable
-				.MarkDeadLetteredAsync(messageId, reason, deadLetterToken, cancellationToken)
+				.MarkDeadLetteredAsync(messageId, reason, attemptCount, deadLetterToken, cancellationToken)
 				.ConfigureAwait(false);
 
 			// Reported, not thrown: this runs inside the drain's own exception handling, where a sibling
@@ -1076,9 +1167,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				// just learned it is required.
 				await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, outcome.ToString())
 					.ConfigureAwait(false);
+				return DeadLetterRoutingOutcome.Refused;
 			}
 
-			return;
+			return DeadLetterRoutingOutcome.Applied;
 		}
 
 		// A MISSING TOKEN IS A REFUSAL, NEVER A DOWNGRADE -- and this is the branch where that distinction
@@ -1108,7 +1200,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, "FencingTokenUnavailable")
 				.ConfigureAwait(false);
 
-			return;
+			return DeadLetterRoutingOutcome.Refused;
 		}
 
 		// Discovered through GetService, never by casting. A cast sees only the OUTERMOST type, so a store
@@ -1123,7 +1215,32 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				"cannot be transitioned to the terminal DeadLettered status and would be re-claimed indefinitely.");
 		}
 
-		await deadLetterable.MarkDeadLetteredAsync(messageId, reason, cancellationToken).ConfigureAwait(false);
+		// The unfenced store refuses too, and until its contract could report that, this branch could not
+		// see it. The dead-letter ENTRY was already written above, so an unseen refusal leaves the message
+		// simultaneously delivered by whoever holds the claim and sitting unreplayed in the queue, where the
+		// shipped redrive selects pending entries by filter -- an operator draining it then re-executes a
+		// message that already succeeded, from our bookkeeping rather than any fault of theirs. That is the
+		// same hazard the fenced branch documents at length above, and it needed the same withdrawal.
+		var unfencedOutcome = await deadLetterable
+			.MarkDeadLetteredAsync(messageId, reason, attemptCount, cancellationToken)
+			.ConfigureAwait(false);
+
+		// By name, never by excluding the refusals: a member added to the outcome later must not start life
+		// as a success on this path.
+		if (unfencedOutcome is not OutboxCompletionOutcome.Applied)
+		{
+			LogDeadLetterRefused(messageId, unfencedOutcome.ToString());
+
+			// NOT the drain's token, for the reason given on CompensateDeadLetterEntryAsync: on shutdown it
+			// is already cancelled, which would disable the withdrawal exactly when we have just learned it
+			// is required.
+			await CompensateDeadLetterEntryAsync(messageId, enqueuedEntryId, unfencedOutcome.ToString())
+				.ConfigureAwait(false);
+
+			return DeadLetterRoutingOutcome.Refused;
+		}
+
+		return DeadLetterRoutingOutcome.Applied;
 	}
 
 
@@ -1426,15 +1543,16 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private async Task<int> ProcessBatchParallelAsync(IOutboxMessage[] batch, CancellationToken cancellationToken)
 	{
 		var stopwatch = ValueStopwatch.StartNew();
+		var acceptedCount = 0;
 		var successfulIds = new ConcurrentBag<string>();
 		// ApplyBackoff distinguishes a genuine delivery failure (attempt consumed -> apply the backoff
 		// schedule) from a transient circuit-breaker-open short-circuit (attempt UNCHANGED -> no backoff).
 		var failedToRetry = new ConcurrentBag<(string MessageId, string? ClaimIdentity, int AttemptCount, bool ApplyBackoff)>();
 		var failedToDeadLetter =
-			new ConcurrentBag<(string MessageId, IOutboxMessage Message, Exception? Exception, DeadLetterReason Reason)>();
+			new ConcurrentBag<(string MessageId, IOutboxMessage Message, Exception? Exception, DeadLetterReason Reason, int Attempts, string Classification)>();
 
 		// Process messages in parallel
-		var (successful, failed) = await Batching.ProcessBatchAsync(
+		_ = await Batching.ProcessBatchAsync(
 			batch,
 			async (message, ct) =>
 			{
@@ -1447,6 +1565,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				using var tenantScope = TenantContextHolder.BeginScope(
 					KeyedTenantPartition.FromStoredValue(message.TenantId).TenantId);
 
+				if (await ResumePendingDispositionAsync(message, ct).ConfigureAwait(false))
+				{
+					return;
+				}
 				var attempt = message.Attempts + 1;
 
 				// Get circuit breaker for the transport
@@ -1475,7 +1597,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				catch (OutboxPoisonMessageException ex)
 				{
 					LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
-					failedToDeadLetter.Add((message.MessageId, message, ex, DeadLetterReason.DeserializationFailed));
+					failedToDeadLetter.Add((message.MessageId, message, ex, DeadLetterReason.DeserializationFailed, message.Attempts, "Poison"));
 
 					return; // Don't throw - a poison row is not a batch delivery failure.
 				}
@@ -1488,13 +1610,17 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				{
 					// Execute dispatch through circuit breaker. It records the outcome itself; see the
 					// single-message path above.
-					await circuitBreaker.ExecuteAsync(async token =>
+					var failure = await circuitBreaker.ExecuteAsync(token => DispatchSingleMessageAsync(message, prepared, token),
+						static outcome => outcome is not null, ct).ConfigureAwait(false);
+					if (failure is not null)
 					{
-						await DispatchSingleMessageAsync(message, prepared, token).ConfigureAwait(false);
-						return true;
-					}, ct).ConfigureAwait(false);
+						ct.ThrowIfCancellationRequested();
+						RecordFailedDispatch(message, attempt, failure);
+						return;
+					}
 
 					dispatched = true;
+					_ = Interlocked.Increment(ref acceptedCount);
 
 					// For MinimizedWindow, mark sent immediately after dispatch
 					if (_options.DeliveryGuarantee == OutboxDeliveryGuarantee.MinimizedWindow)
@@ -1506,6 +1632,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 						// For AtLeastOnce, collect for batch completion
 						successfulIds.Add(message.MessageId);
 					}
+				}
+				catch (OperationCanceledException) when (!dispatched && ct.IsCancellationRequested)
+				{
+					throw;
 				}
 				catch (CircuitBreakerOpenException)
 				{
@@ -1538,30 +1668,32 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				}
 				catch (Exception ex)
 				{
-					LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, ex);
-
-					if (attempt >= _options.MaxAttempts)
-					{
-						failedToDeadLetter.Add((message.MessageId, message, ex, DeadLetterReason.MaxRetriesExceeded));
-					}
-					else if (_deliveryGuaranteeOptions.EnableAutomaticRetry)
-					{
-						// Genuine delivery failure: apply the computed backoff schedule when marking failed.
-						LogRetryWithBackoff(message.MessageId, attempt, _backoffCalculator.CalculateDelay(attempt).TotalMilliseconds);
-
-						failedToRetry.Add((message.MessageId, message.DispatcherId, attempt, ApplyBackoff: true));
-					}
-					else
-					{
-						failedToRetry.Add((message.MessageId, message.DispatcherId, attempt, ApplyBackoff: false));
-					}
-
+					ct.ThrowIfCancellationRequested();
+					RecordFailedDispatch(message, attempt, new DispatchAttemptFailure(ex.Message, _failureClassifier.Classify(ex), ex));
 					throw; // Re-throw for Batching to track
 				}
 			},
 			_options.BatchProcessing.ParallelProcessingDegree,
 			_options.BatchProcessing.BatchProcessingTimeout,
 			cancellationToken).ConfigureAwait(false);
+
+		void RecordFailedDispatch(IOutboxMessage message, int attempt, DispatchAttemptFailure failure)
+		{
+			var fault = failure.OriginalFault ?? new InvalidOperationException(failure.ErrorMessage);
+			LogErrorDispatchingOutboxRecord(message.MessageId, _dispatcherId!, fault);
+			if (GetFailedDispatchReason(failure, attempt) is { } reason)
+			{
+				failedToDeadLetter.Add((message.MessageId, message, fault, reason, attempt, failure.Kind?.ToString() ?? "Unknown"));
+			}
+			else
+			{
+				if (_deliveryGuaranteeOptions.EnableAutomaticRetry)
+				{
+					LogRetryWithBackoff(message.MessageId, attempt, _backoffCalculator.CalculateDelay(attempt).TotalMilliseconds);
+				}
+				failedToRetry.Add((message.MessageId, message.DispatcherId, attempt, ApplyBackoff: _deliveryGuaranteeOptions.EnableAutomaticRetry));
+			}
+		}
 
 		// Route messages to DLQ.
 		//
@@ -1571,11 +1703,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// cycle had ALREADY DELIVERED were never marked sent, and the next drain delivered them again. A
 		// fault while disposing of a failed message must not cause the redelivery of a successful one; those
 		// messages are unrelated, and only the control flow joined them.
-		foreach (var (messageId, message, exception, reason) in failedToDeadLetter)
+		foreach (var (messageId, message, exception, reason, attempts, classification) in failedToDeadLetter)
 		{
 			try
 			{
-				await RouteToDeadLetterQueueAsync(message, reason, exception, cancellationToken).ConfigureAwait(false);
+				await RouteObservedFailureAsync(message, reason, exception, attempts, classification, cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException)
 			{
@@ -1653,7 +1785,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					// reaches them -- that needs the failure-path members to take a token of their own.
 					LogFencedMarkSentRefused(refusedId, ex);
 
-					return successful.Count;
+					return acceptedCount;
 				}
 			}
 		}
@@ -1694,19 +1826,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		// Update dynamic batch size if enabled
 		if (_batchSizeCalculator != null)
 		{
-			var successRate = batch.Length > 0 ? (double)successful.Count / batch.Length : 0;
+			var successRate = batch.Length > 0 ? (double)acceptedCount / batch.Length : 0;
 			_batchSizeCalculator.RecordBatchResult(batch.Length, stopwatch.Elapsed, successRate);
 		}
 
 		// Record detailed metrics
 		_batchMetrics.RecordBatchCompleted(
 			batch.Length,
-			successful.Count,
-			failed.Count,
+			acceptedCount,
+			batch.Length - acceptedCount,
 			stopwatch.Elapsed,
 			_batchCompletionTags);
 
-		return successful.Count;
+		return acceptedCount;
 	}
 
 	private async Task PerformBatchDatabaseOperationsAsync(
@@ -1788,7 +1920,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			// Process dead letter messages in parallel
 			tasks.Add(Task.Factory.StartNew(async () =>
 			{
-				foreach (var (id, _) in failedToDeadLetter)
+				foreach (var (id, attemptCount) in failedToDeadLetter)
 				{
 					try
 					{
@@ -1798,6 +1930,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 						await MarkOutboxMessageDeadLetteredAsync(
 							id,
 							ErrorConstants.MaxRetriesReachedMovedToDeadLetter,
+							attemptCount,
 							enqueuedEntryId: null,
 							cancellationToken).ConfigureAwait(false);
 					}
@@ -1830,16 +1963,19 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		Justification = "CancellationToken parameter required for async pattern consistency and future cancellation support")]
 	[SuppressMessage("Style", "IDE0060:Remove unused parameter",
 		Justification = "CancellationToken parameter required for async pattern consistency and future cancellation support")]
-	private async Task DispatchSingleMessageAsync(IOutboxMessage message, PreparedDispatch prepared, CancellationToken cancellationToken)
+	private async Task<DispatchAttemptFailure?> DispatchSingleMessageAsync(IOutboxMessage message, PreparedDispatch prepared, CancellationToken cancellationToken)
 	{
 		using var activity = BackgroundServiceActivitySource.StartMessageDispatch(BackgroundServiceTypes.Outbox, message.MessageId);
 		_ = activity?.SetTag("excalibur.outbox.dispatcher_id", _dispatcherId);
 
 		LogDispatchingOutboxRecord(message.MessageId, _dispatcherId!);
 
-		await DispatchAsync(message, prepared, cancellationToken).ConfigureAwait(false);
-
-		LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
+		var failure = await DispatchAsync(message, prepared, cancellationToken).ConfigureAwait(false);
+		if (failure is null)
+		{
+			LogSuccessfullyDispatchedOutboxRecord(message.MessageId, _dispatcherId!);
+		}
+		return failure;
 	}
 
 	/// <summary>
@@ -1912,7 +2048,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 #pragma warning restore CA1031
 	}
 
-	private async Task DispatchAsync(IOutboxMessage outboxMessage, PreparedDispatch prepared, CancellationToken cancellationToken)
+	private async Task<DispatchAttemptFailure?> DispatchAsync(IOutboxMessage outboxMessage, PreparedDispatch prepared, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -1923,15 +2059,34 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			messageContext.MessageId = outboxMessage.MessageId;
 
 			var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
+			// This persisted attempt owns the retry budget. Middleware for this exact message/context
+			// must not multiply it; independently dispatched nested messages retain their own policies.
+			using var retryOwnership = RetryOwnershipScope.EnterClassified(prepared.Message, messageContext, _failureClassifier);
 			var result = await scopedDispatcher.DispatchAsync(prepared.Message, messageContext, cancellationToken)
 				.ConfigureAwait(false);
 
 			// Check if the dispatch was successful
 			if (result is { Succeeded: false })
 			{
+				cancellationToken.ThrowIfCancellationRequested();
 				var errorMessage = result.ErrorMessage ?? ErrorConstants.MessageDispatchFailed;
-				throw new InvalidOperationException(errorMessage);
+				if (RetryOwnershipScope.TryGetKnownFailureKind(retryOwnership.CaptureAttempt(), result, out var kind, out var originalFault))
+				{
+					return new DispatchAttemptFailure(errorMessage, kind, originalFault);
+				}
+				return new DispatchAttemptFailure(errorMessage, Kind: null, OriginalFault: null);
 			}
+			return null;
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
+		}
+		catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+		{
+			// Observe the caller's cancellation before the surrounding circuit breaker sees
+			// a transport wrapper (for example IOException wrapping cancellation) as a failure.
+			throw new OperationCanceledException("The persisted dispatch attempt was canceled by its caller.", ex, cancellationToken);
 		}
 		catch (Exception ex)
 		{
@@ -1940,6 +2095,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 			throw;
 		}
 	}
+
+	// A failed result is data, not a fabricated typed exception. Null kind remains unestablished
+	// and receives the bounded persisted budget without invoking a classifier on synthetic diagnostics.
+	private sealed record DispatchAttemptFailure(string ErrorMessage, MessageFailureKind? Kind, Exception? OriginalFault);
 
 	// Source-generated logging methods
 	[LoggerMessage(OutboxEventId.OutboxDispatchFailed, LogLevel.Error, "Failed to dispatch message with ID {MessageId}")]
@@ -2036,6 +2195,10 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		"Dead-letter transition for message {MessageId} did not apply ({Outcome}); the outbox row was NOT destroyed. A fence refusal means a newer leadership tenure owns this message and will resolve it.")]
 	private partial void LogFencedDeadLetterRefused(string messageId, string outcome);
 
+	[LoggerMessage(OutboxEventId.OutboxDeadLetterRefused, LogLevel.Warning,
+		"Dead-letter transition for message {MessageId} did not apply ({Outcome}); the outbox row still stands and the dead-letter entry this drain wrote has been withdrawn. The message is either gone, already terminal, or claimed by another drain, and whoever holds it will resolve it.")]
+	private partial void LogDeadLetterRefused(string messageId, string outcome);
+
 	[LoggerMessage(OutboxEventId.OutboxFencedFailureReportRefused, LogLevel.Warning,
 		"Failure report for message {MessageId} was refused by the fence: a newer leadership tenure exists, so this tenure recorded nothing. It should stand down rather than continue draining.")]
 	private partial void LogFencedFailureReportRefused(string messageId);
@@ -2053,7 +2216,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	private partial void LogErrorMarkingOutboxMessage(string messageId, string targetStatus, Exception ex);
 
 	[LoggerMessage(OutboxEventId.OutboxDeadLetterQueueNotConfigured, LogLevel.Warning,
-		"No IDeadLetterQueue registered. Failed outbox messages will be discarded silently. Register a dead letter queue implementation to preserve failed messages for investigation.")]
+		"NullDeadLetterQueue was explicitly selected. Failed outbox messages routed to dead letter will be discarded. Register a retaining IDeadLetterQueue implementation to preserve them for investigation.")]
 	private partial void LogDeadLetterQueueNotConfigured();
 
 

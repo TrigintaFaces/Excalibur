@@ -475,10 +475,11 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask MarkDeadLetteredAsync(string messageId, string reason, CancellationToken cancellationToken)
+	public async ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(string messageId, string reason, int attemptCount, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -489,13 +490,50 @@ public sealed partial class MongoDbOutboxStore : IOutboxStore, IOutboxStoreAdmin
 		// it). Neither depends on WHO reports: this binds the current claim holder too.
 		var filter = Builders<MongoDbOutboxDocument>.Filter.And(
 			Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.Id, messageId),
-			Builders<MongoDbOutboxDocument>.Filter.Nin(d => d.Status, TerminalStatuses));
+			Builders<MongoDbOutboxDocument>.Filter.Nin(d => d.Status, TerminalStatuses),
+			Builders<MongoDbOutboxDocument>.Filter.Or(
+				Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.LeasedBy, null),
+				Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.LeasedBy, _options.ProcessorId)));
 
 		var update = Builders<MongoDbOutboxDocument>.Update
 			.Set(d => d.Status, (int)OutboxStatus.DeadLettered)
-			.Set(d => d.LastError, reason);
+			.Set(d => d.LastError, reason)
+			.Max(d => d.RetryCount, attemptCount);
 
-		_ = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		var result = await _collection!.UpdateOneAsync(filter, update, cancellationToken: cancellationToken).ConfigureAwait(false);
+		if (result.ModifiedCount > 0)
+		{
+			return OutboxCompletionOutcome.Applied;
+		}
+
+		// The filter refuses on three distinct grounds and a modified count of zero cannot tell them apart,
+		// so classify with one targeted read -- taken ONLY on the refusal path, which is the rare one. The
+		// alternative, reporting a guess, is what the caller cannot recover from: it has already written the
+		// dead-letter entry and needs to know whether to withdraw it.
+		var current = await _collection
+			.Find(Builders<MongoDbOutboxDocument>.Filter.Eq(d => d.Id, messageId))
+			.FirstOrDefaultAsync(cancellationToken)
+			.ConfigureAwait(false);
+
+		if (current is null)
+		{
+			return OutboxCompletionOutcome.MessageNotFound;
+		}
+
+		if (TerminalStatuses.Contains(current.Status))
+		{
+			return OutboxCompletionOutcome.AlreadyTerminal;
+		}
+
+		if (current.LeasedBy is not null && !string.Equals(current.LeasedBy, _options.ProcessorId, StringComparison.Ordinal))
+		{
+			return OutboxCompletionOutcome.ClaimLost;
+		}
+
+		// Present, not terminal, and leased to nobody or to us -- the filter should have matched. The row
+		// moved between the update and this read, so report the value that obliges the caller to treat the
+		// write as not applied rather than inventing a reason.
+		return OutboxCompletionOutcome.Unknown;
 	}
 
 	/// <inheritdoc/>

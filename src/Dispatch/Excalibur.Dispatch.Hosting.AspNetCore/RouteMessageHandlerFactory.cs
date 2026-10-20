@@ -14,6 +14,59 @@ namespace Excalibur.Dispatch.Hosting.AspNetCore;
 /// </summary>
 public static class RouteMessageHandlerFactory
 {
+
+	/// <summary>
+	/// Handler delegate for minimal APIs with separate request/message and strongly-typed response.
+	/// </summary>
+	internal static Delegate CreateBodyMessageHandler<TRequest, TAction, TResponse>(
+		Func<TRequest, HttpContext, TAction> actionFactory,
+		Func<HttpContext, IMessageResult<TResponse>, IResult> responseFactory,
+		Action<MessageContext>? customizeContext = null)
+		where TRequest : class
+		where TAction : class, IDispatchAction<TResponse>
+		=>
+		async (
+			[FromBody] TRequest request,
+			[FromServices] IDispatcher dispatcher,
+			CancellationToken cancellationToken,
+			HttpContext httpContext) =>
+		{
+			var action = actionFactory(request, httpContext);
+			var context = httpContext.CreateDispatchMessageContext();
+			customizeContext?.Invoke(context);
+
+			var dispatcherResult = await dispatcher
+				.DispatchAsync<TAction, TResponse>(action, context, cancellationToken)
+				.ConfigureAwait(false);
+
+			return responseFactory(httpContext, dispatcherResult);
+		};
+
+	/// <summary>
+	/// Simplified handler delegate when request directly serves as action (strongly-typed response).
+	/// </summary>
+	internal static Delegate CreateBodyMessageHandler<TAction, TResponse>(
+		Func<HttpContext, IMessageResult<TResponse>, IResult> responseFactory,
+		Action<MessageContext>? customizeContext = null)
+		where TAction : class, IDispatchAction<TResponse>
+		=>
+		async (
+			[FromBody] TAction action,
+			[FromServices] IDispatcher dispatcher,
+			CancellationToken cancellationToken,
+			HttpContext httpContext) =>
+		{
+			var context = httpContext.CreateDispatchMessageContext();
+			customizeContext?.Invoke(context);
+
+			var dispatcherResult = await dispatcher
+				.DispatchAsync<TAction, TResponse>(action, context, cancellationToken)
+				.ConfigureAwait(false);
+
+			return responseFactory(httpContext, dispatcherResult);
+		};
+
+
 	/// <summary>
 	/// Handler delegate for minimal APIs with separate request and message types (non-generic result).
 	/// </summary>

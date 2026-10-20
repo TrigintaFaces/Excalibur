@@ -15,7 +15,10 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	{
 		var sut = new ElasticSearchProjectionStoreOptions();
 
-		sut.NodeUri.ShouldBe("http://localhost:9200");
+		// No node default. It used to be http://localhost:9200, which made the required-node check in
+		// Validate() unreachable -- so a misnamed configuration section ran against one unconfigured
+		// node instead of failing.
+		sut.NodeUri.ShouldBeEmpty();
 		sut.Index.IndexPrefix.ShouldBe("projections");
 		sut.RequestTimeoutSeconds.ShouldBe(30);
 		sut.Index.NumberOfShards.ShouldBe(1);
@@ -69,9 +72,26 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	}
 
 	[Fact]
-	public void ValidateSuccessfullyWithDefaults()
+	public void RefuseValidationWithDefaultsBecauseNoNodeIsConfigured()
 	{
 		var sut = new ElasticSearchProjectionStoreOptions();
+
+		// This arm used to assert the opposite. NodeUri defaulted to http://localhost:9200, so the
+		// defaults validated and the required-node check below it could never run -- which meant a
+		// misnamed configuration section addressed one unconfigured node instead of failing.
+		Should.Throw<InvalidOperationException>(() => sut.Validate())
+			.Message.ShouldContain("NodeUris", Case.Sensitive);
+	}
+
+	/// <summary>
+	/// LIVENESS for the arm above: a node is the ONLY thing the defaults are missing, so the refusal
+	/// is detecting an unconfigured cluster rather than rejecting every default.
+	/// </summary>
+	[Fact]
+	public void ValidateSuccessfullyWithDefaultsOnceANodeIsConfigured()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions { NodeUri = "http://localhost:9200" };
+
 		Should.NotThrow(() => sut.Validate());
 	}
 
@@ -111,7 +131,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	public void NotThrowWhenIndexPrefixIsEmpty()
 	{
 		// IndexPrefix is optional -- empty/whitespace prefix is valid (index name uses just the type name)
-		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = "" } };
+		var sut = new ElasticSearchProjectionStoreOptions { NodeUri = "http://localhost:9200", Index = { IndexPrefix = "" } };
 		Should.NotThrow(() => sut.Validate());
 	}
 
@@ -119,7 +139,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	public void NotThrowWhenIndexPrefixIsWhitespace()
 	{
 		// IndexPrefix is optional -- whitespace prefix is valid (index name uses just the type name)
-		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexPrefix = "   " } };
+		var sut = new ElasticSearchProjectionStoreOptions { NodeUri = "http://localhost:9200", Index = { IndexPrefix = "   " } };
 		Should.NotThrow(() => sut.Validate());
 	}
 
@@ -128,7 +148,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	[Fact]
 	public void AllowSettingIndexName()
 	{
-		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexName = "custom-index" } };
+		var sut = new ElasticSearchProjectionStoreOptions { NodeUri = "http://localhost:9200", Index = { IndexName = "custom-index" } };
 		sut.Index.IndexName.ShouldBe("custom-index");
 		Should.NotThrow(() => sut.Validate());
 	}
@@ -136,7 +156,7 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	[Fact]
 	public void AllowNullIndexName()
 	{
-		var sut = new ElasticSearchProjectionStoreOptions { Index = { IndexName = null } };
+		var sut = new ElasticSearchProjectionStoreOptions { NodeUri = "http://localhost:9200", Index = { IndexName = null } };
 		sut.Index.IndexName.ShouldBeNull();
 		Should.NotThrow(() => sut.Validate());
 	}

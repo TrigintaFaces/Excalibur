@@ -18,6 +18,15 @@ The inbox pattern deduplicates redelivered messages with an atomic claim-before-
 
 ## Before You Start
 
+When using the default inbox processor, explicitly register an `IDeadLetterQueue` for
+terminal failures. `AddInboxHostedService` does not provide a recovery queue. Missing
+registration fails when the default processor is resolved; custom processors and direct
+store administration retain their own composition contracts. Registering
+`NullDeadLetterQueue.Instance` explicitly chooses discard and emits a warning. See
+[outbox dead-letter setup](outbox.md#dead-letter-handling) for the SQL Server registration
+and [recovery operations](dead-letter.md) for inspection and replay requirements. Queue
+presence does not by itself certify durable or atomic recovery.
+
 - **.NET 10.0**
 - Install the required packages:
   ```bash

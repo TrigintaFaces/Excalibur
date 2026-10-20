@@ -73,11 +73,29 @@ public class OutboxPollingBenchmarks
 	public void GlobalCleanup()
 	{
 		_outboxStore?.Dispose();
+		_outboxStore = null;
 	}
+
+	/// <summary>
+	/// Restore the original unleased population before each measured poll.
+	/// </summary>
+	[IterationSetup(Targets = new[] { nameof(PollBatch10), nameof(PollBatch100), nameof(PollBatch500) })]
+	public void SetupPollIteration()
+	{
+		GlobalCleanup();
+		GlobalSetup();
+	}
+
+	/// <summary>
+	/// Release the iteration's claimed messages after the awaited poll completes.
+	/// </summary>
+	[IterationCleanup(Targets = new[] { nameof(PollBatch10), nameof(PollBatch100), nameof(PollBatch500) })]
+	public void CleanupPollIteration() => GlobalCleanup();
 
 	/// <summary>
 	/// Benchmark: Poll for unsent messages (batch of 10).
 	/// </summary>
+	[InvocationCount(1, 1)]
 	[Benchmark(Baseline = true)]
 	public async Task<int> PollBatch10()
 	{
@@ -88,6 +106,7 @@ public class OutboxPollingBenchmarks
 	/// <summary>
 	/// Benchmark: Poll for unsent messages (batch of 100).
 	/// </summary>
+	[InvocationCount(1, 1)]
 	[Benchmark]
 	public async Task<int> PollBatch100()
 	{
@@ -98,6 +117,7 @@ public class OutboxPollingBenchmarks
 	/// <summary>
 	/// Benchmark: Poll for unsent messages (batch of 500).
 	/// </summary>
+	[InvocationCount(1, 1)]
 	[Benchmark]
 	public async Task<int> PollBatch500()
 	{

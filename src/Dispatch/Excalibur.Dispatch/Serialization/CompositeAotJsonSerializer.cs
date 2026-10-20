@@ -19,6 +19,11 @@ namespace Excalibur.Dispatch.Serialization;
 /// <remarks>
 /// This serializer tries each registered context in order until it finds one that supports the type. For best performance, register
 /// contexts in order of expected usage frequency.
+/// <para>
+/// Deserialization consumes one complete JSON document using the first supporting context's
+/// reader options. Conversion follows System.Text.Json span semantics; side effects are not
+/// rolled back if later input is invalid. A parsing failure does not select another context.
+/// </para>
 /// </remarks>
 public sealed class CompositeAotJsonSerializer : IDisposable
 {
@@ -72,8 +77,6 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 		);
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Serialization may require unreferenced code for type-specific handling.")]
-	[RequiresDynamicCode("Serialization may require dynamic code generation for type-specific handling.")]
 	public byte[] Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message)
 	{
 		var bufferWriter = _threadLocalBufferWriter.Value!;
@@ -89,8 +92,6 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 	}
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Deserialization may require unreferenced code for type-specific handling.")]
-	[RequiresDynamicCode("Deserialization may require dynamic code generation for type-specific handling.")]
 	public T Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data)
 	{
 		if (data == null || data.Length == 0)
@@ -98,10 +99,9 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 			throw new ArgumentNullException(nameof(data));
 		}
 
-		var reader = new Utf8JsonReader(data);
 		var context = GetContextForType(typeof(T));
 		var typeInfo = GetTypeInfo<T>(context);
-		return JsonSerializer.Deserialize(ref reader, typeInfo)
+		return JsonSerializer.Deserialize(data.AsSpan(), typeInfo)
 			   ?? throw new InvalidOperationException(
 				   Resources.Serialization_DeserializationResultedInNull);
 	}
@@ -127,10 +127,9 @@ public sealed class CompositeAotJsonSerializer : IDisposable
 				nameof(data));
 		}
 
-		var reader = new Utf8JsonReader(data);
 		var context = GetContextForType(typeof(T));
 		var typeInfo = GetTypeInfo<T>(context);
-		return JsonSerializer.Deserialize(ref reader, typeInfo)
+		return JsonSerializer.Deserialize(data, typeInfo)
 			   ?? throw new InvalidOperationException(
 				   Resources.Serialization_DeserializationResultedInNull);
 	}

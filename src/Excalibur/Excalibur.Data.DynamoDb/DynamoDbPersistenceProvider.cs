@@ -646,7 +646,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 			_options.DefaultPartitionKeyAttribute,
 			_options.DefaultSortKeyAttribute,
 			options ?? ChangeFeedOptions.Default,
-			_logger);
+			_logger,
+			_options.StreamDocumentTypeInfoResolver);
 
 		await subscription.StartAsync(cancellationToken).ConfigureAwait(false);
 		return subscription;

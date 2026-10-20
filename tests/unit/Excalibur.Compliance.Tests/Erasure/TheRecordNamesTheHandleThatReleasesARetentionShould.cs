@@ -167,7 +167,7 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 		var certificate = await stack.EraseAsync();
 
 		stack.StoredTenantTerm.ShouldBe(
-			TenantScope.UntenantedSentinel,
+			TenantDefaults.DefaultTenantId,
 			"the arm is vacuous unless the store really did stamp a term of its own choosing; if it stamped "
 			+ "null this is the faked-store situation again and proves nothing about the spellings");
 
@@ -305,7 +305,7 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 			_ = services.AddErasureRetention(new ErasureRetention
 			{
 				AggregateType = RetainedType,
-				TenantId = declarationTenant ?? TenantScope.UntenantedSentinel,
+				TenantId = declarationTenant ?? TenantDefaults.DefaultTenantId,
 				Basis = LegalHoldBasis.LegalObligation,
 				Justification = Justification,
 				RetentionPeriod = TimeSpan.FromDays(365 * 6),
@@ -385,7 +385,7 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 			await StartAsync();
 
 			return await _provider.GetRequiredService<IFieldEncryptor>()
-				.DecryptAsync(envelope, TestContext.Current.CancellationToken);
+				.DecryptAsync(envelope, _provider.GetRequiredService<ITenantContext>().TenantId!, TestContext.Current.CancellationToken);
 		}
 
 		public EncryptedData? Unretained { get; private set; }

@@ -20,5 +20,5 @@ Demonstrates event versioning and upcasting strategies for evolving domain model
 
 ## Related Docs
 
-- [Event Versioning](../../docs-site/docs/event-sourcing/versioning.md)
-- [Event Migrations](../../docs-site/docs/event-sourcing/migrations.md)
+- [Event Versioning](../../../../docs-site/docs/event-sourcing/versioning.md)
+- [Event Migrations](../../../../docs-site/docs/event-sourcing/migrations.md)

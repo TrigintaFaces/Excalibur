@@ -34,6 +34,14 @@ public sealed class LocalMessageBusShould
 	public LocalMessageBusShould()
 	{
 		_serviceProvider = A.Fake<IServiceProvider>();
+		var services = new ServiceCollection();
+		_ = services.AddTransient<TestActionHandler>();
+		_ = services.AddTransient<TestDocumentHandler>();
+		_ = services.AddTransient<TestEventHandler1>();
+		_ = services.AddTransient<TestEventHandler2>();
+		_ = services.AddTransient<TestEventHandler3>();
+		_ = A.CallTo(() => _serviceProvider.GetService(typeof(HandlerLifetimeRegistry)))
+			.Returns(new HandlerLifetimeRegistry(services));
 		_registry = A.Fake<IHandlerRegistry>();
 		_activator = A.Fake<IHandlerActivator>();
 		_invoker = A.Fake<IHandlerInvoker>();
@@ -537,6 +545,7 @@ public sealed class LocalMessageBusShould
 		var action = new TypedUltraLocalAction();
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<TypedUltraLocalHandler>();
+		_ = services.AddSingleton(new HandlerLifetimeRegistry(services));
 		var provider = services.BuildServiceProvider();
 		var registry = A.Fake<IHandlerRegistry>();
 		var invoker = A.Fake<IHandlerInvoker>();
@@ -567,6 +576,7 @@ public sealed class LocalMessageBusShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<FastInvokerNoResponseHandler>();
+		_ = services.AddSingleton(new HandlerLifetimeRegistry(services));
 		var provider = services.BuildServiceProvider();
 		var registry = new HandlerRegistry();
 		registry.Register(typeof(FastInvokerNoResponseAction), typeof(FastInvokerNoResponseHandler), expectsResponse: false);
@@ -597,6 +607,7 @@ public sealed class LocalMessageBusShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<FastInvokerResponseHandler>();
+		_ = services.AddSingleton(new HandlerLifetimeRegistry(services));
 		var provider = services.BuildServiceProvider();
 		var registry = new HandlerRegistry();
 		registry.Register(typeof(FastInvokerResponseAction), typeof(FastInvokerResponseHandler), expectsResponse: true);
@@ -629,6 +640,7 @@ public sealed class LocalMessageBusShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<FastInvokerContextHandler>();
+		_ = services.AddSingleton(new HandlerLifetimeRegistry(services));
 		var provider = services.BuildServiceProvider();
 		var registry = new HandlerRegistry();
 		registry.Register(typeof(FastInvokerContextAction), typeof(FastInvokerContextHandler), expectsResponse: false);
@@ -864,10 +876,18 @@ public sealed class LocalMessageBusShould
 
 	private sealed class CountingServiceProvider(Type trackedType, object instance) : IServiceProvider, IServiceProviderIsService
 	{
+		private readonly HandlerLifetimeRegistry _lifetimes = new(
+			new ServiceCollection().AddSingleton(trackedType, instance));
+
 		public int ResolutionCount { get; private set; }
 
 		public object? GetService(Type serviceType)
 		{
+			if (serviceType == typeof(HandlerLifetimeRegistry))
+			{
+				return _lifetimes;
+			}
+
 			if (serviceType == typeof(IServiceProviderIsService))
 			{
 				return this;

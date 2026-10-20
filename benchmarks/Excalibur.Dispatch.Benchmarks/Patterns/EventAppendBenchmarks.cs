@@ -6,7 +6,6 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.MsSql;
 
@@ -24,6 +23,7 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
+[InvocationCount(1, unrollFactor: 1)]
 public class EventAppendBenchmarks
 {
 	private readonly List<TestDomainEvent> _singleEventBatch = new();
@@ -33,6 +33,8 @@ public class EventAppendBenchmarks
 	private MsSqlContainer? _sqlContainer;
 	private SqlServerEventStore? _eventStore;
 	private string? _connectionString;
+	private bool _canReset;
+	private bool _iterationReady;
 
 	/// <summary>
 	/// Initialize SQL Server container and event store before benchmarks.
@@ -40,36 +42,52 @@ public class EventAppendBenchmarks
 	[GlobalSetup]
 	public async Task GlobalSetup()
 	{
-		// Start SQL Server container
-		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-			.Build();
-
-		await _sqlContainer.StartAsync();
-		_connectionString = _sqlContainer.GetConnectionString();
-
-		// Create EventStore table
-		await CreateEventStoreTableAsync();
-
-		// Initialize event store
-		_eventStore = new SqlServerEventStore(_connectionString, NullLogger<SqlServerEventStore>.Instance, BenchmarkTenantContext.SingleTenant);
-
-		// Pre-generate event batches for benchmarks
-		_singleEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), 1));
-
-		for (int i = 0; i < 10; i++)
+		try
 		{
-			_tenEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), i + 1));
+			// Start SQL Server container
+			_sqlContainer = new MsSqlBuilder()
+				.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+				.WithCreateParameterModifier(parameters => parameters.HostConfig.Memory = 4L * 1024 * 1024 * 1024)
+				.Build();
+
+			using var startupDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+			await _sqlContainer.StartAsync(startupDeadline.Token);
+			_connectionString = _sqlContainer.GetConnectionString();
+
+			// Create EventStore table
+			await CreateEventStoreTableAsync();
+
+			// Initialize event store
+			_eventStore = new SqlServerEventStore(_connectionString, NullLogger<SqlServerEventStore>.Instance, BenchmarkTenantContext.SingleTenant);
+
+			// Pre-generate event batches for benchmarks
+			_singleEventBatch.Clear();
+			_tenEventBatch.Clear();
+			_hundredEventBatch.Clear();
+			_thousandEventBatch.Clear();
+			_singleEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), 1));
+
+			for (int i = 0; i < 10; i++)
+			{
+				_tenEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), i + 1));
+			}
+
+			for (int i = 0; i < 100; i++)
+			{
+				_hundredEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), i + 1));
+			}
+
+			for (int i = 0; i < 1000; i++)
+			{
+				_thousandEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), i + 1));
+			}
+			_canReset = true;
 		}
-
-		for (int i = 0; i < 100; i++)
+		catch (Exception setupFailure)
 		{
-			_hundredEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), i + 1));
-		}
-
-		for (int i = 0; i < 1000; i++)
-		{
-			_thousandEventBatch.Add(CreateTestEvent(Guid.NewGuid().ToString(), i + 1));
+			try { await GlobalCleanup(); }
+			catch (Exception cleanupFailure) { setupFailure.Data["BenchmarkCleanupFailure"] = cleanupFailure; }
+			throw;
 		}
 	}
 
@@ -79,10 +97,28 @@ public class EventAppendBenchmarks
 	[GlobalCleanup]
 	public async Task GlobalCleanup()
 	{
-		if (_sqlContainer != null)
+		var container = _sqlContainer;
+		_sqlContainer = null;
+		_eventStore = null;
+		_connectionString = null;
+		_canReset = false;
+		_iterationReady = false;
+		if (container != null)
 		{
-			await _sqlContainer.DisposeAsync();
+			await container.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30));
 		}
+	}
+
+	/// <summary>Starts an empty owned-database epoch outside the measured invocation.</summary>
+	[IterationSetup]
+	public void IterationSetup()
+	{
+		if (!_canReset) throw new InvalidOperationException("An ambiguous or failed append prohibits benchmark database reuse");
+		_canReset = false;
+		_iterationReady = false;
+		SqlServerBenchmarkSchema.ResetEventsAsync(_sqlContainer!).GetAwaiter().GetResult();
+		_canReset = true;
+		_iterationReady = true;
 	}
 
 	/// <summary>
@@ -91,15 +127,17 @@ public class EventAppendBenchmarks
 	[Benchmark(Baseline = true)]
 	public async Task<AppendResult> AppendSingleEvent()
 	{
+		BeginInvocation();
 		var aggregateId = Guid.NewGuid().ToString();
 		var @event = CreateTestEvent(aggregateId, 1);
 
-		return await _eventStore.AppendAsync(
+		var result = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			new[] { @event },
 			expectedVersion: -1,
 			CancellationToken.None);
+		return CompleteInvocation(result);
 	}
 
 	/// <summary>
@@ -108,15 +146,17 @@ public class EventAppendBenchmarks
 	[Benchmark]
 	public async Task<AppendResult> AppendTenEvents()
 	{
+		BeginInvocation();
 		var aggregateId = Guid.NewGuid().ToString();
 		var events = _tenEventBatch.Select(e => CreateTestEvent(aggregateId, e.Version)).ToList();
 
-		return await _eventStore.AppendAsync(
+		var result = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			events,
 			expectedVersion: -1,
 			CancellationToken.None);
+		return CompleteInvocation(result);
 	}
 
 	/// <summary>
@@ -125,15 +165,17 @@ public class EventAppendBenchmarks
 	[Benchmark]
 	public async Task<AppendResult> AppendHundredEvents()
 	{
+		BeginInvocation();
 		var aggregateId = Guid.NewGuid().ToString();
 		var events = _hundredEventBatch.Select(e => CreateTestEvent(aggregateId, e.Version)).ToList();
 
-		return await _eventStore.AppendAsync(
+		var result = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			events,
 			expectedVersion: -1,
 			CancellationToken.None);
+		return CompleteInvocation(result);
 	}
 
 	/// <summary>
@@ -142,15 +184,17 @@ public class EventAppendBenchmarks
 	[Benchmark]
 	public async Task<AppendResult> AppendThousandEvents()
 	{
+		BeginInvocation();
 		var aggregateId = Guid.NewGuid().ToString();
 		var events = _thousandEventBatch.Select(e => CreateTestEvent(aggregateId, e.Version)).ToList();
 
-		return await _eventStore.AppendAsync(
+		var result = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			events,
 			expectedVersion: -1,
 			CancellationToken.None);
+		return CompleteInvocation(result);
 	}
 
 	/// <summary>
@@ -159,48 +203,86 @@ public class EventAppendBenchmarks
 	[Benchmark]
 	public async Task ConcurrentAppendTenAggregates()
 	{
+		BeginInvocation();
 		// ValueTask requires .AsTask() for Task.WhenAll (Sprint 250 ValueTask migration)
-		var tasks = new List<Task<AppendResult>>();
+		var tasks = new List<Task<AppendResult>>(10);
 
-		for (int i = 0; i < 10; i++)
+		try
 		{
-			var aggregateId = Guid.NewGuid().ToString();
-			var @event = CreateTestEvent(aggregateId, 1);
+			for (int i = 0; i < 10; i++)
+			{
+				var aggregateId = Guid.NewGuid().ToString();
+				var @event = CreateTestEvent(aggregateId, 1);
 
-			tasks.Add(_eventStore.AppendAsync(
-				aggregateId,
-				"TestAggregate",
-				new[] { @event },
-				expectedVersion: -1,
-				CancellationToken.None).AsTask());
+				tasks.Add(_eventStore.AppendAsync(
+					aggregateId,
+					"TestAggregate",
+					new[] { @event },
+					expectedVersion: -1,
+					CancellationToken.None).AsTask());
+			}
+		}
+		catch
+		{
+			// A synchronous submission failure must still drain operations already submitted.
+			try { _ = await Task.WhenAll(tasks); }
+			catch { /* Preserve the original submission failure; this database is never reused. */ }
+			throw;
 		}
 
-		_ = await Task.WhenAll(tasks);
+		var results = await Task.WhenAll(tasks);
+		foreach (var result in results) RequireCommitted(result);
+		_canReset = true;
 	}
 
 	/// <summary>
-	/// Benchmark: Append event to existing aggregate (optimistic concurrency check).
+	/// Benchmark: Seed five events and append a sixth with optimistic concurrency.
 	/// </summary>
 	[Benchmark]
 	public async Task<AppendResult> AppendToExistingAggregate()
 	{
+		BeginInvocation();
 		// Pre-create aggregate with 5 events
 		var aggregateId = Guid.NewGuid().ToString();
-		_ = await _eventStore.AppendAsync(
+		var seeded = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			Enumerable.Range(1, 5).Select(v => CreateTestEvent(aggregateId, v)),
 			expectedVersion: -1,
 			CancellationToken.None);
+		RequireCommitted(seeded);
 
 		// Benchmark: append 6th event
 		var @event = CreateTestEvent(aggregateId, 6);
-		return await _eventStore.AppendAsync(
+		var result = await _eventStore.AppendAsync(
 			aggregateId,
 			"TestAggregate",
 			new[] { @event },
-			expectedVersion: 5,
+			expectedVersion: 4,
 			CancellationToken.None);
+		return CompleteInvocation(result);
+	}
+
+	private void BeginInvocation()
+	{
+		if (!_canReset || !_iterationReady) throw new InvalidOperationException("The append requires a fresh, unambiguous iteration");
+		_canReset = false;
+		_iterationReady = false;
+	}
+
+	private AppendResult CompleteInvocation(AppendResult result)
+	{
+		RequireCommitted(result);
+		_canReset = true;
+		return result;
+	}
+
+	private static void RequireCommitted(AppendResult result)
+	{
+		if (result.Outcome != AppendOutcome.Committed)
+		{
+			throw new InvalidOperationException($"Benchmark append did not commit: {result.Outcome}; {result.ErrorMessage}");
+		}
 	}
 
 	private static TestDomainEvent CreateTestEvent(string aggregateId, long version)
@@ -221,45 +303,5 @@ public class EventAppendBenchmarks
 		};
 	}
 
-	private async Task CreateEventStoreTableAsync()
-	{
-		const string createTableSql = """
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEvents')
-            BEGIN
-                CREATE TABLE EventStoreEvents (
-                    Position BIGINT NOT NULL PRIMARY KEY,
-                    EventId NVARCHAR(50) NOT NULL UNIQUE,
-                    AggregateId NVARCHAR(50) NOT NULL,
-                    AggregateType NVARCHAR(100) NOT NULL,
-                    EventType NVARCHAR(200) NOT NULL,
-                    EventData VARBINARY(MAX) NOT NULL,
-                    Metadata VARBINARY(MAX) NULL,
-                    Version BIGINT NOT NULL,
-                    Timestamp DATETIMEOFFSET NOT NULL,
-                    IsDispatched BIT NOT NULL DEFAULT 0,
-                    INDEX IX_AggregateId_Version (AggregateId, Version),
-                    INDEX IX_IsDispatched (IsDispatched)
-                );
-            END
-
-            -- The store allocates Position from this counter row inside the appending transaction
-            -- rather than from an IDENTITY, so an aborted append burns no position and the committed
-            -- stream stays contiguous. An IDENTITY column here rejects the store's explicit insert.
-            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventStoreEventsPosition')
-            BEGIN
-                CREATE TABLE EventStoreEventsPosition (
-                    Id TINYINT NOT NULL PRIMARY KEY CHECK (Id = 1),
-                    Value BIGINT NOT NULL
-                );
-                INSERT INTO EventStoreEventsPosition (Id, Value)
-                SELECT 1, ISNULL((SELECT MAX(Position) FROM EventStoreEvents), 0);
-            END
-            """;
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync();
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync();
-	}
+	private Task CreateEventStoreTableAsync() => SqlServerBenchmarkSchema.CreateAsync(_sqlContainer!);
 }

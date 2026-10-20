@@ -52,9 +52,9 @@ public sealed class KeyedLockCleanupRaceShould
     // nothing of the sort; the previous CI timeout was almost certainly this and the response then
     // was to scale the bound, which treats the symptom.
     //
-    // The async gate below preserves the property the barrier was there for -- every worker starts
-    // together, so the contention is real -- while occupying no threads to do it. Do not replace it
-    // with Barrier, ManualResetEventSlim.Wait, or any other blocking primitive.
+    // The async gate releases all workers after they reach it without occupying threads while waiting.
+    // Subsequent execution and contention depend on scheduling. Do not replace the gate with Barrier,
+    // ManualResetEventSlim.Wait, or any other blocking primitive.
     private static readonly TimeSpan Bound =
         global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 

@@ -99,8 +99,8 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
                     Iv = new byte[12],
                 });
 
-        A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<CancellationToken>._))
-            .ReturnsLazily((EncryptedData envelope, CancellationToken _) => envelope.Ciphertext);
+        A.CallTo(() => encryptor.DecryptAsync(A<EncryptedData>._, A<string>._, A<CancellationToken>._))
+            .ReturnsLazily((EncryptedData envelope, string _, CancellationToken _) => envelope.Ciphertext);
 #pragma warning restore CA2012
 
         return encryptor;
@@ -143,7 +143,7 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
 
         store.AppendAttempts.ShouldBe(2, "the retry must actually have happened, or this arm proves nothing");
 
-        await cryptor.DecryptFieldsAsync(evt, CancellationToken.None).ConfigureAwait(false);
+        await cryptor.DecryptFieldsAsync(evt, global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId, CancellationToken.None).ConfigureAwait(false);
 
         evt.CustomerName.ShouldBe(
             OriginalPlaintext,

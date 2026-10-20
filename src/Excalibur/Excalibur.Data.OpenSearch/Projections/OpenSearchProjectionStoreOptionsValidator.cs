@@ -12,26 +12,24 @@ internal sealed class OpenSearchProjectionStoreOptionsValidator
 	: IValidateOptions<OpenSearchProjectionStoreOptions>
 {
 	/// <inheritdoc />
+	/// <remarks>
+	/// The node rules are DELEGATED rather than restated. They used to be a second copy here, and the two
+	/// copies diverged: the one in <see cref="OpenSearchProjectionStoreOptions.Validate"/> knows a
+	/// registration that supplies its own client reads no node address, and this one did not -- so a
+	/// client-factory registration was refused by whichever copy ran. Delegating leaves one statement of
+	/// the rule, and this validator keeps only the checks that are genuinely its own.
+	/// </remarks>
 	public ValidateOptionsResult Validate(string? name, OpenSearchProjectionStoreOptions options)
 	{
-		if (options.NodeUris is { Count: > 0 })
+		ArgumentNullException.ThrowIfNull(options);
+
+		try
 		{
-			foreach (var uri in options.NodeUris)
-			{
-				if (uri is null || !uri.IsAbsoluteUri)
-				{
-					return ValidateOptionsResult.Fail(
-						$"All entries in NodeUris must be valid absolute URIs. Invalid: '{uri}'.");
-				}
-			}
+			options.Validate();
 		}
-		else if (string.IsNullOrWhiteSpace(options.NodeUri))
+		catch (InvalidOperationException ex)
 		{
-			return ValidateOptionsResult.Fail("NodeUri is required when NodeUris is not set.");
-		}
-		else if (!Uri.TryCreate(options.NodeUri, UriKind.Absolute, out _))
-		{
-			return ValidateOptionsResult.Fail($"NodeUri '{options.NodeUri}' is not a valid URI.");
+			return ValidateOptionsResult.Fail(ex.Message);
 		}
 
 		if (options.RequestTimeoutSeconds <= 0)

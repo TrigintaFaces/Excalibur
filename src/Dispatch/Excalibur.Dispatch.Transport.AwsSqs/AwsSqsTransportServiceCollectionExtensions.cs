@@ -164,6 +164,8 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		// the other.
 		void MapSqs(AwsSqsOptions o)
 		{
+			o.MaxRetryAttempts = adapterOptions.MaxRetryAttempts;
+			if (adapterOptions.RequestTimeout is { } timeout) { o.RequestTimeout = timeout; }
 			o.QueueUrl = adapterOptions.HasQueueMappings
 				? new Uri(adapterOptions.QueueMappings.Values.First())
 				: null;
@@ -247,7 +249,19 @@ public static class AwsSqsTransportServiceCollectionExtensions
 		// Keyed by transport name: TryAddSingleton-by-type de-duplicates, so a second named SQS
 		// transport contributed no registration and both names resolved the first transport's
 		// client/bus, silently sending every named transport to the first transport's queue.
-		services.TryAddKeyedSingleton<IAmazonSQS>(name, (_, _) => CreateSqsClient(adapterOptions));
+		services.TryAddKeyedSingleton<AwsSqsClientRegistration>(name, static (_, _) => new AwsSqsClientRegistration());
+		services.TryAddKeyedSingleton<IAmazonSQS>(name, (sp, key) =>
+		{
+			var receiveConfig = CreateSqsConfig(adapterOptions);
+			var sendConfig = CreateSqsConfig(adapterOptions);
+			sendConfig.MaxErrorRetry = 0;
+			sendConfig.MaxStaleConnectionRetries = 0;
+			sendConfig.DefaultAWSCredentials = receiveConfig.DefaultAWSCredentials;
+			sendConfig.IdentityResolverConfiguration = receiveConfig.IdentityResolverConfiguration;
+			var receive = new AmazonSQSClient(receiveConfig);
+			sp.GetRequiredKeyedService<AwsSqsClientRegistration>(key).Register(receive, () => new AmazonSQSClient(sendConfig));
+			return receive;
+		});
 
 		// Ensure IOptions<AwsSqsFifoOptions> resolves for the message bus even when no FIFO queue
 		// is configured (defaults to empty options, leaving group/dedup ids unset).
@@ -259,19 +273,19 @@ public static class AwsSqsTransportServiceCollectionExtensions
 			var client = sp.GetRequiredKeyedService<IAmazonSQS>(key);
 			var serializer = sp.GetRequiredService<IPayloadSerializer>();
 			var options = sp.GetRequiredService<IOptionsMonitor<AwsSqsOptions>>().Get(name);
+			client = sp.GetRequiredKeyedService<AwsSqsClientRegistration>(key).Resolve(client, options);
 			var fifoOptions = sp.GetRequiredService<IOptionsMonitor<AwsSqsFifoOptions>>().Get(name);
 			var logger = sp.GetRequiredService<ILogger<AwsSqsMessageBus>>();
 			return new AwsSqsMessageBus(
 				client, serializer, Microsoft.Extensions.Options.Options.Create(options),
-				Microsoft.Extensions.Options.Options.Create(fifoOptions), logger);
+				Microsoft.Extensions.Options.Options.Create(fifoOptions), logger, ownsClient: false,
+				failureClassifier: sp.GetService<Excalibur.Dispatch.IMessageFailureClassifier>());
 		});
+		_ = services.AddRemoteMessageBus(name, sp => sp.GetRequiredKeyedService<AwsSqsMessageBus>(name));
 
-		// Unkeyed convenience registrations for the single-transport host and for consumers of a
-		// separate entry point (e.g. AddSqsChannel) that resolve IAmazonSQS unkeyed. TryAdd*, so the
-		// first-registered named transport wins -- a multi-transport host must resolve the keyed
-		// client/bus by name instead.
-		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<IAmazonSQS>(name));
-		services.TryAddSingleton(sp => sp.GetRequiredKeyedService<AwsSqsMessageBus>(name));
+		// Keep disposable services keyed. A factory alias captures the same disposable twice and
+		// turns a consumer-owned keyed instance into a container-owned instance. Channel APIs require
+		// their own explicit unkeyed client registration.
 	}
 
 	/// <summary>

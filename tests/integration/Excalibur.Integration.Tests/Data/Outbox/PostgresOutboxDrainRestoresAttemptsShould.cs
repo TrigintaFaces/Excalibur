@@ -81,7 +81,8 @@ public sealed class PostgresOutboxDrainRestoresAttemptsShould : IClassFixture<Po
 		var reclaimed = await WaitForReclaimAsync(store, messageId, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
 		reclaimed.ShouldNotBeNull("after the failure floor elapses the failed message must return to the pool");
 
-		reclaimed!.RetryCount.ShouldBe(
+		reclaimed!.LastError.ShouldBe("transient error");
+		reclaimed.RetryCount.ShouldBe(
 			FailedAttemptCount,
 			"the drain reload must restore the persisted attempt count; a message reloaded as untried can "
 			+ "never reach the retry ceiling, so it retries for ever and never dead-letters");

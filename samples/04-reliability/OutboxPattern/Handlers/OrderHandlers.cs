@@ -2,12 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Outbox;
 
 using Microsoft.Extensions.Logging;
 
 using OutboxPattern.Messages;
 
 namespace OutboxPattern.Handlers;
+
+/// <summary>Buffers an integration event using the framework outbox writer.</summary>
+public sealed class PlaceOrderHandler(IOutboxWriter outbox) : IActionHandler<PlaceOrderCommand, string>
+{
+	/// <inheritdoc/>
+	public async Task<string> HandleAsync(PlaceOrderCommand action, CancellationToken cancellationToken)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(action.OrderId);
+		ArgumentException.ThrowIfNullOrWhiteSpace(action.CustomerId);
+		ArgumentOutOfRangeException.ThrowIfNegative(action.TotalAmount);
+		await outbox.WriteAsync(new OrderPlacedEvent
+		{
+			OrderId = action.OrderId,
+			CustomerId = action.CustomerId,
+			TotalAmount = action.TotalAmount,
+		}, null, cancellationToken).ConfigureAwait(false);
+		return action.OrderId;
+	}
+}
 
 /// <summary>
 /// Handles order placed events.

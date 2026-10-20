@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 /// Benchmarks for caching operations and patterns.
 /// </summary>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class CachingBenchmarks
 {
 	private ConcurrentDictionary<string, CacheEntry> _cache = null!;

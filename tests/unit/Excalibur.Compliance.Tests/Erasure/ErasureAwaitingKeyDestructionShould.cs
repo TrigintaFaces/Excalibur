@@ -235,6 +235,25 @@ public sealed class ErasureAwaitingKeyDestructionShould
 		due.ShouldNotContain(r => r.RequestId == requestId);
 	}
 
+	[Fact]
+	public async Task Complete_after_a_previous_confirmer_recorded_its_last_intent_before_crashing()
+	{
+		StubDeleteScheduled(DateTimeOffset.UtcNow.AddDays(7));
+		var harness = new ErasureLifecycleHarness(_keyAdmin, _keyProvider);
+		var (requestId, keyId, _) = await harness.SubmitAndExecuteAsync("recover-confirmed-subject");
+		_keyProvider.ReportsDestroyed(keyId, true);
+		var generation = (await harness.Store.GetStagedKeyGenerationsAsync(requestId, keyId, CancellationToken.None))
+			.ShouldHaveSingleItem();
+		// Durable state immediately before a confirmer crashes: the ledger commit cleared its intent,
+		// while the request remains AwaitingKeyDestruction and no certificate has been written.
+		await harness.Store.RecordKeyDestroyedAsync(requestId, keyId, generation, CancellationToken.None);
+		(await harness.Store.GetStagedKeyGenerationsAsync(requestId, keyId, CancellationToken.None)).ShouldBeEmpty();
+		(await harness.Store.GetCertificateAsync(requestId, CancellationToken.None)).ShouldBeNull();
+		(await harness.Processor.CompletePendingErasuresAsync(CancellationToken.None)).ShouldBe(1);
+		(await harness.StatusOfAsync(requestId)).ShouldBe(ErasureRequestStatus.Completed);
+		(await harness.Store.GetCertificateAsync(requestId, CancellationToken.None)).ShouldNotBeNull();
+	}
+
 	private void StubDeleteScheduled(DateTimeOffset irreversibleAt) =>
 		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(KeyDestructionOutcome.ScheduledAt(irreversibleAt)));

@@ -20,10 +20,12 @@ public sealed class ElasticSearchProjectionStoreOptions
 	/// Gets or sets the ElasticSearch node URI for single-node configuration.
 	/// </summary>
 	/// <remarks>
-	/// Ignored when <see cref="NodeUris"/> is set with one or more URIs.
+	/// Ignored when <see cref="NodeUris"/> is set with one or more URIs. Set this or
+	/// <see cref="NodeUris"/>: there is no default, so a cluster nobody configured is refused at
+	/// start-up instead of being silently addressed on the local machine.
 	/// </remarks>
-	/// <value>Defaults to "http://localhost:9200".</value>
-	public string NodeUri { get; set; } = "http://localhost:9200";
+	/// <value>Empty until configured. Required unless <see cref="NodeUris"/> is set.</value>
+	public string NodeUri { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets the cluster node URIs for multi-node configuration.
@@ -73,11 +75,30 @@ public sealed class ElasticSearchProjectionStoreOptions
 	public ElasticSearchProjectionIndexOptions Index { get; set; } = new();
 
 	/// <summary>
+	/// Whether the registration supplies the client itself, so no node address is read from here.
+	/// </summary>
+	/// <remarks>
+	/// Set by the client-factory registration, which KNOWS it hands the store a client. Without it the
+	/// required-node check refuses a correct registration: the node address is a fallback used only by
+	/// the paths that build a client, not a requirement of a path that is given one. Internal and not
+	/// settable from configuration on purpose -- it records how the store was registered, which is not a
+	/// consumer setting and must not be bindable.
+	/// </remarks>
+	internal bool ClientSuppliedByRegistration { get; set; }
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
+		// A supplied client makes the node address dead, so neither requiring nor parsing one is
+		// meaningful. The checks below are all about the node address; nothing else is skipped.
+		if (ClientSuppliedByRegistration)
+		{
+			return;
+		}
+
 		if (NodeUris is { Count: > 0 })
 		{
 			foreach (var uri in NodeUris)
@@ -93,7 +114,10 @@ public sealed class ElasticSearchProjectionStoreOptions
 		{
 			if (string.IsNullOrWhiteSpace(NodeUri))
 			{
-				throw new InvalidOperationException("NodeUri is required when NodeUris is not set.");
+				throw new InvalidOperationException(
+					"No ElasticSearch node is configured for this projection store. Set NodeUris to the "
+					+ "cluster's node addresses, or NodeUri to a single node -- either in code, or by "
+					+ "binding a configuration section with AddElasticSearchProjections(section, ...).");
 			}
 
 			if (!Uri.TryCreate(NodeUri, UriKind.Absolute, out _))

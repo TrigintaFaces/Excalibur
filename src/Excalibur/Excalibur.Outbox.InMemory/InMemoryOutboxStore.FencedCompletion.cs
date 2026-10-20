@@ -50,8 +50,6 @@ public sealed partial class InMemoryOutboxStore
 		ArgumentNullException.ThrowIfNull(errorMessage);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var now = DateTimeOffset.UtcNow;
-
 		lock (_claimLock)
 		{
 			// THE FENCE IS EVALUATED FIRST AND IN ISOLATION. A superseded tenure must learn nothing about
@@ -89,22 +87,7 @@ public sealed partial class InMemoryOutboxStore
 				return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.ClaimLost);
 			}
 
-			// Attempts are non-decreasing across re-claims: a stale lower report must never move the count
-			// DOWN, which would weaken the processor's dead-letter ceiling. Captured BEFORE MarkFailed,
-			// which increments it.
-			var priorRetryCount = message.RetryCount;
-			message.MarkFailed(errorMessage);
-			message.RetryCount = Math.Max(priorRetryCount, retryCount);
-			message.LastAttemptAt = now;
-
-			// The caller owns the backoff policy, exactly as on the unfenced route. A null schedule means
-			// this failure takes no computed backoff, and the message falls back to the failure-anchored
-			// visibility floor so it can never re-enter the claimable set in the same drain cycle.
-			_nextAttempt[messageId] = nextAttemptAt
-				?? (now + TimeSpan.FromSeconds(_options.FailureBackoffFloorSeconds));
-			_ = _leases.TryRemove(messageId, out _);
-
-			LogMessageFailed(messageId, errorMessage, retryCount);
+			ApplyFailureUnderClaimLock(messageId, message, errorMessage, retryCount, nextAttemptAt);
 
 			return new ValueTask<OutboxCompletionOutcome>(OutboxCompletionOutcome.Applied);
 		}
@@ -114,11 +97,13 @@ public sealed partial class InMemoryOutboxStore
 	public ValueTask<OutboxCompletionOutcome> MarkDeadLetteredAsync(
 		string messageId,
 		string reason,
+		int attemptCount,
 		long fencingToken,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 		ArgumentNullException.ThrowIfNull(reason);
+		ArgumentOutOfRangeException.ThrowIfNegative(attemptCount);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		lock (_claimLock)
@@ -152,6 +137,7 @@ public sealed partial class InMemoryOutboxStore
 			}
 
 			message.Status = OutboxStatus.DeadLettered;
+			message.RetryCount = Math.Max(message.RetryCount, attemptCount);
 			message.LastError = reason;
 
 			_ = _leases.TryRemove(messageId, out _);

@@ -115,8 +115,8 @@ internal sealed class HandlerScopeResolver
     }
 
     /// <summary>
-    /// Gets a value indicating whether a scope can be obtained at all. When neither an ambient scope
-    /// accessor nor a scope factory is available the bus must behave exactly as before (resolve from root).
+    /// Gets a value indicating whether an ambient scope accessor or scope factory is available.
+    /// A caller-supplied request scope can still be borrowed when neither capability is present.
     /// </summary>
     public bool CanCreateScope => _scopeFactory is not null || _ambientScope is not null;
 
@@ -125,9 +125,11 @@ internal sealed class HandlerScopeResolver
     /// </summary>
     public bool RequiresScope([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type handlerType)
     {
-        if (!CanCreateScope || _lifetimes is null)
+        if (_lifetimes is null)
         {
-            return false;
+            // Missing metadata cannot establish root safety. Availability is checked only when
+            // obtaining the required scope, so a caller-supplied scope remains usable without a factory.
+            return true;
         }
 
         if (_cache.TryGetValue(handlerType, out var cached))

@@ -69,7 +69,7 @@ Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.EnableSniffing.ge
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.EnableSniffing.init -> void
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Monitoring.get -> Excalibur.Data.ElasticSearch.Monitoring.ElasticsearchMonitoringOptions!
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Monitoring.init -> void
-Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Projections.get -> Excalibur.Data.ElasticSearch.ProjectionOptions!
+Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Projections.get -> Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions!
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Projections.init -> void
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Resilience.get -> Excalibur.Data.ElasticSearch.ElasticsearchResilienceOptions!
 Excalibur.Data.ElasticSearch.ElasticsearchConfigurationOptions.Resilience.init -> void
@@ -809,23 +809,23 @@ Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy.Immediate = 2 -> Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy.None = 0 -> Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy
 Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy.WaitFor = 1 -> Excalibur.Data.ElasticSearch.Persistence.ElasticsearchRefreshPolicy
-Excalibur.Data.ElasticSearch.ProjectionOptions
-Excalibur.Data.ElasticSearch.ProjectionOptions.ConsistencyTracking.get -> Excalibur.Data.ElasticSearch.ConsistencyTrackingOptions!
-Excalibur.Data.ElasticSearch.ProjectionOptions.ConsistencyTracking.init -> void
-Excalibur.Data.ElasticSearch.ProjectionOptions.ErrorHandling.get -> Excalibur.Data.ElasticSearch.Projections.ProjectionErrorHandlingOptions!
-Excalibur.Data.ElasticSearch.ProjectionOptions.ErrorHandling.init -> void
-Excalibur.Data.ElasticSearch.ProjectionOptions.IndexPrefix.get -> string!
-Excalibur.Data.ElasticSearch.ProjectionOptions.IndexPrefix.init -> void
-Excalibur.Data.ElasticSearch.ProjectionOptions.ProjectionOptions() -> void
-Excalibur.Data.ElasticSearch.ProjectionOptions.RebuildManager.get -> Excalibur.Data.ElasticSearch.RebuildManagerOptions!
-Excalibur.Data.ElasticSearch.ProjectionOptions.RebuildManager.init -> void
-Excalibur.Data.ElasticSearch.ProjectionOptions.RetryPolicy.get -> Excalibur.Data.ElasticSearch.ProjectionRetryOptions!
-Excalibur.Data.ElasticSearch.ProjectionOptions.RetryPolicy.init -> void
-Excalibur.Data.ElasticSearch.ProjectionOptions.SchemaEvolution.get -> Excalibur.Data.ElasticSearch.SchemaEvolutionOptions!
-Excalibur.Data.ElasticSearch.ProjectionOptions.SchemaEvolution.init -> void
-Excalibur.Data.ElasticSearch.ProjectionOptionsValidator
-Excalibur.Data.ElasticSearch.ProjectionOptionsValidator.ProjectionOptionsValidator() -> void
-Excalibur.Data.ElasticSearch.ProjectionOptionsValidator.Validate(string? name, Excalibur.Data.ElasticSearch.ProjectionOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.ConsistencyTracking.get -> Excalibur.Data.ElasticSearch.ConsistencyTrackingOptions!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.ConsistencyTracking.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.ErrorHandling.get -> Excalibur.Data.ElasticSearch.Projections.ProjectionErrorHandlingOptions!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.ErrorHandling.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.IndexPrefix.get -> string!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.IndexPrefix.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.ElasticSearchProjectionManagementOptions() -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.RebuildManager.get -> Excalibur.Data.ElasticSearch.RebuildManagerOptions!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.RebuildManager.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.RetryPolicy.get -> Excalibur.Data.ElasticSearch.ProjectionRetryOptions!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.RetryPolicy.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.SchemaEvolution.get -> Excalibur.Data.ElasticSearch.SchemaEvolutionOptions!
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions.SchemaEvolution.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptionsValidator
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptionsValidator.ElasticSearchProjectionManagementOptionsValidator() -> void
+Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptionsValidator.Validate(string? name, Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.BaseDelay.get -> System.TimeSpan
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.BaseDelay.init -> void
@@ -995,7 +995,7 @@ Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Req
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Validate() -> void
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.Dispose() -> void
-Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.EventualConsistencyTracker(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ProjectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker!>! logger) -> void
+Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.EventualConsistencyTracker(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker!>! logger) -> void
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.GetConsistencyLagAsync(string! projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ConsistencyLag!>!
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.GetConsistencyMetricsAsync(System.DateTime fromTime, System.DateTime toTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.Projections.ConsistencyMetrics!>!>!
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.GetLaggingEventsAsync(System.TimeSpan expectedProcessingTime, int maxResults, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.Projections.LaggingEvent!>!>!
@@ -1151,13 +1151,6 @@ Excalibur.Data.ElasticSearch.Projections.ProjectionErrorRecord.ResolvedAt.get ->
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorRecord.ResolvedAt.init -> void
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorRecord.Timestamp.get -> System.DateTimeOffset
 Excalibur.Data.ElasticSearch.Projections.ProjectionErrorRecord.Timestamp.init -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager.CancelRebuildAsync(string! operationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager.GetRebuildStatusAsync(string! operationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildStatus!>!
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager.ListRebuildOperationsAsync(System.DateTime fromDate, System.DateTime toDate, string? projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildSummary!>!>!
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager.ProjectionRebuildManager(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager! aliasManager, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ProjectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager!>! logger) -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager.StartRebuildAsync(Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildResult!>!
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildManager.ValidateRebuildAsync(string! projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildValidation!>!
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.BatchSize.get -> int
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.BatchSize.init -> void
@@ -1293,7 +1286,7 @@ Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.ExecuteMigration
 Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.GetSchemaHistoryAsync(string! projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.SchemaVersionHistory!>!
 Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.PlanMigrationAsync(Excalibur.Data.ElasticSearch.Projections.SchemaMigrationRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.SchemaMigrationPlan!>!
 Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.RegisterSchemaVersionAsync(Excalibur.Data.ElasticSearch.Projections.SchemaVersionRegistration! registration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
-Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.SchemaEvolutionHandler(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager! aliasManager, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ProjectionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler!>! logger) -> void
+Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.SchemaEvolutionHandler(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager! aliasManager, Microsoft.Extensions.Options.IOptions<Excalibur.Data.ElasticSearch.ElasticSearchProjectionManagementOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler!>! logger) -> void
 Excalibur.Data.ElasticSearch.Projections.SchemaEvolutionHandler.ValidateBackwardsCompatibilityAsync(object! currentSchema, object! newSchema, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.SchemaCompatibilityResult!>!
 Excalibur.Data.ElasticSearch.Projections.SchemaMigrationDryRunResult
 Excalibur.Data.ElasticSearch.Projections.SchemaMigrationDryRunResult.DocumentsFailed.get -> int
@@ -2540,7 +2533,7 @@ Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtension
 Microsoft.Extensions.DependencyInjection.ElasticSearchTenantShardingExtensions
 Microsoft.Extensions.DependencyInjection.ElasticsearchPersistenceServiceCollectionExtensions
 Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
-abstract Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.InitializeIndexAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 abstract Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.GetCurrentSourceIpAddress() -> string?
 abstract Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.GetCurrentUserId() -> string?
 const Excalibur.Data.ElasticSearch.MaterializedViews.ElasticSearchMaterializedViewStoreOptions.DefaultPositionsIndexName = "materialized-view-positions" -> string!
@@ -2580,7 +2573,7 @@ static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSou
 static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjections(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, string! nodeUri, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchIndexManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchMonitoring(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticSearchProjectionManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Elastic.Clients.Elasticsearch.ElasticsearchClient! client, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticsearchServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection!>? registry, System.Action<Elastic.Clients.Elasticsearch.ElasticsearchClientSettings!>? configureSettings = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddExcaliburElasticSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.ElasticSearch.IElasticSearchDataBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
@@ -2606,3 +2599,12 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.RemoveAsyn
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!> searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.IsIpInRange(string! ipAddress, string! rangeOrIp) -> bool
+static Microsoft.Extensions.DependencyInjection.ElasticSearchServiceCollectionExtensions.AddElasticRepository<TDocument, TRepository>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjection<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!>! configure, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>! configureStore) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>() -> string!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! section, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionStoreExtensions.AddElasticSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! section, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjectionStore<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! section, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions!>? configureOptions = null) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.ElasticSearchProjectionsEventSourcingBuilderExtensions.AddElasticSearchProjections(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! section, System.Action<Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionRegistrar!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionHostExtensions
+static Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionHostExtensions.VerifyElasticSearchProjectionConnectivityAsync(this Microsoft.Extensions.Hosting.IHost! host, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

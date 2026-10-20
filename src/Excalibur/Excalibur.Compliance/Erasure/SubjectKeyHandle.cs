@@ -37,7 +37,7 @@ namespace Excalibur.Compliance.Erasure;
 /// completed erasure, which is the mirror image of the defect above and just as silent.
 /// </para>
 /// <para>
-/// <b>Absent and single-tenant collapse at the CALLER</b>, through <see cref="OwningTenant"/>, never
+/// <b>Every caller supplies an exact resolved owner</b>, through <see cref="OwningTenant"/>, never
 /// inside the derivation. The derivation cannot accept an absent tenant at all, which is what makes the
 /// omission inexpressible rather than defaulted: a default buried inside a derivation is how "we forgot
 /// the tenant" becomes "we silently used the wrong one".
@@ -70,47 +70,12 @@ internal readonly struct SubjectKeyHandle : IEquatable<SubjectKeyHandle>
 		"This is a default SubjectKeyHandle, which names no key. A handle is obtained from "
 		+ $"{nameof(ForSubject)} or {nameof(ForSubjectHash)}, both of which require a tenant.");
 
-	/// <summary>
-	/// The tenant a derivation is performed for, with absent and single-tenant collapsed onto one identity.
-	/// </summary>
-	/// <param name="tenantId">
-	/// The caller's own authoritative tenant — the ambient tenant for a write, or
-	/// <c>ErasureStatus.TenantId</c> for an erasure — which may be absent.
-	/// </param>
-	/// <returns>
-	/// <paramref name="tenantId"/>, or <see cref="TenantDefaults.DefaultTenantId"/> when it is absent.
-	/// </returns>
-	/// <remarks>
-	/// <para>
-	/// <see cref="TenantDefaults.DefaultTenantId"/> and never the empty string. Empty-versus-absent is
-	/// exactly the ambiguity the AES-GCM associated data is length-prefixed to prevent, and a key handle is
-	/// not the place to reintroduce it.
-	/// </para>
-	/// <para>
-	/// <b>"Absent" has more than one spelling, and recognising only <see langword="null"/> here would
-	/// reintroduce the defect with the signs reversed.</b> The write path reads an ambient tenant, where
-	/// absent is <see langword="null"/>. The erasure reads the tenant its request RECORDED, and the stores
-	/// persist an untenanted request as the reserved untenanted sentinel rather than as null — so a
-	/// single-tenant deployment would write under the default identity and erase under the sentinel,
-	/// deriving a handle nothing was ever written under: destroying nothing while reporting a completed
-	/// erasure. <see cref="KeyedTenantPartition.ToSignedTenantId"/> is the codebase's single predicate for
-	/// what counts as untenanted, so it is reused rather than re-decided here — a second hand-rolled copy of
-	/// that decision is how the two spellings drift apart.
-	/// </para>
-	/// <para>
-	/// It lives beside the derivation but is deliberately NOT part of it, so that both callers state the
-	/// same rule in one place while the derivation itself still refuses an absent tenant.
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="tenantId"/> is longer than <see cref="TenantId.MaxLength"/>. Refusing is
-	/// the only safe outcome: no write path can have produced data under an identifier that no shipped
-	/// provider can store whole, so there is no handle to derive and an erasure must not report success over
-	/// one it invented.
-	/// </exception>
-	internal static TenantId OwningTenant(string? tenantId) =>
-		new(KeyedTenantPartition.ToSignedTenantId(tenantId) ?? TenantDefaults.DefaultTenantId);
-
+	/// <summary>Preserves the caller's exact resolved owner for key derivation.</summary>
+	/// <param name="tenantId">The write's captured owner or the erasure request's persisted owner.</param>
+	/// <returns>The resolved owner, without normalization or fallback.</returns>
+	/// <exception cref="ArgumentException">The owner is absent, blank or exceeds the supported length.</exception>
+	/// <remarks>The explicit default tenant and the untenanted storage partition are distinct owners.</remarks>
+	internal static TenantId OwningTenant(string? tenantId) => new(tenantId!);
 	/// <summary>
 	/// Derives the handle from a RAW data-subject identifier — the write path, which holds one.
 	/// </summary>

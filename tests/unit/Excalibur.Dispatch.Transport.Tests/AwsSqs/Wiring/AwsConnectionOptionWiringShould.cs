@@ -117,7 +117,7 @@ public sealed class AwsConnectionOptionWiringShould
 			}));
 
 		using var provider = services.BuildServiceProvider();
-		var client = provider.GetRequiredService<IAmazonSimpleNotificationService>();
+		var client = provider.GetRequiredKeyedService<IAmazonSimpleNotificationService>("notifications");
 
 		client.Config.ServiceURL.ShouldContain("localhost:4566");
 		client.Config.Timeout.ShouldBe(TimeSpan.FromSeconds(11));

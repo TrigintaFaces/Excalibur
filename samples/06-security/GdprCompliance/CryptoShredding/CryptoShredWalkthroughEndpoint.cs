@@ -4,6 +4,7 @@
 using Excalibur.Compliance;
 using Excalibur.Compliance.CryptoShredding;
 using Excalibur.Compliance.Erasure;
+using Excalibur.Compliance.Encryption;
 
 using Excalibur.Dispatch;
 
@@ -55,7 +56,6 @@ internal static class CryptoShredWalkthroughEndpoint
 
 		_ = app.MapPost("/crypto-shred/walkthrough", async (
 			SubjectFieldCryptor cryptor,
-			ISubjectKeyManager keyManager,
 			IKeyDestructionLedger ledger,
 			IErasureService erasureService,
 			IDataSubjectHasher hasher,
@@ -65,33 +65,6 @@ internal static class CryptoShredWalkthroughEndpoint
 		{
 			var customerId = Guid.NewGuid();
 			var dataSubjectId = customerId.ToString("D");
-
-			// READ THE GENERATION BEFORE ANYTHING ELSE, and this ordering is a contract rather than a
-			// tidiness choice. The generation identifier is backend material that the destruction takes
-			// with it, and the next ordinary write mints a NEW generation at the same handle — so asking
-			// afterwards would answer truthfully about material this walkthrough is not holding. The
-			// framework's own erasure path reads it in the same order, before it destroys anything.
-			//
-			// THE TENANT MUST BE THE ONE THE WRITE USES, because a subject's key handle is scoped to it:
-			// naming a different tenant here would resolve a different handle, and the generation read
-			// from it would not be the one the stored envelope names. This deployment is single-tenant, so
-			// that is the default tenant identity — the same one the field encryptor resolves from the
-			// ambient tenant context when no multi-tenancy is configured. A MULTI-TENANT host must pass
-			// the tenant actually in scope, not this constant.
-			//
-			// Only this walkthrough needs the argument at all. A consumer who encrypts and decrypts
-			// through SubjectFieldCryptor or IFieldEncryptor never names a tenant: those resolve it from
-			// the ambient context. It is needed here solely because printing the ledger's answer requires
-			// naming the generation, and nothing on the public surface can read that back out of a stored
-			// envelope.
-			var subjectKey = await keyManager
-				.GetOrCreateKeyAsync(
-					new TenantId(TenantDefaults.DefaultTenantId),
-					dataSubjectId,
-					RetentionScope.NotInAnAggregate,
-					ct)
-				.ConfigureAwait(false);
-			var generation = subjectKey.Generation?.ToString() ?? string.Empty;
 
 			// --- 1. Write: encrypt the personal fields in place ---------------------------------
 			var stored = new SupportNote
@@ -113,18 +86,26 @@ internal static class CryptoShredWalkthroughEndpoint
 			// below works from a COPY of it — the stored bytes are never re-encrypted or mutated again.
 			var storedFullName = stored.FullName;
 
+			// Inspect the actual stored envelope through the framework's public parsing APIs.
+			// This metadata identifies the ciphertext; reads still pass an independently established owner.
+			if (!EncryptedFieldBinding.TryReadEnvelope(
+					typeof(SupportNote).GetProperty(nameof(SupportNote.FullName))!, stored, out var framed)
+				|| !EncryptedData.TryParse(framed, out var envelope)
+				|| string.IsNullOrEmpty(envelope.KeyGeneration))
+			{
+				throw new InvalidOperationException("The encrypted field must contain a readable key generation.");
+			}
+
+			var keyHandle = envelope.KeyId;
+			var generation = envelope.KeyGeneration;
+
 			// --- 2. Live read: the stored form decrypts to the plaintext ------------------------
 			var beforeErasure = stored with { };
-			await cryptor.DecryptFieldsAsync(beforeErasure, ct).ConfigureAwait(false);
+			await cryptor.DecryptFieldsAsync(beforeErasure, KeyedTenantPartition.Untenanted.TenantId, ct).ConfigureAwait(false);
 
-			// The ledger is keyed on (handle, generation), not on the generation alone. The handle passed
-			// here SHOULD be the one the stored envelope names, because that is what identifies the
-			// material actually being read; this sample passes the handle the key manager resolved
-			// instead, which agrees with it for anything this framework wrote. It is a re-derivation
-			// rather than a read because nothing on the public surface can return an envelope's handle:
-			// see the comment on the generation read above.
+			// Ask about the exact handle and generation carried by the stored field, before erasure.
 			var ledgerSaysDestroyedBefore = await ledger
-				.IsGenerationDestroyedAsync(subjectKey.KeyId, generation, ct)
+				.IsGenerationDestroyedAsync(keyHandle, generation, ct)
 				.ConfigureAwait(false);
 
 			// --- 3. Erase the subject -----------------------------------------------------------
@@ -173,7 +154,7 @@ internal static class CryptoShredWalkthroughEndpoint
 			var status = await WaitForErasureAsync(erasureService, filed.RequestId, ct).ConfigureAwait(false);
 
 			var ledgerSaysDestroyedAfter = await ledger
-				.IsGenerationDestroyedAsync(subjectKey.KeyId, generation, ct)
+				.IsGenerationDestroyedAsync(keyHandle, generation, ct)
 				.ConfigureAwait(false);
 
 			// The control, and it is sharper than it looks because it holds the HANDLE FIXED. The same
@@ -184,17 +165,17 @@ internal static class CryptoShredWalkthroughEndpoint
 			// key provisioned again at the same handle afterwards are different material, and only one
 			// of them may produce a tombstone.
 			var ledgerSaysDestroyedForUnrelatedGeneration = await ledger
-				.IsGenerationDestroyedAsync(subjectKey.KeyId, KeyGeneration.Mint().ToString(), ct)
+				.IsGenerationDestroyedAsync(keyHandle, KeyGeneration.Mint().ToString(), ct)
 				.ConfigureAwait(false);
 
 			// --- 4. Erased read: the SAME stored form now decrypts to null ----------------------
 			var afterErasure = stored with { };
-			await cryptor.DecryptFieldsAsync(afterErasure, ct).ConfigureAwait(false);
+			await cryptor.DecryptFieldsAsync(afterErasure, KeyedTenantPartition.Untenanted.TenantId, ct).ConfigureAwait(false);
 
 			return Results.Ok(new
 			{
 				DataSubjectId = dataSubjectId,
-				KeyHandle = subjectKey.KeyId,
+				KeyHandle = keyHandle,
 				KeyGeneration = generation,
 
 				StoredAtRest = new

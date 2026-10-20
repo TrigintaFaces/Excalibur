@@ -36,6 +36,9 @@ public sealed class ElasticSearchViewPositionContainerFixture : ContainerFixture
 	/// </summary>
 	public ElasticsearchClient Client { get; private set; } = null!;
 
+	/// <summary>Gets the actual container endpoint used by the client.</summary>
+	public Uri NodeUri { get; private set; } = null!;
+
 	/// <summary>
 	/// Gets the unique views index name for this fixture.
 	/// </summary>
@@ -70,7 +73,8 @@ public sealed class ElasticSearchViewPositionContainerFixture : ContainerFixture
 		var url = _container.GetConnectionString()
 			.Replace("https://", "http://", StringComparison.OrdinalIgnoreCase);
 
-		Client = new ElasticsearchClient(new ElasticsearchClientSettings(new Uri(url)));
+		NodeUri = new Uri(url);
+		Client = new ElasticsearchClient(new ElasticsearchClientSettings(NodeUri));
 	}
 
 	/// <summary>

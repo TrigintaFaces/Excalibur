@@ -179,7 +179,6 @@ Excalibur.A3.Authentication.IAuthenticationToken.UserId.get -> string? (forwarde
 Excalibur.A3.Authentication.IAuthenticationTokenProvider
 Excalibur.A3.Authentication.IAuthenticationTokenProvider.GetAuthenticationTokenAsync(string! authenticationServiceEndpoint, string! authenticationServiceAudience, string! serviceAccountName, string! serviceAccountPrivateKeyPath, string! serviceAccountPrivateKeyPassword) -> System.Threading.Tasks.Task<Excalibur.A3.Authentication.IAuthenticationToken!>!
 Excalibur.A3.Authorization.ActivityGroupService
-Excalibur.A3.Authorization.ActivityGroupService.ActivityGroupService(System.Net.Http.HttpClient! httpClient, Excalibur.Dispatch.ICorrelationId! correlationId, Excalibur.A3.Authentication.IAuthenticationToken! token, Excalibur.A3.Authorization.IActivityGroupStore! activityGroupStore, Excalibur.A3.Authorization.IActivityGroupGrantStore! activityGroupGrantStore, Microsoft.Extensions.Options.IOptions<Excalibur.A3.Authorization.ActivityGroupSyncOptions!>! syncOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.A3.Authorization.ActivityGroupService!>! logger, Microsoft.Extensions.Caching.Distributed.IDistributedCache! cache) -> void
 Excalibur.A3.Authorization.ActivityGroupService.ExistsAsync(string! tenantId, string! activityGroupName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.A3.Authorization.ActivityGroupService.SyncActivityGroupGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.A3.Authorization.ActivityGroupService.SyncActivityGroupsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -397,3 +396,9 @@ static readonly Excalibur.A3.Authentication.AuthClaims.Name -> string!
 static readonly Excalibur.A3.Authentication.AuthClaims.Upn -> string!
 static readonly Excalibur.A3.Authentication.AuthenticationToken.Anonymous -> Excalibur.A3.Authentication.IAuthenticationToken!
 virtual Excalibur.A3.Authorization.Requests.ResourceCommandBase<TResourceType, TResponse>.ResourceTypes.get -> string![]!
+Excalibur.A3.Authorization.ActivityGroupService.ActivityGroupService(System.Net.Http.HttpClient! httpClient, Excalibur.Dispatch.ICorrelationId! correlationId, Excalibur.A3.Authentication.IAuthenticationToken! token, Excalibur.A3.Authorization.IActivityGroupStore! activityGroupStore, Excalibur.A3.Authorization.IActivityGroupGrantStore! activityGroupGrantStore, Microsoft.Extensions.Options.IOptions<Excalibur.A3.Authorization.ActivityGroupSyncOptions!>! syncOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.A3.Authorization.ActivityGroupService!>! logger, Microsoft.Extensions.Caching.Distributed.IDistributedCache? cache = null) -> void
+Excalibur.A3.Authorization.Grants.RevokeAllGrantsCommand.OperationId.get -> System.Guid
+Excalibur.A3.Authorization.Grants.RevokeAllGrantsCommand.OperationId.set -> void
+Excalibur.A3.Authorization.Grants.RevokeAllGrantsCommand.RevocationScope.get -> Excalibur.A3.Authorization.GrantRevocationScope!
+Excalibur.A3.Authorization.Grants.RevokeAllGrantsCommand.RevocationScope.set -> void
+Excalibur.A3.Authorization.Grants.RevokeAllGrantsCommand.CorrelationId.get -> System.Guid

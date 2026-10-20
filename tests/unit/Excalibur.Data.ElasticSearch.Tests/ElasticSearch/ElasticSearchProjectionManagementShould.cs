@@ -1,0 +1,52 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
+
+using Excalibur.Data.ElasticSearch;
+using Excalibur.Data.ElasticSearch.Projections;
+
+namespace Excalibur.Data.Tests.ElasticSearch;
+
+[Trait(TraitNames.Category, TestCategories.Unit)]
+[Trait(TraitNames.Component, TestComponents.Data)]
+public sealed class ElasticSearchProjectionManagementOptionsShould
+{
+	[Fact]
+	public void HaveCorrectDefaults()
+	{
+		var sut = new ElasticSearchProjectionManagementOptions();
+
+		sut.IndexPrefix.ShouldBe("projections");
+		sut.ErrorHandling.ShouldNotBeNull();
+		sut.RetryPolicy.ShouldNotBeNull();
+		sut.ConsistencyTracking.ShouldNotBeNull();
+		sut.SchemaEvolution.ShouldNotBeNull();
+		sut.RebuildManager.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void AllowSettingAllProperties()
+	{
+		var errorHandling = new ProjectionErrorHandlingOptions();
+		var retryPolicy = new ProjectionRetryOptions();
+		var consistency = new ConsistencyTrackingOptions();
+		var schema = new SchemaEvolutionOptions();
+		var rebuild = new RebuildManagerOptions();
+
+		var sut = new ElasticSearchProjectionManagementOptions
+		{
+			IndexPrefix = "custom-projections",
+			ErrorHandling = errorHandling,
+			RetryPolicy = retryPolicy,
+			ConsistencyTracking = consistency,
+			SchemaEvolution = schema,
+			RebuildManager = rebuild,
+		};
+
+		sut.IndexPrefix.ShouldBe("custom-projections");
+		sut.ErrorHandling.ShouldBeSameAs(errorHandling);
+		sut.RetryPolicy.ShouldBeSameAs(retryPolicy);
+		sut.ConsistencyTracking.ShouldBeSameAs(consistency);
+		sut.SchemaEvolution.ShouldBeSameAs(schema);
+		sut.RebuildManager.ShouldBeSameAs(rebuild);
+	}
+}

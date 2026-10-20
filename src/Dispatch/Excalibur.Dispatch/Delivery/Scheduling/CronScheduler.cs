@@ -221,9 +221,15 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 	/// <summary>
 	/// Handles daylight saving time transitions for a scheduled time.
 	/// </summary>
-	/// <param name="scheduledTime"> The scheduled time. </param>
+	/// <param name="scheduledTime"> The local wall-clock fields to interpret in <paramref name="timeZone"/>.
+	/// Its existing offset is preserved when no adjustment is needed. </param>
 	/// <param name="timeZone"> The timezone. </param>
-	/// <returns> Adjusted time if necessary. </returns>
+	/// <returns> A checked valid local time after a gap, or the earliest UTC instant for an ambiguous
+	/// local time. Disabled adjustment and valid times return the original value. </returns>
+	/// <remarks> This explicit helper does not alter parsed cron evaluation, which delegates transition
+	/// handling to Cronos. Gap resolution searches at tick precision within a local-date bracket;
+	/// it does not guarantee the earliest valid tick for every historical rule representation. If adjustment
+	/// fails, the error is logged and the original value is returned. </remarks>
 	public DateTimeOffset HandleDaylightSavingTransition(DateTimeOffset scheduledTime, TimeZoneInfo timeZone)
 	{
 		if (!_options.AutoAdjustForDaylightSaving)
@@ -238,7 +244,7 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 			if (timeZone.IsInvalidTime(localTime))
 			{
 				// Time doesn't exist (spring forward) - move to the next valid time
-				var adjusted = localTime.AddHours(1);
+				var adjusted = FindValidLocalTimeAfterGap(localTime, timeZone);
 				LogAdjustedInvalidDstTime(scheduledTime, adjusted, timeZone.Id);
 				return new DateTimeOffset(adjusted, timeZone.GetUtcOffset(adjusted));
 			}
@@ -247,7 +253,8 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 			if (timeZone.IsAmbiguousTime(localTime))
 			{
 				// Prefer the first occurrence (before the transition)
-				var offset = timeZone.GetUtcOffset(localTime);
+				var offsets = timeZone.GetAmbiguousTimeOffsets(localTime);
+				var offset = offsets.Max();
 				return new DateTimeOffset(localTime, offset);
 			}
 		}
@@ -257,6 +264,47 @@ public sealed partial class CronScheduler(IOptions<CronScheduleOptions> options,
 		}
 
 		return scheduledTime;
+	}
+
+	private static DateTime FindValidLocalTimeAfterGap(DateTime invalidTime, TimeZoneInfo timeZone)
+	{
+		var lower = invalidTime.Ticks;
+		var upper = lower;
+		var step = TimeSpan.TicksPerMinute;
+		while (timeZone.IsInvalidTime(new DateTime(upper, DateTimeKind.Unspecified)))
+		{
+			lower = upper;
+			var remaining = DateTime.MaxValue.Ticks - upper;
+			if (remaining == 0)
+			{
+				throw new ArgumentOutOfRangeException(nameof(invalidTime), "No representable valid local time follows the daylight saving gap.");
+			}
+
+			// Do not jump across a valid midnight into a different adjustment rule's gap.
+			var date = new DateTime(upper, DateTimeKind.Unspecified).Date;
+			var untilMidnight = date < DateTime.MaxValue.Date
+				? date.AddDays(1).Ticks - upper
+				: remaining;
+			upper += Math.Min(Math.Min(step, remaining), untilMidnight);
+			step = Math.Min(step * 2, DateTime.MaxValue.Ticks / 2);
+		}
+
+		// Resolve the checked bracket at tick precision. Public zone metadata does not expose every
+		// historical UTC transition, so this is best-effort rather than a universal earliest-tick proof.
+		while (upper - lower > 1)
+		{
+			var middle = lower + ((upper - lower) / 2);
+			if (timeZone.IsInvalidTime(new DateTime(middle, DateTimeKind.Unspecified)))
+			{
+				lower = middle;
+			}
+			else
+			{
+				upper = middle;
+			}
+		}
+
+		return new DateTime(upper, DateTimeKind.Unspecified);
 	}
 
 	// Source-generated logging methods

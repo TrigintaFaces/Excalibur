@@ -17,7 +17,6 @@ namespace Excalibur.Tests.A3.Grants;
 public sealed class AddGrantCommandHandlerShould
 {
 	private readonly IGrantRepository _grantRepository = A.Fake<IGrantRepository>();
-	private readonly IDistributedCache _cache = A.Fake<IDistributedCache>();
 
 	public AddGrantCommandHandlerShould()
 	{
@@ -28,7 +27,7 @@ public sealed class AddGrantCommandHandlerShould
 		});
 	}
 
-	private AddGrantCommandHandler CreateSut() => new(_grantRepository, _cache);
+	private AddGrantCommandHandler CreateSut() => new(_grantRepository);
 
 	private static AddGrantCommand CreateValidCommand(
 		string userId = "target-user",
@@ -140,23 +139,16 @@ public sealed class AddGrantCommandHandlerShould
 			.MustHaveHappenedOnceExactly();
 	}
 
-	[Fact]
-	public async Task Invalidate_cache_after_creating_grant()
-	{
-		// Arrange
-		var sut = CreateSut();
-		var command = CreateValidCommand();
-
-		A.CallTo(() => _grantRepository.GetByIdAsync(A<string>._, A<CancellationToken>._))
-			.Returns((GrantAggregate?)null);
-
-		// Act
-		await sut.HandleAsync(command, CancellationToken.None);
-
-		// Assert
-		A.CallTo(() => _cache.RemoveAsync(A<string>.That.Contains("target-user"), A<CancellationToken>._))
-			.MustHaveHappenedOnceExactly();
-	}
+	// Removed: Invalidate_cache_after_creating_grant. It asserted that the handler CALLED
+	// IDistributedCache.RemoveAsync, which it did -- with the bare grants key, while the reader composes
+	// key + "revision-v1" + revision. The two could never name the same entry, so the call was inert and
+	// the assertion was green for the whole time the mechanism did nothing. It bound the mechanism, not
+	// the property.
+	//
+	// The property -- a grant change is never served stale from cache -- is bound by
+	// AuthorizationPolicyRevisionShould (Refresh_an_already_acquired_scope_after_revocation,
+	// Fence_a_late_old_fill_and_refresh_its_original_acquisition), which exercises the revision key that
+	// actually fences reads. Coverage of the guarantee is unchanged by this removal.
 
 	[Fact]
 	public async Task Return_auditable_result_with_success_message()

@@ -6,23 +6,21 @@ using Excalibur.A3.Audit;
 using Excalibur.A3.Exceptions;
 using Excalibur.Dispatch.Delivery;
 
-using Excalibur.Dispatch.Caching;
-
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Excalibur.A3.Authorization.Grants;
 
 /// <summary>
 /// Handles the execution of the <see cref="RevokeGrantCommand" />.
 /// </summary>
 /// <remarks>
-/// This handler is responsible for revoking a specific grant from a user. It performs the necessary checks, interacts with the
-/// <see cref="IGrantRepository" /> to modify grant data, and invalidates the cache to ensure up-to-date authorization data.
+/// This handler is responsible for revoking a specific grant from a user. It performs the necessary checks and interacts with the
+/// <see cref="IGrantRepository" /> to modify grant data. It takes no cache dependency: the store advances the user's monotonic
+/// grant revision inside the same commit, and reads address the cache by a key carrying that revision, so a read following this
+/// revocation composes a different key and cannot observe the pre-revocation entry.
 /// </remarks>
-internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository, [FromKeyedServices(DistributedCacheServiceKeys.ApplicationScoped)] IDistributedCache cache)
+internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository)
 	: IActionHandler<RevokeGrantCommand, AuditableResult<bool>>
 {
+
 	/// <inheritdoc />
 	public async Task<AuditableResult<bool>> HandleAsync(RevokeGrantCommand request, CancellationToken cancellationToken)
 	{
@@ -57,8 +55,11 @@ internal sealed class RevokeGrantCommandHandler(IGrantRepository grantRepository
 		grant.Revoke(request.AccessToken.FullName);
 		await grantRepository.DeleteAsync(grant, cancellationToken).ConfigureAwait(false);
 
-		// Invalidate the cache for the user's grants
-		await cache.RemoveAsync(AuthorizationCacheKey.ForGrants(request.UserId), cancellationToken).ConfigureAwait(false);
+		// No cache removal here, deliberately. Reads address the cache by a key carrying the user's
+		// monotonic grant revision, which the store advances inside this same commit, so a
+		// post-revocation read composes a different key and cannot observe the stale entry.
+		// The removal that used to sit here passed the bare key while the writer composes
+		// key + "revision-v1" + revision, so it could never name the entry it claimed to evict.
 
 		// Return an auditable result confirming the revocation
 		return new AuditableResult<bool>(

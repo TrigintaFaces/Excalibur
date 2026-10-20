@@ -21,7 +21,7 @@ public sealed class ImmutableProjectionShould
 	public async Task CreateProjectionFromFactoryWhenNullCurrent()
 	{
 		// Q1: null current + Creating = factory returns new instance
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderRecord>>(store)
 			.BuildServiceProvider();
@@ -52,7 +52,7 @@ public sealed class ImmutableProjectionShould
 	public async Task ReplaceProjectionWhenCreatingCalledWithNonNullCurrent()
 	{
 		// Q1: non-null current + Creating = factory replaces (last-wins)
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		await store.UpsertAsync("order-1", new OrderRecord(100m, null), CancellationToken.None);
 
 		var services = new ServiceCollection()
@@ -87,7 +87,7 @@ public sealed class ImmutableProjectionShould
 	public async Task TransformExistingProjection()
 	{
 		// Q1: non-null current + Transforming = reducer returns new instance
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		await store.UpsertAsync("order-1", new OrderRecord(100m, null), CancellationToken.None);
 
 		var services = new ServiceCollection()
@@ -123,7 +123,7 @@ public sealed class ImmutableProjectionShould
 	public async Task ThrowWhenTransformingWithNullCurrent()
 	{
 		// Q1: null current + Transforming = throws
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderRecord>>(store)
 			.BuildServiceProvider();
@@ -154,7 +154,7 @@ public sealed class ImmutableProjectionShould
 	[Fact]
 	public async Task ChainCreatingThenTransforming()
 	{
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderRecord>>(store)
 			.BuildServiceProvider();
@@ -189,7 +189,7 @@ public sealed class ImmutableProjectionShould
 	[Fact]
 	public async Task SkipUnhandledEventTypes()
 	{
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var services = new ServiceCollection()
 			.AddSingleton<IProjectionStore<OrderRecord>>(store)
 			.BuildServiceProvider();

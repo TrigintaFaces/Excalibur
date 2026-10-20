@@ -508,7 +508,7 @@ public static IServiceCollection AddDispatchCore(this IServiceCollection service
 
 **A**: Performance and alignment:
 
-- **MemoryPack**: Binary, zero-allocation, fastest for internal wire format
+- **MemoryPack**: Optional .NET binary format; compare latency, allocations and size for the actual payload and API rather than assuming a universal ranking
 - **STJ**: Text-based, best for HTTP/REST/CloudEvents (external boundaries)
 - **Separation**: Internal vs external serialization boundaries
 

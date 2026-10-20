@@ -66,16 +66,16 @@ Or name only the ones you actually use — which is the point of the change.
 
 Two reasons, and the second is the one that mattered.
 
-**Cost.** Measured on the warm path, against the same benchmark used for the published comparison
+**Cost — historical migration epoch.** These figures describe the code and configuration at this migration, not current release performance. The October refresh has not revalidated this comparison; differently configured dispatch measurements must not replace it. Measured on the warm path, against the same benchmark used for the historical published comparison
 figures, with three of your own middleware in the pipeline:
 
 | default profile | per dispatch |
 |---|---|
 | four middleware (before) | 1,836 ns / 1,960 B |
 | one semantically-inert middleware | 419 ns / 688 B |
-| empty (now) | **71.5 ns / 240 B** |
+| empty (at this migration) | **71.5 ns / 240 B** |
 
-Those four cost roughly **25x the entire remaining cost of a dispatch**, on hosts that had asked for
+In that historical workload, those four cost roughly **25x the entire remaining cost of a dispatch**, on hosts that had asked for
 none of them. Note the middle row: even a single stage that does nothing when its capability is absent
 — outbox staging without a store — costs **+346 ns and +448 B per dispatch**. Semantically inert is not
 free, and that measurement is what removed the last candidate for a default.

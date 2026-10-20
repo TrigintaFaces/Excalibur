@@ -112,6 +112,11 @@ public static class PollyResilienceServiceCollectionExtensions
 		_ = services.AddOptions<CircuitBreakerOptions>(name).Configure(options => configureOptions?.Invoke(options)).ValidateOnStart();
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<CircuitBreakerOptions>, CircuitBreakerOptionsValidator>());
+		services.TryAddKeyedSingleton<ICircuitBreakerPolicy>(name, (sp, key) =>
+			new PollyCircuitBreakerPolicyAdapter(
+				sp.GetRequiredService<IOptionsMonitor<CircuitBreakerOptions>>().Get((string)key!),
+				(string)key!,
+				sp.GetService<ILogger<PollyCircuitBreakerPolicyAdapter>>()));
 
 		return services;
 	}
@@ -233,6 +238,11 @@ public static class PollyResilienceServiceCollectionExtensions
 		_ = services.AddPollyResilience();
 
 		_ = services.AddOptions<BulkheadOptions>(resourceName).Configure(options => configureOptions?.Invoke(options)).ValidateOnStart();
+		services.TryAddKeyedSingleton<IBulkheadPolicy>(resourceName, (sp, key) =>
+			new BulkheadPolicy(
+				(string)key!,
+				sp.GetRequiredService<IOptionsMonitor<BulkheadOptions>>().Get((string)key!),
+				sp.GetService<ILogger<BulkheadPolicy>>()));
 
 		return services;
 	}

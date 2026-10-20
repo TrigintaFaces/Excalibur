@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch.Resilience.Polly;
 
+using Polly.Timeout;
+
 namespace Excalibur.Dispatch.Middleware.Tests.Resilience;
 
 /// <summary>
@@ -89,6 +91,55 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 	#region ExecuteAsync Tests
 
 	[Fact]
+	public async Task Cancel_Operation_On_Internal_Timeout_And_Release_Permit()
+	{
+		using var caller = new CancellationTokenSource();
+		_policy = new BulkheadPolicy("timeout", new BulkheadOptions
+		{
+			MaxConcurrency = 1,
+			AllowQueueing = false,
+			OperationTimeout = TimeSpan.FromMilliseconds(100),
+		});
+		IBulkheadPolicy policy = _policy;
+		CancellationToken observed = default;
+		Task<int>? pending = null;
+		try
+		{
+			await Should.ThrowAsync<TimeoutRejectedException>(() =>
+			{
+				pending = policy.ExecuteAsync<int>(async token =>
+				{
+					observed = token;
+					await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+					return 0;
+				}, caller.Token);
+				return pending.WaitAsync(TimeSpan.FromSeconds(5));
+			});
+			observed.IsCancellationRequested.ShouldBeTrue();
+			caller.IsCancellationRequested.ShouldBeFalse();
+			policy.GetMetrics().ActiveExecutions.ShouldBe(0);
+			(await policy.ExecuteAsync(_ => Task.FromResult(42), caller.Token)).ShouldBe(42);
+		}
+		finally
+		{
+			await caller.CancelAsync();
+			if (pending is not null)
+			{
+				try
+				{
+					await pending.WaitAsync(TimeSpan.FromSeconds(5));
+				}
+				catch (OperationCanceledException) when (caller.IsCancellationRequested)
+				{
+				}
+				catch (TimeoutRejectedException)
+				{
+				}
+			}
+		}
+	}
+
+	[Fact]
 	public async Task ExecuteAsync_WithNullOperation_ThrowsArgumentNullException()
 	{
 		// Arrange
@@ -97,7 +148,44 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentNullException>(
-			() => _policy.ExecuteAsync<int>(null!, CancellationToken.None));
+			() => _policy.ExecuteAsync<int>((Func<Task<int>>)null!, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task Preserve_Caller_Cancellation_And_Release_Permit()
+	{
+		using var caller = new CancellationTokenSource();
+		_policy = new BulkheadPolicy("caller", new BulkheadOptions
+		{
+			MaxConcurrency = 1,
+			OperationTimeout = TimeSpan.FromMinutes(1),
+		});
+		var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var pending = _policy.ExecuteAsync<int>(async token =>
+		{
+			entered.SetResult();
+			await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+			return 0;
+		}, caller.Token);
+		try
+		{
+			await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			await caller.CancelAsync();
+			await Should.ThrowAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)));
+			_policy.GetMetrics().ActiveExecutions.ShouldBe(0);
+			(await _policy.ExecuteAsync(_ => Task.FromResult(43), CancellationToken.None)).ShouldBe(43);
+		}
+		finally
+		{
+			await caller.CancelAsync();
+			try
+			{
+				await pending.WaitAsync(TimeSpan.FromSeconds(5));
+			}
+			catch (OperationCanceledException) when (caller.IsCancellationRequested)
+			{
+			}
+		}
 	}
 
 	[Fact]

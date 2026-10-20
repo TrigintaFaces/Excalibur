@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Serialization.MemoryPack;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the default high-performance serializer for the Excalibur framework.
+/// This is an opt-in binary serializer; System.Text.Json is the default.
 /// It consolidates the previously separate MemoryPackPluggableSerializer and
 /// MemoryPackInternalSerializer into a single class.
 /// </para>

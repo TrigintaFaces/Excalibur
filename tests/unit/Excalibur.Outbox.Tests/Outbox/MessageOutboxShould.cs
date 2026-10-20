@@ -513,6 +513,7 @@ public sealed class MessageOutboxShould : IAsyncDisposable
 
 	private sealed class TestOutboxMessage : IOutboxMessage
 	{
+		public string? LastError { get; init; }
 		public required string MessageId { get; init; }
 		public required string MessageType { get; init; }
 		public required byte[] MessageBody { get; init; }

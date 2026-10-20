@@ -1,0 +1,11 @@
+using System;
+namespace ShadowFixture;
+public sealed class RequiresDynamicCodeAttribute : Attribute
+{
+    public RequiresDynamicCodeAttribute(string reason) { }
+}
+public class Consumer
+{
+    [RequiresDynamicCode("not the platform attribute: must refuse, not a platform entry")]
+    public void Call() { }
+}

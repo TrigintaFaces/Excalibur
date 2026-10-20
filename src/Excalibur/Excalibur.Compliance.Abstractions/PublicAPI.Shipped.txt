@@ -1610,7 +1610,7 @@ Excalibur.Compliance.IErasureVerificationService.GenerateReportAsync(System.Guid
 Excalibur.Compliance.IErasureVerificationService.VerifyErasureAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.VerificationResult!>!
 Excalibur.Compliance.IErasureVerificationService.VerifyKeyDeletionAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Excalibur.Compliance.IFieldEncryptor
-Excalibur.Compliance.IFieldEncryptor.DecryptAsync(Excalibur.Compliance.EncryptedData! envelope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]?>
+Excalibur.Compliance.IFieldEncryptor.DecryptAsync(Excalibur.Compliance.EncryptedData! envelope, string! expectedTenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<byte[]?>
 Excalibur.Compliance.IFieldEncryptor.EncryptAsync(string! subjectId, Excalibur.Compliance.RetentionScope retentionScope, System.ReadOnlyMemory<byte> plaintext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Compliance.EncryptedData!>
 Excalibur.Compliance.IFipsDetector
 Excalibur.Compliance.IFipsDetector.GetStatus() -> Excalibur.Compliance.FipsDetectionResult!
@@ -3088,3 +3088,5 @@ static Excalibur.Compliance.VersionMigrationResult.Succeeded(byte[]! original, b
 static readonly Excalibur.Compliance.EncryptionVersion.Unknown -> Excalibur.Compliance.EncryptionVersion
 static readonly Excalibur.Compliance.EncryptionVersion.Version10 -> Excalibur.Compliance.EncryptionVersion
 static readonly Excalibur.Compliance.EncryptionVersion.Version11 -> Excalibur.Compliance.EncryptionVersion
+Excalibur.Compliance.IErasureBackgroundQueryStore
+Excalibur.Compliance.IErasureBackgroundQueryStore.GetAwaitingKeyDestructionRequestsAsync(int pageNumber, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureStatus!>!>!

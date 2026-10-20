@@ -11,6 +11,14 @@ namespace Excalibur.Caching.AdaptiveTtl;
 public sealed class RuleBasedTtlOptions : AdaptiveTtlOptions
 {
 	/// <summary>
+	/// Gets or sets the maximum number of keys retained for per-key diagnostics.
+	/// The strategy captures this limit at construction and evicts in admission order.
+	/// </summary>
+	/// <value>The diagnostic key capacity. The default is 1,024.</value>
+	[Range(1, int.MaxValue)]
+	public int MaxTrackedKeys { get; set; } = 1024;
+
+	/// <summary>
 	/// Gets or sets the hit rate rule configuration.
 	/// </summary>
 	/// <value> The hit rate rule options. </value>

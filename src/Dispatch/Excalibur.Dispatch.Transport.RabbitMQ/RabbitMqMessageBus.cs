@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 using System.Text;
 
 using Excalibur.Dispatch;
@@ -48,16 +50,27 @@ internal sealed partial class RabbitMqMessageBus(
 	IEnvelopeCloudEventBridge? cloudEventBridge = null,
 	ICloudEventEncoder<(IBasicProperties properties, ReadOnlyMemory<byte> body)>? cloudEventEncoder = null,
 	RabbitMqCloudEventOptions? cloudEventOptions = null,
-	RabbitMqTopologyInitializer? topologyInitializer = null) : IMessageBus
+	RabbitMqTopologyInitializer? topologyInitializer = null, RabbitMqPublishRoutes? publishRoutes = null) : IMessageBus, IDisposable
 {
+	[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The injected channel is borrowed. NamedRabbitMqChannel or the consumer owns it; this bus detaches only its own confirmation handlers.")]
 	private readonly IChannel _channel = channel ?? throw new ArgumentNullException(nameof(channel));
 	private readonly string _exchange = options.Value.Exchange;
 	private readonly string _routingKey = options.Value.RoutingKey;
 	private readonly RabbitMqCloudEventOptions? _cloudEventOptions = cloudEventOptions;
 	private readonly RabbitMqTopologyInitializer? _topologyInitializer = topologyInitializer;
+	private int _disposed;
 
 	private readonly PublishConfirmationTracker? _confirmationTracker =
 		PublishConfirmationTracker.Create(channel, logger, cloudEventOptions);
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		if (Interlocked.Exchange(ref _disposed, 1) == 0)
+		{
+			_confirmationTracker?.Dispose();
+		}
+	}
 
 	/// <summary>
 	/// ///
@@ -67,15 +80,16 @@ internal sealed partial class RabbitMqMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(action);
 		ArgumentNullException.ThrowIfNull(context);
+		var destination = publishRoutes?.Resolve(action.GetType(), _exchange, _routingKey) ?? (_exchange, _routingKey);
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, _routingKey, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, destination.Item2, context.MessageId);
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
 		if (cloudEventBridge is not null && cloudEventEncoder is not null)
 		{
-			await PublishWithCloudEventsAsync(action, context, LogSentAction, cancellationToken).ConfigureAwait(false);
+			await PublishWithCloudEventsAsync(action, context, LogSentAction, destination, cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
@@ -91,7 +105,7 @@ internal sealed partial class RabbitMqMessageBus(
 		}
 
 		ApplyPersistence(props);
-		await PublishBasicAsync(props, payload, cancellationToken).ConfigureAwait(false);
+		await PublishBasicAsync(props, payload, destination, cancellationToken).ConfigureAwait(false);
 
 		if (logger.IsEnabled(LogLevel.Information))
 		{
@@ -107,15 +121,16 @@ internal sealed partial class RabbitMqMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
+		var destination = publishRoutes?.Resolve(evt.GetType(), _exchange, _routingKey) ?? (_exchange, _routingKey);
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, _routingKey, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, destination.Item2, context.MessageId);
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
 		if (cloudEventBridge is not null && cloudEventEncoder is not null)
 		{
-			await PublishWithCloudEventsAsync(evt, context, LogPublishedEvent, cancellationToken).ConfigureAwait(false);
+			await PublishWithCloudEventsAsync(evt, context, LogPublishedEvent, destination, cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
@@ -131,7 +146,7 @@ internal sealed partial class RabbitMqMessageBus(
 		}
 
 		ApplyPersistence(props);
-		await PublishBasicAsync(props, payload, cancellationToken).ConfigureAwait(false);
+		await PublishBasicAsync(props, payload, destination, cancellationToken).ConfigureAwait(false);
 
 		if (logger.IsEnabled(LogLevel.Information))
 		{
@@ -147,15 +162,16 @@ internal sealed partial class RabbitMqMessageBus(
 	{
 		ArgumentNullException.ThrowIfNull(doc);
 		ArgumentNullException.ThrowIfNull(context);
+		var destination = publishRoutes?.Resolve(doc.GetType(), _exchange, _routingKey) ?? (_exchange, _routingKey);
 
 		using var publishActivity = MessagingProducerInstrumentation.StartPublishActivity(
-			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, _routingKey, context.MessageId);
+			TransportTelemetryConstants.MessagingConventions.Systems.RabbitMq, destination.Item2, context.MessageId);
 
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
 
 		if (cloudEventBridge is not null && cloudEventEncoder is not null)
 		{
-			await PublishWithCloudEventsAsync(doc, context, LogSentDocument, cancellationToken).ConfigureAwait(false);
+			await PublishWithCloudEventsAsync(doc, context, LogSentDocument, destination, cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
@@ -171,7 +187,7 @@ internal sealed partial class RabbitMqMessageBus(
 		}
 
 		ApplyPersistence(props);
-		await PublishBasicAsync(props, payload, cancellationToken).ConfigureAwait(false);
+		await PublishBasicAsync(props, payload, destination, cancellationToken).ConfigureAwait(false);
 
 		if (logger.IsEnabled(LogLevel.Information))
 		{
@@ -225,6 +241,7 @@ internal sealed partial class RabbitMqMessageBus(
 		IDispatchMessage message,
 		IMessageContext context,
 		Action<string> logAction,
+		(string Exchange, string RoutingKey) destination,
 		CancellationToken cancellationToken)
 	{
 		var envelope = CreateEnvelope(message, context);
@@ -237,7 +254,7 @@ internal sealed partial class RabbitMqMessageBus(
 					cancellationToken)
 				.ConfigureAwait(false);
 
-			await PublishTransportMessage(transportMessage, cancellationToken).ConfigureAwait(false);
+			await PublishTransportMessage(transportMessage, destination, cancellationToken).ConfigureAwait(false);
 		}
 		finally
 		{
@@ -251,6 +268,7 @@ internal sealed partial class RabbitMqMessageBus(
 	}
 
 	private async Task PublishTransportMessage((IBasicProperties properties, ReadOnlyMemory<byte> body) transportMessage,
+		(string Exchange, string RoutingKey) destination,
 		CancellationToken cancellationToken)
 	{
 		await EnsureTopologyAsync(cancellationToken).ConfigureAwait(false);
@@ -262,7 +280,7 @@ internal sealed partial class RabbitMqMessageBus(
 			throw new InvalidOperationException($"Expected {nameof(RabbitMqBasicProperties)} but got {properties.GetType().Name}");
 		}
 
-		await PublishWithConfirmationAsync(rabbitProps, body, cancellationToken).ConfigureAwait(false);
+		await PublishWithConfirmationAsync(rabbitProps, body, destination, cancellationToken).ConfigureAwait(false);
 	}
 
 	private void ApplyPersistence(RabbitMqBasicProperties props)
@@ -276,14 +294,16 @@ internal sealed partial class RabbitMqMessageBus(
 	private async Task PublishBasicAsync(
 		RabbitMqBasicProperties props,
 		byte[] payload,
+		(string Exchange, string RoutingKey) destination,
 		CancellationToken cancellationToken)
 	{
-		await PublishWithConfirmationAsync(props, payload, cancellationToken).ConfigureAwait(false);
+		await PublishWithConfirmationAsync(props, payload, destination, cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task PublishWithConfirmationAsync(
 		RabbitMqBasicProperties props,
 		ReadOnlyMemory<byte> body,
+		(string Exchange, string RoutingKey) destination,
 		CancellationToken cancellationToken)
 	{
 		if (_confirmationTracker is null)
@@ -291,8 +311,8 @@ internal sealed partial class RabbitMqMessageBus(
 			try
 			{
 				await _channel.BasicPublishAsync(
-						_exchange,
-						_routingKey,
+						destination.Exchange,
+						destination.RoutingKey,
 						mandatory: _cloudEventOptions?.Exchange.MandatoryPublishing ?? false,
 						basicProperties: props,
 						body: body,
@@ -314,8 +334,8 @@ internal sealed partial class RabbitMqMessageBus(
 				.PublishAsync(
 					props,
 					() => _channel.BasicPublishAsync(
-						_exchange,
-						_routingKey,
+						destination.Exchange,
+						destination.RoutingKey,
 						mandatory: _cloudEventOptions?.Exchange.MandatoryPublishing ?? false,
 						basicProperties: props,
 						body: body,
@@ -352,7 +372,7 @@ internal sealed partial class RabbitMqMessageBus(
 		"RabbitMQ publish failed.")]
 	private partial void LogPublishFailed(Exception ex);
 
-	private sealed class PublishConfirmationTracker
+	private sealed class PublishConfirmationTracker : IDisposable
 	{
 		private const string PublishIdHeader = "dispatch-publish-id";
 		private readonly IChannel _channel;
@@ -363,6 +383,36 @@ internal sealed partial class RabbitMqMessageBus(
 
 		private readonly TimeSpan _confirmationTimeout;
 		private readonly bool _trackReturns;
+
+		public void Dispose()
+		{
+			List<Exception>? errors = null;
+			Detach(() => _channel.BasicAcksAsync -= OnBasicAcksAsync);
+			Detach(() => _channel.BasicNacksAsync -= OnBasicNacksAsync);
+			if (_trackReturns)
+			{
+				Detach(() => _channel.BasicReturnAsync -= OnBasicReturnAsync);
+			}
+			if (errors is { Count: 1 })
+			{
+				ExceptionDispatchInfo.Capture(errors[0]).Throw();
+			}
+			if (errors is { Count: > 1 })
+			{
+				throw new AggregateException("RabbitMQ confirmation subscription cleanup failed.", errors);
+			}
+			void Detach(Action detach)
+			{
+				try
+				{
+					detach();
+				}
+				catch (Exception error)
+				{
+					(errors ??= []).Add(error);
+				}
+			}
+		}
 
 		private PublishConfirmationTracker(IChannel channel, RabbitMqCloudEventOptions options)
 		{
@@ -378,12 +428,26 @@ internal sealed partial class RabbitMqMessageBus(
 					? channel.ContinuationTimeout
 					: TimeSpan.FromSeconds(5);
 
-			_channel.BasicAcksAsync += OnBasicAcksAsync;
-			_channel.BasicNacksAsync += OnBasicNacksAsync;
-
-			if (_trackReturns)
+			try
 			{
-				_channel.BasicReturnAsync += OnBasicReturnAsync;
+				_channel.BasicAcksAsync += OnBasicAcksAsync;
+				_channel.BasicNacksAsync += OnBasicNacksAsync;
+				if (_trackReturns)
+				{
+					_channel.BasicReturnAsync += OnBasicReturnAsync;
+				}
+			}
+			catch (Exception creation)
+			{
+				try
+				{
+					Dispose();
+				}
+				catch (Exception cleanup)
+				{
+					throw new AggregateException("RabbitMQ confirmation subscription and cleanup failed.", creation, cleanup);
+				}
+				throw;
 			}
 		}
 

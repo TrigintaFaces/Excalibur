@@ -20,6 +20,10 @@
     <PackageReference Include="Excalibur.Outbox" Version="$(ExcaliburDispatchVersion)" />
     <!--#if (UseSqlServer) -->
     <PackageReference Include="Excalibur.Outbox.SqlServer" Version="$(ExcaliburDispatchVersion)" />
+    <!--#elseif (UsePostgreSql) -->
+    <PackageReference Include="Excalibur.Outbox.Postgres" Version="$(ExcaliburDispatchVersion)" />
+    <!--#elseif (UseInMemoryDatabase) -->
+    <PackageReference Include="Excalibur.Outbox.InMemory" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
     <!--#if (UseKafka) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
@@ -36,6 +40,10 @@
     <!--#if (UseGooglePubSub) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Company.ExcaliburOutbox.Tests/**/*.cs" />
   </ItemGroup>
 
 </Project>

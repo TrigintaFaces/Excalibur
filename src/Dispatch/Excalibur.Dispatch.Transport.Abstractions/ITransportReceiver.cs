@@ -32,21 +32,24 @@ public interface ITransportReceiver : IAsyncDisposable
 	Task<IReadOnlyList<TransportReceivedMessage>> ReceiveAsync(int maxMessages, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Acknowledges successful processing of a message, so the broker stops tracking it.
+	/// Requests acknowledgement of successful processing of a message.
 	/// </summary>
 	/// <remarks>
-	/// Returning normally means the broker accepted the acknowledgement. An implementation that cannot
-	/// complete the settlement throws rather than returning, because a caller cannot distinguish a
-	/// settled message from an unsettled one by any other means, and the redelivery that follows an
-	/// unreported failure reaches the consumer as an unexplained duplicate.
+	/// Returning normally means the provider completed the supported acknowledgement operation without
+	/// reporting failure or refusal through its available response. Confirmation guarantees depend on
+	/// the transport; completion does not guarantee durable broker acceptance or prevent redelivery.
+	/// An implementation must throw on an observed failure, refusal, or unsupported operation.
+	/// Callers must remain idempotent.
 	/// </remarks>
 	/// <param name="message">The message to acknowledge.</param>
 	/// <param name="cancellationToken">Cancellation token for the operation.</param>
 	/// <returns>Task representing the acknowledgment operation.</returns>
 	/// <exception cref="TransportSettlementException">
-	/// The broker did not accept the acknowledgement, so the message remains outstanding and is likely
-	/// to be delivered again. Read <see cref="TransportSettlementException.RedeliveryExpectation"/> to
-	/// see whether the transport could tell. Clients of this interface must be idempotent.
+	/// The acknowledgement could not be completed or its outcome could not be determined. The broker
+	/// may have accepted it before the failure became observable. Read
+	/// <see cref="TransportSettlementException.RedeliveryExpectation"/> to see whether the transport
+	/// could determine redelivery, and <see cref="TransportSettlementException.Retryability"/> before
+	/// retrying the settlement. Clients of this interface must be idempotent.
 	/// </exception>
 	Task AcknowledgeAsync(TransportReceivedMessage message, CancellationToken cancellationToken);
 
@@ -57,7 +60,9 @@ public interface ITransportReceiver : IAsyncDisposable
 	/// <paramref name="requeue"/> states the outcome the caller requires: <see langword="true"/> asks
 	/// the broker to deliver the message again, <see langword="false"/> asks it not to. Not every broker
 	/// can suppress redelivery for a single message, and an implementation that cannot deliver the
-	/// requested outcome must not report success for it.
+	/// requested disposition must throw rather than silently substitute another operation. Normal return
+	/// means the supported operation completed without an observed failure or refusal; broker confirmation
+	/// and subsequent delivery depend on the transport.
 	/// </remarks>
 	/// <param name="message">The message to reject.</param>
 	/// <param name="reason">The reason for rejection.</param>
@@ -65,10 +70,11 @@ public interface ITransportReceiver : IAsyncDisposable
 	/// <param name="cancellationToken">Cancellation token for the operation.</param>
 	/// <returns>Task representing the reject operation.</returns>
 	/// <exception cref="TransportSettlementException">
-	/// The broker did not accept the rejection. Read
+	/// The rejection could not be completed or its outcome could not be determined. The broker may
+	/// have accepted it before the failure became observable. Read
 	/// <see cref="TransportSettlementException.RedeliveryExpectation"/> to see whether the message is
-	/// expected to arrive again: a failed <c>requeue: false</c> leaves a poison message queued, which a
-	/// caller must handle rather than reject in a loop.
+	/// expected to arrive again, and <see cref="TransportSettlementException.Retryability"/> before
+	/// retrying the settlement. A failed <c>requeue: false</c> may leave a poison message queued.
 	/// </exception>
 	Task RejectAsync(TransportReceivedMessage message, string? reason, bool requeue, CancellationToken cancellationToken);
 

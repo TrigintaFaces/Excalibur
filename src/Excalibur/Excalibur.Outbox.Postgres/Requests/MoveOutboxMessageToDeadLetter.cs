@@ -48,14 +48,27 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{
+		// Lock the source before copying. Check archive/delete counts inside the command
+		// so trigger-suppressed deletion raises and rolls back the entire terminal transition.
 		var sql = $"""
+		   WITH source AS MATERIALIZED (
+		   SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts FROM {outboxTableName}
+		   WHERE message_id = @MessageId
+		   FOR UPDATE
+		   ), archived AS (
 		   INSERT INTO {deadLetterTableName} (message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, error_message)
-		           SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts + 1, @ErrorMessage
-		           FROM {outboxTableName}
-		           WHERE message_id = @MessageId;
-
-		           DELETE FROM {outboxTableName}
-		           WHERE message_id = @MessageId;
+		   SELECT message_id, tenant_id, message_type, message_metadata, message_body, occurred_on, attempts, @ErrorMessage
+		   FROM source RETURNING message_id
+		   ), deleted AS (
+		   DELETE FROM {outboxTableName} o USING archived a
+		   WHERE o.message_id = a.message_id RETURNING o.message_id
+		   ), counts AS (
+		   SELECT (SELECT COUNT(*) FROM archived)::int AS inserted_count,
+		   (SELECT COUNT(*) FROM deleted)::int AS deleted_count
+		   )
+		   SELECT
+		   inserted_count / CASE WHEN inserted_count = deleted_count THEN 1 ELSE 0 END AS UpdatedCount
+		   FROM counts;
 		   """;
 
 		var parameters = new DynamicParameters();
@@ -63,6 +76,6 @@ public sealed class MoveOutboxMessageToDeadLetter : DataRequest<int>
 		parameters.Add("ErrorMessage", string.Empty, direction: ParameterDirection.Input);
 
 		Command = CreateCommand(sql, (DynamicParameters?)parameters, commandTimeout: sqlTimeOutSeconds, cancellationToken: cancellationToken);
-		ResolveAsync = async conn => await conn.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = async conn => await conn.QuerySingleAsync<int>(Command).ConfigureAwait(false);
 	}
 }

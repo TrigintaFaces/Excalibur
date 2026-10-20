@@ -120,6 +120,7 @@ public sealed class CertificateVerifiedMeansEstablishedShould
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(new ErasureStatus
 			{
+            TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 				RequestId = requestId,
 				DataSubjectIdHash = "abc123hash",
 				IdType = DataSubjectIdType.UserId,

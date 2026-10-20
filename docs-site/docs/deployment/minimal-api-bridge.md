@@ -56,6 +56,52 @@ endpoints.DispatchPostAction<TAction>("/route");
 endpoints.DispatchPostAction<TAction, TResponse>("/route");
 ```
 
+#### Binding a JSON request body
+
+Every helper above binds with `[AsParameters]`, which composes the request from route values, query
+string and headers — **not** from the body. When the request arrives as a JSON document, use the
+`DispatchPostBodyAction` family instead; it is the only one that binds with `[FromBody]`.
+
+```csharp
+// JSON body → message factory + typed response
+endpoints.DispatchPostBodyAction<TRequest, TAction, TResponse>(
+    "/route",
+    (request, httpContext) => new MyCommand(request.Name));
+
+// The action itself IS the JSON contract — no factory needed
+endpoints.DispatchPostBodyAction<TAction, TResponse>("/route");
+```
+
+Choose between them by whether the wire contract and the action should stay separate types. The factory
+overload keeps them apart, so the shape you accept over HTTP can evolve independently of the action your
+handlers receive. The two-parameter overload deserializes the body straight into `TAction`, which is
+shorter but makes your action type part of your public API shape.
+
+The body is **required**. It is bound before dispatch, so a request with a missing or unparseable body is
+rejected by model binding and the action never runs — the pipeline is never entered and no handler
+observes the request. This family has no no-response variant — both overloads require a `TResponse`. For
+fire-and-forget semantics use `DispatchPostAction<TRequest, TAction>`, which returns 202 Accepted, and
+bind the payload from route, query or header values rather than the body.
+
+Without a `responseHandler` the result is converted by `MessageResultExtensions.ToHttpResult()`, so the
+status code comes from the dispatch result rather than from the registration — see
+[HTTP Response Mapping](#http-response-mapping) for the mapping and
+[Custom Response Handler](#custom-response-handler) for overriding it.
+
+:::warning These helpers are not Native AOT or trimming safe
+Every endpoint registration method on this page binds parameters reflectively, so each one carries
+`[RequiresDynamicCode]` and `[RequiresUnreferencedCode]`. In a project that publishes Native AOT or
+enables trimming, calling them produces analyzer warnings and the endpoints can fail at runtime once the
+binder's types are trimmed away.
+
+The attributes are an honest declaration rather than a suppression — you are warned at compile time — but
+this package currently offers no non-reflective registration path, so a Native AOT host cannot use these
+helpers. Map such endpoints with ASP.NET Core's own `MapPost`/`MapGet` and resolve `IDispatcher` inside
+the handler: `IDispatcher` carries no AOT annotation, so the dispatch call itself is not what these
+warnings are about. Verify your own publish, since the serializer and transport you configure have their
+own AOT requirements.
+:::
+
 ### GET Endpoints
 
 ```csharp

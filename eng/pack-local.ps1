@@ -46,7 +46,14 @@ New-Item -ItemType Directory -Path $feed,$evidence -Force | Out-Null
 if (@(Get-ChildItem -LiteralPath $feed -Filter '*.nupkg').Count -gt 0) { throw 'The feed must be empty. Use -Clean or a fresh -OutputDirectory.' }
 $dotnet = (Get-Command dotnet -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $common = @("-p:MinVerVersionOverride=$Version", '-p:BuildExamplesAndTests=true', '-p:Configuration=Release', '-p:UsePackageReferences=false')
-if ($LockedRestore) { $common += '-p:RestoreLockedMode=true' }
+if ($LockedRestore) {
+    # Explicit locked verification uses the checked-in source locks and stays fail-closed.
+    $common += '-p:RestoreLockedMode=true'
+} else {
+    # Candidate version/RID contexts can differ from prior local restores. The producer's
+    # own restore must not rewrite source inputs after the identity snapshot.
+    $common += @(Get-CompositionLockProperties -RunId ([guid]::NewGuid().ToString('N')))
+}
 if ($ContinuousIntegrationBuild) { $common += '-p:ContinuousIntegrationBuild=true' }
 $filter = Join-Path $repo 'eng/ci/shards/ShippingOnly.slnf'
 $roster = @()

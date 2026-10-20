@@ -6,7 +6,7 @@ description: Full Excalibur.Dispatch.Resilience.Polly API — circuit breakers, 
 
 # Polly Resilience
 
-`Excalibur.Dispatch.Resilience.Polly` provides comprehensive resilience patterns built on [Polly](https://github.com/App-vNext/Polly). It integrates with the Dispatch pipeline to add retry, circuit breaker, timeout, bulkhead, and graceful degradation policies.
+`Excalibur.Dispatch.Resilience.Polly` provides retry, circuit breaker, timeout, bulkhead, and graceful degradation services built on [Polly](https://github.com/App-vNext/Polly). Register policies, then execute them at the dependency boundary that needs protection. Service registration alone does not install retry middleware or wrap every handler.
 
 For provider-level operational resilience (transient error handling per database), see [Operational Resilience](./resilience.md).
 
@@ -31,7 +31,7 @@ services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-    // Add Polly resilience to the dispatch pipeline
+    // Register resilience services; consume policies explicitly where needed.
     dispatch.UseResilience();
 });
 ```
@@ -43,20 +43,11 @@ services.AddDispatch(dispatch =>
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Basic — adds all resilience services
+// Register resilience services
 dispatch.UseResilience();
 
-// With options
-dispatch.UseResilience(options =>
-{
-    options.Enabled = true;
-    options.EnableCircuitBreaker = true;
-    options.DefaultRetryCount = 3;
-    options.DefaultTimeoutSeconds = 30;
-});
-
 // Replace default implementations with Polly adapters
-dispatch.AddPollyResilienceAdapters(options =>
+dispatch.UsePollyResilienceAdapters(options =>
 {
     // Configure retry
     options.RetryOptions = new PollyRetryOptions
@@ -79,7 +70,7 @@ services.AddPollyResilience(configuration);
 // Add named circuit breaker
 services.AddPollyCircuitBreaker("orders-cb", options =>
 {
-    options.FailureThreshold = 5;
+    options.MinimumThroughput = 5;
     options.BreakDuration = TimeSpan.FromSeconds(60);
     options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
@@ -109,28 +100,26 @@ public sealed class OrderHandler(
 var retry = serviceProvider.GetRequiredKeyedService<IRetryPolicy>("transient-retry");
 ```
 
-Resolving the **unkeyed** `IRetryPolicy` gives you the default options, not the ones you configured under
-a name. Two different names are two independent policies and never share configuration.
+Named registration preserves any separately registered **unkeyed** `IRetryPolicy`; it does not create or
+replace that default. Resolve the policy by its configured key. Different names have independent options.
 
-`BackoffStrategy` supports `Fixed`, `Linear`, `Exponential`, `ExponentialWithJitter`, `Fibonacci`,
-`FullJitter`, and `DecorrelatedJitter`. Use **`BackoffStrategy.FullJitter`** for AWS-style full jitter — the
-delay is sampled uniformly from `[0, min(maxDelay, baseDelay * multiplier^(attempt-1))]`, maximally
-decorrelating concurrent clients to avoid a thundering herd on retry:
+`MaxRetryAttempts` counts retries after the initial attempt. Set it to `0` to execute once without a
+retry strategy; delay, jitter, and the retry predicate are then unused.
 
-```csharp
-options.BackoffStrategy = BackoffStrategy.FullJitter;
-```
-
-Use **`BackoffStrategy.DecorrelatedJitter`** for AWS-style *decorrelated* jitter — each delay is sampled from
-`[baseDelay, previousDelay * 3]` and capped at `maxDelay`, threading the previous actual delay forward for
-smoother, less-correlated growth than full jitter. Because it depends on prior delay state it is **stateful
-and in-process only** (the in-memory retry middleware / Polly path); durable retry paths (outbox/inbox
-schedulable stores) intentionally use an attempt-derived strategy instead, so it is not persisted across
-restarts:
+The Polly retry adapter maps `Fixed`, `Linear`, and `Exponential` to Polly's corresponding delay types.
+`FullJitter` selects exponential backoff with jitter enabled; other enum values fall back to exponential.
+Polly's exponential jitter uses DecorrelatedJitterBackoffV2, so this adapter does not promise the AWS
+uniform full-jitter formula. See [Polly retry strategies](https://www.pollydocs.org/strategies/retry).
 
 ```csharp
-options.BackoffStrategy = BackoffStrategy.DecorrelatedJitter;
+options.BackoffStrategy = BackoffStrategy.Exponential;
+options.UseJitter = true;
+options.MaxDelay = TimeSpan.FromSeconds(10);
 ```
+
+The default retry predicate excludes cancellation. An explicit `ShouldRetry` predicate may select an
+attempt-local cancellation while the caller remains active; caller cancellation still stops the pipeline.
+Tenant-isolation violations remain excluded even when a custom predicate selects them.
 
 ## Circuit Breaker
 
@@ -228,7 +217,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 services.AddPollyCircuitBreaker("payment-service", options =>
 {
-    options.FailureThreshold = 5;
+    options.MinimumThroughput = 5;
     options.FailureRatio = 0.5;
     options.SamplingDuration = TimeSpan.FromSeconds(30);
     options.BreakDuration = TimeSpan.FromSeconds(60);
@@ -241,7 +230,7 @@ consecutive failures:
 
 | Setting | Default | Meaning on this breaker |
 | --- | --- | --- |
-| `FailureThreshold` | `5` | Minimum calls that must be observed within `SamplingDuration` before `FailureRatio` is evaluated at all. Must be at least 2 — a proportion needs two calls to exist, and a lower value is rejected at construction. |
+| `MinimumThroughput` | `5` | Minimum calls that must be observed within `SamplingDuration` before `FailureRatio` is evaluated at all. Must be at least 2 — a proportion needs two calls to exist, and a lower value is rejected at construction. |
 | `FailureRatio` | `0.5` | Proportion of observed calls that must have failed for the circuit to open. |
 | `SamplingDuration` | 30s | The rolling window the proportion is measured over. Minimum 500 ms. |
 
@@ -249,7 +238,7 @@ The practical consequence is worth stating plainly: a run of failures that is di
 successes inside the same window keeps the proportion below `FailureRatio`, and the circuit stays
 closed. If you want the circuit to open on a run of consecutive failures regardless of surrounding
 traffic, use the count-based circuit breaker policy rather than this one — it opens on
-`FailureThreshold` consecutive failures and accepts a threshold of 1.
+`ConsecutiveFailureThreshold` consecutive failures and accepts a threshold of 1.
 
 The named circuit breaker admits **one** trial call while half-open and closes if it succeeds. That
 is not configurable, and it is a different type from `DistributedCircuitBreakerOptions` below, which
@@ -282,6 +271,9 @@ public interface IDistributedCircuitBreaker
 
 **Registration.** Register a cross-instance cache *before* the breaker, and resolve the breaker by
 name:
+
+Register `AddDistributedCircuitBreaker` to enable this service. Its options have no `Enabled` switch;
+omit the registration when the application does not need a distributed breaker.
 
 ```csharp
 builder.Services.AddStackExchangeRedisCache(options =>
@@ -328,7 +320,6 @@ meaning is stated; a shared count over this abstraction would be neither.
 {
   "Resilience": {
     "DistributedCircuitBreaker": {
-      "Enabled": true,
       "SyncInterval": "00:00:05",
       "FailureRatio": 0.5,
       "MinimumThroughput": 10,
@@ -418,7 +409,7 @@ var state = breaker.State; // Closed, Open, or HalfOpen
 // With custom options
 var customBreaker = registry.GetOrCreate("AzureServiceBus", new CircuitBreakerOptions
 {
-    FailureThreshold = 3,
+    MinimumThroughput = 3,
     BreakDuration = TimeSpan.FromSeconds(30)
 });
 ```
@@ -464,12 +455,14 @@ services.AddPollyRetryPolicy("my-retry", options =>
 {
     options.MaxRetryAttempts = 3;
     options.BaseDelay = TimeSpan.FromMilliseconds(200);
-    options.BackoffStrategy = BackoffStrategy.Exponential;  // 200ms, 400ms, 800ms
+    options.BackoffStrategy = BackoffStrategy.Exponential;  // nominal 200ms, 400ms, 800ms before jitter
     options.UseJitter = true;                               // Decorrelated jitter
 });
 ```
 
-The Polly adapter replaces the default `IRetryPolicy` with `PollyRetryPolicyAdapter`, providing decorrelated jitter and advanced retry strategies.
+Resolve this named policy with `GetRequiredKeyedService<IRetryPolicy>("my-retry")`.
+To replace the unkeyed default instead, use `AddPollyResilienceAdapters` on the service collection or
+`UsePollyResilienceAdapters` on the Dispatch builder.
 
 ### Timeout
 
@@ -504,6 +497,7 @@ services.AddBulkhead("external-api", options =>
 {
     options.MaxConcurrency = 10;  // concurrent executions allowed (default 10)
     options.MaxQueueLength = 50;  // additional callers allowed to wait (default 50)
+    options.OperationTimeout = TimeSpan.FromSeconds(5);
 });
 ```
 
@@ -512,6 +506,7 @@ services.AddBulkhead("external-api", options =>
 | `MaxConcurrency` | `int` | `10` | Maximum operations executing concurrently (must be ≥ 1) |
 | `MaxQueueLength` | `int` | `50` | Maximum callers allowed to wait for a slot (must be ≥ 0) |
 | `AllowQueueing` | `bool` | `true` | Whether callers may wait at all. Set `false` to reject immediately once `MaxConcurrency` is reached, ignoring `MaxQueueLength` |
+| `OperationTimeout` | `TimeSpan` | `00:00:30` | Timeout for an admitted operation; queue waiting is governed by the caller token |
 
 :::info `MaxQueueLength` is a hard admission bound, and the queue is FIFO
 Admission is handled by `System.Threading.RateLimiting.ConcurrencyLimiter`, so the bound holds under
@@ -523,7 +518,17 @@ Waiters are admitted oldest-first, so the queue is FIFO. A caller already waitin
 make room for one that arrives later — the newcomer is rejected instead.
 :::
 
-The bulkhead manager (resolved via DI as `IBulkheadManager`) manages named bulkhead isolations to prevent one slow operation from consuming all available threads.
+Resolve the public policy by key and pass its execution token to the downstream operation:
+
+```csharp
+var bulkhead = serviceProvider.GetRequiredKeyedService<IBulkheadPolicy>("external-api");
+var response = await bulkhead.ExecuteAsync(
+    ct => httpClient.GetStringAsync("https://example.com/catalog", ct), callerToken);
+```
+
+The callback must honor that token for cooperative timeout cancellation. The legacy `Func<Task<T>>`
+overload cannot supply the timeout token to the operation. Cancellation does not forcibly stop code that
+ignores its token.
 
 ### Graceful Degradation
 
@@ -637,7 +642,6 @@ an `IValidateOptions<GracefulDegradationOptions>` runs at host startup and fails
       "ErrorRateWindowBuckets": 6
     },
     "DistributedCircuitBreaker": {
-      "Enabled": false,
       "SyncInterval": "00:00:05",
       "FailureRatio": 0.5,
       "MinimumThroughput": 10,
@@ -652,7 +656,7 @@ an `IValidateOptions<GracefulDegradationOptions>` runs at host startup and fails
 
 ## Policy Composition
 
-Combine multiple policies for defense-in-depth:
+Compose policies at the dependency boundary that owns the operation:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -662,7 +666,7 @@ services.AddDispatch(dispatch =>
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
     // Add Polly with all adapters
-    dispatch.AddPollyResilienceAdapters(options =>
+    dispatch.UsePollyResilienceAdapters(options =>
     {
         options.RetryOptions = new PollyRetryOptions
         {
@@ -674,7 +678,7 @@ services.AddDispatch(dispatch =>
 // Named policies for specific operations
 services.AddPollyCircuitBreaker("external-api", options =>
 {
-    options.FailureThreshold = 3;
+    options.MinimumThroughput = 3;
     options.BreakDuration = TimeSpan.FromSeconds(30);
 });
 
@@ -685,6 +689,22 @@ services.AddPollyRetryPolicy("idempotent-ops", options =>
     options.UseJitter = true;
 });
 ```
+
+### Retry ownership
+
+When `RetryMiddleware` owns a dispatch, the final bus invocation does not add its own retry budget.
+Standalone bus policies retain their configured retries. Fanout remembers successful destinations within
+that logical retry sequence and retries only transient failures; permanent failures remain in the final
+aggregate outcome. A new dispatch starts a new sequence, even when the same context is reused.
+
+This does not establish whether a remote write committed before a timeout. Use an idempotency key or a
+dependency-specific outcome check before replaying operations with ambiguous effects. Independently
+cloning a failed result can lose its classification provenance, although completed or permanent fanout
+destinations remain protected from another publication within the sequence.
+
+The [RetryAndCircuitBreaker sample](https://github.com/TrigintaFaces/Excalibur/blob/main/samples/04-reliability/RetryAndCircuitBreaker/README.md)
+executes the named policies against controlled downstream calls. Its `--verify` mode checks retry budgets,
+breaker refusal, explicit reset recovery, timeout cancellation, and actual effect counts.
 
 ## See Also
 

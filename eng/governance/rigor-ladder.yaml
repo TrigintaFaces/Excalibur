@@ -140,7 +140,7 @@ seams:
   - name: dispatch-pipeline
     architecture_md: src/Dispatch/Excalibur.Dispatch/ARCHITECTURE.md
     blast_radius: catastrophic
-    why: "A middleware silently skipped or reordered produces no error. An authorization middleware that did not run looks exactly like one that ran and permitted."
+    why: "A middleware silently skipped or reordered produces no error. An authorization middleware that did not run looks exactly like one that ran and permitted. This row also covers scheduled-occurrence execution, whose failures are silent in the same way: an occurrence admitted by two hosts runs twice with nothing downstream learning, and one admitted by none is simply never dispatched."
     met: [R1, R2]
     unmet: [R3, R4]
 

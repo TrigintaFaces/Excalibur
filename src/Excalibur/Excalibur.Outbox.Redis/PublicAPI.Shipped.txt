@@ -41,7 +41,6 @@ Excalibur.Outbox.Redis.RedisOutboxStore.GetAllTenantsFailedMessagesAsync(int max
 Excalibur.Outbox.Redis.RedisOutboxStore.GetAllTenantsScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
 Excalibur.Outbox.Redis.RedisOutboxStore.GetAllTenantsStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxStatistics!>
 Excalibur.Outbox.Redis.RedisOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.OutboundMessage!>!>
-Excalibur.Outbox.Redis.RedisOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Redis.RedisOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Redis.RedisOutboxStore.MarkFailedWithBackoffAsync(string! messageId, string! errorMessage, int retryCount, System.DateTimeOffset nextAttemptAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Outbox.Redis.RedisOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -50,3 +49,4 @@ Excalibur.Outbox.Redis.RedisOutboxStore.RedisOutboxStore(StackExchange.Redis.ICo
 Excalibur.Outbox.Redis.RedisOutboxStore.StageMessageAsync(Excalibur.Dispatch.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Microsoft.Extensions.DependencyInjection.OutboxBuilderRedisExtensions
 static Microsoft.Extensions.DependencyInjection.OutboxBuilderRedisExtensions.UseRedis(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Redis.IRedisOutboxBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.Redis.RedisOutboxStore.MarkDeadLetteredAsync(string! messageId, string! reason, int attemptCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.OutboxCompletionOutcome>

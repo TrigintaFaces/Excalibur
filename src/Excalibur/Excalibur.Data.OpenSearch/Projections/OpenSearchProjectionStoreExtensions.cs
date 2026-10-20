@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.Data.OpenSearch.Projections;
 using Excalibur.EventSourcing;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -45,10 +48,7 @@ public static class OpenSearchProjectionStoreExtensions
 		var optionsName = typeof(TProjection).Name;
 		_ = services.Configure(optionsName, configureOptions);
 
-		// The validator existed and was registered by nothing, so an invalid NodeUri or a
-		// non-positive timeout reached the client instead of failing at resolve time.
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<
-			IValidateOptions<OpenSearchProjectionStoreOptions>, OpenSearchProjectionStoreOptionsValidator>());
+		WireOptionsValidation(services, optionsName);
 
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
@@ -118,10 +118,12 @@ public static class OpenSearchProjectionStoreExtensions
 		var optionsName = typeof(TProjection).Name;
 		_ = services.Configure(optionsName, configureOptions);
 
-		// The validator existed and was registered by nothing, so an invalid NodeUri or a
-		// non-positive timeout reached the client instead of failing at resolve time.
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<
-			IValidateOptions<OpenSearchProjectionStoreOptions>, OpenSearchProjectionStoreOptionsValidator>());
+		// Recorded AFTER the consumer's action, so it cannot be cleared by one: this path always supplies
+		// the client, which makes the node address dead and the required-node check wrong here.
+		_ = services.Configure<OpenSearchProjectionStoreOptions>(
+			optionsName, static o => o.ClientSuppliedByRegistration = true);
+
+		WireOptionsValidation(services, optionsName);
 
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
@@ -176,5 +178,102 @@ public static class OpenSearchProjectionStoreExtensions
 		configure(registrar);
 
 		return services;
+	}
+
+	/// <summary>
+	/// Adds the OpenSearch projection store, taking its cluster from a configuration section.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type to store.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="section">The configuration section to bind the store options from.</param>
+	/// <param name="configureOptions">Optional action applied AFTER binding, so code overrides configuration.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// There is no node default, so a section naming none is refused at start-up rather than silently
+	/// addressing the local machine.
+	/// </para>
+	/// <code>
+	/// // appsettings.json
+	/// // "OpenSearch": {
+	/// //   "NodeUris": [ "http://os01:9200", "http://os02:9200" ],
+	/// //   "IndexPrefix": "readmodels",
+	/// //   "NumberOfReplicas": 1
+	/// // }
+	/// services.AddOpenSearchProjectionStore&lt;OrderSummary&gt;(
+	///     configuration.GetSection("OpenSearch"),
+	///     o =&gt; o.IndexName = "ordersummary");
+	/// </code>
+	/// </remarks>
+	[RequiresUnreferencedCode("Binds configuration to the options type reflectively; configure the store in code for trimming and AOT.")]
+	[RequiresDynamicCode("Binds configuration to the options type reflectively; configure the store in code for trimming and AOT.")]
+	public static IServiceCollection AddOpenSearchProjectionStore<TProjection>(
+		this IServiceCollection services,
+		IConfiguration section,
+		Action<OpenSearchProjectionStoreOptions>? configureOptions = null)
+		where TProjection : class
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(section);
+
+		var optionsName = typeof(TProjection).Name;
+
+		// Bound first, so the code action registered by the call below runs after it and wins.
+		_ = services.AddOptions<OpenSearchProjectionStoreOptions>(optionsName).Bind(section);
+
+		return services.AddOpenSearchProjectionStore<TProjection>(configureOptions ?? (static _ => { }));
+	}
+
+	/// <summary>
+	/// Registers multiple OpenSearch projection stores sharing one configured cluster.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="section">The configuration section describing the shared cluster.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// The cluster is described once and every projection registered inside <paramref name="configure"/>
+	/// binds it, while keeping its own named options -- so a per-projection index name does not leak
+	/// across read models.
+	/// </para>
+	/// <code>
+	/// services.AddOpenSearchProjections(
+	///     configuration.GetSection("OpenSearch"),
+	///     projections =&gt; projections
+	///         .Add&lt;OrderSummary&gt;(o =&gt; o.IndexName = "ordersummary")
+	///         .Add&lt;CustomerProfile&gt;(o =&gt; o.IndexName = "customerprofile"));
+	/// </code>
+	/// </remarks>
+	[RequiresUnreferencedCode("Binds configuration to the options type reflectively; configure the stores in code for trimming and AOT.")]
+	[RequiresDynamicCode("Binds configuration to the options type reflectively; configure the stores in code for trimming and AOT.")]
+	public static IServiceCollection AddOpenSearchProjections(
+		this IServiceCollection services,
+		IConfiguration section,
+		Action<OpenSearchProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(section);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new OpenSearchProjectionRegistrar(services, section);
+		configure(registrar);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Wires eager (fail-fast at start-up) validation for a named projection-store options instance.
+	/// </summary>
+	/// <remarks>
+	/// The cross-property validator was registered without this, so it ran on the store's first use.
+	/// That is the wrong moment for a configuration mistake: for an async projection the first use is
+	/// inside a background host, with the events already durable and no request to fail.
+	/// </remarks>
+	private static void WireOptionsValidation(IServiceCollection services, string optionsName)
+	{
+		_ = services.AddOptions<OpenSearchProjectionStoreOptions>(optionsName).ValidateOnStart();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<
+			IValidateOptions<OpenSearchProjectionStoreOptions>, OpenSearchProjectionStoreOptionsValidator>());
 	}
 }

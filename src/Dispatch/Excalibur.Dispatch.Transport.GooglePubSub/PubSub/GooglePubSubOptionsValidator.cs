@@ -26,12 +26,8 @@ internal sealed class GooglePubSubOptionsValidator : IValidateOptions<GooglePubS
 				"Google Pub/Sub ProjectId is required. Set GooglePubSubOptions.Connection.ProjectId to your Google Cloud project ID.");
 		}
 
-		if (string.IsNullOrWhiteSpace(options.Connection.SubscriptionId))
-		{
-			return ValidateOptionsResult.Fail(
-				"Google Pub/Sub SubscriptionId is required. Set GooglePubSubOptions.Connection.SubscriptionId to the target subscription.");
-		}
-
+		// Publishing needs no subscription. Receiving capabilities are registered only when a
+		// subscription is configured and retain their own subscription-specific checks.
 		// The flow-control limits are nested inside these options, so nothing resolves an
 		// IValidateOptions<PubSubFlowControlOptions> for them. Validate them here or they are
 		// never validated at all.

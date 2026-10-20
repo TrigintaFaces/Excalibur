@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
+using Excalibur.Dispatch.Delivery.Registry;
 
 using Excalibur.Dispatch.Outbox;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Integration.Tests.Data.Outbox;
 
@@ -62,6 +65,9 @@ public abstract class OutboxDrainLeaseTestBase
 	public async Task HandEachDueScheduledMessageToTheTransportExactlyOnce_WhenTwoDrainsRunConcurrently()
 	{
 		var ct = TestContext.Current.CancellationToken;
+		using var serialization = BuildSerialization();
+		var serializer = serialization.GetRequiredService<IPayloadSerializer>();
+		var expectedSequences = new Dictionary<string, int>(StringComparer.Ordinal);
 		await CleanupAsync().ConfigureAwait(false);
 
 		var store = await CreateStoreAsync(null).ConfigureAwait(false);
@@ -69,11 +75,8 @@ public abstract class OutboxDrainLeaseTestBase
 
 		for (var i = 0; i < DueMessageCount; i++)
 		{
-			var message = new OutboundMessage("DueScheduledMessage", [(byte)i], "orders")
-			{
-				// Due: its time has already arrived, so both the claim and the former plain read admit it.
-				ScheduledAt = DateTimeOffset.UtcNow.AddMinutes(-5),
-			};
+			var message = CreateMessage(serializer, expectedSequences, i);
+			message.ScheduledAt = DateTimeOffset.UtcNow.AddMinutes(-5);
 
 			await store.StageMessageAsync(message, ct).ConfigureAwait(false);
 			staged.Add(message.Id);
@@ -82,22 +85,22 @@ public abstract class OutboxDrainLeaseTestBase
 		var delivered = new ConcurrentBag<string>();
 		var storeA = await CreateStoreAsync(null).ConfigureAwait(false);
 		var storeB = await CreateStoreAsync(null).ConfigureAwait(false);
-		var publisherA = CreatePublisher(storeA, delivered, TimeSpan.FromMilliseconds(120));
-		var publisherB = CreatePublisher(storeB, delivered, TimeSpan.FromMilliseconds(120));
+		var publisherA = CreatePublisher(storeA, serializer, expectedSequences, delivered, TimeSpan.FromMilliseconds(120));
+		var publisherB = CreatePublisher(storeB, serializer, expectedSequences, delivered, TimeSpan.FromMilliseconds(120));
 
 		var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var drainA = Task.Run(
 			async () =>
 			{
 				await start.Task.ConfigureAwait(false);
-				_ = await publisherA.PublishScheduledMessagesAsync(ct).ConfigureAwait(false);
+				(await publisherA.PublishScheduledMessagesAsync(ct).ConfigureAwait(false)).FailureCount.ShouldBe(0, "valid payload publication must not hide restoration or transport assertion failures");
 			},
 			ct);
 		var drainB = Task.Run(
 			async () =>
 			{
 				await start.Task.ConfigureAwait(false);
-				_ = await publisherB.PublishScheduledMessagesAsync(ct).ConfigureAwait(false);
+				(await publisherB.PublishScheduledMessagesAsync(ct).ConfigureAwait(false)).FailureCount.ShouldBe(0, "valid payload publication must not hide restoration or transport assertion failures");
 			},
 			ct);
 
@@ -133,20 +136,21 @@ public abstract class OutboxDrainLeaseTestBase
 	public async Task NeverDeliverAScheduledMessageBeforeItsTimeArrives()
 	{
 		var ct = TestContext.Current.CancellationToken;
+		using var serialization = BuildSerialization();
+		var serializer = serialization.GetRequiredService<IPayloadSerializer>();
+		var expectedSequences = new Dictionary<string, int>(StringComparer.Ordinal);
 		await CleanupAsync().ConfigureAwait(false);
 
 		var store = await CreateStoreAsync(null).ConfigureAwait(false);
-		var future = new OutboundMessage("FutureScheduledMessage", [9], "orders")
-		{
-			ScheduledAt = DateTimeOffset.UtcNow.AddHours(1),
-		};
+		var future = CreateMessage(serializer, expectedSequences, 9);
+		future.ScheduledAt = DateTimeOffset.UtcNow.AddHours(1);
 
 		await store.StageMessageAsync(future, ct).ConfigureAwait(false);
 
 		var delivered = new ConcurrentBag<string>();
-		var publisher = CreatePublisher(store, delivered, TimeSpan.Zero);
+		var publisher = CreatePublisher(store, serializer, expectedSequences, delivered, TimeSpan.Zero);
 
-		_ = await publisher.PublishScheduledMessagesAsync(ct).ConfigureAwait(false);
+		(await publisher.PublishScheduledMessagesAsync(ct).ConfigureAwait(false)).FailureCount.ShouldBe(0, "valid payload publication must not hide restoration or transport assertion failures");
 
 		delivered.ShouldBeEmpty("A message scheduled an hour from now is not due and must not be dispatched.");
 	}
@@ -164,17 +168,20 @@ public abstract class OutboxDrainLeaseTestBase
 	public async Task NeverRepublishAFailedMessageInsideItsBackoffFloor()
 	{
 		var ct = TestContext.Current.CancellationToken;
+		using var serialization = BuildSerialization();
+		var serializer = serialization.GetRequiredService<IPayloadSerializer>();
+		var expectedSequences = new Dictionary<string, int>(StringComparer.Ordinal);
 		await CleanupAsync().ConfigureAwait(false);
 
 		var store = await CreateStoreAsync(RetryFloorSeconds).ConfigureAwait(false);
-		var messageId = await StageAndFailAsync(store, ct).ConfigureAwait(false);
+		var messageId = await StageAndFailAsync(store, serializer, expectedSequences, ct).ConfigureAwait(false);
 
 		var delivered = new ConcurrentBag<string>();
-		var publisher = CreatePublisher(store, delivered, TimeSpan.Zero);
+		var publisher = CreatePublisher(store, serializer, expectedSequences, delivered, TimeSpan.Zero);
 
 		// Immediately inside the floor, and again -- a poll cycle is far shorter than the floor.
-		_ = await publisher.RetryFailedMessagesAsync(3, ct).ConfigureAwait(false);
-		_ = await publisher.RetryFailedMessagesAsync(3, ct).ConfigureAwait(false);
+		(await publisher.RetryFailedMessagesAsync(3, ct).ConfigureAwait(false)).FailureCount.ShouldBe(0, "valid payload publication must not hide restoration or transport assertion failures");
+		(await publisher.RetryFailedMessagesAsync(3, ct).ConfigureAwait(false)).FailureCount.ShouldBe(0, "valid payload publication must not hide restoration or transport assertion failures");
 
 		delivered.ShouldBeEmpty(
 			$"Message '{messageId}' was floored to now plus {RetryFloorSeconds}s by the failure path and was " +
@@ -191,18 +198,21 @@ public abstract class OutboxDrainLeaseTestBase
 	public async Task RepublishAFailedMessage_OnceItsBackoffFloorHasElapsed()
 	{
 		var ct = TestContext.Current.CancellationToken;
+		using var serialization = BuildSerialization();
+		var serializer = serialization.GetRequiredService<IPayloadSerializer>();
+		var expectedSequences = new Dictionary<string, int>(StringComparer.Ordinal);
 		await CleanupAsync().ConfigureAwait(false);
 
 		var store = await CreateStoreAsync(RetryFloorSeconds).ConfigureAwait(false);
-		var messageId = await StageAndFailAsync(store, ct).ConfigureAwait(false);
+		var messageId = await StageAndFailAsync(store, serializer, expectedSequences, ct).ConfigureAwait(false);
 
 		var delivered = new ConcurrentBag<string>();
-		var publisher = CreatePublisher(store, delivered, TimeSpan.Zero);
+		var publisher = CreatePublisher(store, serializer, expectedSequences, delivered, TimeSpan.Zero);
 
 		var deadline = DateTimeOffset.UtcNow.AddSeconds((RetryFloorSeconds * 4) + 20);
 		while (delivered.IsEmpty && DateTimeOffset.UtcNow < deadline)
 		{
-			_ = await publisher.RetryFailedMessagesAsync(3, ct).ConfigureAwait(false);
+			(await publisher.RetryFailedMessagesAsync(3, ct).ConfigureAwait(false)).FailureCount.ShouldBe(0, "valid payload publication must not hide restoration or transport assertion failures");
 
 			if (delivered.IsEmpty)
 			{
@@ -217,9 +227,9 @@ public abstract class OutboxDrainLeaseTestBase
 	}
 
 	/// <summary>Stages one message, claims it, and reports it failed -- leaving it floored and lease-free.</summary>
-	private static async Task<string> StageAndFailAsync(IOutboxStore store, CancellationToken cancellationToken)
+	private static async Task<string> StageAndFailAsync(IOutboxStore store, IPayloadSerializer serializer, IDictionary<string, int> expectedSequences, CancellationToken cancellationToken)
 	{
-		var message = new OutboundMessage("FailedMessage", [7], "orders");
+		var message = CreateMessage(serializer, expectedSequences, 7);
 		await store.StageMessageAsync(message, cancellationToken).ConfigureAwait(false);
 
 		// Claim it as this store's dispatcher, so the ownership guard on the failure path admits the report.
@@ -237,14 +247,19 @@ public abstract class OutboxDrainLeaseTestBase
 	/// </summary>
 	private static MessageBusOutboxPublisher CreatePublisher(
 		IOutboxStore store,
+		IPayloadSerializer serializer,
+		IReadOnlyDictionary<string, int> expectedSequences,
 		ConcurrentBag<string> delivered,
 		TimeSpan publishDelay)
 	{
 		var bus = A.Fake<IMessageBusAdapter>();
 
 		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
-			.ReturnsLazily(async (IDispatchMessage _, IMessageContext context, CancellationToken token) =>
+			.ReturnsLazily(async (IDispatchMessage message, IMessageContext context, CancellationToken token) =>
 			{
+				var restored = message.ShouldBeOfType<LeaseProbeEvent>();
+				restored.PersistedId.ShouldBe(context.MessageId);
+				restored.Sequence.ShouldBe(expectedSequences[context.MessageId]);
 				delivered.Add(context.MessageId);
 
 				if (publishDelay > TimeSpan.Zero)
@@ -252,14 +267,33 @@ public abstract class OutboxDrainLeaseTestBase
 					await Task.Delay(publishDelay, token).ConfigureAwait(false);
 				}
 
-				return A.Fake<IMessageResult>();
+				return MessageResult.Success();
 			});
 
 		return new MessageBusOutboxPublisher(
 			store,
-			A.Fake<IPayloadSerializer>(),
+			serializer,
 			bus,
 			A.Fake<IServiceProvider>(),
 			NullLogger<MessageBusOutboxPublisher>.Instance);
 	}
+
+	private static ServiceProvider BuildSerialization()
+	{
+		MessageTypeRegistry.RegisterType<LeaseProbeEvent>();
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddPluggableSerializer(SerializerIds.SystemTextJson, new SystemTextJsonSerializer(), setAsCurrent: true);
+		return services.BuildServiceProvider();
+	}
+
+	private static OutboundMessage CreateMessage(IPayloadSerializer serializer, IDictionary<string, int> expectedSequences, int sequence)
+	{
+		var id = Guid.NewGuid().ToString();
+		expectedSequences.Add(id, sequence);
+		var payload = serializer.SerializeObject(new LeaseProbeEvent(id, sequence), typeof(LeaseProbeEvent));
+		return new OutboundMessage(typeof(LeaseProbeEvent).FullName!, payload, "orders") { Id = id };
+	}
+
+	private sealed record LeaseProbeEvent(string PersistedId, int Sequence) : IDispatchEvent;
 }

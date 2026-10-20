@@ -8,7 +8,7 @@
     <RootNamespace>Excalibur.Compliance.Benchmarks</RootNamespace>
     <!-- Optimize for benchmarking -->
     <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <NoWarn>$(NoWarn);CS7022</NoWarn>
   </PropertyGroup>

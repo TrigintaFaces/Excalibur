@@ -76,6 +76,29 @@ RabbitMQ registers a keyed `IMessageBus` named `rabbitmq`:
 var bus = serviceProvider.GetRequiredKeyedService<IMessageBus>("rabbitmq");
 ```
 
+### Named publishers and message destinations
+
+Use `AddRabbitMQTransport("orders", ...)` or `UseRabbitMQ("orders", ...)` to configure a
+named publisher. Resolve it through `IMessageBusProvider.GetRemoteMessageBus("orders")`.
+Each name uses its own options and default connection/channel. Explicit SDK overrides may
+intentionally share resources; the publisher borrows those resources.
+
+`MapExchange<TMessage>("events")` selects the exchange for the exact runtime message type,
+retaining the configured publication routing key. `MapQueue<TMessage>("orders")` alone
+publishes through RabbitMQ's default exchange (`""`) with the queue name as its routing key.
+Unmapped types retain the configured default exchange and routing key. These rules also
+apply to CloudEvent publication. Exchange and queue prefixes apply to both declarations and mappings.
+
+When both mappings select a custom exchange and queue, an explicit nonempty publication
+routing key takes precedence. Otherwise, the publisher infers a key only from one unique
+literal binding between that exchange and queue. Topic wildcard patterns are not publication
+keys; ambiguous or wildcard-only bindings require an explicit key. Direct exchange keys are
+literal, including `*` and `#`. Fanout and headers exchanges keep their broker routing
+semantics; a queue mapping does not make their publication exclusive to that queue.
+
+Mapping configuration is captured at registration. Configure mappings before completing the
+registration callback; later mutations of a retained builder do not alter the publisher's routes.
+
 ## Transport Security
 
 The transport refuses to build a connection that would carry your credentials and message payloads in

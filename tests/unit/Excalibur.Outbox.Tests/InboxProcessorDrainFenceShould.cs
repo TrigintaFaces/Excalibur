@@ -176,7 +176,7 @@ public sealed class InboxProcessorDrainFenceShould
 				provider,
 				new DispatchJsonSerializer(),
 				NullLogger<InboxProcessor>.Instance,
-				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 			first.Init("dispatcher-drain-fence-a");
 
 			// A SECOND processor over the SAME store. The registration is transient precisely so each
@@ -188,7 +188,7 @@ public sealed class InboxProcessorDrainFenceShould
 				provider,
 				new DispatchJsonSerializer(),
 				NullLogger<InboxProcessor>.Instance,
-				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance);
+				circuitBreakerRegistry: PassThroughCircuitBreakerRegistry.Instance, deadLetterQueue: Excalibur.Dispatch.ErrorHandling.NullDeadLetterQueue.Instance);
 			second.Init("dispatcher-drain-fence-b");
 
 			return new DrainFenceHarness(provider, first, second, counter);

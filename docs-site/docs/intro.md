@@ -13,7 +13,7 @@ description: Excalibur is a high-performance .NET framework for messaging, event
 | Signal | Value |
 |--------|-------|
 | **Automated Tests** | 55,000+ (unit, integration, conformance, performance) |
-| **Packages** | 197 NuGet packages across 6 families |
+| **Packages** | 194 NuGet packages across 6 families |
 | **CI Pipeline** | 10 sharded test stages, governance gates, conformance suites |
 | **API Stability** | PublicAPI analyzer tracking on every package |
 | **Target Framework** | .NET 10.0 |

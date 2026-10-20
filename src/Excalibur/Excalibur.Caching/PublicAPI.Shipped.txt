@@ -144,6 +144,8 @@ Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.HitRate.get -> Excalibur.Cachi
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.HitRate.set -> void
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Load.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions!
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Load.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.MaxTrackedKeys.get -> int
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.MaxTrackedKeys.set -> void
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.RuleBasedTtlOptions() -> void
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.TimeOfDay.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions!
 Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.TimeOfDay.set -> void

@@ -41,7 +41,7 @@ public sealed class ImmutableProjectionIntegrationShould
 	public async Task CreateAndTransformImmutableProjectionThroughPipeline()
 	{
 		// Arrange
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
@@ -79,7 +79,7 @@ public sealed class ImmutableProjectionIntegrationShould
 	public async Task ThrowOnTransformWithoutCreate()
 	{
 		// Arrange -- only WhenTransforming, no WhenCreating
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
@@ -110,7 +110,7 @@ public sealed class ImmutableProjectionIntegrationShould
 	public async Task HandleDiResolvedImmutableHandler()
 	{
 		// Arrange -- WhenHandledBy with DI-resolved handler
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		var registry = new InMemoryProjectionRegistry();
 
 		var services = new ServiceCollection();
@@ -145,7 +145,7 @@ public sealed class ImmutableProjectionIntegrationShould
 	public async Task MergeWithExistingImmutableState()
 	{
 		// Arrange -- pre-seed store with existing immutable record
-		var store = new InMemoryProjectionStore<OrderRecord>();
+		var store = new TestProjectionStore<OrderRecord>();
 		await store.UpsertAsync("order-1", new OrderRecord(100m, null), CancellationToken.None);
 
 		var registry = new InMemoryProjectionRegistry();

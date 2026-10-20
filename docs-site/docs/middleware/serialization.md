@@ -45,7 +45,7 @@ The envelope layer is an internal implementation detail. Your consumer event typ
 | Serializer | Package | Best For |
 |------------|---------|----------|
 | System.Text.Json (default) | Built-in | Cross-language, debugging |
-| MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-only, max performance |
+| MemoryPack | `Excalibur.Dispatch.Serialization.MemoryPack` | .NET-only binary communication; measure your payload |
 | MessagePack | `Excalibur.Dispatch.Serialization.MessagePack` | Cross-language, compact |
 | Protobuf | `Excalibur.Dispatch.Serialization.Protobuf` | Schema-based, gRPC compat |
 | Avro | `Excalibur.Dispatch.Serialization.Avro` | Schema-based, Kafka/Hadoop |
@@ -64,6 +64,15 @@ services.AddDispatch(dispatch =>
 // No extra configuration needed -- works with any POCO event type.
 ```
 
+### JSON Value Preservation
+
+`DispatchJsonSerializer` preserves non-null default values in its generic pooled,
+string and `JsonElement` APIs: zero remains `0`, false remains `false`, an empty
+GUID remains a JSON string, and default structs retain their serialized properties.
+This corrects earlier generic serialization that emitted `null` for default value
+types. Actual null references and nullable null values still serialize as JSON
+`null`; the existing deserialization null/empty-payload policy is unchanged.
+
 ### Custom JSON Options
 
 ```csharp
@@ -79,7 +88,7 @@ services.AddJsonSerialization(options =>
 });
 ```
 
-### MemoryPack (Fastest)
+### MemoryPack
 
 ```bash
 dotnet add package Excalibur.Dispatch.Serialization.MemoryPack
@@ -423,16 +432,9 @@ byte[] data = serializer.SerializeEvent(evt);
 
 ## Performance Comparison
 
-| Serializer | Serialize | Deserialize | Size | Allocations |
-|------------|-----------|-------------|------|-------------|
-| ZeroAlloc + MemoryPack | 0.8x | 0.9x | 1x | 0 |
-| MemoryPack | 1x | 1x | 1x | 1-2 |
-| MessagePack | 2.5x | 2x | 1.1x | 2-3 |
-| System.Text.Json | 4x | 3x | 1.5x | 3-5 |
-| Newtonsoft.Json | 6x | 5x | 1.5x | 5-8 |
-| Protobuf | 3x | 2.5x | 0.9x | 2-3 |
+The current benchmark refresh has not established a matched comparison across these serializers. Serializer rankings, payload-size ratios and whole-operation zero-allocation claims remain unverified. Pooling a buffer alone does not establish zero allocation for serialization, deserialization or the complete workflow.
 
-*Relative performance - lower is better. Actual results vary by payload.*
+Measure the same payload, representation, operation and runtime configuration before comparing results. Keep warmed throughput, cold-start and actual NativeAOT measurements separate.
 
 ### ZeroAlloc Benchmark Suite
 

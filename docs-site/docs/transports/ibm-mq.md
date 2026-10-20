@@ -180,18 +180,26 @@ Each received message holds its own queue-manager connection and syncpoint. `Ack
 Set `Receive.BackoutQueueName` to the input queue's `BOQNAME` to enable the second row. Moving a poison
 message is an application's job on IBM MQ — the queue manager counts backouts but moves nothing itself.
 **If no backout queue is configured, `RejectAsync(…, requeue: false, …)` does not quietly fall back to a
-backout: it backs the message out and then throws `TransportSettlementException`,** because the outcome
-you asked for did not happen and reporting success for it would leave a poison message looping invisibly.
+backout: it attempts rollback and throws `TransportSettlementException`.** The exception distinguishes
+an observed successful rollback from an unknown rollback outcome; the requested rejection was not completed.
 
-:::caution `requeue: false` is all-or-nothing, not a guarantee of no redelivery
-The put and the get commit together, so the message is never both moved and left, nor lost. But if the
-process or the connection dies before the commit, the queue manager rolls the whole unit of work back —
-the put is undone and the message returns to the input queue with its backout count incremented. A
-settlement that *completed* suppresses redelivery; one interrupted by a crash does not, and the caller is
-not around to be told. Bound your retries on `DeliveryCount`.
-::: Outstanding units of work are bounded by the caller's `maxMessages` and are always resolved (never leaked), including on disposal and cancellation — by the commit or backout you asked for, or, if that call fails, by the connection closing beneath it, which backs the syncpoint out.
+:::caution A failed commit leaves the settlement outcome uncertain
+The backout-queue put and the original get share a unit of work. A successful commit completes that
+move. A commit error can occur after the queue manager accepted it, so a later backout or disconnect
+does not prove that the move was undone or that the original message will be redelivered. Bound retries
+on `DeliveryCount` and keep handlers idempotent.
+:::
 
-If the queue manager refuses the settlement — a broken connection, for example — `AcknowledgeAsync` and `RejectAsync` throw `TransportSettlementException` rather than returning. They do not report a settlement that did not happen. The unit of work is backed out when the connection closes, so the message is not lost; it is redelivered, and `RedeliveryExpectation` on the exception says so. Handlers must be idempotent, which is the same at-least-once obligation the rest of the framework carries. Disposal is the one place this is swallowed: it logs the failure and keeps closing the remaining units of work, because cleanup that throws would leak the connections behind it. On the send side, each send opens a connection, puts the message under a unit of work, commits, and disconnects, so a failed put never leaves an uncommitted message.
+`AcknowledgeAsync` and `RejectAsync` report native failures as `TransportSettlementException`, with the
+original exception in `InnerException`. `RedeliveryExpectation` is `Unspecified` after a failed commit
+or backout. Only an observed successful rollback before any commit attempt supports `Expected`, including
+failure to prepare a backout-queue move. A missing backout queue also reports the observed rollback
+outcome rather than silently treating rejection as successful.
+
+The receiver consumes the local unit-of-work handle before settlement, so these failures have
+`Retryability.Permanent`: repeating the same call cannot recover that handle. Closing the queue and
+disconnecting the connection are attempted independently during cleanup. Cleanup failure does not prove
+rollback or redelivery; disposal continues attempting cleanup for other outstanding units.
 
 ## CloudEvents attribute names
 

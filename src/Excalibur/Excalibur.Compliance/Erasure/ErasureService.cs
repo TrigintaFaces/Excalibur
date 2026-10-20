@@ -1082,8 +1082,24 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 							break;
 						}
 
-						await _store.RecordKeyDestroyedAsync(requestId, keyId, generation, cancellationToken)
+						// Completed covers the whole handle, including generations destroyed by an earlier
+						// attempt whose ledger write failed before ordinary encryption reminted the handle.
+						// Drain only this request's exact-handle intents; recording clears each intent only
+						// after its durable ledger row exists. A partial failure therefore remains retryable.
+						var completedGenerations = await _store.GetStagedKeyGenerationsAsync(requestId, keyId, cancellationToken)
 							.ConfigureAwait(false);
+						foreach (var completedGeneration in completedGenerations)
+						{
+							await _store.RecordKeyDestroyedAsync(requestId, keyId, completedGeneration, cancellationToken)
+								.ConfigureAwait(false);
+						}
+
+						// Also require the current pair if a store returned no matching staged entry.
+						if (!completedGenerations.Contains(generation, StringComparer.Ordinal))
+						{
+							await _store.RecordKeyDestroyedAsync(requestId, keyId, generation, cancellationToken)
+								.ConfigureAwait(false);
+						}
 
 						deletedCount++;
 						deletedKeyIds.Add(keyId);
@@ -1101,6 +1117,30 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 						break;
 
 					case KeyDestructionState.NotFound:
+						// An earlier pass may have destroyed the material and lost its ledger write.
+						// Inspect remaining intents even if another generation at this handle was recorded.
+						var remaining = await _store.GetStagedKeyGenerationsAsync(requestId, keyId, cancellationToken)
+							.ConfigureAwait(false);
+						if (remaining.Count > 0)
+						{
+							var destructionStatus =
+								(_keyAdmin as IServiceProvider)?.GetService(typeof(IKeyDestructionStatusProvider)) as IKeyDestructionStatusProvider
+								?? _keyAdmin as IKeyDestructionStatusProvider;
+							if (destructionStatus is null ||
+								!await destructionStatus.IsKeyDestroyedAsync(keyId, cancellationToken).ConfigureAwait(false))
+							{
+								errors.Add($"Key '{keyId}' has staged generations but destruction could not be confirmed; "
+									+ "the intents are retained and no erasure is attested from absence.");
+								break;
+							}
+
+							foreach (var stagedGeneration in remaining)
+							{
+								await _store.RecordKeyDestroyedAsync(requestId, keyId, stagedGeneration, cancellationToken)
+									.ConfigureAwait(false);
+							}
+						}
+
 						// ABSENT, and absence has two causes with opposite consequences. The key store cannot
 						// tell them apart -- it reports a key it destroyed itself exactly as it reports one it
 						// never held -- so the request's own record is what decides.
@@ -1115,7 +1155,7 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 						// error, because a discovered location whose key never existed has no ciphertext this
 						// erasure could have made unreadable -- but it must not be counted as coverage either,
 						// or a wrong inventory entry would read as an erased location.
-						if (alreadyDestroyedByThisRequest.Contains(keyId, StringComparer.Ordinal))
+						if (remaining.Count > 0 || alreadyDestroyedByThisRequest.Contains(keyId, StringComparer.Ordinal))
 						{
 							deletedKeyIds.Add(keyId);
 						}
@@ -1709,7 +1749,15 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
 		// another was destroyed with an unreadable generation would pass this aggregate test on the first
 		// handle's intent, write no row for the second, and issue a certificate over a handle whose reads are
 		// permanently broken. The two checks are one mechanism; neither is complete alone.
-		if (recordedFromIntents == 0)
+		// A previous confirmer may have committed the last ledger row (which clears its intent),
+		// then crashed before completing the request. Re-read this request's durable evidence after
+		// consuming intents; the initial status can also be stale after a concurrent confirmer.
+		// Existing evidence is acceptable only after the positive provider verification above.
+		var previouslyRecorded = recordedFromIntents == 0
+			? await _store.GetStatusAsync(requestId, cancellationToken).ConfigureAwait(false)
+			: null;
+		if (recordedFromIntents == 0 &&
+			!(previouslyRecorded?.DestroyedKeyHandles.Any(handle => keyIds.Contains(handle, StringComparer.Ordinal)) ?? false))
 		{
 			const string NoIntentDetail =
 				"The key provider confirmed destruction, but this request staged no key generation before "

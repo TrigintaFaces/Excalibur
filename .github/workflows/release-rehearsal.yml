@@ -102,6 +102,10 @@ jobs:
         shell: bash
         run: python3 ./eng/ci/official-handoff.test.py
 
+      - name: Verify publication and rehearsal report controls
+        shell: pwsh
+        run: ./eng/ci/release-publication-state.test.ps1
+
       - name: Run release rehearsal
         shell: pwsh
         run: |

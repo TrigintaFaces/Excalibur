@@ -249,6 +249,18 @@ NpgsqlConnection.ClearAllPools();
 - ⚠️ Partial - May require manual intervention
 - N/A - Not applicable to provider
 
+## Scheduled Dispatch Timeouts
+
+Scheduled actions, events and documents use the Dispatch pipeline, including registered middleware and their typed handlers. Documents implement `IDispatchDocument` and use `IDocumentHandler<TDocument>`; scheduling does not require a separate document transport or handler adapter. Their dispatch results follow the same success, failure, cancellation and timeout policy described below. For these messages, the scheduler records `LastExecutionUtc` only after a successful dispatch result.
+
+The scheduled-message processor consumes `ITimePolicy` from dependency injection. When the policy enables `TimeoutOperationType.Handler`, each current execution and each missed-execution replay receives its own handler deadline, linked to host shutdown. A cooperative catch-up handler that waits indefinitely therefore cannot block the following due row after its deadline expires.
+
+Handlers must observe the dispatch cancellation token. With handler timeouts disabled, the processor does not impose a handler deadline; host shutdown still cancels active dispatch. Shutdown cancellation stops processing rather than being persisted as a handler failure.
+
+A handler timeout follows the scheduler's existing row-failure recovery and can end the remaining catch-up work for that row. Select the missed-execution policy deliberately and make handlers idempotent. Per-execution timeout enforcement does not establish durable restart recovery or atomic cancellation and rescheduling.
+
+A returned unsuccessful or null dispatch result follows the same recovery as a thrown dispatch failure: the remaining catch-up work stops, the row advances to its next occurrence or is disabled, and processing continues with the following due row. A failed dispatch preserves the prior `LastExecutionUtc`, matching the thrown-failure path. This policy does not retry a failed one-time schedule. Successful cache, duplicate-suppression and background-acceptance results retain their existing scheduling behavior; background acceptance does not prove that its handler has completed.
+
 ## Observability
 
 ### Metrics

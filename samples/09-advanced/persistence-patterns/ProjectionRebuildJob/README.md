@@ -34,13 +34,17 @@ Watch the console for:
 ```csharp
 builder.Services.AddExcalibur(excalibur => excalibur
     .AddEventSourcing(es => es
-        .UseInMemoryEventStore()
-        .AddMaterializedView<SalesDashboardView, SalesDashboardViewBuilder>())
+        .UseInMemory())
     .AddJobs(configurator =>
     {
-        // Daily at 3 AM (production)
-        configurator.AddJob<ProjectionRebuildJob>("0 0 3 * * ?");
+        // This sample rebuilds every 30 seconds so you can watch it run.
+        // In production a daily schedule such as "0 0 3 * * ?" is the usual choice.
+        configurator.AddJob<ProjectionRebuildJob>("0/30 * * * * ?");
     }));
+
+// Materialized views register on IServiceCollection, not on the event-sourcing builder.
+builder.Services.AddMaterializedViews(views => views
+    .AddBuilder<SalesDashboardView, SalesDashboardViewBuilder>());
 ```
 
 ## See Also
