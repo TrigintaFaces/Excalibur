@@ -182,8 +182,13 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
+          # `set +e`: this step's shell is `bash -e`, so a bare command followed by `VAR=$?` is
+          # UNREACHABLE on any non-zero exit -- the step dies first and the adjudication below
+          # never runs. +e/-e around the measured region is the form that keeps it reachable.
+          set +e
           bash eng/ci/cosmos-readiness-gate.sh
           GATE_EXIT=$?
+          set -e
           if [ "$GATE_EXIT" -ne 0 ]; then
             echo "::error::REFUSE — the runner could not host the Cosmos emulator (exit $GATE_EXIT). No Cosmos test was skipped and no pass is reported; the required infrastructure is missing."
             exit "$GATE_EXIT"
@@ -210,10 +215,15 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
+          # `set +e`: this step's shell is `bash -e`, so a bare command followed by `VAR=$?` is
+          # UNREACHABLE on any non-zero exit -- the step dies first and the adjudication below
+          # never runs. +e/-e around the measured region is the form that keeps it reachable.
+          set +e
           bash eng/ci/cosmos-liveness-gate.sh \
             "${{ github.workspace }}/TestResults/nightly-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard.name }}/cosmos-execution-evidence.tsv" \
             in
           GATE_EXIT=$?
+          set -e
           if [ "$GATE_EXIT" -ne 0 ]; then
             echo "::error::The integration run produced no evidence of reaching the Cosmos emulator (exit $GATE_EXIT). A suite that guards its tests with an early return reports them as executed and passed, so the counters cannot show this. Treat any green from this job as unearned until this passes."
             exit "$GATE_EXIT"

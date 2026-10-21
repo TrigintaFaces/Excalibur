@@ -33,7 +33,7 @@ readonly E_ORPHAN=1
 readonly E_ENV=2
 
 if [ "${1:-}" = "--self-test" ]; then
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/orphan-test-project-gate.test.sh"
+    exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/orphan-test-project-gate.test.sh"
 fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"

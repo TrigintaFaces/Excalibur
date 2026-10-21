@@ -421,8 +421,11 @@ jobs:
                    orphaned-constant-gate package-metadata-gate persistence-health-deriver-gate \
                    sql-predicate-gate task-delay-syncwait-gate workflow-hygiene-gate \
                    wwmd-reinvention-smells spa-gate; do
-            bash "eng/ci/$g.sh" --self-test > "/tmp/$g.selftest.log" 2>&1
-            rc=$?
+            # `|| rc=$?`: this step's shell is `bash -e`, so an unguarded failing command
+            # kills the step before `rc=$?` is read -- the per-gate name, exit code and log
+            # tail below then never print. A condition context suppresses -e and keeps them.
+            rc=0
+            bash "eng/ci/$g.sh" --self-test > "/tmp/$g.selftest.log" 2>&1 || rc=$?
             if [ "$rc" -eq 0 ]; then
               echo "  ok      $g"
             else

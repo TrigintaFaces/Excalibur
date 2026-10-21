@@ -19,7 +19,7 @@ trap cleanup EXIT
 
 rm -rf "$generated_dir"
 
-"$repo_root/eng/ci/build-lock.sh" "$repo_root/.dotnet/dotnet" build "$compliance_csproj" \
+bash "$repo_root/eng/ci/build-lock.sh" "$repo_root/.dotnet/dotnet" build "$compliance_csproj" \
     --no-incremental -nodeReuse:false \
     -p:EmitCompilerGeneratedFiles=true \
     -p:CompilerGeneratedFilesOutputPath="$generated_subdir"

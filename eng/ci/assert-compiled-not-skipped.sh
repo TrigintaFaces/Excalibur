@@ -56,7 +56,7 @@ readonly E_ENV=2
 readonly SKIP_MARKER='Skipping compile for'
 
 if [ "${1:-}" = "--self-test" ]; then
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/assert-compiled-not-skipped.test.sh"
+    exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/assert-compiled-not-skipped.test.sh"
 fi
 
 LOG=""

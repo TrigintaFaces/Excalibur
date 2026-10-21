@@ -52,7 +52,7 @@ readonly E_ENV=64
 
 case "${1:-}" in
     --self-test)
-        exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/staged-snapshot-coherence.test.sh"
+        exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/staged-snapshot-coherence.test.sh"
         ;;
     "") ;;
     *)

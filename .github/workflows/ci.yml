@@ -1091,12 +1091,17 @@ jobs:
           # — that no emulator-starting class is admitted here. It is not disabled; it now guards the
           # failure that matters on this path, which is a Cosmos class drifting back onto the PR shard
           # and quietly costing every run ten minutes of container startup.
+          # `set +e`: this step's shell is `bash -e`, so a bare command followed by `VAR=$?` is
+          # UNREACHABLE on any non-zero exit -- the step dies first and the adjudication below
+          # never runs. +e/-e around the measured region is the form that keeps it reachable.
+          set +e
           bash eng/ci/cosmos-census.sh \
             ${{ matrix.shard.filter }} \
             "${{ env.INTEGRATION_TEST_FILTER }}" \
             "$GITHUB_ENV" \
             out
           CENSUS_EXIT=$?
+          set -e
           if [ "$CENSUS_EXIT" -ne 0 ]; then exit "$CENSUS_EXIT"; fi
 
       # Download the shard's images BEFORE any fixture is on the clock.
@@ -1161,6 +1166,10 @@ jobs:
           # RunSetting, not a CLI option, so a filter appended there silently stops filtering
           # and runs the whole shard.
           set -uo pipefail
+          # `set +e`: this step's shell is `bash -e`, so a bare command followed by `VAR=$?` is
+          # UNREACHABLE on any non-zero exit -- the step dies first and the adjudication below
+          # never runs. +e/-e around the measured region is the form that keeps it reachable.
+          set +e
           dotnet test ${{ matrix.shard.filter }} \
             --filter "${{ env.INTEGRATION_TEST_FILTER }}" \
             -m:1 \
@@ -1173,6 +1182,7 @@ jobs:
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
           TEST_EXIT=$?
+          set -e
           # Exit with the runner's own code, so a real test failure fails this step. The
           # adjudicator below runs `if: always()` and therefore still reports on the evidence,
           # which keeps the right tiebreak automatic: a failed process fails the job whatever
@@ -1192,10 +1202,15 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
+          # `set +e`: this step's shell is `bash -e`, so a bare command followed by `VAR=$?` is
+          # UNREACHABLE on any non-zero exit -- the step dies first and the adjudication below
+          # never runs. +e/-e around the measured region is the form that keeps it reachable.
+          set +e
           bash eng/ci/cosmos-liveness-gate.sh \
             "${{ github.workspace }}/TestResults/cosmos-execution-evidence.tsv" \
             out
           GATE_EXIT=$?
+          set -e
           if [ "$GATE_EXIT" -ne 0 ]; then
             echo "::error::An emulator-backed test executed on a shard declared emulator-free (exit $GATE_EXIT). Either a class drifted onto this path or the exclusion filter stopped matching it."
             exit "$GATE_EXIT"

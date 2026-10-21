@@ -107,6 +107,10 @@ jobs:
           # earned. Only the surface changes -- the console prints a count, the TRX records the
           # reason. Same assertion quality-gates.yml uses for the same suite.
           set -uo pipefail
+          # `set +e`: this step's shell is `bash -e`, so a bare command followed by `VAR=$?` is
+          # UNREACHABLE on any non-zero exit -- the step dies first and the adjudication below
+          # never runs. +e/-e around the measured region is the form that keeps it reachable.
+          set +e
           dotnet test \
             tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" \
@@ -123,6 +127,7 @@ jobs:
           TEST_EXIT=$?
           pwsh -File eng/ci/assert-declared-skips-only.ps1 -TrxDir ./conformance-results
           GATE_EXIT=$?
+          set -e
           # The runner's own exit still wins. A TRX that looks complete cannot see a runner that died
           # after writing it, and "the evidence passed" must never outrank "the process failed".
           if [ "$TEST_EXIT" -ne 0 ] && [ "$GATE_EXIT" -eq 0 ]; then
