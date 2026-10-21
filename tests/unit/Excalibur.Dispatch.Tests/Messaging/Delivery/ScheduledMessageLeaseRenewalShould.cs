@@ -26,17 +26,17 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		host.Cleanup = () => finish.TrySetResult();
 		host.Handler.Callback = async ct => { entered.TrySetResult(); await finish.Task.WaitAsync(ct); };
 		await host.Service.StartAsync(CancellationToken.None);
-		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await entered.Task.WaitAsync(Budget);
 		for (var index = 0; index < 8; index++)
 		{
 			await host.Clock.WaitForRenewalDelayAsync(index + 1);
 			var renewal = host.Store.NextRenewal();
 			host.Clock.Advance(TimeSpan.FromSeconds(1));
-			await renewal.WaitAsync(TimeSpan.FromSeconds(2));
+			await renewal.WaitAsync(Budget);
 			(await host.Store.TryAcquireExecutionAsync(row.Id, host.Store.Generation, row.NextExecutionUtc!.Value, CancellationToken.None)).ShouldBeNull();
 		}
 		finish.TrySetResult();
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Store.ProgressCalls.ShouldBe(1);
 		host.Handler.Calls.ShouldBe(1);
 	}
@@ -57,11 +57,11 @@ public sealed class ScheduledMessageLeaseRenewalShould
 			catch (OperationCanceledException) when (ct.IsCancellationRequested) { cancelled.TrySetResult(); }
 		};
 		await host.Service.StartAsync(CancellationToken.None);
-		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await entered.Task.WaitAsync(Budget);
 		await host.Clock.WaitForRenewalDelayAsync(1);
 		host.Clock.Advance(TimeSpan.FromSeconds(1));
-		await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await cancelled.Task.WaitAsync(Budget);
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Store.ProgressCalls.ShouldBe(0);
 		var current = (await host.Store.GetAllAsync(CancellationToken.None)).Single();
 		current.NextExecutionUtc.ShouldBe(row.NextExecutionUtc);
@@ -86,15 +86,15 @@ public sealed class ScheduledMessageLeaseRenewalShould
 			await finish.Task; // Deliberately ignore cancellation.
 		};
 		await host.Service.StartAsync(CancellationToken.None);
-		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await entered.Task.WaitAsync(Budget);
 		await host.Clock.WaitForRenewalDelayAsync(1);
 		host.Clock.Advance(TimeSpan.FromSeconds(1));
-		await renewalEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		await renewalEntered.Task.WaitAsync(Budget);
 		host.Clock.Advance(TimeSpan.FromSeconds(3));
-		await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		await cancelled.Task.WaitAsync(Budget);
 		late.TrySetResult(true);
 		finish.TrySetResult();
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Store.ProgressCalls.ShouldBe(0);
 	}
 
@@ -107,16 +107,16 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		host.Cleanup = () => finish.TrySetResult();
 		host.Store.BeforeProgress = async ct => { settling.TrySetResult(); await finish.Task.WaitAsync(ct); };
 		await host.Service.StartAsync(CancellationToken.None);
-		await settling.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await settling.Task.WaitAsync(Budget);
 		for (var index = 0; index < 4; index++)
 		{
 			await host.Clock.WaitForRenewalDelayAsync(index + 1);
 			var renewal = host.Store.NextRenewal();
 			host.Clock.Advance(TimeSpan.FromSeconds(1));
-			await renewal.WaitAsync(TimeSpan.FromSeconds(2));
+			await renewal.WaitAsync(Budget);
 		}
 		finish.TrySetResult();
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Store.Committed.ShouldBeTrue();
 	}
 
@@ -143,17 +143,17 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		await host.StoreRowAsync();
 		host.Store.Duration = TimeSpan.FromMilliseconds(milliseconds);
 		await host.Service.StartAsync(CancellationToken.None);
-		await host.Store.DurationRead.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.DurationRead.Task.WaitAsync(Budget);
 		if (milliseconds > 0)
 		{
 			// Preserve the former 1ms test case while proving positive provider durations are valid.
-			await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			await host.Store.Released.Task.WaitAsync(Budget);
 			host.Store.Acquisitions.ShouldBe(1);
 			host.Store.ProgressCalls.ShouldBe(1);
 			host.Handler.Calls.ShouldBe(1);
 			return;
 		}
-		await host.Service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
+		await host.Service.StopAsync(CancellationToken.None).WaitAsync(Budget);
 		host.Store.Acquisitions.ShouldBe(0);
 		host.Store.ProgressCalls.ShouldBe(0);
 		host.Handler.Calls.ShouldBe(0);
@@ -166,7 +166,7 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		var row = await host.StoreRowAsync();
 		host.Store.AfterAcquire = _ => { host.Clock.Advance(host.Store.LeaseDuration); return Task.CompletedTask; };
 		await host.Service.StartAsync(CancellationToken.None);
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Handler.Calls.ShouldBe(0);
 		host.Store.ProgressCalls.ShouldBe(0);
 		(await host.Store.GetAllAsync(CancellationToken.None)).Single().NextExecutionUtc.ShouldBe(row.NextExecutionUtc);
@@ -184,13 +184,13 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		try
 		{
 			await host.Service.StartAsync(CancellationToken.None);
-			await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			await entered.Task.WaitAsync(Budget);
 			await host.Clock.WaitForRenewalDelayAsync(1);
 			host.Clock.Advance(TimeSpan.FromSeconds(1));
-			await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+			await requestStarted.Task.WaitAsync(Budget);
 			// Cleanup owns one five-second wall-clock deadline before retaining late-provider
 			// resources for deferred disposal. Allow bounded scheduling grace around that contract.
-			await host.Service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(7));
+			await host.Service.StopAsync(CancellationToken.None).WaitAsync(Budget);
 			host.Store.ProgressCalls.ShouldBe(0);
 			host.Store.Released.Task.IsCompleted.ShouldBeTrue();
 			late.Task.IsCompleted.ShouldBeFalse();
@@ -207,10 +207,10 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		host.Store.BeforeProgress = async ct => { settling.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, ct); };
 		host.Store.Renewal = (_, _) => Task.FromResult(false);
 		await host.Service.StartAsync(CancellationToken.None);
-		await settling.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await settling.Task.WaitAsync(Budget);
 		await host.Clock.WaitForRenewalDelayAsync(1);
 		host.Clock.Advance(TimeSpan.FromSeconds(1));
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Store.Committed.ShouldBeFalse();
 		var current = (await host.Store.GetAllAsync(CancellationToken.None)).Single();
 		current.NextExecutionUtc.ShouldBe(row.NextExecutionUtc);
@@ -226,8 +226,8 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		var entered = Signal();
 		host.Handler.Callback = async ct => { entered.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, ct); };
 		await host.Service.StartAsync(CancellationToken.None);
-		await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-		await host.Service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
+		await entered.Task.WaitAsync(Budget);
+		await host.Service.StopAsync(CancellationToken.None).WaitAsync(Budget);
 		host.Store.Acquisitions.ShouldBe(1);
 		host.Store.ProgressCalls.ShouldBe(0);
 	}
@@ -250,11 +250,11 @@ public sealed class ScheduledMessageLeaseRenewalShould
 				await host.Clock.WaitForRenewalDelayAsync(++cadence);
 				var renewed = host.Store.NextRenewal();
 				host.Clock.Advance(TimeSpan.FromSeconds(1));
-				await renewed.WaitAsync(TimeSpan.FromSeconds(2));
+				await renewed.WaitAsync(Budget);
 			}
 		};
 		await host.Service.StartAsync(CancellationToken.None);
-		await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await finished.Task.WaitAsync(Budget);
 		host.Handler.Calls.ShouldBe(3);
 		host.Store.ProgressCalls.ShouldBe(3);
 		host.Store.ReleaseCount.ShouldBe(3);
@@ -287,21 +287,21 @@ public sealed class ScheduledMessageLeaseRenewalShould
 			});
 			// Advancing the old implementation's timer would block this thread inside Cancel().
 			advance = Task.Run(() => host.Clock.Advance(host.Store.LeaseDuration));
-			await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-			await advance.WaitAsync(TimeSpan.FromSeconds(2));
-			await renewal.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(7));
+			await callbackEntered.Task.WaitAsync(Budget);
+			await advance.WaitAsync(Budget);
+			await renewal.DisposeAsync().AsTask().WaitAsync(Budget);
 			renewal = null;
 			callbackFinished.Task.IsCompleted.ShouldBeFalse();
 		}
 		finally
 		{
 			release.Set();
-			await advance.WaitAsync(TimeSpan.FromSeconds(10));
+			await advance.WaitAsync(Budget);
 			if (renewal is not null) { await renewal.DisposeAsync(); }
 			await registration.DisposeAsync();
 		}
-		await callbackFinished.Task.WaitAsync(TimeSpan.FromSeconds(2));
-		await faultObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		await callbackFinished.Task.WaitAsync(Budget);
+		await faultObserved.Task.WaitAsync(Budget);
 	}
 
 	[Fact]
@@ -322,12 +322,12 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		};
 		host.Store.Renewal = (_, _) => Task.FromResult(false);
 		await host.Service.StartAsync(CancellationToken.None);
-		await committed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await committed.Task.WaitAsync(Budget);
 		await host.Clock.WaitForRenewalDelayAsync(1);
 		host.Clock.Advance(TimeSpan.FromSeconds(1));
-		await ownershipLost.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		await ownershipLost.Task.WaitAsync(Budget);
 		returnCommit.TrySetResult();
-		await host.Store.Released.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await host.Store.Released.Task.WaitAsync(Budget);
 		host.Store.Committed.ShouldBeTrue();
 		host.Store.ProgressCalls.ShouldBe(1);
 		host.Handler.Calls.ShouldBe(1);
@@ -360,11 +360,11 @@ public sealed class ScheduledMessageLeaseRenewalShould
 				ex => { if (ex is IOException) { Interlocked.Increment(ref observations); faultObserved.TrySetResult(); } }, CancellationToken.None);
 			await host.Clock.WaitForRenewalDelayAsync(1);
 			host.Clock.Advance(TimeSpan.FromSeconds(1));
-			await requestEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-			await renewal.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(7));
+			await requestEntered.Task.WaitAsync(Budget);
+			await renewal.DisposeAsync().AsTask().WaitAsync(Budget);
 			renewal = null;
 			finishRequest.TrySetResult();
-			await faultObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+			await faultObserved.Task.WaitAsync(Budget);
 			resourcesUsable.ShouldBeTrue();
 			observations.ShouldBe(1);
 		}
@@ -392,18 +392,18 @@ public sealed class ScheduledMessageLeaseRenewalShould
 			await host.Clock.WaitForRenewalDelayAsync(1);
 			host.Clock.BeforeNextTimestamp(() => { beforeAdmission.TrySetResult(); resume.Wait(); });
 			advance = Task.Run(() => host.Clock.Advance(TimeSpan.FromSeconds(1)));
-			await beforeAdmission.Task.WaitAsync(TimeSpan.FromSeconds(2));
+			await beforeAdmission.Task.WaitAsync(Budget);
 			disposal = renewal.DisposeAsync().AsTask();
 			renewal = null;
 			resume.Set();
-			await disposal.WaitAsync(TimeSpan.FromSeconds(2));
+			await disposal.WaitAsync(Budget);
 			host.Store.RenewalCalls.ShouldBe(0);
 		}
 		finally
 		{
 			resume.Set();
-			await advance.WaitAsync(TimeSpan.FromSeconds(10));
-			await disposal.WaitAsync(TimeSpan.FromSeconds(10));
+			await advance.WaitAsync(Budget);
+			await disposal.WaitAsync(Budget);
 			if (renewal is not null) { await renewal.DisposeAsync(); }
 		}
 	}
@@ -425,24 +425,29 @@ public sealed class ScheduledMessageLeaseRenewalShould
 			host.Clock.SuppressDeadlineCallbacks = true;
 			host.Clock.BeforeNextTimestamp(() => { beforeAdmission.TrySetResult(); resume.Wait(); });
 			advance = Task.Run(() => host.Clock.Advance(TimeSpan.FromSeconds(1)));
-			await beforeAdmission.Task.WaitAsync(TimeSpan.FromSeconds(2));
+			await beforeAdmission.Task.WaitAsync(Budget);
 			// The captured RPC lower bound is still 1s, but the current grant is now expired.
 			// Delayed watchdog delivery must not allow that stale timestamp to authorize maintenance.
 			host.Clock.Advance(TimeSpan.FromSeconds(3));
 			var cancelled = Signal();
 			using var registration = renewal.Token.Register(() => cancelled.TrySetResult());
 			resume.Set();
-			await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
-			await advance.WaitAsync(TimeSpan.FromSeconds(2));
+			await cancelled.Task.WaitAsync(Budget);
+			await advance.WaitAsync(Budget);
 			host.Store.RenewalCalls.ShouldBe(0);
 		}
 		finally
 		{
 			resume.Set();
-			await advance.WaitAsync(TimeSpan.FromSeconds(10));
+			await advance.WaitAsync(Budget);
 			if (renewal is not null) { await renewal.DisposeAsync(); }
 		}
 	}
+
+	// Real-time ceiling for a fake-clock signal, generous against CI load. DisposeAsync bounds
+	// blocked consumer callbacks on the SYSTEM clock at 5s, so this must clear that with slack:
+	// the arms assert cleanup is BOUNDED, not that it is fast.
+	private static readonly TimeSpan Budget = TimeSpan.FromSeconds(30);
 
 	private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -482,7 +487,7 @@ public sealed class ScheduledMessageLeaseRenewalShould
 		public async ValueTask DisposeAsync()
 		{
 			Cleanup?.Invoke();
-			await Service.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+			await Service.StopAsync(CancellationToken.None).WaitAsync(Budget);
 			Service.Dispose();
 			await _provider.DisposeAsync();
 		}
@@ -631,7 +636,7 @@ public sealed class ScheduledMessageLeaseRenewalShould
 			{
 				Task changed;
 				lock (_gate) { if (_delays >= count) { return; } changed = _changed.Task; }
-				await changed.WaitAsync(TimeSpan.FromSeconds(2));
+				await changed.WaitAsync(Budget);
 			}
 		}
 	}
