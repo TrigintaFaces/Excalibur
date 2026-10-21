@@ -412,6 +412,12 @@ jobs:
       # costs the job seconds and costs a commit nothing. Every one of these passed when wired; a new
       # failure here means that gate lost the ability to detect what it claims to detect, which is a
       # finding about the gate and must not be silenced by removing it from this list.
+      #
+      # spa-gate is deliberately NOT here, and that is not a silencing. Its self-test builds the SPA
+      # bundle, so it needs Node and `npm ci`; this job installs neither and the gate correctly exits
+      # 2 (CANNOT EVALUATE) before any arm runs. It IS wired, in the one job that can evaluate it --
+      # ci.yml's `dashboard-spa`, immediately after `npm ci`. Adding it back here buys no coverage and
+      # reds the job on a missing toolchain.
       - name: Non-vacuity of wired gates whose self-test was unwired
         run: |
           set -u
@@ -420,7 +426,7 @@ jobs:
                    gate-denominator-gate inbox-decorator-seam-gate orphan-test-project-gate \
                    orphaned-constant-gate package-metadata-gate persistence-health-deriver-gate \
                    sql-predicate-gate task-delay-syncwait-gate workflow-hygiene-gate \
-                   wwmd-reinvention-smells spa-gate; do
+                   wwmd-reinvention-smells; do
             # `|| rc=$?`: this step's shell is `bash -e`, so an unguarded failing command
             # kills the step before `rc=$?` is read -- the per-gate name, exit code and log
             # tail below then never print. A condition context suppresses -e and keeps them.

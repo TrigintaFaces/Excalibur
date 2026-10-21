@@ -58,7 +58,10 @@ CS
     echo "$out"
     # The REFUSE arm. An empty scope must exit 2, not 0 — this is the arm that proves the scanner
     # cannot report a green it did not earn, and it is the one this self-test previously lacked.
-    refuse_rc=0; "$0" --files >/dev/null 2>&1 || refuse_rc=$?
+    # `bash "$0"`, never `"$0"`: the public mirror's checkout does not carry the executable bit,
+    # so a direct exec exits 126 and this arm reports "expected REFUSE (2)" -- a tooling fault
+    # wearing a broken-gate's clothes.
+    refuse_rc=0; bash "$0" --files >/dev/null 2>&1 || refuse_rc=$?
     [ "$refuse_rc" -eq 2 ] || { echo "SELF-TEST FAIL: empty scope exited $refuse_rc, expected REFUSE (2)"; exit 1; }
     echo "$out" | grep -q 'noncsprng-crypto' && echo "$out" | grep -q 'discarded-crypto' \
       && ! (scan_files "$tmp/Good.cs" | grep -q .) \
