@@ -89,7 +89,6 @@
 1	src/Dispatch/Excalibur.Dispatch/Configuration/DispatchBuilderExtensions.cs	IL2075
 1	src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs	IL2026
 1	src/Dispatch/Excalibur.Dispatch/Delivery/Dispatcher.cs	IL3050
-1	src/Dispatch/Excalibur.Dispatch/Delivery/HandlerScopeResolver.cs	IL2072
 1	src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/AotCompatibilityExtensions.cs	IL2026
 2	src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/FinalDispatchHandler.cs	IL2026
 2	src/Dispatch/Excalibur.Dispatch/Delivery/Handlers/FinalDispatchHandler.cs	IL3050
@@ -98,8 +97,6 @@
 1	src/Dispatch/Excalibur.Dispatch/Delivery/Pipeline/DispatchPipeline.cs	IL2067
 1	src/Dispatch/Excalibur.Dispatch/Delivery/Pipeline/MiddlewareChainBuilder.cs	IL2067
 1	src/Dispatch/Excalibur.Dispatch/Delivery/Registry/MessageTypeRegistry.cs	IL2026
-1	src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/ScheduledMessageService.cs	IL2026
-1	src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/ScheduledMessageService.cs	IL3050
 1	src/Dispatch/Excalibur.Dispatch/Delivery/StreamingHandlerHealthCheck.cs	IL2026
 2	src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs	IL2026
 1	src/Dispatch/Excalibur.Dispatch/DispatchServiceCollectionExtensions.cs	IL2072
@@ -139,8 +136,8 @@
 2	src/Dispatch/Excalibur.Dispatch/Performance/DispatchCacheManager.cs	IL3050
 1	src/Dispatch/Excalibur.Dispatch/Routing/Policies/RoutingPolicyFileLoader.cs	IL2026
 1	src/Dispatch/Excalibur.Dispatch/Routing/Policies/RoutingPolicyFileLoader.cs	IL3050
-6	src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs	IL2026
-6	src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs	IL3050
+1	src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs	IL2026
+1	src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs	IL3050
 1	src/Dispatch/Excalibur.Dispatch/Serialization/PayloadSerializer.cs	IL2026
 1	src/Dispatch/Excalibur.Dispatch/Serialization/PayloadSerializer.cs	IL3050
 1	src/Dispatch/Excalibur.Dispatch/Threading/BackgroundExecutionMiddleware.cs	IL2026
@@ -222,7 +219,6 @@
 1	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbPersistenceProvider.cs	IL2095
 3	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbRepositoryBase.cs	IL2026
 3	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbRepositoryBase.cs	IL3050
-# Reviewed replacement capability: subscription reflection deserialization -> reader's guarded optional reflection resolver (reviewed 2026-10-13).
 1	src/Excalibur/Excalibur.Data.DynamoDb/DynamoDbStreamDocumentReader.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStore.cs	IL2026
 1	src/Excalibur/Excalibur.Data.DynamoDb/Projections/DynamoDbProjectionStoreExtensions.cs	IL2091
@@ -259,7 +255,7 @@
 6	src/Excalibur/Excalibur.Data.Firestore/FirestorePersistenceProvider.cs	IL3050
 2	src/Excalibur/Excalibur.Data.Firestore/FirestoreServiceCollectionExtensions.cs	IL2026
 2	src/Excalibur/Excalibur.Data.Firestore/FirestoreServiceCollectionExtensions.cs	IL3050
-2	src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs	IL2026
+1	src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs	IL2026
 1	src/Excalibur/Excalibur.Data.Firestore/Projections/FirestoreProjectionStore.cs	IL3050
 3	src/Excalibur/Excalibur.Data.Firestore/Snapshots/FirestoreSnapshotStore.cs	IL2026
 3	src/Excalibur/Excalibur.Data.Firestore/Snapshots/FirestoreSnapshotStore.cs	IL3050
@@ -422,8 +418,8 @@
 1	src/Excalibur/Excalibur.Jobs/Jobs/OutboxProcessorJob.cs	IL3050
 1	src/Excalibur/Excalibur.Jobs/Jobs/ProjectionRebuildJob.cs	IL2026
 1	src/Excalibur/Excalibur.Jobs/Jobs/ProjectionRebuildJob.cs	IL3050
-3	src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs	IL2026
-3	src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs	IL3050
+1	src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs	IL2026
+1	src/Excalibur/Excalibur.Jobs/Outbox/OutboxJob.cs	IL3050
 1	src/Excalibur/Excalibur.Jobs/Quartz/JobConfigurator.cs	IL2026
 1	src/Excalibur/Excalibur.Jobs/Quartz/JobConfigurator.cs	IL3050
 1	src/Excalibur/Excalibur.Jobs/Quartz/QuartzGenericJobAdapter.cs	IL2026

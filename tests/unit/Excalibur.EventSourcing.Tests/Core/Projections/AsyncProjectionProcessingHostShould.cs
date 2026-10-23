@@ -752,9 +752,17 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 
 		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
 		await poisonObserved.Task.WaitAsync(TestTimeouts.Scale(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		// Poll the condition this test asserts rather than sleeping toward it. A fixed window is both
+		// slower than it needs to be and flaky under a loaded agent: the halt is recorded by the host
+		// loop a moment after the poison is observed, and 250ms was a guess at how long that takes.
+		_ = await WaitHelpers.WaitUntilAsync(
+			() => healthState.HaltedSubscription is not null,
+			TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
+			cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
+		// Asserted unconditionally, NOT via the poll's return value: a timed-out poll must fail on the
+		// value the test is about, naming what was read, rather than on a bare "returned false".
 		healthState.HaltedSubscription.ShouldBe(
 			GlobalStreamProjectionOptions.DefaultProjectionName,
 			customMessage: "the host must record its own halt, or the health check reads a field nobody writes");

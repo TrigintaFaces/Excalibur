@@ -589,6 +589,16 @@ spec/tla/states/
 spec/tla/*_TTrace_*.bin
 spec/tla/*_TTrace_*.tla
 spec/tla/_Arm_*
+# The four rules above are anchored at spec/tla/ and CANNOT match a model in a
+# subdirectory. A per-model runner writing spec/tla/<model>/evidence-<stamp>/<arm>-states/
+# escaped them entirely: one timed-out run staged 2.7 GB across 298 files, because
+# `git add -A` sees whatever no rule covers. The state queue is a TLC working artifact,
+# never evidence -- the evidence is the .tla, .cfg, .log and summary.json beside it,
+# which total about 30 KB and stay tracked.
+spec/tla/**/*-states/
+spec/tla/**/states/
+spec/tla/**/*_TTrace_*.bin
+spec/tla/**/*_TTrace_*.tla
 
 # Runtime lock for the local full-CI driver. Holds a live PID; never source.
 .claude/.full-ci-run.lock

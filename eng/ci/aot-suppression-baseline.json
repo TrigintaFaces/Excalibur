@@ -5669,18 +5669,6 @@
       "file": "src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventSourcingBuilderExtensions.cs",
       "justification": "Configuration builds registered apply delegates; processing already requires projection serialization metadata.",
       "warningId": "IL3050"
-    },
-    {
-      "line": 160,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/InMemoryProjectionStore.cs",
-      "justification": "Filtered counting rehydrates snapshots; the interface member cannot carry the attribute without binding every provider. See the comment above.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 162,
-      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/InMemoryProjectionStore.cs",
-      "justification": "Filtered counting rehydrates snapshots; the interface member cannot carry the attribute without binding every provider. See the comment above.",
-      "warningId": "IL2026"
     }
   ],
   "description": "AOT suppression baseline for Excalibur.Dispatch. Existing suppressions are grandfathered. New suppressions require justification and approval."
