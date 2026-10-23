@@ -3,6 +3,8 @@
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing.DependencyInjection;
+using System.Text;
+
 using Excalibur.EventSourcing.Projections;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +21,27 @@ internal sealed class StoreItem
 	public decimal Amount { get; set; }
 
 	public DateTimeOffset Created { get; set; }
+}
+
+/// <summary>
+/// Carries a MUTABLE reference property whose text form a filter CAN match, so the capture allowlist is
+/// pinned by a test rather than by agreeing with itself.
+/// </summary>
+/// <remarks>
+/// A <see cref="StringBuilder"/> is chosen deliberately over a collection. A collection property proves
+/// nothing here: capturing it by reference still fails the filter, because the comparison falls through
+/// to a text compare of "System.Collections.Generic.List`1[System.String]" and never matches whatever
+/// the caller asked for. So a collection-based arm asserts the right outcome for the wrong reason and
+/// stays green when the allowlist is removed -- measured, not assumed. A StringBuilder's text form is
+/// the caller's own string, so an aliased capture becomes VISIBLE as a match.
+/// </remarks>
+internal sealed class StoreItemWithNotes
+{
+	public string Id { get; set; } = string.Empty;
+
+	public string Status { get; set; } = string.Empty;
+
+	public StringBuilder Notes { get; set; } = new();
 }
 
 /// <summary>
@@ -198,6 +221,73 @@ public sealed class InMemoryProjectionStoreShould
 			.GetByIdAsync("a", None);
 
 		seen.ShouldNotBeNull();
+	}
+
+	/// <summary>
+	/// A caller that mutates its own object AFTER the write must not change what a filtered count or
+	/// query returns. Both halves are asserted: the SAFETY half (the mutation does not leak in) and the
+	/// LIVENESS half (the filter still matches the value that was actually stored) -- a store that
+	/// returned nothing to anybody would satisfy the first one alone.
+	/// </summary>
+	/// <remarks>
+	/// This guards the write-time capture that lets CountAsync filter without rehydrating. A future
+	/// change that captured a MUTABLE reference instead of a value would pass every existing arm and
+	/// fail this one.
+	/// </remarks>
+	[Fact]
+	public async Task NotLetACallerMutateWhatAFilteredReadReturns()
+	{
+		var store = new InMemoryProjectionStore<StoreItem>();
+		var mine = new StoreItem { Id = "a", Status = "Paid", Amount = 100m };
+		await store.UpsertAsync("a", mine, None);
+
+		mine.Status = "Refunded";
+		mine.Amount = 999m;
+
+		var paid = new Dictionary<string, object> { ["Status"] = "Paid" };
+		var refunded = new Dictionary<string, object> { ["Status"] = "Refunded" };
+
+		// LIVENESS: the stored value still matches.
+		(await store.CountAsync(paid, None)).ShouldBe(
+			1,
+			customMessage: "the filter must see the value as it was written, not as the caller later changed it");
+		(await store.QueryAsync(paid, null, None)).Count.ShouldBe(1);
+
+		// SAFETY: the caller's later value did not leak into the store.
+		(await store.CountAsync(refunded, None)).ShouldBe(0);
+		(await store.QueryAsync(refunded, null, None)).ShouldBeEmpty();
+	}
+
+	/// <summary>
+	/// A mutable reference property is never captured for filtering, so a caller cannot make a row match
+	/// a filter AFTER writing it by mutating the object it handed over.
+	/// </summary>
+	/// <remarks>
+	/// This is the arm that actually binds the capture allowlist. Removing the allowlist -- so every
+	/// property type is captured -- stores the caller's live StringBuilder, the post-write mutation then
+	/// shows through the filter's text comparison, and the first assertion below goes RED. The LIVENESS
+	/// half sits in the same arm: the row stays reachable by a filter a column could answer, so a store
+	/// that simply matched nothing would not pass.
+	/// </remarks>
+	[Fact]
+	public async Task NotLetAPostWriteMutationOfAReferencePropertyMakeARowMatch()
+	{
+		var store = new InMemoryProjectionStore<StoreItemWithNotes>();
+		var mine = new StoreItemWithNotes { Id = "a", Status = "Paid", Notes = new StringBuilder("draft") };
+		await store.UpsertAsync("a", mine, None);
+
+		_ = mine.Notes.Clear().Append("final");
+
+		// SAFETY: the mutation cannot reach the stored row, so nothing matches it. An aliased capture
+		// would report 1 here.
+		var onNotes = new Dictionary<string, object> { ["Notes"] = "final" };
+		(await store.CountAsync(onNotes, None)).ShouldBe(
+			0,
+			customMessage: "a caller's post-write mutation must not be visible to a filter");
+
+		// LIVENESS: the row is still there and still reachable by a column-shaped filter.
+		var onStatus = new Dictionary<string, object> { ["Status"] = "Paid" };
+		(await store.CountAsync(onStatus, None)).ShouldBe(1);
 	}
 
 	private static async Task<InMemoryProjectionStore<StoreItem>> ThreeItems()

@@ -41,6 +41,14 @@ namespace Excalibur.EventSourcing.Projections;
 /// reasons the real store does not share.
 /// </para>
 /// <para>
+/// <b>The same is true of a property whose type a deployed store could not hold in a column</b> — a
+/// collection, or a nested object. Filtering reads values captured when the projection was written, and
+/// only value-and-string shapes are captured, so a filter on anything else matches nothing rather than
+/// comparing the property's text form, which no remote store does. Counting therefore needs no
+/// serializer and carries no trimming or Native-AOT requirement, matching the eight deployed providers
+/// that count in the store.
+/// </para>
+/// <para>
 /// <b>It records positions, so a projection that starts here can be replayed and rebuilt.</b> A
 /// dictionary can hold a coordinate beside its value as easily as a row can, and the state and the
 /// position are replaced TOGETHER as one immutable entry — so a reader never pairs one write's state
@@ -87,7 +95,7 @@ public sealed class InMemoryProjectionStore<
 		// and the next conditional write would skip real events as already-applied.
 		lock (_writes)
 		{
-			_projections[id] = new Entry(Snapshot(projection), ProjectionPosition.Unplaceable.ToStored());
+			_projections[id] = NewEntry(projection, ProjectionPosition.Unplaceable.ToStored());
 		}
 
 		return Task.CompletedTask;
@@ -144,31 +152,24 @@ public sealed class InMemoryProjectionStore<
 	}
 
 	/// <inheritdoc />
-	// SUPPRESSED, not silenced, and the reason is a contract constraint rather than convenience.
+	// NO SUPPRESSION, and that is the point: this member reflects over nothing at all.
 	//
-	// Counting with FILTERS has to evaluate them against projection values, which now means
-	// rehydrating a snapshot -- the cost of making stored state un-aliasable. The interface's sibling
-	// QueryAsync already declares this requirement; CountAsync does not, and it cannot be annotated
-	// there because an AOT attribute on an interface member binds every implementation, including the
-	// SQL stores that count in the database and materialize nothing.
+	// It used to rehydrate every snapshot to evaluate filters against projection values, which put a
+	// Native-AOT and trimming precondition on a member whose INTERFACE declares none -- and the
+	// suppression removed the report of that precondition rather than the precondition itself. The
+	// contract is satisfiable without one: eight deployed providers count in the store and reflect over
+	// nothing, which is the proof that the requirement belonged to this implementation's representation
+	// and not to CountAsync.
 	//
-	// The unfiltered path below stays allocation-free and reflection-free, which is the common case.
-	// A consumer publishing Native AOT and calling the FILTERED path on this store gets what
-	// QueryAsync already warns about on every store; the in-memory store is a development and test
-	// stand-in, and a projection body that cannot round-trip through System.Text.Json cannot be held
-	// by any shipped store either.
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Filtered counting rehydrates snapshots; the interface member cannot carry the attribute without binding every provider. See the comment above.")]
-	[UnconditionalSuppressMessage("Trimming", "IL2026",
-		Justification = "Filtered counting rehydrates snapshots; the interface member cannot carry the attribute without binding every provider. See the comment above.")]
+	// Filters now read values captured at write time (see CaptureFilterValues), so neither path here
+	// touches the serializer.
 	public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken)
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		// No filters, no values to inspect: count the rows without rehydrating any of them.
 		return filters is null || filters.Count == 0
 			? Task.FromResult((long)_projections.Count)
-			: Task.FromResult(Matching(filters).LongCount());
+			: Task.FromResult(MatchingEntries(filters).LongCount());
 	}
 
 	/// <inheritdoc />
@@ -206,7 +207,7 @@ public sealed class InMemoryProjectionStore<
 
 		lock (_writes)
 		{
-			_projections[id] = new Entry(Snapshot(projection), ProjectionPosition.Unnumbered.ToStored());
+			_projections[id] = NewEntry(projection, ProjectionPosition.Unnumbered.ToStored());
 		}
 
 		return Task.CompletedTask;
@@ -247,7 +248,7 @@ public sealed class InMemoryProjectionStore<
 					return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null));
 				}
 
-				_projections[id] = new Entry(Snapshot(projection), ProjectionPosition.At(newPosition).ToStored());
+				_projections[id] = NewEntry(projection, ProjectionPosition.At(newPosition).ToStored());
 
 				return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition));
 			}
@@ -259,7 +260,7 @@ public sealed class InMemoryProjectionStore<
 				&& entry.StoredPosition == expected
 				&& newPosition > entry.StoredPosition)
 			{
-				_projections[id] = new Entry(Snapshot(projection), ProjectionPosition.At(newPosition).ToStored());
+				_projections[id] = NewEntry(projection, ProjectionPosition.At(newPosition).ToStored());
 
 				return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition));
 			}
@@ -302,7 +303,7 @@ public sealed class InMemoryProjectionStore<
 			{
 				// The state is rewritten and the position stays exactly where it was -- the events beneath
 				// it changed, not the prefix it names.
-				_projections[id] = new Entry(Snapshot(projection), entry.StoredPosition);
+				_projections[id] = NewEntry(projection, entry.StoredPosition);
 
 				return Task.FromResult(new ProjectionRefoldResult(ProjectionRefoldOutcome.Applied, atPosition));
 			}
@@ -339,37 +340,38 @@ public sealed class InMemoryProjectionStore<
 				return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished));
 			}
 
-			_projections[id] = new Entry(Snapshot(projection), ProjectionPosition.At(newPosition).ToStored());
+			_projections[id] = NewEntry(projection, ProjectionPosition.At(newPosition).ToStored());
 
 			return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied));
 		}
 	}
 
+	// Filtering reads the values captured at write time, so it needs no projection object and carries no
+	// AOT requirement. QueryAsync still rehydrates -- it has to return the projections -- but now only
+	// the rows that MATCHED, instead of every row in the store.
+	private IEnumerable<Entry> MatchingEntries(IDictionary<string, object>? filters) =>
+		filters is null || filters.Count == 0
+			? _projections.Values
+			: _projections.Values.Where(entry => filters.All(filter => Satisfies(entry.FilterValues, filter)));
+
 	[RequiresUnreferencedCode("Deserializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Deserializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private IEnumerable<TProjection> Matching(IDictionary<string, object>? filters)
-	{
-		var stored = _projections.Values.Select(Rehydrate);
+	private IEnumerable<TProjection> Matching(IDictionary<string, object>? filters) =>
+		MatchingEntries(filters).Select(Rehydrate);
 
-		return filters is null || filters.Count == 0
-			? stored
-			: stored.Where(projection => filters.All(filter => Satisfies(projection, filter)));
-	}
-
-	private static bool Satisfies(TProjection projection, KeyValuePair<string, object> filter)
+	private static bool Satisfies(IReadOnlyDictionary<string, object?> values, KeyValuePair<string, object> filter)
 	{
 		// The SAME parser the remote stores use, so the grammar cannot drift between this store and the
 		// one that replaces it.
 		var parsed = FilterParser.Parse(filter.Key);
 
-		var property = typeof(TProjection).GetProperty(parsed.PropertyName);
-
-		if (property is null)
+		// Absent covers both cases that must not match: a property that does not exist, and one whose type
+		// a deployed store could not hold in a column. Previously the first returned false here and the
+		// second compared ToString() output, which no other store does.
+		if (!values.TryGetValue(parsed.PropertyName, out var actual))
 		{
 			return false;
 		}
-
-		var actual = property.GetValue(projection);
 
 		return parsed.Operator switch
 		{
@@ -482,6 +484,64 @@ public sealed class InMemoryProjectionStore<
 	private static readonly System.Text.Json.JsonSerializerOptions SnapshotJsonOptions =
 		ProjectionSerializationDefaults.CreateReadModelOptions();
 
+	// ONE construction site, so a future write cannot forget to capture the filter values. A row whose
+	// FilterValues disagreed with its Snapshot would make a filtered COUNT and a filtered QUERY return
+	// different answers over the same data, which is the kind of divergence nothing downstream could
+	// detect.
+	[RequiresUnreferencedCode("Serializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	[RequiresDynamicCode("Serializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+	private static Entry NewEntry(TProjection projection, long storedPosition) =>
+		new(Snapshot(projection), storedPosition, CaptureFilterValues(projection));
+
+	// Captured at write time so a FILTERED COUNT never rehydrates. Counting does not need the projection
+	// object -- it needs property VALUES -- and rehydrating to get them was what put an undeclared
+	// Native-AOT precondition on CountAsync, a member whose interface declares none and which eight
+	// deployed providers satisfy by counting in the store.
+	//
+	// The type predicate is a deliberate ALLOWLIST, not a test for immutability: "immutable" is not
+	// decidable from a Type, and a captured value a caller could still mutate would defeat the reason the
+	// snapshot is bytes at all. Every shape admitted here is a value or a string, so aliasing is
+	// INEXPRESSIBLE by the same argument that governs the snapshot -- not merely unlikely.
+	//
+	// It is also, deliberately, the set a DEPLOYED store can hold in a COLUMN. So filter semantics cannot
+	// drift: a filter naming a non-column property matches nothing here, which is what it does against
+	// SQL Server, Postgres, Cosmos, Mongo, DynamoDb, Elasticsearch, OpenSearch and Firestore, and what
+	// this store already did for a property that does not exist at all. The reflection below is rooted by
+	// the class's own DynamicallyAccessedMembers(PublicProperties) and carries no AOT requirement -- the
+	// sibling ValueOf has reflected this way, unannotated, all along.
+	private static IReadOnlyDictionary<string, object?> CaptureFilterValues(TProjection projection)
+	{
+		var captured = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+		foreach (var property in typeof(TProjection).GetProperties())
+		{
+			if (property.CanRead && property.GetIndexParameters().Length == 0 && IsFilterableType(property.PropertyType))
+			{
+				// Captured even when null: a filter of `Prop = null` must keep matching a null property, and
+				// omitting the key would make it indistinguishable from a property that does not exist.
+				captured[property.Name] = property.GetValue(projection);
+			}
+		}
+
+		return captured;
+	}
+
+	private static bool IsFilterableType(Type type)
+	{
+		var underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+		return underlying.IsPrimitive
+			|| underlying.IsEnum
+			|| underlying == typeof(string)
+			|| underlying == typeof(decimal)
+			|| underlying == typeof(DateTime)
+			|| underlying == typeof(DateTimeOffset)
+			|| underlying == typeof(TimeSpan)
+			|| underlying == typeof(DateOnly)
+			|| underlying == typeof(TimeOnly)
+			|| underlying == typeof(Guid);
+	}
+
 	// Serialize on the way in. A snapshot taken here cannot be changed by the caller afterwards.
 	[RequiresUnreferencedCode("Serializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Serializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -498,7 +558,10 @@ public sealed class InMemoryProjectionStore<
 				$"The stored snapshot for a {typeof(TProjection).Name} projection deserialized to null. "
 				+ "The projection type must round-trip through System.Text.Json.");
 
-	private sealed record Entry(byte[] Snapshot, long StoredPosition);
+	private sealed record Entry(
+		byte[] Snapshot,
+		long StoredPosition,
+		IReadOnlyDictionary<string, object?> FilterValues);
 
 	private sealed class ProjectionValueComparer : IComparer<object?>
 	{
