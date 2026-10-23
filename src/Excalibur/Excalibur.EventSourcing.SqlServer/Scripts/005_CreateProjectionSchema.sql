@@ -49,7 +49,7 @@ IF OBJECT_ID(N'[dbo].[{ProjectionTableName}]', N'U') IS NULL
 BEGIN
     CREATE TABLE [dbo].[{ProjectionTableName}]
     (
-        [TenantId]            NVARCHAR(64)    NOT NULL,
+        [TenantId]            NVARCHAR(64) COLLATE Latin1_General_BIN2   NOT NULL,
         [Id]                  NVARCHAR(350)   NOT NULL,
         [Data]                NVARCHAR(MAX)   NOT NULL,
         [CreatedAt]           DATETIMEOFFSET  NOT NULL,

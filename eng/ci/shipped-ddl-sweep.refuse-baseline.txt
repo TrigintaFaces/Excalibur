@@ -84,3 +84,22 @@ dbo.EventsPosition
 events.EventsPosition
 dbo.EventStoreEventsPosition
 
+
+# SAMPLE-OWNED EFFECT LOG. This table is declared by a sample's own schema script and written only by
+# that sample's own handler; no framework code writes it and none ever will, so there is no src/** write
+# path for the sweep to map it against. The sweep is behaving correctly by refusing: it RAN, found a
+# shipped CREATE TABLE, and could not evaluate it.
+#
+# THIS LINE IS A SCOPE-OUT, NOT A DEFERRAL, which is why it carries no bead. The header above requires a
+# tracked bead for a REFUSE that names a coverage GAP -- something a future change could map. This is not
+# that: the table belongs to the sample, and mapping it would mean asserting a framework write path that
+# must not exist. A bead here would never close, and an unclosable bead is the thing it would decay into.
+#
+# WHAT A REVIEWER SHOULD CHECK INSTEAD, since the sweep cannot: the sample's own INSERT names the columns
+# its CREATE TABLE declares. Verified at the time of writing -- the handler writes EventId, OrderId, Role,
+# IsReplay, Suppressed and AttemptedAt, and the script declares those plus an identity key. If the sample's
+# handler and script ever drift, this entry is what tells you nothing automated is watching them.
+#
+# Delete this line if the table ever acquires a framework write path -- at which point it should be mapped
+# rather than baselined.
+SampleEffectLog

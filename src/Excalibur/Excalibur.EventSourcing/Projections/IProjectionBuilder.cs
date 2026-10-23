@@ -41,14 +41,15 @@ public interface IProjectionBuilder<TProjection>
 	where TProjection : class, new()
 {
 	/// <summary>
-	/// Configures the projection to run inline during <c>SaveAsync</c>,
-	/// providing immediate read-after-write consistency.
+	/// Configures the projection to be applied asynchronously by the projection host. This is the
+	/// default and, since inline application was removed, the only mode.
 	/// </summary>
-	/// <returns>This builder for fluent chaining.</returns>
-	/// <summary>
-	/// Configures the projection to run asynchronously via the
-	/// <c>GlobalStreamProjectionHost</c>. This is the default mode.
-	/// </summary>
+	/// <remarks>
+	/// The host is the single writer for this projection's rows and applies events in position order.
+	/// A save returns a session token; pass it to a read that must observe its own write. Read-after-write
+	/// is therefore available on request rather than implicit, which is what makes a lost fold
+	/// inexpressible instead of merely unlikely.
+	/// </remarks>
 	/// <returns>This builder for fluent chaining.</returns>
 	IProjectionBuilder<TProjection> Async();
 

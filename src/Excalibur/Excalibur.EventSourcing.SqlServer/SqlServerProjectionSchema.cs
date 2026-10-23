@@ -112,7 +112,7 @@ public static class SqlServerProjectionSchema
 			BEGIN
 			    CREATE TABLE [{0}].[{1}]
 			    (
-			        [{2}]  NVARCHAR({9})   NOT NULL,
+			        [{2}]  NVARCHAR({9}) COLLATE Latin1_General_BIN2   NOT NULL,
 			        [{3}]  NVARCHAR(350)   NOT NULL,
 			        [{4}]  NVARCHAR(MAX)   NOT NULL,
 			        [{5}]  DATETIMEOFFSET  NOT NULL,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "generatedAt": "2026-09-14",
+  "generatedAt": "2026-10-22",
   "suppressions": [
     {
       "line": 32,
@@ -999,54 +999,6 @@
       "warningId": "IL2026"
     },
     {
-      "line": 40,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs",
-      "justification": "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 42,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs",
-      "justification": "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 90,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs",
-      "justification": "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 92,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs",
-      "justification": "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 158,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs",
-      "justification": "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.",
-      "warningId": "IL2046"
-    },
-    {
-      "line": 160,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/RecurringDispatchScheduler.cs",
-      "justification": "The requirement is declared on this implementation, not on IDispatchScheduler. The interface omits it deliberately: DeliveryServiceCollectionExtensions.AddDispatchScheduling registers this type with TryAddSingleton and AddDispatchScheduler<TScheduler> replaces it outright, so a consumer who supplies their own IDispatchScheduler never reaches this reflective path; annotating the interface would warn at every call site in a composition that does not reflect.",
-      "warningId": "IL3051"
-    },
-    {
-      "line": 56,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/ScheduledMessageService.cs",
-      "justification": "Scheduled message processing relies on runtime type resolution and serializer configuration.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 60,
-      "file": "src/Dispatch/Excalibur.Dispatch/Delivery/Scheduling/ScheduledMessageService.cs",
-      "justification": "Scheduled message processing uses runtime deserialization; AOT users should opt out of scheduling features.",
-      "warningId": "IL3050"
-    },
-    {
       "line": 30,
       "file": "src/Dispatch/Excalibur.Dispatch/Delivery/StreamingHandlerHealthCheck.cs",
       "justification": "Assembly scanning for handler discovery is cached and only runs once. AOT consumers should register handlers explicitly.",
@@ -1386,66 +1338,6 @@
       "line": 96,
       "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
       "justification": "Guarded by RuntimeFeature.IsDynamicCodeSupported check; AOT path uses source-gen context only",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 217,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "This method handles runtime type serialization for messages. In AOT scenarios, message types are registered via MessageTypeRegistry or source generation.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 222,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "JSON serialization with runtime types uses pre-registered types from MessageTypeRegistry for AOT compatibility.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 261,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "Runtime type serialization is handled through registered types in MessageTypeRegistry or DispatchJsonContext for AOT scenarios.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 266,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "The serializer uses pre-configured JsonSerializerOptions with TypeInfoResolver for AOT compatibility.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 297,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "The deserializer uses DispatchJsonContext with pre-registered types for AOT compatibility.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 333,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "Generic async deserialization preserves type T through the async state machine. The type is known at compile time.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 338,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "Async deserialization with generic type T is AOT-compatible through source-generated contexts.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 363,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "The async deserializer uses pre-configured JsonSerializerOptions with TypeInfoResolver for AOT compatibility.",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 396,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 515,
-      "file": "src/Dispatch/Excalibur.Dispatch/Serialization/DispatchJsonSerializer.cs",
-      "justification": "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.",
       "warningId": "IL2026"
     },
     {
@@ -5765,6 +5657,30 @@
       "verdict": "PROVABLY-SAFE",
       "classifiedBy": "inspection",
       "note": "Bounded reflective branch. The reflective bind is reached only under `if (_section is not null)` (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:54); `_section` is assigned only by the `IConfiguration` constructor (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionRegistrar.cs:34), which is `internal` and has exactly one call site in the whole tree (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:259) -- inside the public entry point at src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:250, which carries BOTH RequiresUnreferencedCode and RequiresDynamicCode (src/Excalibur/Excalibur.Data.OpenSearch/Projections/OpenSearchProjectionStoreExtensions.cs:248-249). The node-uri and shared-action constructors leave `_section` null and take the non-reflective overload, so a consumer reaching the reflective path has necessarily passed an annotated door. Annotating this method instead would warn the two branches that bind nothing."
+    },
+    {
+      "line": 503,
+      "file": "src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventSourcingBuilderExtensions.cs",
+      "justification": "Configuration builds registered apply delegates; processing already requires projection serialization metadata.",
+      "warningId": "IL2026"
+    },
+    {
+      "line": 503,
+      "file": "src/Excalibur/Excalibur.EventSourcing/DependencyInjection/EventSourcingBuilderExtensions.cs",
+      "justification": "Configuration builds registered apply delegates; processing already requires projection serialization metadata.",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 160,
+      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/InMemoryProjectionStore.cs",
+      "justification": "Filtered counting rehydrates snapshots; the interface member cannot carry the attribute without binding every provider. See the comment above.",
+      "warningId": "IL3050"
+    },
+    {
+      "line": 162,
+      "file": "src/Excalibur/Excalibur.EventSourcing/Projections/InMemoryProjectionStore.cs",
+      "justification": "Filtered counting rehydrates snapshots; the interface member cannot carry the attribute without binding every provider. See the comment above.",
+      "warningId": "IL2026"
     }
   ],
   "description": "AOT suppression baseline for Excalibur.Dispatch. Existing suppressions are grandfathered. New suppressions require justification and approval."

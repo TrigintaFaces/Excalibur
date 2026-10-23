@@ -174,9 +174,13 @@ public interface IErasureRetentionRegistry
 	/// <returns><see langword="true"/> when a retention is declared for the type; otherwise <see langword="false"/>.</returns>
 	/// <remarks>
 	/// <para>
-	/// <b>Total: it throws nothing.</b> A null, empty or whitespace type is not declared, so it answers
-	/// <see langword="false"/>. This is consulted on the path that decides whether to destroy a record,
-	/// and an exception there would turn an unknown type into a failed erasure rather than an erased one.
+	/// <b>TOTAL IN THE AGGREGATE TYPE, NOT IN THE PARTITION.</b> An unknown, empty or whitespace type
+	/// answers <see langword="false"/> rather than throwing, because this runs on the path that decides
+	/// whether to destroy a record and a throw would turn an unrecognised type into a failed erasure.
+	/// An ABSENT partition is different in kind: it cannot arise from data, only from a caller that did
+	/// not supply one, and answering <see langword="false"/> for it would mean "no retention applies",
+	/// which on this path means DESTROY. So that case throws, loudly, rather than being absorbed into a
+	/// verdict it cannot support.
 	/// </para>
 	/// <para>
 	/// <b>Matching is ORDINAL, and the consequence of the alternative is data loss rather than a missed
@@ -187,15 +191,14 @@ public interface IErasureRetentionRegistry
 	/// Consistent with <see cref="Declared"/> in both directions: every declared retention is findable by
 	/// its own aggregate type, and every retention this returns is one of them.
 	/// </para>
-	/// </remarks>
-	/// <remarks>
-	/// <b>TOTAL IN THE AGGREGATE TYPE, NOT IN THE PARTITION.</b> An unknown, empty or whitespace type
-	/// answers <see langword="false"/> rather than throwing, because this runs on the path that decides
-	/// whether to destroy a record and a throw would turn an unrecognised type into a failed erasure.
-	/// An ABSENT partition is different in kind: it cannot arise from data, only from a caller that did
-	/// not supply one, and answering <see langword="false"/> for it would mean "no retention applies",
-	/// which on this path means DESTROY. So that case throws, loudly, rather than being absorbed into a
-	/// verdict it cannot support.
+	/// <para>
+	/// <i>Superseded, quoted so a reader who inherited it recognises it:</i> "<b>Total: it throws
+	/// nothing.</b> A null, empty or whitespace type is not declared, so it answers
+	/// <see langword="false"/>." That was true when the partition was not a separate argument. It is no
+	/// longer: an absent partition throws, and the two statements sat in two <c>remarks</c> blocks on this
+	/// one member, contradicting each other, where the documentation generator keeps only one — so which
+	/// claim a consumer read was arbitrary.
+	/// </para>
 	/// </remarks>
 	bool TryGetRetention(
 		KeyedTenantPartition tenant,

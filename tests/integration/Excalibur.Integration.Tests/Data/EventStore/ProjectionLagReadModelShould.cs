@@ -295,7 +295,11 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		services.AddOptions();
 
 		// Projection processing WITHOUT a provider: no UseSqlServer, so nothing registers IGlobalStreamQuery.
-		_ = new ExcaliburEventSourcingBuilder(services).EnableProjectionProcessing();
+		// The subscription scope is required and has no default, so it is supplied here as well; this arm
+		// is about the absent head source, not about the descriptor, and leaving it blank would fail this
+		// arm for a reason it is not testing.
+		_ = new ExcaliburEventSourcingBuilder(services)
+			.EnableProjectionProcessing(opts => opts.SubscriptionScope = "projection-lag-no-head-source");
 
 		await using var provider = services.BuildServiceProvider();
 

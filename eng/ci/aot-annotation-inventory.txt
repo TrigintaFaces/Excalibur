@@ -331,6 +331,26 @@ src/Excalibur/Excalibur.Domain/BoundedContext/DefaultBoundedContextValidator.cs:
 src/Excalibur/Excalibur.Domain/DomainServiceCollectionExtensions.cs::AddImplementations
 src/Excalibur/Excalibur.Domain/DomainServiceCollectionExtensions.cs::public static IServiceCollection AddImpl
 src/Excalibur/Excalibur.Domain/Model/SmartEnum.cs::public abstract class SmartEnum<T>
+# SESSION-CONSISTENT READ -- AND A DELIBERATE EXCEPTION TO "INTERFACES CARRY NO AOT ATTRIBUTES".
+#
+# This is an INTERFACE member, which our own standard says should not carry these attributes. The
+# exception is taken knowingly, and the reasoning is recorded here rather than left to be rediscovered:
+#
+#   * The annotation is TRUE for every shipped store. The read deserializes the consumer's projection
+#     type, so without source-generated metadata it is reflective on all of them. Removing the attribute
+#     would not make the call safe; it would make the hazard invisible at the consumer's call site, which
+#     is the behaviour our AOT standard names as the actual defect.
+#   * Moving it to the implementations costs MORE honesty, not less. An implementation that annotates a
+#     member its interface does not produces IL2046 ("base member does not have matching annotations"),
+#     so the attribute would be replaced by a suppression in every store -- roughly eight of them -- and
+#     a suppression is strictly less visible to a consumer than a warning.
+#   * The known cost, stated: the requirement propagates to EVERY implementor, including a consumer's own
+#     test double that never serializes anything. Such an implementor must carry the attribute or suppress
+#     it. That is the price of the attribute being visible where it matters.
+#
+# The AOT-safe path exists and is the remedy to point a consumer at: supply source-generated JSON
+# metadata through the provider's type-info resolver, and the reflective path is not taken.
+src/Excalibur/Excalibur.EventSourcing.Abstractions/IProjectionSessionReader.cs::ReadAsync
 src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<CursorPagedResu
 src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<IReadOnlyList<o
 src/Excalibur/Excalibur.EventSourcing.Abstractions/ProjectionStoreExtensions.cs::public static async Task<PagedResult<TPr

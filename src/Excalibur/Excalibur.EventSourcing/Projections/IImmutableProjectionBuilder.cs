@@ -34,11 +34,8 @@ public interface IImmutableProjectionBuilder<TProjection>
 	where TProjection : class
 {
 	/// <summary>
-	/// Configures the projection to run inline during <c>SaveAsync</c>.
-	/// </summary>
-	/// <returns>This builder for fluent chaining.</returns>
-	/// <summary>
-	/// Configures the projection to run asynchronously.
+	/// Configures the projection to be applied asynchronously by the projection host. This is the
+	/// default and, since inline application was removed, the only mode.
 	/// </summary>
 	/// <returns>This builder for fluent chaining.</returns>
 	IImmutableProjectionBuilder<TProjection> Async();

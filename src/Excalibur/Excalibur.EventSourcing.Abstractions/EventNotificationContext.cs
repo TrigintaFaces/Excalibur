@@ -17,7 +17,16 @@ namespace Excalibur.EventSourcing;
 /// rebuild, a recovery, or an on-demand build. It is a property of the operation, set by whatever asked
 /// for the re-fold.
 /// </param>
+/// <param name="GlobalPosition">
+/// The global-stream position of the last event in this notification, or <see langword="null"/> when
+/// the events do not come from a global-stream read.
+/// </param>
 /// <remarks>
+/// <para>
+/// <b>On <c>IsReplay</c>.</b> Stated here rather than on the parameter because a member carries one
+/// <c>remarks</c> block: two of them meant the generator kept one and dropped the other, and the one
+/// it dropped was this correction.
+/// </para>
 /// <b>CORRECTED.</b> This parameter was previously documented as "a catch-up read of the global stream
 /// sets this … it must never be hard-coded", and both halves were wrong in ways that cost a consumer
 /// their side effects.
@@ -40,12 +49,9 @@ namespace Excalibur.EventSourcing;
 /// framework computes can substitute for that.
 /// </item>
 /// </list>
-/// </remarks>
-/// <param name="GlobalPosition">
-/// The global-stream position of the last event in this notification, or <see langword="null"/> when
-/// the events do not come from a global-stream read.
-/// </param>
-/// <remarks>
+/// <para>
+/// <b>On <c>GlobalPosition</c>.</b>
+/// </para>
 /// <b>Why the position is carried.</b> A projection write that is conditional on which prefix of the
 /// stream is already folded into it needs that prefix as a number, and the apply path is the only place
 /// that knows which events it just folded. Without it the store can express the guarantee and no caller

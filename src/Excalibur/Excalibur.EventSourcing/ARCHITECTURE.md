@@ -1671,8 +1671,21 @@ note:
   The stores that fetch in two round trips (Cosmos, Elasticsearch, OpenSearch) are therefore
   UNVERIFIED on atomicity specifically, and rely on their version token to make the subsequent WRITE
   safe rather than the read.
-- `Still_persist_a_fold_that_carries_no_position` (in the apply-path suite) — the arm that catches a
-  store-aware apply path dropping the save path's work.
+- `Refuse_an_async_page_that_carries_no_position` (in the apply-path suite,
+  `PositionedProjectionApplyShould`) — the arm that catches an apply path accepting work it cannot place.
+  A page with no position cannot say which prefix of the stream it folded, so persisting it would make the
+  row assert a prefix nobody established; the apply path refuses instead, and the repair is a rebuild.
+
+  *Superseded, named WITHOUT backticks on purpose:* this bullet used to cite an arm called
+  Still_persist_a_fold_that_carries_no_position and describe it as "the arm that catches a store-aware
+  apply path dropping the save path's work". That arm no longer exists, and its claim no longer holds —
+  the behaviour was deliberately changed from persisting an unplaceable fold to refusing it. The citation
+  outlived both the arm and the guarantee, which is exactly what the evidence gate caught.
+
+  The backticks are omitted because this file's citations are machine-checked: every backticked symbol
+  here must resolve to a declared method, so quoting a DELETED name in backticks re-files it as a live
+  citation and fails the gate again. That happened on the first attempt at this correction. A superseded
+  name is recorded as prose; only a name the code still carries gets backticks.
 
 The eight provider suites run against real servers, because for them the refusal is the ENGINE's behaviour
 and a mocked client would certify a broken predicate. `InMemoryProjectionStore<T>` is held to the same kit
