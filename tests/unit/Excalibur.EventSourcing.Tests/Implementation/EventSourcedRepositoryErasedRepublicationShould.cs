@@ -99,7 +99,7 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 		A.CallTo(() => store.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => outbox.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
-		A.CallTo(() => broker.NotifyAsync(A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+		A.CallTo(() => broker.NotifyAsync(A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._))
 			.MustNotHaveHappened();
 	}
 
@@ -120,7 +120,7 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 
 		aggregate.GetUncommittedEvents().ShouldBe(pending);
 		A.CallTo(() => outbox.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
-		A.CallTo(() => broker.NotifyAsync(A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+		A.CallTo(() => broker.NotifyAsync(A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._))
 			.MustNotHaveHappened();
 	}
 
@@ -175,7 +175,7 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 		A.CallTo(() => outboxStore.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => broker.NotifyAsync(
-				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._))
 			.MustNotHaveHappened();
 	}
 
@@ -228,7 +228,7 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 		A.CallTo(() => outboxStore.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => broker.NotifyAsync(
-				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._))
 			.MustNotHaveHappened();
 	}
 
@@ -271,7 +271,7 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 		A.CallTo(() => outboxStore.StageMessageAsync(A<OutboundMessage>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 		A.CallTo(() => broker.NotifyAsync(
-				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -322,7 +322,7 @@ public sealed class EventSourcedRepositoryErasedRepublicationShould
 			() => repository.SaveAsync(retry, CancellationToken.None)).ConfigureAwait(false);
 
 		A.CallTo(() => broker.NotifyAsync(
-				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._, A<CancellationToken>._))
+				A<IReadOnlyList<IDomainEvent>>._, A<EventNotificationContext>._))
 			.MustNotHaveHappened();
 	}
 

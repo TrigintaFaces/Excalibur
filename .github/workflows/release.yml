@@ -694,6 +694,7 @@ jobs:
           # no way to reconstruct which one it was.
           ever_seen=0
           last_seen_id=""
+          last_seen_status=""
           api_failures=0
           last_api_rc=0
 
@@ -728,6 +729,7 @@ jobs:
               if [ "$m_id" != "none" ]; then
                 ever_seen=1
                 last_seen_id="$m_id"
+                last_seen_status="$m_status"
                 if [ "$m_status" = "completed" ]; then
                   if [ "$m_conclusion" = "success" ]; then
                     echo "run_id=${m_id}" >> "$GITHUB_OUTPUT"
@@ -753,6 +755,15 @@ jobs:
               elif [ "$ever_seen" -eq 1 ]; then
                 echo "::error::REFUSE: official build run ${last_seen_id} (workflow ${WORKFLOW}, commit ${SHA}, ref ${want_branch}) had not reached a conclusion when this job's ${mins}m wait expired."
                 echo "::error::That is THIS JOB'S bound speaking, not a verdict about that build -- it may still be running and may still succeed. Look at run ${last_seen_id}; if it passes, re-run this release."
+                # 'waiting' is not 'slow'. It is GitHub's word for a job parked on an environment
+                # protection rule, and signing is gated on an explicit human approval by design. So
+                # the sentence above is true but misdirects: nothing is running, and no amount of
+                # waiting will change that. Name the actual cause, because a bound that expires
+                # while blaming slowness sends the reader to look for a performance problem that
+                # does not exist.
+                if [ "${last_seen_status}" = "waiting" ]; then
+                  echo "::error::Its last observed status was 'waiting' -- a job parked on an environment protection rule, NOT work in progress. Check the run's pending deployments (gh api repos/${GITHUB_REPOSITORY}/actions/runs/${last_seen_id}/pending_deployments); if an approval is outstanding, approve it, let that run finish, then re-run this job."
+                fi
               else
                 echo "::error::REFUSE: no run of ${WORKFLOW} for commit ${SHA} on ref ${want_branch} appeared within ${mins}m."
                 echo "::error::This release has nothing to promote. Timing out is not a reason to build here -- that would make the promotion path optional, and an optional verification is one that stops happening the first time it is inconvenient."

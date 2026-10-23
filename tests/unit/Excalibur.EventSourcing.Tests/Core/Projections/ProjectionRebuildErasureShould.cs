@@ -147,7 +147,7 @@ public sealed class ProjectionRebuildErasureShould
 /// <summary>Projection state used to prove which subjects' data actually reached a rebuilt projection.</summary>
 public sealed class SubjectTrackingProjection
 {
-	public List<string> SeenAggregateIds { get; } = [];
+	public List<string> SeenAggregateIds { get; set; } = [];
 }
 
 #pragma warning restore CA2012

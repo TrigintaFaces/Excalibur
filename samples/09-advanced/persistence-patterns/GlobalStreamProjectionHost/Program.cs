@@ -16,8 +16,8 @@
 // - ISubscriptionCheckpointStore       — Tracks read position across restarts
 //
 // Comparison with other projection modes:
-// - AddProjection<T>().Inline()           → Runs during SaveAsync (single aggregate)
-// - AddProjection<T>().Async()            → Background catch-up via AsyncProjectionProcessingHost
+// - AddProjection<T>().Async()            → Per-aggregate read models, applied by
+//                                           AsyncProjectionProcessingHost via EnableProjectionProcessing()
 // - GlobalStreamProjectionHost<TState>    → Custom logic over ALL events (this sample)
 //
 // Use GlobalStreamProjectionHost when you need full control over cross-aggregate

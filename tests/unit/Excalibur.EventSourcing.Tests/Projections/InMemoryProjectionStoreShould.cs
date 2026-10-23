@@ -165,7 +165,7 @@ public sealed class InMemoryProjectionStoreShould
 		_ = services.AddLogging();
 
 		var es = new ExcaliburEventSourcingBuilder(services);
-		_ = es.AddProjection<StoreItem>(p => p.Inline());
+		_ = es.AddProjection<StoreItem>(p => p.Async());
 		_ = es.Services.AddInMemoryProjectionStore<StoreItem>();
 
 		using var provider = services.BuildServiceProvider();

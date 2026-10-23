@@ -20,7 +20,7 @@ public sealed class InMemoryProjectionRegistryExtendedShould
 
 	private static ProjectionRegistration CreateRegistration(
 		Type projectionType,
-		ProjectionMode mode = ProjectionMode.Inline)
+		ProjectionMode mode = ProjectionMode.Async)
 	{
 		return new ProjectionRegistration(
 			projectionType,
@@ -49,11 +49,11 @@ public sealed class InMemoryProjectionRegistryExtendedShould
 	public void GetByMode_ReturnsFreshListOnEachCall()
 	{
 		// Arrange
-		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Inline));
+		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Async));
 
 		// Act
-		var list1 = _registry.GetByMode(ProjectionMode.Inline);
-		var list2 = _registry.GetByMode(ProjectionMode.Inline);
+		var list1 = _registry.GetByMode(ProjectionMode.Async);
+		var list2 = _registry.GetByMode(ProjectionMode.Async);
 
 		// Assert
 		list1.ShouldNotBeSameAs(list2);
@@ -62,22 +62,20 @@ public sealed class InMemoryProjectionRegistryExtendedShould
 	}
 
 	[Fact]
-	public void HandleAllThreeModes()
+	public void HandleEveryMode()
 	{
 		// Arrange — register one of each mode
-		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Inline));
+		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Ephemeral));
 		_registry.Register(CreateRegistration(typeof(InventoryView), ProjectionMode.Async));
 
 		// Act
-		var inline = _registry.GetByMode(ProjectionMode.Inline);
 		var async = _registry.GetByMode(ProjectionMode.Async);
 		var ephemeral = _registry.GetByMode(ProjectionMode.Ephemeral);
 		var all = _registry.GetAll();
 
 		// Assert
-		inline.Count.ShouldBe(1);
 		async.Count.ShouldBe(1);
-		ephemeral.Count.ShouldBe(0);
+		ephemeral.Count.ShouldBe(1);
 		all.Count.ShouldBe(2);
 	}
 
@@ -96,13 +94,13 @@ public sealed class InMemoryProjectionRegistryExtendedShould
 				// Using OrderSummary for all to exercise the replacement path
 				_registry.Register(new ProjectionRegistration(
 					typeof(OrderSummary),
-					i % 2 == 0 ? ProjectionMode.Inline : ProjectionMode.Async,
+					i % 2 == 0 ? ProjectionMode.Async : ProjectionMode.Async,
 					new MultiStreamProjection<OrderSummary>(),
 					inlineApply: null));
 
 				// Concurrent reads
 				_ = _registry.GetAll();
-				_ = _registry.GetByMode(ProjectionMode.Inline);
+				_ = _registry.GetByMode(ProjectionMode.Async);
 				_ = _registry.GetRegistration(typeof(OrderSummary));
 			}
 			catch (Exception ex)
@@ -126,7 +124,7 @@ public sealed class InMemoryProjectionRegistryExtendedShould
 	public void RegisterReplace_PreservesOtherTypes()
 	{
 		// Arrange — register two types, then replace one
-		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Inline));
+		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Async));
 		_registry.Register(CreateRegistration(typeof(InventoryView), ProjectionMode.Async));
 
 		// Act — replace OrderSummary

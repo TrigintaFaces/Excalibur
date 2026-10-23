@@ -13,7 +13,7 @@ Demonstrates continuous global event stream tailing using `GlobalStreamProjectio
 
 | Scenario | Recommended Approach |
 |----------|---------------------|
-| Per-aggregate read models | `AddProjection<T>().Inline()` or `.Async()` |
+| Per-aggregate read models | `AddProjection<T>().Async()` + `EnableProjectionProcessing()` |
 | Cross-aggregate metrics/dashboards | **GlobalStreamProjectionHost** (this sample) |
 | CDC-style continuous processing | **GlobalStreamProjectionHost** |
 | Global statistics (event counts, revenue) | **GlobalStreamProjectionHost** |

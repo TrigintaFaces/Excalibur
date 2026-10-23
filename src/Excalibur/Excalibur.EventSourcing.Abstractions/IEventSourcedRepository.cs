@@ -55,7 +55,7 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <param name="aggregate">The aggregate to save.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	/// <returns>A task that represents the asynchronous save operation.</returns>
-	Task SaveAsync(TAggregate aggregate, CancellationToken cancellationToken);
+	Task<SaveResult> SaveAsync(TAggregate aggregate, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Saves an aggregate with ETag-based optimistic concurrency check.
@@ -71,7 +71,7 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <exception cref="Excalibur.Data.ConcurrencyException">
 	/// Thrown when the expected ETag doesn't match the current aggregate ETag.
 	/// </exception>
-	Task SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken);
+	Task<SaveResult> SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Checks if an aggregate exists.

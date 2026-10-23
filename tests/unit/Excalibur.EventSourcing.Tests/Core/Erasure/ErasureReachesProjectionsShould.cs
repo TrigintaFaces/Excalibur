@@ -206,12 +206,12 @@ public sealed class ErasureReachesProjectionsShould
 			if (faultFirstProjection)
 			{
 				var faulting = new ProjectionBuilder<Faulting>(registry);
-				_ = faulting.Inline().When<CustomerNamed>(static (p, e) => p.Name = e.Name);
+				_ = faulting.Async().When<CustomerNamed>(static (p, e) => p.Name = e.Name);
 				faulting.Build(registry);
 			}
 
 			var builder = new ProjectionBuilder<Customer>(registry);
-			_ = builder.Inline().When<CustomerNamed>(static (p, e) => p.Name = e.Name);
+			_ = builder.Async().When<CustomerNamed>(static (p, e) => p.Name = e.Name);
 
 			if (keyed)
 			{
@@ -266,6 +266,7 @@ public sealed class ErasureReachesProjectionsShould
 		public ErasureContributorContext Context() =>
 			new()
 			{
+				TenantPartition = KeyedTenantPartition.Untenanted,
 				RequestId = Guid.NewGuid(),
 				DataSubjectIdHash = SubjectHash,
 				IdType = DataSubjectIdType.Hash,

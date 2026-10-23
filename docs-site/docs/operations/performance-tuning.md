@@ -244,7 +244,7 @@ public record OrderCreated(
 
 ## Projection Optimization
 
-### Using Inline Projection Handlers
+### Choosing a Projection Handler Tier
 
 The October 17 repository report
 `docs/performance/projection-handlers-2026-10-17.md` measured 48 → 0 B/op for the
@@ -253,12 +253,12 @@ observation does not guarantee zero allocations in user callbacks or establish a
 universal ranking against DI handlers. Native functional/allocation controls were
 separate from managed timing; no NativeAOT latency improvement was measured.
 
-Excalibur provides two approaches for inline projections. For simple cases, use `When<T>` lambdas. For complex logic needing DI, implement `IProjectionEventHandler<TProjection, TEvent>`:
+Excalibur provides two handler tiers. For simple cases, use `When<T>` lambdas. For complex logic needing DI, implement `IProjectionEventHandler<TProjection, TEvent>`:
 
 ```csharp
 // Simple synchronous lambda; measure the complete callback workload
 builder.AddProjection<OrderProjection>(p => p
-    .Inline()
+    .Async()
     .When<OrderCreated>((proj, e) =>
     {
         proj.OrderId = e.OrderId;
@@ -291,18 +291,20 @@ public sealed class OrderCreatedHandler
 
 // Registration -- handler is auto-registered in DI as Transient
 builder.AddProjection<OrderProjection>(p => p
-    .Inline()
+    .Async()
     .WhenHandledBy<OrderCreated, OrderCreatedHandler>());
 ```
+
+Handler cost lands on the projection host, not on `SaveAsync` — a slow handler shows up as projection
+lag and as session-consistent reads reporting `BoundExpired`, never as a slower write.
 
 ### Batch Projection Updates
 
 For high-throughput scenarios, batch your projection writes:
 
 ```csharp
-// Use async projections (GlobalStreamProjectionHost) with CDC for high-throughput batch processing.
-// The inline projection pipeline handles events per-aggregate during SaveAsync().
-// For cross-aggregate batch scenarios, configure CDC-based async projections:
+// EnableProjectionProcessing() applies events per projection as the host reads the global stream.
+// For cross-aggregate batch scenarios, configure CDC-based projections instead:
 services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(sql => sql.ConnectionString(connectionString))

@@ -88,10 +88,10 @@ public sealed class ProjectionStoreConfigurationBindingShould
 
 		var monitor = Monitor(services);
 
-		monitor.Get(nameof(ConfigBoundProjection)).NodeUris.ShouldNotBeNull();
-		monitor.Get(nameof(SecondConfigBoundProjection)).NodeUris.ShouldNotBeNull();
-		monitor.Get(nameof(ConfigBoundProjection)).Index.IndexName.ShouldBe("first");
-		monitor.Get(nameof(SecondConfigBoundProjection)).Index.IndexName.ShouldBe("second");
+		monitor.Get(typeof(ConfigBoundProjection).FullName!).NodeUris.ShouldNotBeNull();
+		monitor.Get(typeof(SecondConfigBoundProjection).FullName!).NodeUris.ShouldNotBeNull();
+		monitor.Get(typeof(ConfigBoundProjection).FullName!).Index.IndexName.ShouldBe("first");
+		monitor.Get(typeof(SecondConfigBoundProjection).FullName!).Index.IndexName.ShouldBe("second");
 	}
 
 	/// <summary>
@@ -216,5 +216,5 @@ public sealed class ProjectionStoreConfigurationBindingShould
 		services.BuildServiceProvider().GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 
 	private static ElasticSearchProjectionStoreOptions Options(IServiceCollection services) =>
-		Monitor(services).Get(nameof(ConfigBoundProjection));
+		Monitor(services).Get(typeof(ConfigBoundProjection).FullName!);
 }

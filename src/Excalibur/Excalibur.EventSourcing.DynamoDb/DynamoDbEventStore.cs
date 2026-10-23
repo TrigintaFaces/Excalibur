@@ -672,8 +672,8 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			// recognised-retry state could be lost, and a caller that must not republish from live payloads
 			// reads it on the far side.
 			return result.Outcome == CloudAppendOutcome.AlreadyCommitted
-				? AppendResult.CreateAlreadyCommitted(result.NextExpectedVersion!.Value, firstEventPosition: null)
-				: AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
+				? AppendResult.CreateAlreadyCommitted(result.NextExpectedVersion!.Value, firstEventPosition: null, lastEventPosition: null)
+				: AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)

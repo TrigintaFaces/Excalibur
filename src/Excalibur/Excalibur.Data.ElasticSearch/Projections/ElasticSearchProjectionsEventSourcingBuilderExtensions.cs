@@ -44,7 +44,7 @@ public static class ElasticSearchProjectionsEventSourcingBuilderExtensions
 	/// <code>
 	/// services.AddExcalibur(x => x.AddEventSourcing(es => es
 	///     .AddElasticSearchProjection&lt;OrderSummary&gt;(
-	///         p => p.Inline().When&lt;OrderPlaced&gt;((proj, e) => proj.Total = e.Amount),
+	///         p => p.Async().When&lt;OrderPlaced&gt;((proj, e) => proj.Total = e.Amount),
 	///         o =>
 	///         {
 	///             o.NodeUris = [new Uri("http://es01:9200"), new Uri("http://es02:9200")];

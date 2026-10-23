@@ -27,7 +27,12 @@
 # marker on failure and reports it on the NEXT commit, where git shows hook output.
 if command -v graphify >/dev/null 2>&1 && [ -d graphify-out ]; then
 	if [ -f graphify-out/.graphify_hook.failed ]; then
-		echo "graphify: the previous graph update FAILED. See graphify-out/.graphify_hook.log"
+		# The marker carries the exit code, the time and the commit, so this message is
+		# actionable even if nobody opens a log. An empty marker reported only "something
+		# went wrong at some point", which is not enough to act on.
+		echo "graphify: the previous graph update FAILED ($(cat graphify-out/.graphify_hook.failed 2>/dev/null | tr -d '\n'))"
+		echo "graphify: its output is preserved at graphify-out/.graphify_hook.failed.log"
+		echo "graphify: until it succeeds the graph is STALE -- do not cite it as fact."
 		rm -f graphify-out/.graphify_hook.failed 2>/dev/null
 	fi
 
@@ -42,11 +47,24 @@ if command -v graphify >/dev/null 2>&1 && [ -d graphify-out ]; then
 	if [ -f "$_gf_lock" ] && [ -z "$(find "$_gf_lock" -mmin +60 2>/dev/null)" ]; then
 		: # a run is already in flight and is not stale -- leave it alone
 	else
+		# PRESERVE A FAILING RUN'S OUTPUT UNDER ITS OWN NAME. The success path rewrites
+		# .graphify_hook.log on the very next commit, so a failure message pointing a reader at
+		# that file was pointing at one about to be destroyed -- seconds later, by the detached
+		# run this same hook starts. The diagnostic died before anyone could read it, which is
+		# why a failure here was never once investigated. .graphify_hook.failed.log is written
+		# only on failure and cleared only on success, so it always holds the most recent one.
 		( : >"$_gf_lock" 2>/dev/null
-		  if graphify update >graphify-out/.graphify_hook.log 2>&1; then
-			  rm -f graphify-out/.graphify_hook.failed 2>/dev/null
+		  graphify update >graphify-out/.graphify_hook.log 2>&1
+		  _gf_exit=$?
+		  if [ "$_gf_exit" -eq 0 ]; then
+			  rm -f graphify-out/.graphify_hook.failed graphify-out/.graphify_hook.failed.log 2>/dev/null
 		  else
-			  : >graphify-out/.graphify_hook.failed 2>/dev/null
+			  cp graphify-out/.graphify_hook.log graphify-out/.graphify_hook.failed.log 2>/dev/null
+			  printf 'exit=%s at=%s commit=%s\n' \
+			      "$_gf_exit" \
+			      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+			      "$(git rev-parse --short HEAD 2>/dev/null)" \
+			      >graphify-out/.graphify_hook.failed 2>/dev/null
 		  fi
 		  rm -f "$_gf_lock" 2>/dev/null ) >/dev/null 2>&1 &
 	fi

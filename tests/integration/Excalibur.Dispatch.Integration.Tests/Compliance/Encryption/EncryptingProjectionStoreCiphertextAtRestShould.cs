@@ -71,20 +71,13 @@ public sealed class EncryptingProjectionStoreCiphertextAtRestShould : IClassFixt
 		await connection.OpenAsync().ConfigureAwait(false);
 		// Tenant-scoped projection table: row-level tenant_id with a composite (id, tenant_id) key — the store's
 		// UPSERT targets ON CONFLICT (id, tenant_id) so distinct tenants never overwrite each other's rows.
-		_ = await connection.ExecuteAsync($"""
-			CREATE TABLE IF NOT EXISTS "{TableName}" (
-				id VARCHAR(450) NOT NULL,
-				tenant_id VARCHAR(450) NOT NULL,
-				data JSONB NOT NULL,
-				created_at TIMESTAMPTZ NOT NULL,
-				updated_at TIMESTAMPTZ NOT NULL,
-				-- The store's unconditional write now INVALIDATES the position rather than leaving
-				-- it stale, so this column is part of the contract the store writes against. -1, not
-				-- 0, because zero is a legitimate stream position.
-				last_applied_position BIGINT NOT NULL DEFAULT -2,
-				PRIMARY KEY (id, tenant_id)
-			)
-			""").ConfigureAwait(false);
+				// THE SHIPPED SCRIPT, not a local copy. Three test files each carried their own hand-written
+		// CREATE TABLE and they had already drifted -- one declared tenant_id as VARCHAR(450) where its
+		// siblings declared VARCHAR(255). A store whose columns changed without every copy changing
+		// would still pass here and fail on a consumer's database, which is the one place no gate of
+		// ours can see. Emitting it from the provider's own schema makes this arm the binding.
+		_ = await connection.ExecuteAsync(
+			PostgresProjectionSchema.CreateTableScript(TableName)).ConfigureAwait(false);
 	}
 
 	public ValueTask DisposeAsync() => ValueTask.CompletedTask;

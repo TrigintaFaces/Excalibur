@@ -21,7 +21,7 @@ internal sealed class ProjectionHealthCheckOptions
 	public long DegradedLagThreshold { get; set; } = 100;
 
 	/// <summary>
-	/// Gets or sets the maximum time window for inline projection errors.
+	/// Gets or sets the maximum time window for projection apply errors.
 	/// If any error occurred within this window, health is degraded.
 	/// Default is 5 minutes.
 	/// </summary>

@@ -28,10 +28,28 @@ public sealed class KafkaContainerFixture : ContainerFixtureBase
 	/// Default Kafka Docker image. Pinned to a specific version to prevent CI drift.
 	/// </summary>
 	/// <remarks>
-	/// The Testcontainers.Kafka library uses KRaft mode (no ZooKeeper) starting from cp-kafka 7.4+.
+	/// <para>
+	/// The upstream Apache image, not a vendor repackage, and the reason is a failure class rather
+	/// than a preference. Kafka removed ZooKeeper in 4.0, so this image is KRaft-only and carries no
+	/// Python entrypoint tooling. The Confluent image this replaced started by running
+	/// <c>dub</c> (confluent-docker-utils), which imports <c>boto3</c> and therefore <c>urllib3</c>;
+	/// compiling urllib3's IPv6 pattern crashed that image's Python 3.9 with
+	/// <c>UnboundLocalError: local variable 'skipyes' referenced before assignment</c> in
+	/// <c>sre_compile</c>, so the container exited 1 before the broker ever started and every Kafka
+	/// arm failed at fixture initialisation. Nothing in that path is Kafka's, ours, or fixable by us.
+	/// </para>
+	/// <para>
 	/// The internal broker listener is on port 9093; the external (mapped) listener uses a dynamic port.
+	/// </para>
+	/// <para>
+	/// A superseded version of this comment claimed "Testcontainers.Kafka uses KRaft mode (no
+	/// ZooKeeper) starting from cp-kafka 7.4+". That was false against the image it described: the
+	/// container's own first log line read <c>Running in Zookeeper mode...</c>, which is exactly the
+	/// path that invoked the Python helper. It is quoted here because the claim is what hid the
+	/// failure path, and because a comment asserting a constraint is a claim to verify.
+	/// </para>
 	/// </remarks>
-	public const string DefaultImage = "confluentinc/cp-kafka:7.6.1";
+	public const string DefaultImage = "apache/kafka:4.1.2";
 
 	private KafkaContainer? _container;
 

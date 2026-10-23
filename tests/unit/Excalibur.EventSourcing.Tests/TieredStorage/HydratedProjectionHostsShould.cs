@@ -48,9 +48,10 @@ public sealed class HydratedProjectionHostsShould
             total += message.Amount;
         }
 
+        long? persisted = null;
         var checkpoint = A.Fake<ISubscriptionCheckpointStore>();
         A.CallTo(() => checkpoint.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
-            .Returns(Task.FromResult<long?>(null));
+            .ReturnsLazily(() => Task.FromResult(persisted));
         var cursorMaps = A.Fake<ICursorMapStore>();
         IReadOnlyDictionary<string, long>? savedMap = null;
         A.CallTo(() => cursorMaps.SaveCursorMapAsync(A<string>._, A<IReadOnlyDictionary<string, long>>._, A<CancellationToken>._))
@@ -59,7 +60,6 @@ public sealed class HydratedProjectionHostsShould
                 savedMap = new Dictionary<string, long>(call.GetArgument<IReadOnlyDictionary<string, long>>(1)!);
                 return Task.CompletedTask;
             });
-        long? persisted = null;
         var attempts = new List<(long? Expected, long Proposed, string[] Applied, int Total, IReadOnlyDictionary<string, long>? Map)>();
         A.CallTo(() => checkpoint.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
             .ReturnsLazily(call =>
@@ -78,7 +78,7 @@ public sealed class HydratedProjectionHostsShould
         services.AddSingleton<IGlobalStreamProjection<State>>(new RecordingProjection(Apply));
         using var provider = services.BuildServiceProvider();
         var options = Options.Create(new GlobalStreamProjectionOptions
-        {
+        { SubscriptionScope = "unit-test",
             BatchSize = 10, CheckpointInterval = 1, IdlePollingInterval = TimeSpan.FromMilliseconds(10),
         });
         var registry = new InMemoryProjectionRegistry();

@@ -148,7 +148,7 @@ public sealed class ErasedEventAsyncProjectionHostShould
 			_eventSerializer,
 			_checkpointStore,
 			Options.Create(new GlobalStreamProjectionOptions
-			{
+			{ SubscriptionScope = "unit-test",
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 
 				// One processed event is enough to force a checkpoint flush, so the advance is observable
@@ -310,7 +310,7 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 			_scopeFactory,
 			_eventSerializer,
 			Options.Create(new GlobalStreamProjectionOptions
-			{
+			{ SubscriptionScope = "unit-test",
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 				CheckpointInterval = 1,
 			}),

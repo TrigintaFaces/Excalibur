@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 
 using Dapper;
 
+using Excalibur.Compliance;
 using Excalibur.Compliance.Erasure;
 using Excalibur.Compliance.SqlServer.Erasure;
 
@@ -74,6 +75,50 @@ public sealed class SqlServerComplianceSchemaShapeShould : IntegrationTestBase
 		result.ShouldNotBeNull();
 	}
 
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RejectAnErasureSchemaWithoutTenantPartition(bool autoCreate)
+	{
+		var suffix = Guid.NewGuid().ToString("N")[..8];
+		var requests = $"EraReq_{suffix}";
+		var certificates = $"EraCert_{suffix}";
+		using (var provisioner = CreateErasureStore(requests, certificates, autoCreate: true))
+		{
+			await provisioner.ValidateSchemaAsync(TestCancellationToken);
+		}
+
+		await DropColumnAsync(requests, "TenantPartition");
+
+		using var restarted = CreateErasureStore(requests, certificates, autoCreate);
+		var thrown = await Should.ThrowAsync<ErasureStoreNotProvisionedException>(
+			async () => await restarted.ValidateSchemaAsync(TestCancellationToken));
+
+		thrown.Message.ShouldContain("TenantPartition");
+	}
+
+	[Fact]
+	public async Task PersistOwnerAndPartitionSeparatelyInAnAutoCreatedErasureSchema()
+	{
+		var suffix = Guid.NewGuid().ToString("N")[..8];
+		using var store = CreateErasureStore($"EraReq_{suffix}", $"EraCert_{suffix}", autoCreate: true);
+		var request = new ErasureRequest
+		{
+			DataSubjectId = "subject-for-schema-roundtrip",
+			IdType = DataSubjectIdType.UserId,
+			TenantId = "explicit-key-owner",
+			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+			RequestedBy = "schema-test",
+		};
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow, TestCancellationToken);
+		var status = await store.GetStatusAsync(request.RequestId, TestCancellationToken);
+
+		status.ShouldNotBeNull();
+		status.TenantId.ShouldBe("explicit-key-owner");
+		status.TenantPartition.ShouldBe(KeyedTenantPartition.Untenanted);
+	}
+
 	// ---------- helpers ----------
 
 	// Each arm gets its own table pair, derived from the calling test, so arms never collide over a
@@ -90,6 +135,23 @@ public sealed class SqlServerComplianceSchemaShapeShould : IntegrationTestBase
 			$"ALTER TABLE [compliance].[{tableName}] DROP COLUMN [{columnName}]",
 			cancellationToken: TestCancellationToken));
 	}
+
+	private SqlServerErasureStore CreateErasureStore(
+		string requestsTable, string certificatesTable, bool autoCreate) => new(
+		Microsoft.Extensions.Options.Options.Create(new SqlServerErasureStoreOptions
+		{
+			ConnectionString = _fixture.ConnectionString,
+			SchemaName = "compliance",
+			RequestsTableName = requestsTable,
+			CertificatesTableName = certificatesTable,
+			DestroyedKeysTableName = $"{requestsTable}_Destroyed",
+			DestructionIntentsTableName = $"{requestsTable}_Intents",
+			AutoCreateSchema = autoCreate,
+		}),
+		new PassThroughDataSubjectHasher(),
+		EnabledTestLogger.Create<SqlServerErasureStore>(),
+		UntenantedContext.Instance,
+		Microsoft.Extensions.Options.Options.Create(new TenantContextOptions { RequireTenant = false }));
 
 	private SqlServerDataInventoryStore CreateInventoryStore(
 		string registrationsTable, string discoveredTable, bool autoCreate) => new(

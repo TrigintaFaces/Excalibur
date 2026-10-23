@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 [Trait("Category", "Unit")]
@@ -431,6 +433,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 	private static ErasureStatus CreateErasureStatus(Guid requestId) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
 			IdType = DataSubjectIdType.Email,

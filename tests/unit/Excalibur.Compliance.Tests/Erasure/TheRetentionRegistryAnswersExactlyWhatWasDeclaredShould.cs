@@ -39,7 +39,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[Fact]
 	public void Find_a_declared_type()
 	{
-		var found = Registry(Valid(SalesRecord)).TryGetRetention(null, SalesRecord, out var retention);
+		var found = Registry(Valid(SalesRecord)).TryGetRetention(KeyedTenantPartition.Untenanted, SalesRecord, out var retention);
 
 		found.ShouldBeTrue();
 		retention.ShouldNotBeNull();
@@ -51,7 +51,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[Fact]
 	public void Not_find_a_type_nobody_declared()
 	{
-		Registry(Valid(SalesRecord)).TryGetRetention(null, "Customer", out _).ShouldBeFalse();
+		Registry(Valid(SalesRecord)).TryGetRetention(KeyedTenantPartition.Untenanted, "Customer", out _).ShouldBeFalse();
 	}
 
 	/// <summary>SAFETY. A declaration belonging to another tenant does not match.</summary>
@@ -62,10 +62,10 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[Fact]
 	public void Not_match_a_declaration_belonging_to_another_tenant()
 	{
-		var registry = Registry(Valid(SalesRecord) with { TenantId = "tenant-a" });
+		var registry = Registry(Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Scoped("tenant-a")});
 
-		registry.TryGetRetention("tenant-b", SalesRecord, out _).ShouldBeFalse();
-		registry.TryGetRetention("tenant-a", SalesRecord, out _).ShouldBeTrue(
+		registry.TryGetRetention(KeyedTenantPartition.Scoped("tenant-b"), SalesRecord, out _).ShouldBeFalse();
+		registry.TryGetRetention(KeyedTenantPartition.Scoped("tenant-a"), SalesRecord, out _).ShouldBeTrue(
 			"and the declaring tenant's own subjects must still be protected, or the arm above is "
 			+ "satisfied by a registry that matches nobody");
 	}
@@ -81,7 +81,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[Fact]
 	public void Not_match_a_declaration_whose_case_differs_from_the_stored_type()
 	{
-		Registry(Valid("salesrecord")).TryGetRetention(null, SalesRecord, out _)
+		Registry(Valid("salesrecord")).TryGetRetention(KeyedTenantPartition.Untenanted, SalesRecord, out _)
 			.ShouldBeFalse(
 				"the declaration must name the type exactly as the event store records it; anything else "
 				+ "leaves the record unprotected while looking declared");
@@ -103,7 +103,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	{
 		var registry = Registry(Valid(SalesRecord));
 
-		Should.NotThrow(() => registry.TryGetRetention(null, aggregateType, out _)).ShouldBeFalse();
+		Should.NotThrow(() => registry.TryGetRetention(KeyedTenantPartition.Untenanted, aggregateType, out _)).ShouldBeFalse();
 	}
 
 	/// <summary>SAFETY. Declared and the lookup agree in both directions.</summary>
@@ -115,7 +115,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 		registry.Declared.Count.ShouldBe(2);
 		foreach (var declared in registry.Declared)
 		{
-			registry.TryGetRetention(declared.TenantId, declared.AggregateType, out var found)
+			registry.TryGetRetention(declared.Tenant, declared.AggregateType, out var found)
 				.ShouldBeTrue();
 			found.ShouldBe(declared);
 		}
@@ -168,18 +168,24 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	/// single-tenant host and the WRONG one for a multi-tenant host that meant to name a tenant and failed.
 	/// </para>
 	/// </remarks>
-	[Theory]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void Refuse_a_declaration_whose_tenant_is_blank(string tenantId)
+	/// <remarks>
+	/// <b>REWRITTEN, and the rewrite is the point.</b> This arm used to feed <c>""</c> and <c>"   "</c>,
+	/// because the tenant was a string and a blank one stated neither a tenant nor untenantedness. A
+	/// <see cref="KeyedTenantPartition"/> has no blank inhabitant, so those inputs are no longer
+	/// expressible and the arm would be testing nothing. The one refusable input left is ABSENCE, which a
+	/// reflection binder or a hand-built options instance can still produce where <c>required</c> cannot
+	/// reach.
+	/// </remarks>
+	[Fact]
+	public void Refuse_a_declaration_with_no_tenant_partition()
 	{
-		var result = Validate(Valid(SalesRecord) with { TenantId = tenantId });
+		var result = Validate(Valid(SalesRecord) with { Tenant = null! });
 
 		result.Failed.ShouldBeTrue(
-			"a blank tenant states neither a tenant nor untenantedness, and a reader cannot tell which was "
-			+ "meant");
+			"an absent partition states neither a tenant nor untenantedness, and a reader cannot tell "
+			+ "which was meant");
 		result.FailureMessage.ShouldContain(
-			nameof(ErasureRetention.TenantId),
+			nameof(ErasureRetention.Tenant),
 			Case.Sensitive,
 			"the message has to name the member, or a consumer cannot find what to fix at startup");
 	}
@@ -207,58 +213,39 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	/// applying to the deployment that declared it.
 	/// </para>
 	/// </remarks>
-	[Theory]
-	[InlineData("")]
-	[InlineData("   ")]
-	public void Normalise_a_blank_tenant_on_a_hand_built_options_instance(string tenantId)
-	{
-		var options = new AggregateRetentionOptions();
-		options.Aggregates.Add(Valid(SalesRecord) with { TenantId = tenantId });
-
-		var registry = new ErasureRetentionRegistry(Options.Create(options));
-
-		registry.TryGetRetention(null, SalesRecord, out _).ShouldBeTrue(
-			"construction is total by contract, so a declaration the validator would have refused must "
-			+ "still resolve rather than sit in the registry matching nothing");
-	}
-
-	/// <summary>
-	/// SAFETY. One aggregate type declared twice under two spellings of the SAME tenant is refused AS A
-	/// DUPLICATE, not merely as a blank.
-	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// The validator's duplicate rule and the registry's grouping are two predicates over one concept. While
-	/// the validator keyed on the tenant AS WRITTEN and the registry grouped on the NORMALISED tenant, this
-	/// pair passed the duplicate rule and then collapsed in the registry: <c>Declared</c> held ONE entry, the
-	/// FIRST declared won, and the second was discarded with nothing reported. The basis and the period on a
-	/// signed erasure record were therefore decided by the order two lines appear in a registration call
-	/// — here, six years of tax-code retention in place of ten years of anti-money-laundering.
-	/// </para>
-	/// <para>
-	/// Measured before the fix: the validator emitted exactly ONE failure, the blank-tenant message, and the
-	/// duplicate rule never fired. That the pair was refused ANYWAY, by the blank rule, is why it had not
-	/// shown up as a defect — and is precisely the circularity being removed: the duplicate rule was
-	/// sound only for as long as some OTHER rule happened to reject the colliding spelling.
-	/// </para>
-	/// <para>
-	/// RED input: key the duplicate check on the tenant as written. Both declarations are then distinct
-	/// scopes, the duplicate message disappears, and the registry silently keeps the first.
-	/// </para>
+	/// Same rewrite as the arm above: a blank partition cannot be written, so the input that still
+	/// reaches construction is an ABSENT one. What this arm guards is unchanged and is the valuable
+	/// half — construction must not THROW on a declaration the validator will refuse, or a clear startup
+	/// failure becomes a container-build stack trace.
 	/// </remarks>
 	[Fact]
-	public void Refuse_one_type_declared_twice_under_two_spellings_of_one_tenant()
+	public void Not_throw_on_a_hand_built_options_instance_whose_tenant_partition_is_absent()
+	{
+		var options = new AggregateRetentionOptions();
+		options.Aggregates.Add(Valid(SalesRecord) with { Tenant = null! });
+		options.Aggregates.Add(Valid("Warranty"));
+
+		var registry = Should.NotThrow(() => new ErasureRetentionRegistry(Options.Create(options)));
+
+		registry.TryGetRetention(KeyedTenantPartition.Untenanted, "Warranty", out _).ShouldBeTrue(
+			"the sound declaration beside it must still resolve, or this arm passes over a registry that "
+			+ "silently dropped everything");
+	}
+
+	/// <summary>Reject duplicate declarations for the same typed partition.</summary>
+	[Fact]
+	public void Refuse_one_type_declared_twice_for_one_partition()
 	{
 		var result = Validate(
-			Valid(SalesRecord) with { TenantId = string.Empty },
-			Valid(SalesRecord) with { TenantId = TenantScope.UntenantedSentinel });
+			Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Untenanted },
+			Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Untenanted });
 
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(
 			"a second time for the same tenant",
 			Case.Sensitive,
-			"the blank rule refuses this pair too, so asserting only that validation FAILED would pass "
-			+ "with the duplicate rule still blind. The duplicate must be named");
+			"both declarations are otherwise valid, so the failure must identify the duplicate");
 	}
 
 	/// <summary>SAFETY. A justification that only restates the ground establishes no obligation.</summary>
@@ -287,8 +274,8 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	public void Accept_one_type_declared_for_two_tenants()
 	{
 		Validate(
-				Valid(SalesRecord) with { TenantId = "tenant-a" },
-				Valid(SalesRecord) with { TenantId = "tenant-b" })
+				Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Scoped("tenant-a")},
+				Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Scoped("tenant-b")})
 			.Succeeded.ShouldBeTrue();
 	}
 
@@ -319,7 +306,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 		using var provider = services.BuildServiceProvider();
 
 		provider.GetRequiredService<IErasureRetentionRegistry>()
-			.TryGetRetention(null, SalesRecord, out _).ShouldBeTrue();
+			.TryGetRetention(KeyedTenantPartition.Untenanted, SalesRecord, out _).ShouldBeTrue();
 	}
 
 	/// <summary>
@@ -364,10 +351,10 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[InlineData(UntenantedLiteral)]
 	public void Match_an_untenanted_erasure_against_a_sentinel_declaration(string? erasureTenant) =>
 		Registry(Valid(SalesRecord))
-			.TryGetRetention(erasureTenant, SalesRecord, out _)
+			.TryGetRetention(KeyedTenantPartition.FromStoredValue(erasureTenant), SalesRecord, out _)
 			.ShouldBeTrue(
-				"every spelling of untenanted names one tenant, and a declaration naming it must be found "
-				+ "by an erasure that spells it differently");
+				"every stored spelling of untenanted names one partition, and a declaration naming that "
+				+ "partition must be found by an erasure whose stored term spelled it differently");
 
 	/// <summary>
 	/// SAFETY. One tenant's declaration does not answer for another's, which is the over-retention direction
@@ -376,12 +363,12 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[Fact]
 	public void Not_match_one_tenant_declaration_against_another_tenant_erasure()
 	{
-		var registry = Registry(Valid(SalesRecord) with { TenantId = "tenant-a" });
+		var registry = Registry(Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Scoped("tenant-a")});
 
-		registry.TryGetRetention("tenant-a", SalesRecord, out _).ShouldBeTrue(
+		registry.TryGetRetention(KeyedTenantPartition.Scoped("tenant-a"), SalesRecord, out _).ShouldBeTrue(
 			"the declaring tenant's own erasure must find it, or the refusal below is satisfied by a "
 			+ "registry that matches nothing at all");
-		registry.TryGetRetention("tenant-b", SalesRecord, out _).ShouldBeFalse(
+		registry.TryGetRetention(KeyedTenantPartition.Scoped("tenant-b"), SalesRecord, out _).ShouldBeFalse(
 			"another tenant's declaration must not answer for this one — that is over-retention, the "
 			+ "Article 17 breach in the other direction");
 	}
@@ -397,7 +384,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	/// </remarks>
 	[Fact]
 	public void Report_a_type_retained_when_any_tenant_declared_it() =>
-		Registry(Valid(SalesRecord) with { TenantId = "tenant-a" })
+		Registry(Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Scoped("tenant-a")})
 			.IsRetainedForAnyTenant(SalesRecord)
 			.ShouldBeTrue(
 				"the write path has no tenant, so a foreign tenant's declaration must still widen the "
@@ -414,7 +401,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	[InlineData("   ")]
 	[InlineData(null)]
 	public void Report_an_undeclared_type_not_retained(string? aggregateType) =>
-		Registry(Valid(SalesRecord) with { TenantId = "tenant-a" })
+		Registry(Valid(SalesRecord) with { Tenant = KeyedTenantPartition.Scoped("tenant-a")})
 			.IsRetainedForAnyTenant(aggregateType)
 			.ShouldBeFalse(
 				"nothing is declared for this type, so widening its handle would make its erasure depend on "
@@ -423,7 +410,7 @@ public sealed class TheRetentionRegistryAnswersExactlyWhatWasDeclaredShould
 	private static ErasureRetention Valid(string aggregateType) => new()
 	{
 		AggregateType = aggregateType,
-		TenantId = TenantScope.UntenantedSentinel,
+		Tenant = KeyedTenantPartition.Untenanted,
 		Basis = LegalHoldBasis.LegalObligation,
 		Justification =
 			"Vehicle sales records are kept for six years under the tax code's record-keeping requirement.",

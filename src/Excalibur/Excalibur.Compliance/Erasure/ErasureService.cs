@@ -595,7 +595,12 @@ public sealed partial class ErasureService: IErasureService, IErasureExecutor
  	// THE HANDLE IS RECORDED ON THE PATH THAT DECIDES TO SPARE IT, and that placement is the point
  	// rather than a convenience. A handle list assembled by a later pass can disagree with what was
  	// actually excluded, and then the consumer destroys the wrong key or misses one.
- 	if (_retentions.TryGetRetention(status.TenantId, retention.AggregateType, out _))
+ 	// TWO FACTS, AND THIS LINE READS THE RIGHT ONE. The join is against the PARTITION a declaration
+ 	// names; :572 above derives the key handle from status.TenantId, the OWNER the data was encrypted
+ 	// under. They were one field, and a single-tenant deployment's owner (the ambient default identity)
+ 	// never equalled the partition its declaration named (untenanted), so this join missed and the loop
+ 	// below crypto-shredded a legally retained key while the certificate reported the record as kept.
+ 	if (_retentions.TryGetRetention(status.TenantPartition, retention.AggregateType, out _))
  	{
  		_ = retainedKeyHandles.Add(handle);
  		retainedHandleByType[retention.AggregateType] = handle;

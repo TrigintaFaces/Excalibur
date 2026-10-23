@@ -56,7 +56,7 @@ public sealed class DelegatingEventStoreShould
 	{
 		// Arrange
 		var events = Array.Empty<IDomainEvent>();
-		var expected = AppendResult.CreateSuccess(1, 0);
+		var expected = AppendResult.CreateSuccess(1, 0, 0);
 #pragma warning disable CA2012
 		A.CallTo(() => _inner.AppendAsync("agg-1", "type", events, 0L, A<CancellationToken>._))
 			.Returns(new ValueTask<AppendResult>(expected));
@@ -195,7 +195,7 @@ public sealed class DelegatingEventStoreShould
 		public ValueTask<AppendResult> AppendAsync(
 			string aggregateId, string aggregateType, IEnumerable<IDomainEvent> events, long expectedVersion,
 			CancellationToken cancellationToken) =>
-			new(AppendResult.CreateSuccess(1, 0));
+			new(AppendResult.CreateSuccess(1, 0, 0));
 	}
 
 	/// <summary>A subclass that performs erasure itself and claims the capability accordingly.</summary>
@@ -234,6 +234,6 @@ public sealed class DelegatingEventStoreShould
 		public ValueTask<AppendResult> AppendAsync(
 			string aggregateId, string aggregateType, IEnumerable<IDomainEvent> events, long expectedVersion,
 			CancellationToken cancellationToken) =>
-			new(AppendResult.CreateSuccess(1, 0));
+			new(AppendResult.CreateSuccess(1, 0, 0));
 	}
 }

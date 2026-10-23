@@ -43,7 +43,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		GlobalStreamProjectionOptions? options = null)
 	{
 		serializer ??= A.Fake<IEventSerializer>();
-		options ??= new GlobalStreamProjectionOptions();
+		options ??= new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" };
 
 		if (sp == null)
 		{
@@ -67,7 +67,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				null!,
 				A.Fake<IEventSerializer>(),
 				_checkpointStore,
-				Options.Create(new GlobalStreamProjectionOptions()),
+				Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }),
 				A.Fake<IServiceProvider>(),
 				NullLogger<AsyncProjectionProcessingHost>.Instance));
 	}
@@ -80,7 +80,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				_registry,
 				null!,
 				_checkpointStore,
-				Options.Create(new GlobalStreamProjectionOptions()),
+				Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }),
 				A.Fake<IServiceProvider>(),
 				NullLogger<AsyncProjectionProcessingHost>.Instance));
 	}
@@ -93,7 +93,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				_registry,
 				A.Fake<IEventSerializer>(),
 				null!,
-				Options.Create(new GlobalStreamProjectionOptions()),
+				Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }),
 				A.Fake<IServiceProvider>(),
 				NullLogger<AsyncProjectionProcessingHost>.Instance));
 	}
@@ -119,7 +119,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				_registry,
 				A.Fake<IEventSerializer>(),
 				_checkpointStore,
-				Options.Create(new GlobalStreamProjectionOptions()),
+				Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }),
 				null!,
 				NullLogger<AsyncProjectionProcessingHost>.Instance));
 	}
@@ -132,63 +132,33 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				_registry,
 				A.Fake<IEventSerializer>(),
 				_checkpointStore,
-				Options.Create(new GlobalStreamProjectionOptions()),
+				Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }),
 				A.Fake<IServiceProvider>(),
 				null!));
 	}
 
 	[Fact]
-	public async Task ExitImmediately_WhenNoGlobalStreamQueryRegistered()
+	public async Task RefuseMissingGlobalStreamQueryRatherThanReportCaughtUp()
 	{
-		// Arrange — no IGlobalStreamQuery in DI
 		_registry.Register(CreateAsyncRegistration());
-		using var cts = new CancellationTokenSource();
-		var host = CreateHost();
-
-		// Act — start and let it run; it should log warning and exit
-		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
-
-		// Poll for the condition instead of sleeping through it: the host is expected to EXIT, and
-		// ExecuteTask completing is that event. A fixed delay is both slower than it needs to be and
-		// still too short under a loaded runner, which is the shape that flakes.
-		await WaitHelpers.WaitUntilAsync(
-			() => ((BackgroundService)host).ExecuteTask is { IsCompleted: true },
-			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
-			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
-		await cts.CancelAsync().ConfigureAwait(false);
-		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
-
-		// Assert — should not throw, just exits gracefully
+		using var host = CreateHost();
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => host.ProcessPendingAsync(CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task ExitImmediately_WhenNoAsyncRegistrations()
+	public async Task ReturnCaughtUpWithoutScanningWhenNoAsyncRegistrationsExist()
 	{
-		// Arrange — IGlobalStreamQuery registered but no async projections
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
 		_services.AddSingleton(fakeQuery);
-		var sp = _services.BuildServiceProvider();
-
-		using var cts = new CancellationTokenSource();
-		var host = CreateHost(sp);
-
-		// Act
-		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
-		// Same condition as above: the host has no async registrations, so it exits, and ExecuteTask
-		// completing is the observable event rather than an assumed duration.
-		await WaitHelpers.WaitUntilAsync(
-			() => ((BackgroundService)host).ExecuteTask is { IsCompleted: true },
-			TestTimeouts.Scale(TimeSpan.FromSeconds(4)),
-			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
-		await cts.CancelAsync().ConfigureAwait(false);
-		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
-
-		// Assert — ReadAllAsync never called since there are no async registrations
+		using var provider = _services.BuildServiceProvider();
+		using var host = CreateHost(provider);
+		var result = await host.ProcessPendingAsync(CancellationToken.None);
+		result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
+		result.EventsApplied.ShouldBe(0);
 		A.CallTo(() => fakeQuery.ReadAllAsync(
-			A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
+			A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
-
 	[Fact]
 	public async Task PollGlobalStream_WhenAsyncRegistrationsExist()
 	{
@@ -209,7 +179,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_registry.Register(CreateAsyncRegistration());
 
 		var options = new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
@@ -242,8 +212,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		var callCount = 0;
 		var storedEvents = new List<StoredEvent>
 		{
-			new("evt-1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow),
-			new("evt-2", "order-1", "Order", "OrderShipped", Array.Empty<byte>(), null, 2, DateTimeOffset.UtcNow),
+			new("evt-1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow) { GlobalPosition = 1 },
+			new("evt-2", "order-1", "Order", "OrderShipped", Array.Empty<byte>(), null, 2, DateTimeOffset.UtcNow) { GlobalPosition = 2 },
 		};
 
 		A.CallTo(() => fakeQuery.ReadAllAsync(
@@ -278,9 +248,9 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		var sp = _services.BuildServiceProvider();
 
 		var options = new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
-			CheckpointInterval = 100, // won't reach threshold in this test
+			CheckpointInterval = 100, // custom-host option; built-in processing checkpoints each page
 		};
 
 		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
@@ -309,9 +279,9 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		var callCount = 0;
 		var storedEvents = new List<StoredEvent>
 		{
-			new("e1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow),
-			new("e2", "order-2", "Order", "OrderCreated", Array.Empty<byte>(), null, 2, DateTimeOffset.UtcNow),
-			new("e3", "order-1", "Order", "OrderShipped", Array.Empty<byte>(), null, 3, DateTimeOffset.UtcNow),
+			new("e1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow) { GlobalPosition = 1 },
+			new("e2", "order-2", "Order", "OrderCreated", Array.Empty<byte>(), null, 2, DateTimeOffset.UtcNow) { GlobalPosition = 2 },
+			new("e3", "order-1", "Order", "OrderShipped", Array.Empty<byte>(), null, 3, DateTimeOffset.UtcNow) { GlobalPosition = 3 },
 		};
 
 		A.CallTo(() => fakeQuery.ReadAllAsync(
@@ -346,7 +316,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		var sp = _services.BuildServiceProvider();
 
 		var options = new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
@@ -382,14 +352,30 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	}
 
 	[Theory]
-	[InlineData(0L)]
+	[InlineData(null)]
 	[InlineData(2L)]
-	[InlineData(4L)]
 	[Trait("Pattern", "Regression")]
-	public async Task ClassifyEachEventAgainstTheCommittedHeadAtSubscriptionStart(long headAtStart)
+	public async Task ReportAReApplicationOnlyForEventsItsOwnCheckpointSaysItApplied(long? effectedThrough)
 	{
+		// THE PROPERTY, not the mechanism. The previous version of this arm asserted that classification
+		// followed the stream head captured at start -- which was a true statement about the
+		// implementation and said nothing about what a consumer is promised. IsReplay = true tells a
+		// handler an effect has ALREADY been performed, so it may skip one; the only durable evidence
+		// that anything was ever delivered to this subscription is its own checkpoint. The head says an
+		// event was committed before this run, which is a fact about the STORE.
+		//
+		// The null case is the one the head-based version could not express: a subscription with no
+		// checkpoint has no evidence of any delivery, so NOTHING is a re-application. Under the old
+		// predicate every event at or below the head -- all of them -- was reported as already applied,
+		// and because the advance is independent of this flag they were marked done with their effects
+		// suppressed.
 		var query = A.Fake<IGlobalStreamQuery>();
-		A.CallTo(() => query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(headAtStart);
+		if (effectedThrough is { } seeded)
+		{
+			_ = await _checkpointStore.AdvanceCheckpointAsync(
+				"AsyncProjectionProcessingHost", null, seeded, TestContext.Current.CancellationToken)
+				.ConfigureAwait(false);
+		}
 		var stored = Enumerable.Range(1, 4).Select(i => new StoredEvent(
 			$"e{i}", $"order-{i % 2}", "Order", "OrderCreated", [], null, i, DateTimeOffset.UtcNow)
 			{ GlobalPosition = i }).ToArray();
@@ -400,14 +386,18 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		A.CallTo(() => serializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
 		A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(new TestOrderPlaced());
 		var observed = new List<(long? Position, bool Replay)>();
-		var runHeads = new List<long?>();
+		var batchHighWaterMarks = new List<long?>();
+		var expectedDeliveries = stored.Count(e => e.GlobalPosition > (effectedThrough ?? 0));
 		var applied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_registry.Register(new ProjectionRegistration(typeof(OrderSummary), ProjectionMode.Async,
 			new MultiStreamProjection<OrderSummary>(), inlineApply: (events, context, _, _) =>
 			{
 				observed.AddRange(events.Select(e => (e.GlobalPosition, context.IsReplay)));
-				runHeads.Add(context.GlobalPosition);
-				if (observed.Count >= stored.Length)
+				batchHighWaterMarks.Add(context.GlobalPosition);
+
+				// A seeded checkpoint means the host resumes ABOVE it, so only the events past it are
+				// ever delivered. Waiting for the whole stream here would time out rather than fail.
+				if (observed.Count >= expectedDeliveries)
 				{
 					applied.TrySetResult();
 				}
@@ -416,7 +406,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_services.AddSingleton(query);
 		using var provider = _services.BuildServiceProvider();
 		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 			CheckpointInterval = 1,
 		});
@@ -429,22 +419,42 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		{
 			await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		}
-		observed.ShouldBe(stored.Select(e => ((long?)e.GlobalPosition, e.GlobalPosition <= headAtStart)).ToList());
-		runHeads.ShouldBe(headAtStart == 2 ? new long?[] { 2, 4 } : new long?[] { 4 });
+		observed.ShouldBe(stored
+			.Where(e => e.GlobalPosition > (effectedThrough ?? 0))
+			.Select(e => ((long?)e.GlobalPosition, effectedThrough is { } m && e.GlobalPosition <= m))
+			.ToList());
+		observed.ShouldAllBe(
+			o => !o.Replay,
+			customMessage: "an event above the run-start checkpoint has had no effect performed for it");
+
+		// The batch-level context must carry the LAST event's position, not the first. This is the only
+		// host-level cover for that wiring -- the context type is covered in isolation elsewhere, but
+		// nothing else asserts the host populates it from the right end of the page, and it is shipped
+		// public surface that handlers read as the batch's high-water mark.
+		batchHighWaterMarks.ShouldAllBe(
+			m => m == 4L,
+			customMessage: "the batch context's position is the page's last event");
 		var checkpoint = await _checkpointStore.GetCheckpointAsync("AsyncProjectionProcessingHost", CancellationToken.None)
 			.ConfigureAwait(false);
 		checkpoint.ShouldBe(4L);
 	}
 
 	[Theory]
-	[InlineData(true, false)]
-	[InlineData(false, false)]
-	[InlineData(false, true)]
+	[InlineData(false)]
+	[InlineData(true)]
 	[Trait("Pattern", "Regression")]
-	public async Task RetryWithoutSkippingWhenEitherReplayRunOrLiveRunFails(bool failReplay, bool recover)
+	public async Task RetryTheFailedBatchWithoutAdvancingPastIt(bool recover)
 	{
+		// REWRITTEN, and the reason is the point. This arm used to pick which run to fail by its REPLAY
+		// CLASSIFICATION -- head = 1 made event 1 a "replay run" and event 2 a "live run" inside one
+		// batch. That split was an artefact of classifying against the stream head. A re-application is
+		// now decided by the subscription's own checkpoint, and the host never reads at or below its own
+		// checkpoint, so a batch cannot contain both kinds and the old theory had no cases left.
+		//
+		// What that arm was really protecting is unchanged and is asserted here directly: a failed apply
+		// must NOT advance the checkpoint past the events it failed on, and the retry must re-read them.
+		// Asserting the classification instead was asserting the mechanism.
 		var query = A.Fake<IGlobalStreamQuery>();
-		A.CallTo(() => query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(1L);
 		var stored = Enumerable.Range(1, 2).Select(i => new StoredEvent(
 			$"e{i}", "order-1", "Order", "OrderCreated", [], null, i, DateTimeOffset.UtcNow)
 			{ GlobalPosition = i }).ToArray();
@@ -456,37 +466,36 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 				{
 					advanced.TrySetResult();
 				}
-				return new ValueTask<IReadOnlyList<StoredEvent>>(stored.Where(e => e.GlobalPosition > position.Position).ToArray());
+				return new ValueTask<IReadOnlyList<StoredEvent>>(
+					stored.Where(e => e.GlobalPosition > position.Position).ToArray());
 			});
 		var serializer = A.Fake<IEventSerializer>();
 		A.CallTo(() => serializer.ResolveType(A<string>._)).Returns(typeof(TestOrderPlaced));
 		A.CallTo(() => serializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(new TestOrderPlaced());
 		var observed = new List<(long? Position, bool Replay)>();
-		var failures = 0;
+		var applies = 0;
 		var retried = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_registry.Register(new ProjectionRegistration(typeof(OrderSummary), ProjectionMode.Async,
 			new MultiStreamProjection<OrderSummary>(), inlineApply: (events, context, _, _) =>
 			{
 				observed.AddRange(events.Select(e => (e.GlobalPosition, context.IsReplay)));
-				if (context.IsReplay == failReplay)
+				applies++;
+				if (recover && applies > 1)
 				{
-					failures++;
-					if (recover && failures > 1)
-					{
-						return Task.CompletedTask;
-					}
-					if (failures >= 2)
-					{
-						retried.TrySetResult();
-					}
-					throw new InvalidOperationException("Injected apply failure");
+					return Task.CompletedTask;
 				}
-				return Task.CompletedTask;
+
+				if (applies >= 2)
+				{
+					retried.TrySetResult();
+				}
+
+				throw new InvalidOperationException("Injected apply failure");
 			}));
 		_services.AddSingleton(query);
 		using var provider = _services.BuildServiceProvider();
 		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 			CheckpointInterval = 1,
 		});
@@ -500,32 +509,45 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		{
 			await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		}
-		var checkpoints = await _checkpointStore.EnumerateCheckpointsAsync(CancellationToken.None).ConfigureAwait(false);
+
+		var checkpoints = await _checkpointStore.EnumerateCheckpointsAsync(CancellationToken.None)
+			.ConfigureAwait(false);
 		if (recover)
 		{
 			checkpoints.ShouldHaveSingleItem().Position.ShouldBe(2L);
 		}
 		else
 		{
-			checkpoints.ShouldBeEmpty();
+			checkpoints.ShouldBeEmpty("a batch whose apply threw must not move the mark past it");
 		}
-		observed.ShouldAllBe(e => e.Replay == (e.Position <= 1));
-		if (failReplay)
-		{
-			observed.ShouldAllBe(e => e.Position == 1);
-		}
-		else
-		{
-			observed.Take(4).Select(e => e.Position).ShouldBe(new long?[] { 1, 2, 1, 2 });
-		}
+
+		// The retry re-reads the SAME events rather than skipping them.
+		observed.Take(4).Select(e => e.Position).ShouldBe(new long?[] { 1, 2, 1, 2 });
+
+		// And every one of them is a first delivery: the host resumes ABOVE its checkpoint, so it never
+		// hands a handler an event its own durable mark says was already applied. A true here would be
+		// telling a handler to skip an effect that was never performed.
+		observed.ShouldAllBe(
+			e => !e.Replay,
+			customMessage: "the host delivers only events above its checkpoint, so none is a re-application");
 	}
 
 	[Fact]
 	[Trait("Pattern", "Regression")]
-	public async Task NotDispatchLiveRunOrSavePartialPageWhenStoppedAfterReplayRun()
+	public async Task SaveNoCheckpointWhenStoppedPartWayThroughABatch()
 	{
+		// The safety property, kept. This arm used to pass for an incidental reason: the stream head
+		// split one page into a "replay run" and a "live run", and the SECOND run's cancellation check
+		// was what stopped the advance. Classification now reads the subscription's own checkpoint, the
+		// host never reads at or below it, and a page is therefore ONE run -- so the accident is gone
+		// and the property had to be made real. It is now enforced where it belongs: the advance itself
+		// refuses to move when the token is cancelled.
+		//
+		// The handler below catches OperationCanceledException and returns, which is the case that
+		// matters -- the host cannot distinguish it from a clean apply, so the only safe reading of a
+		// cancelled apply is that it did not complete. Advancing would mark these events done and the
+		// shutdown flush would persist it, after which nothing redelivers them.
 		var query = A.Fake<IGlobalStreamQuery>();
-		A.CallTo(() => query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(1L);
 		var stored = Enumerable.Range(1, 2).Select(i => new StoredEvent(
 			$"e{i}", "order-1", "Order", "OrderCreated", [], null, i, DateTimeOffset.UtcNow)
 			{ GlobalPosition = i }).ToArray();
@@ -541,8 +563,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			{
 				observed.AddRange(events.Select(e => e.GlobalPosition));
 				entered.TrySetResult();
-				// Hold the replay run until StopAsync cancels it; then finish normally. The next
-				// run must still observe cancellation before dispatch, and shutdown must not save it.
+				// Hold the run until StopAsync cancels it, then finish normally. Shutdown must not
+				// persist a checkpoint for it.
 				try
 				{
 					await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
@@ -553,7 +575,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			}));
 		_services.AddSingleton(query);
 		using var provider = _services.BuildServiceProvider();
-		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions { CheckpointInterval = 1 });
+		using var host = CreateHost(provider, serializer, new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test", CheckpointInterval = 1 });
 		await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		try
 		{
@@ -563,9 +585,15 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		{
 			await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		}
-		observed.ShouldBe(new long?[] { 1 });
+		// One run, so the whole page reaches the apply in a single call -- never split, never partly
+		// dispatched.
+		observed.ShouldBe(new long?[] { 1, 2 });
+
+		// THE SAFETY PROPERTY: nothing is persisted for a run shutdown cancelled, so the next start
+		// re-reads it. A duplicate delivery is declared and handlers owe idempotency; an event marked
+		// done that nobody applied is neither.
 		var checkpoints = await _checkpointStore.EnumerateCheckpointsAsync(CancellationToken.None).ConfigureAwait(false);
-		checkpoints.ShouldBeEmpty();
+		checkpoints.ShouldBeEmpty("a run cancelled by shutdown must not leave a checkpoint behind");
 	}
 
 	[Fact]
@@ -591,7 +619,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		_registry.Register(CreateAsyncRegistration());
 
 		var options = new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		};
 
@@ -624,8 +652,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		var callCount = 0;
 		var storedEvents = new List<StoredEvent>
 		{
-			new("e1", "order-1", "Order", "BadEvent", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow),
-			new("e2", "order-1", "Order", "GoodEvent", Array.Empty<byte>(), null, 2, DateTimeOffset.UtcNow),
+			new("e1", "order-1", "Order", "BadEvent", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow) { GlobalPosition = 1 },
+			new("e2", "order-1", "Order", "GoodEvent", Array.Empty<byte>(), null, 2, DateTimeOffset.UtcNow) { GlobalPosition = 2 },
 		};
 
 		A.CallTo(() => fakeQuery.ReadAllAsync(
@@ -665,7 +693,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 
 		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		});
 
@@ -678,6 +706,58 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// Assert — the host HALTED at the poison; the good event AFTER it was NOT applied (no skip-and-advance,
 		// so the poison is reprocessed on restart rather than silently skipped).
 		appliedCount.ShouldBe(0);
+	}
+
+	[Fact]
+	public async Task LatchTheHaltIntoHealthStateSoAStoppedHostIsNotReportedHealthy()
+	{
+		// THE WIRING HALF, and it is the half that was missing from the field this replaces.
+		// ProjectionHealthState.AsyncLag existed, was published in the API baseline, was compared against
+		// thresholds by the health check -- and NO host ever assigned it, so the check reported healthy at
+		// every lag. Arms that set the field themselves could not see that. So this arm asserts the HOST
+		// writes the latch, driving the real poison path, rather than calling RecordHalt itself.
+		var healthState = new ProjectionHealthState();
+
+		var fakeQuery = A.Fake<IGlobalStreamQuery>();
+		var callCount = 0;
+		var storedEvents = new List<StoredEvent>
+		{
+			new("e1", "order-1", "Order", "BadEvent", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow) { GlobalPosition = 1 },
+		};
+
+		A.CallTo(() => fakeQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				var count = Interlocked.Increment(ref callCount);
+				return new ValueTask<IReadOnlyList<StoredEvent>>(
+					count == 1 ? storedEvents : (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>());
+			});
+
+		var poisonObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var fakeSerializer = A.Fake<IEventSerializer>();
+		A.CallTo(() => fakeSerializer.ResolveType("BadEvent"))
+			.Invokes(() => poisonObserved.TrySetResult())
+			.Throws(new InvalidOperationException("Unknown event type"));
+
+		_registry.Register(CreateAsyncRegistration());
+		_ = _services.AddSingleton(fakeQuery);
+		_ = _services.AddSingleton(healthState);
+		var sp = _services.BuildServiceProvider();
+
+		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+		using var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
+		{ SubscriptionScope = "unit-test",
+			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
+		});
+
+		await ((BackgroundService)host).StartAsync(cts.Token).ConfigureAwait(false);
+		await poisonObserved.Task.WaitAsync(TestTimeouts.Scale(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(250), TestContext.Current.CancellationToken).ConfigureAwait(false);
+		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+		healthState.HaltedSubscription.ShouldBe(
+			GlobalStreamProjectionOptions.DefaultProjectionName,
+			customMessage: "the host must record its own halt, or the health check reads a field nobody writes");
 	}
 
 	[Fact]
@@ -750,7 +830,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// naming what is stuck rather than a stopwatch expiring.
 		using var cts = new CancellationTokenSource();
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 		});
 
@@ -822,7 +902,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 					pos.Position < 1
 						? new List<StoredEvent>
 						{
-							new("e1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow),
+							new("e1", "order-1", "Order", "OrderCreated", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow) { GlobalPosition = 1 },
 						}
 						: (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>());
 			});
@@ -860,7 +940,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// token is inert -- the host would be cancelled before it could satisfy it.
 		using var cts = new CancellationTokenSource(TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		var host = CreateHost(sp, fakeSerializer, new GlobalStreamProjectionOptions
-		{
+		{ SubscriptionScope = "unit-test",
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 			CheckpointInterval = 1, // would persist a checkpoint after a SINGLE event IF the host advanced past it
 		});
@@ -906,6 +986,17 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	/// </summary>
 	private sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpointStore
 	{
+		private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _definitions = new(StringComparer.Ordinal);
+
+		public Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+		{
+			SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+			cancellationToken.ThrowIfCancellationRequested();
+			var actual = _definitions.GetOrAdd(subscriptionName, definitionHash);
+			SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
+			return Task.CompletedTask;
+		}
+
 		private readonly Dictionary<string, long> _checkpoints = new();
 
 		public Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken)

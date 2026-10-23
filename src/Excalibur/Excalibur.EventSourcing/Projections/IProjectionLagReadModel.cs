@@ -56,15 +56,28 @@ public interface IProjectionLagReadModel
 /// The projection lag for a single subscription at a point in time.
 /// </summary>
 /// <param name="SubscriptionName">The unique subscription identifier.</param>
-/// <param name="CheckpointPosition">The subscription's last checkpointed global-stream position.</param>
+/// <param name="CheckpointPosition">
+/// The subscription's last checkpointed global-stream position, or <see langword="null"/> when it has
+/// recorded NO progress at all.
+/// </param>
 /// <param name="HeadPosition">The current global-stream head position.</param>
 /// <param name="Lag">
 /// The number of events the subscription trails the head, computed as
-/// <c>max(0, <paramref name="HeadPosition"/> - <paramref name="CheckpointPosition"/>)</c>.
+/// <c>max(0, <paramref name="HeadPosition"/> - <paramref name="CheckpointPosition"/>)</c>, or the whole
+/// head when there is no checkpoint, because such a subscription must process the stream from its
+/// beginning.
 /// </param>
+/// <remarks>
+/// <b><see cref="CheckpointPosition"/> is nullable because a configured subscription that has never
+/// run has no checkpoint row, and that is not the same fact as a checkpoint of zero.</b> While this was
+/// a plain <see cref="long"/> the distinction was inexpressible, so a subscription with a large backlog
+/// and no first run was reported as nothing at all — the lag report held zero entries, which the health
+/// check read as "no subscription is behind" and published as healthy. A count of zero checkpoint rows
+/// is evidence of no recorded progress, never evidence of no configured subscription.
+/// </remarks>
 public readonly record struct ProjectionLag(
 	string SubscriptionName,
-	long CheckpointPosition,
+	long? CheckpointPosition,
 	long HeadPosition,
 	long Lag);
 

@@ -314,7 +314,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				"append",
 				result,
 				stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -348,7 +348,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 					// RECOGNISED, not written by this call. Reporting plain success here would be true about
 					// the append and silently false about the call: these documents are durable, but they are
 					// a prior attempt's, and anything may have happened to them since — an erasure included.
-					return AppendResult.CreateAlreadyCommitted(retryVersion, firstPosition);
+					return AppendResult.CreateAlreadyCommitted(retryVersion, firstPosition, lastEventPosition: null);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -427,7 +427,9 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 
 			_ = (activity?.SetTag(EventSourcingTags.Version, version));
 			activity.SetOperationResult(EventSourcingTagValues.Success);
-			return AppendResult.CreateSuccess(version, firstPosition);
+			// The Inc above reserved [firstGlobalSequence .. firstGlobalSequence + count - 1] -- see the
+			// comment at the reservation -- so the last event sits at firstPosition + eventList.Count - 1.
+			return AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1);
 		}
 		catch (MongoBulkWriteException<MongoDbEventDocument> ex)
 			when (ex.WriteErrors.Any(e => e.Code == DuplicateKeyErrorCode))
@@ -443,7 +445,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				result = WriteStoreTelemetry.Results.Success;
 
 				// RECOGNISED, not written by this call — see the pre-check branch above.
-				return AppendResult.CreateAlreadyCommitted(landedVersion, firstPosition);
+				return AppendResult.CreateAlreadyCommitted(landedVersion, firstPosition, lastEventPosition: null);
 			}
 
 			LogConcurrencyConflict(aggregateType, aggregateId, expectedVersion);
@@ -467,7 +469,7 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				result = WriteStoreTelemetry.Results.Success;
 
 				// RECOGNISED, not written by this call — see the pre-check branch above.
-				return AppendResult.CreateAlreadyCommitted(landedSingleVersion, firstPosition);
+				return AppendResult.CreateAlreadyCommitted(landedSingleVersion, firstPosition, lastEventPosition: null);
 			}
 
 			LogConcurrencyConflict(aggregateType, aggregateId, expectedVersion);

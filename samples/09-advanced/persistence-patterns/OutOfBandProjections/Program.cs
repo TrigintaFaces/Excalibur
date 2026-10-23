@@ -4,9 +4,9 @@
 // ============================================================================
 // Out-of-Band Projections Sample
 // ============================================================================
-// This sample demonstrates materialized views that update asynchronously
-// via IMaterializedViewProcessor and MaterializedViewRefreshService, rather
-// than inline during SaveAsync().
+// This sample demonstrates materialized views that update via
+// IMaterializedViewProcessor and MaterializedViewRefreshService, on their own
+// refresh schedule rather than through the projection host.
 //
 // Key concepts:
 // - IMaterializedViewBuilder<T>    — Defines how events map to a view
@@ -16,10 +16,10 @@
 // - Manual ProcessEventAsync()     — Direct event processing without background service
 // - CatchUpAsync() / RebuildAsync() — Catch-up and full rebuild scenarios
 //
-// When to use out-of-band projections (vs inline):
+// When to use a materialized view (vs a builder-API projection):
 // - Cross-aggregate views (e.g., regional sales across all orders)
-// - Expensive computations that should not block SaveAsync()
-// - Views that tolerate eventual consistency (dashboards, reports)
+// - Expensive computations you want on their own schedule, not on the stream's
+// - Views whose own position tracking you want to own explicitly
 // - CDC/change-data-capture scenarios with external data sources
 // ============================================================================
 

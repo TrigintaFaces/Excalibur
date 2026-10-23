@@ -232,7 +232,7 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 				// MaxRecoveryAttempts complete replays and then threw the message below, which blames "another
 				// writer advanced the projection during each replay" and advises retrying "when the projection's
 				// processor is not actively writing it". Nothing was competing, nothing had advanced, and that
-				// advice cannot succeed. So the framework's own documented remedy for a failed inline projection
+				// advice cannot succeed. So the framework's own documented remedy for a failed projection apply
 				// replayed the stream five times and then misdirected the operator.
 				//
 				// This REPORTS rather than repairs, deliberately. The state in hand is this aggregate's fold,

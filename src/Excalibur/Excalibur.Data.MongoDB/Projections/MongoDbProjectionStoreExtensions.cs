@@ -18,6 +18,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class MongoDbProjectionStoreExtensions
 {
+	// Private to this registration, so the projection client cannot be satisfied by -- or satisfy --
+	// any other IMongoClient in the container.
+	private const string ProjectionClientKey = "Excalibur.Projections.MongoDb";
+
 	/// <summary>
 	/// Adds the MongoDB projection store to the service collection.
 	/// </summary>
@@ -40,12 +44,52 @@ public static class MongoDbProjectionStoreExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbProjectionStoreOptions>, MongoDbProjectionStoreOptionsValidator>());
 
 		// Register projection store
+		// ONE CLIENT FOR THE PROCESS -- never one per store instance.
+		//
+		// MongoClient owns a connection pool and is documented as thread-safe and intended to be shared.
+		// The store is SCOPED and the projection host creates a DI scope per projection per batch, so a
+		// store that builds its own client built a NEW CONNECTION POOL ON EVERY BATCH, exhausting
+		// connections and ephemeral ports under sustained load. The symptom is a timeout against a
+		// healthy cluster, which reads as an infrastructure problem rather than a lifetime bug here.
+		//
+		// KEYED, like the Elasticsearch and OpenSearch stores, and the earlier reasoning for leaving it
+		// unkeyed was wrong in a way that could silently write to the wrong cluster.
+		//
+		// TryAddSingleton KEEPS an existing registration. An unkeyed IMongoClient is exactly what other
+		// parts of this framework register -- the Mongo event store among them -- so a host that
+		// configured its event store against cluster A and then called this method with a connection
+		// string for cluster B got a projection store addressing A. The options really do bind one
+		// cluster, as that comment said; the CLIENT was the thing being shared, and nothing in the
+		// resolution could tell the two apart. If A happens to hold the database and permissions the
+		// writes land in the wrong place silently; otherwise the consumer gets a timeout against a
+		// cluster they never configured.
+		//
+		// A key private to this registration cannot collide, so the configured connection string is the
+		// one that is used. A consumer who deliberately wants to share another client has the explicit
+		// client overload below.
+		services.TryAddKeyedSingleton<IMongoClient>(ProjectionClientKey, (sp, _) =>
+		{
+			var clientOptions = sp.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>().Value;
+			var settings = MongoClientSettings.FromConnectionString(clientOptions.ConnectionString);
+			settings.ServerSelectionTimeout = TimeSpan.FromSeconds(clientOptions.ServerSelectionTimeoutSeconds);
+			settings.ConnectTimeout = TimeSpan.FromSeconds(clientOptions.ConnectTimeoutSeconds);
+			settings.MaxConnectionPoolSize = clientOptions.MaxPoolSize;
+
+			if (clientOptions.UseSsl)
+			{
+				settings.UseTls = true;
+			}
+
+			return new MongoClient(settings);
+		});
+
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
 			var options = sp.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<MongoDbProjectionStore<TProjection>>>();
+			var client = sp.GetRequiredKeyedService<IMongoClient>(ProjectionClientKey);
 
-			return new MongoDbProjectionStore<TProjection>(options, logger);
+			return new MongoDbProjectionStore<TProjection>(client, options, logger);
 		});
 
 		return services;

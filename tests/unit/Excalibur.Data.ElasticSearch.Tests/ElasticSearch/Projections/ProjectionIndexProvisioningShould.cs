@@ -4,6 +4,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 
 using Elastic.Clients.Elasticsearch;
 
@@ -36,6 +37,7 @@ internal sealed class IndexCreationEndpoint : IDisposable
 	private readonly int _createStatus;
 	private readonly string _createBody;
 	private int _creates;
+	private int _mappingReads;
 
 	public IndexCreationEndpoint(int createStatus, string createBody)
 	{
@@ -51,6 +53,8 @@ internal sealed class IndexCreationEndpoint : IDisposable
 
 	/// <summary>Create-index requests the store issued.</summary>
 	public int Creates => Volatile.Read(ref _creates);
+
+	public int MappingReads => Volatile.Read(ref _mappingReads);
 
 	public void Dispose() => _listener.Close();
 
@@ -91,6 +95,29 @@ internal sealed class IndexCreationEndpoint : IDisposable
 				_ = Interlocked.Increment(ref _creates);
 				status = _createStatus;
 				body = _createBody;
+			}
+			else if (request.HttpMethod == "GET" && path.EndsWith("/_mapping", StringComparison.Ordinal))
+			{
+				_ = Interlocked.Increment(ref _mappingReads);
+				status = 200;
+				// GET _mapping is keyed by the concrete index, with mappings.properties beneath it.
+				// These are the independently specified fields of ProvisioningProjection plus the
+				// framework's reserved positioned-write metadata, not an empty success response.
+				var index = path.Split('/', StringSplitOptions.RemoveEmptyEntries)[0];
+				body = JsonSerializer.Serialize(new Dictionary<string, object>
+				{
+					[index] = new
+					{
+						mappings = new
+						{
+							properties = new
+							{
+								id = new { type = "keyword" }, name = new { type = "keyword" },
+								excaliburProjectionPosition = new { type = "long" }
+							}
+						}
+					}
+				});
 			}
 			else if (path.EndsWith("_count", StringComparison.Ordinal))
 			{
@@ -175,6 +202,7 @@ public sealed class ProjectionIndexProvisioningShould
 		var count = await store.CountAsync(filters: null, CancellationToken.None).ConfigureAwait(true);
 
 		count.ShouldBe(0);
+		endpoint.MappingReads.ShouldBe(1, "the store must validate the concrete mapping before serving queries");
 	}
 
 	/// <summary>
@@ -190,6 +218,7 @@ public sealed class ProjectionIndexProvisioningShould
 		var count = await store.CountAsync(filters: null, CancellationToken.None).ConfigureAwait(true);
 
 		count.ShouldBe(0);
+		endpoint.MappingReads.ShouldBe(1, "the store must validate the concrete mapping before serving queries");
 		endpoint.Creates.ShouldBe(1);
 	}
 

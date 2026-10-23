@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Excalibur.Compliance.Erasure;
 
-using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
+using Excalibur.Compliance;using Excalibur.Dispatch;
+
+namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
 /// Tests the erasure verification service deep workflows including
@@ -213,6 +215,7 @@ public sealed class ErasureVerificationServiceWorkflowShould
 	private static ErasureStatus CreateStatus(Guid requestId, ErasureRequestStatus status) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			DataSubjectIdHash = "hash-abc123",
 			IdType = DataSubjectIdType.UserId,
@@ -227,6 +230,7 @@ public sealed class ErasureVerificationServiceWorkflowShould
 	private static ErasureStatus CreateCompletedStatus(Guid requestId, int keysDeleted) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			DataSubjectIdHash = "hash-abc123",
 			IdType = DataSubjectIdType.UserId,

@@ -200,7 +200,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		// Arrange
 		var decorator = CreateDecorator(EncryptionMode.Disabled);
 		var events = new List<IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 		A.CallTo(() => _innerStore.AppendAsync("agg-1", "Order", events, 0, _ct))
 			.Returns(expectedResult);
 
@@ -217,7 +217,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		// Arrange
 		var decorator = CreateDecorator(EncryptionMode.DecryptOnlyWritePlaintext);
 		var events = new List<IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 		A.CallTo(() => _innerStore.AppendAsync("agg-1", "Order", events, 0, _ct))
 			.Returns(expectedResult);
 
@@ -234,7 +234,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		// Arrange
 		var decorator = CreateDecorator(EncryptionMode.EncryptAndDecrypt);
 		var events = new List<IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 		A.CallTo(() => _innerStore.AppendAsync("agg-1", "Order", events, 0, _ct))
 			.Returns(expectedResult);
 
@@ -251,7 +251,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		// Arrange
 		var decorator = CreateDecorator(EncryptionMode.EncryptNewDecryptAll);
 		var events = new List<IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(2, 0);
+		var expectedResult = AppendResult.CreateSuccess(2, 0, 0);
 		A.CallTo(() => _innerStore.AppendAsync("agg-1", "Order", events, 0, _ct))
 			.Returns(expectedResult);
 

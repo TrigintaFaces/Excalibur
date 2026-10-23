@@ -32,6 +32,19 @@ public sealed class SqlServerProjectionStoreOptions
 	public string? TableName { get; set; }
 
 	/// <summary>
+	/// Gets or sets the schema holding the projection table.
+	/// </summary>
+	/// <value>The schema name. Defaults to <c>dbo</c>.</value>
+	/// <remarks>
+	/// <b>Honoured by every statement the store runs, which is the only form of this setting worth
+	/// having.</b> The store previously addressed the table unqualified, so it resolved through the
+	/// connection's default schema — and a consumer who created the table in a named schema got a table
+	/// the store could not find, with no error until the first read. A schema setting the data access
+	/// does not use is worse than none, because it reads as supported.
+	/// </remarks>
+	public string SchemaName { get; set; } = "dbo";
+
+	/// <summary>
 	/// Gets or sets the JSON serializer options for projection data.
 	/// </summary>
 	/// <remarks>

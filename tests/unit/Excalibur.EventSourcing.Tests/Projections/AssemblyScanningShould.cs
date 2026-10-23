@@ -26,7 +26,7 @@ public sealed class AssemblyScanningShould
 		// OrderCancelledWithOverrideHandler (TestOrderCancelled), ThrowingHandler (TestOrderFailed)
 		// all handle OrderSummary -- one per event type, no duplicates.
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 
 		// Act
 		builder.AddProjectionHandlersFromAssembly(typeof(OrderPlacedHandler).Assembly);
@@ -49,7 +49,7 @@ public sealed class AssemblyScanningShould
 		// Arrange -- DuplicateTestProjection has two handlers for TestOrderPlaced:
 		// DuplicateTestHandlerA and DuplicateTestHandlerB -> D3: InvalidOperationException
 		var builder = new ProjectionBuilder<DuplicateTestProjection>(_registry);
-		builder.Inline();
+		builder.Async();
 
 		// Act & Assert -- D3: duplicate detection
 		var ex = Should.Throw<InvalidOperationException>(
@@ -63,7 +63,7 @@ public sealed class AssemblyScanningShould
 	{
 		// Arrange -- scan an assembly with no IProjectionEventHandler implementations (D7)
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 
 		// Act -- System.Runtime has no projection handlers
 		builder.AddProjectionHandlersFromAssembly(typeof(object).Assembly);
@@ -81,7 +81,7 @@ public sealed class AssemblyScanningShould
 		// Arrange -- scan for InventoryView handlers
 		// Only InventoryEventHandler handles (InventoryView, TestOrderPlaced)
 		var builder = new ProjectionBuilder<InventoryView>(_registry);
-		builder.Inline();
+		builder.Async();
 
 		// Act
 		builder.AddProjectionHandlersFromAssembly(typeof(InventoryEventHandler).Assembly);
@@ -113,7 +113,7 @@ public sealed class AssemblyScanningShould
 			.BuildServiceProvider();
 
 		var builder = new ProjectionBuilder<InventoryView>(_registry);
-		builder.Inline();
+		builder.Async();
 
 		// Explicit sync lambda for TestOrderShipped
 		builder.When<TestOrderShipped>((proj, e) => proj.EventCount += 10);
@@ -137,7 +137,7 @@ public sealed class AssemblyScanningShould
 		};
 		var context = new EventNotificationContext("inv-1", "Inventory", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- both handlers applied
 		var projected = store.Get("inv-1");
@@ -152,7 +152,7 @@ public sealed class AssemblyScanningShould
 		// Arrange -- use ServiceCollection-based constructor
 		var services = new ServiceCollection();
 		var builder = new ProjectionBuilder<InventoryView>(services);
-		builder.Inline();
+		builder.Async();
 
 		// Act
 		builder.AddProjectionHandlersFromAssembly(typeof(InventoryEventHandler).Assembly);
@@ -168,7 +168,7 @@ public sealed class AssemblyScanningShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 
 		// Act -- scan System.Runtime which has no projection handlers
 		builder.AddProjectionHandlersFromAssembly(typeof(object).Assembly);

@@ -304,8 +304,14 @@ public sealed class TheRecordNamesTheHandleThatReleasesARetentionShould
 
 			_ = services.AddErasureRetention(new ErasureRetention
 			{
+				// The declaration names a PARTITION, derived from this fixture's own parameter through
+				// the one documented conversion: absent means the untenanted partition, a real name means
+				// that tenant's. It used to read `declarationTenant ?? TenantDefaults.DefaultTenantId`,
+				// which named the single-tenant ambient IDENTITY -- a different term from the partition
+				// its own erasure request was joined on, which is precisely how the retained key came to
+				// be destroyed.
+				Tenant = KeyedTenantPartition.FromStoredValue(declarationTenant),
 				AggregateType = RetainedType,
-				TenantId = declarationTenant ?? TenantDefaults.DefaultTenantId,
 				Basis = LegalHoldBasis.LegalObligation,
 				Justification = Justification,
 				RetentionPeriod = TimeSpan.FromDays(365 * 6),

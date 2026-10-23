@@ -9,21 +9,14 @@ namespace Excalibur.EventSourcing;
 public enum ProjectionMode
 {
 	/// <summary>
-	/// The projection runs asynchronously via the <c>GlobalStreamProjectionHost</c>,
+	/// The projection runs asynchronously via the <c>AsyncProjectionProcessingHost</c>,
 	/// catching up on events in the background. This is the default mode.
 	/// </summary>
 	Async = 0,
 
 	/// <summary>
-	/// The projection runs inline during <c>SaveAsync</c>, providing immediate
-	/// read-after-write consistency. Events are applied and persisted before
-	/// <c>SaveAsync</c> returns to the caller.
-	/// </summary>
-	Inline = 1,
-
-	/// <summary>
 	/// The projection is built on-demand by replaying events from the event store
 	/// without persisting the result. Suitable for ad-hoc queries and reporting.
 	/// </summary>
-	Ephemeral = 2
+	Ephemeral = 1
 }

@@ -6,6 +6,7 @@ using System.Text.Json;
 
 using Excalibur.Dispatch;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 
@@ -25,6 +26,7 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 	private readonly IEventStore _eventStore;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IProjectionRegistry _registry;
+	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IDistributedCache? _cache;
 	private readonly JsonSerializerOptions _jsonOptions;
 
@@ -33,6 +35,7 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		IEventSerializer eventSerializer,
 		IProjectionRegistry registry,
 		ILogger<EphemeralProjectionEngine> logger,
+		IServiceScopeFactory scopeFactory,
 		IDistributedCache? cache = null,
 		JsonSerializerOptions? jsonOptions = null)
 	{
@@ -40,10 +43,12 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 		ArgumentNullException.ThrowIfNull(eventSerializer);
 		ArgumentNullException.ThrowIfNull(registry);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(scopeFactory);
 
 		_eventStore = eventStore;
 		_eventSerializer = eventSerializer;
 		_registry = registry;
+		_scopeFactory = scopeFactory;
 		_cache = cache;
 		_jsonOptions = jsonOptions ?? DefaultJsonOptions;
 	}
@@ -82,6 +87,17 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 			}
 		}
 
+		// ONE DI SCOPE PER BUILD, not the root provider.
+		//
+		// This engine is a singleton, so resolving a handler from the root container gives a normal
+		// transient handler's SCOPED dependencies -- a DbContext, a unit of work, anything per-request --
+		// a root lifetime. Under ValidateScopes that throws; without validation it is worse, because the
+		// dependency is then shared across concurrent builds and lives for the life of the process.
+		//
+		// Disposed with the build, so each call gets its own and nothing outlives the fold it was
+		// created for.
+		await using var scope = _scopeFactory.CreateAsyncScope();
+
 		// Load all events for the aggregate
 		var storedEvents = await _eventStore.LoadAsync(aggregateId, aggregateType, cancellationToken)
 			.ConfigureAwait(false);
@@ -111,10 +127,26 @@ internal sealed class EphemeralProjectionEngine : IEphemeralProjectionEngine
 
 			// Built by replaying the aggregate's stored history, so isReplay is true and the identity is
 			// the aggregate being projected.
-			multiStreamProjection.Apply(
+			//
+			// ApplyAsync, NOT the synchronous Apply. The synchronous overload dispatches only the two
+			// SYNCHRONOUS handler shapes and returns false for an entry registered by WhenHandledBy,
+			// which carries an AsyncHandler alone -- and that false was discarded here. A projection whose
+			// handlers are all DI-resolved therefore folded NOTHING and returned its empty initial state,
+			// indistinguishable to the caller from an aggregate with no events. ApplyAsync dispatches every
+			// registered shape and throws on one it does not recognise, so a shape added later cannot be
+			// dropped the same way.
+			_ = await multiStreamProjection.ApplyAsync(
 				projection,
 				domainEvent,
-				new ProjectionContext(isReplay: true, globalPosition: null, aggregateId));
+				new ProjectionContext(isReplay: true, globalPosition: null, aggregateId),
+				new ProjectionHandlerContext(
+					aggregateId,
+					aggregateType,
+					storedEvent.Version,
+					storedEvent.Timestamp,
+					isReplay: true),
+				scope.ServiceProvider,
+				cancellationToken).ConfigureAwait(false);
 		}
 
 		// Cache the result if caching is configured

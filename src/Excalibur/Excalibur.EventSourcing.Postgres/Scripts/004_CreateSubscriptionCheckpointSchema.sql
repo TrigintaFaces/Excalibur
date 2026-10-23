@@ -31,3 +31,9 @@ CREATE TABLE IF NOT EXISTS public.subscription_checkpoints (
 
     CONSTRAINT pk_subscription_checkpoints PRIMARY KEY (subscription_name)
 );
+
+-- Immutable work-set binding, separate from the nullable/absent checkpoint state.
+CREATE TABLE IF NOT EXISTS public.subscription_checkpoints_definitions (
+    subscription_name VARCHAR(255) COLLATE "C" NOT NULL PRIMARY KEY,
+    definition_hash VARCHAR(64) COLLATE "C" NOT NULL CHECK (length(definition_hash) = 64)
+);

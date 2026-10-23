@@ -715,8 +715,8 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			// that adding one later cannot silently lose the state at this hop, which is exactly the
 			// codomain gap the outcome discriminator exists to close.
 			return result.Outcome == CloudAppendOutcome.AlreadyCommitted
-				? AppendResult.CreateAlreadyCommitted(result.NextExpectedVersion!.Value, firstEventPosition: null)
-				: AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null);
+				? AppendResult.CreateAlreadyCommitted(result.NextExpectedVersion!.Value, firstEventPosition: null, lastEventPosition: null)
+				: AppendResult.CreateSuccess(result.NextExpectedVersion!.Value, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		if (result.IsConcurrencyConflict)

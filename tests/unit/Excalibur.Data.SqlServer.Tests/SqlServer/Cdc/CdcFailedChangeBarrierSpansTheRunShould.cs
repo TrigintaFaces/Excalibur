@@ -47,10 +47,11 @@ public sealed class CdcFailedChangeBarrierSpansTheRunShould : UnitTestBase
 	private static CdcChangeApplier CreateApplier(
 		List<Checkpoint> written,
 		CdcFatalErrorHandler<DataChangeEvent>? onFatalError,
-		ICdcIdempotencyFilter? idempotencyFilter = null)
+		ICdcIdempotencyFilter? idempotencyFilter = null,
+		int consumerBatchSize = 1)
 	{
 		var dbConfig = A.Fake<IDatabaseOptions>();
-		A.CallTo(() => dbConfig.ConsumerBatchSize).Returns(1);
+		A.CallTo(() => dbConfig.ConsumerBatchSize).Returns(consumerBatchSize);
 		A.CallTo(() => dbConfig.DatabaseConnectionIdentifier).Returns("test-connection");
 		A.CallTo(() => dbConfig.DatabaseName).Returns("test-db");
 
@@ -227,4 +228,97 @@ public sealed class CdcFailedChangeBarrierSpansTheRunShould : UnitTestBase
 		written.Count.ShouldBe(2);
 		written[^1].Position.ShouldBe(new byte[] { 0x02 });
 	}
+	[Theory]
+	[InlineData(1)]
+	[InlineData(8)]
+	public async Task ReplayDeferredUpdatesInOrderWithoutMarkingLaterUpdatesDone(int batchSize)
+	{
+		var written = new List<Checkpoint>();
+		var filter = new RecordsSuccessfulChanges();
+		var deferred = new List<byte>();
+		var applier = CreateApplier(written, (_, change) =>
+		{
+			deferred.Add(change!.Lsn[0]);
+			return Task.CompletedTask;
+		}, filter, batchSize);
+		var dependencyReady = false;
+		var value = 0;
+		var applied = new List<byte>();
+		var attempts = new List<byte>();
+		Task Handler(DataChangeEvent change, CancellationToken _)
+		{
+			var position = change.Lsn[0];
+			attempts.Add(position);
+			if (position == 1 && !dependencyReady)
+			{
+				throw new InvalidOperationException("dependency is not durable yet");
+			}
+			if (change.TableName == TableB)
+			{
+				dependencyReady = true;
+			}
+			else
+			{
+				// Both changes update the SAME business row: applying the deferred older
+				// value after the newer one while dedupe suppresses the latter loses it.
+				value = position;
+			}
+			applied.Add(position);
+			return Task.CompletedTask;
+		}
+		var older = Change(TableA, 1);
+		var newer = Change(TableA, 2);
+		var dependency = Change(TableB, 3);
+
+		_ = await DrainAsync(applier, Handler, older, newer, dependency).ConfigureAwait(false);
+		deferred.ShouldBe(new byte[] { 1 });
+		attempts.ShouldBe(new byte[] { 1, 3 });
+		applied.ShouldBe(new byte[] { 3 });
+		filter.Checked.ShouldBe(new byte[] { 1, 3 });
+		filter.Marked.ShouldBe(new byte[] { 3 });
+		value.ShouldBe(0);
+		written.ShouldNotContain(c => c.TableName == TableA);
+		written.ShouldContain(c => c.TableName == TableB && c.Position[0] == 3);
+
+		// A fresh run clears the table barrier. No new source mutation is needed;
+		// the original deferred change and its untouched successor replay in order.
+		_ = await DrainAsync(applier, Handler, older, newer, dependency).ConfigureAwait(false);
+		attempts.ShouldBe(new byte[] { 1, 3, 1, 2 });
+		applied.ShouldBe(new byte[] { 3, 1, 2 });
+		filter.Marked.ShouldBe(new byte[] { 3, 1, 2 });
+		value.ShouldBe(2);
+		written.ShouldContain(c => c.TableName == TableA && c.Position[0] == 2);
+
+		// Already successful records remain deduplicated after recovery.
+		_ = await DrainAsync(applier, Handler, older, newer, dependency).ConfigureAwait(false);
+		applied.ShouldBe(new byte[] { 3, 1, 2 });
+		filter.Marked.ShouldBe(new byte[] { 3, 1, 2 });
+		value.ShouldBe(2);
+	}
+
+	private sealed class RecordsSuccessfulChanges : ICdcIdempotencyFilter
+	{
+		private readonly HashSet<string> _processed = new(StringComparer.Ordinal);
+		internal List<byte> Checked { get; } = [];
+		internal List<byte> Marked { get; } = [];
+
+		public Task<bool> IsProcessedAsync(string tableName, byte[] lsn, byte[] seqVal,
+			CdcConsumerIdentity consumer, CancellationToken cancellationToken)
+		{
+			Checked.Add(lsn[0]);
+			return Task.FromResult(_processed.Contains(Key(tableName, lsn, seqVal)));
+		}
+
+		public Task MarkProcessedAsync(string tableName, byte[] lsn, byte[] seqVal,
+			CdcConsumerIdentity consumer, CancellationToken cancellationToken)
+		{
+			_processed.Add(Key(tableName, lsn, seqVal)).ShouldBeTrue();
+			Marked.Add(lsn[0]);
+			return Task.CompletedTask;
+		}
+
+		private static string Key(string table, byte[] lsn, byte[] seqVal) =>
+			table + ":" + Convert.ToHexString(lsn) + ":" + Convert.ToHexString(seqVal);
+	}
+
 }

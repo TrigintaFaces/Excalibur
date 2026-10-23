@@ -81,6 +81,34 @@ internal sealed class ProjectionReplayFold<TProjection>
 		_store = store;
 		_positioned = positioned;
 		_serviceProvider = serviceProvider;
+
+		// REFUSED HERE, BEFORE ANY ROW IS WRITTEN, and that placement is the point: a replay that
+		// discovered this halfway through would leave the projection partly rebuilt, which is worse than
+		// not rebuilding it.
+		//
+		// Without IPositionedProjectionStore<TProjection> there is no coordinate for a write to be
+		// conditional on, so every write below is a blind overwrite. A rebuild replaying to P while the
+		// projection host applies P+1 then writes its older state over the newer one: the event at P+1 is
+		// committed and absent from the read model permanently, and BOTH operations report success. That
+		// is the silent class this framework refuses to produce.
+		//
+		// A host that can guarantee exclusivity by other means says so with
+		// AllowUnpositionedProjectionRebuild(), which acknowledges that the other writers were stopped --
+		// it does not make the rebuild safe, it records that the caller made it safe.
+		if (positioned is null
+			&& serviceProvider.GetService(
+				typeof(Microsoft.Extensions.DependencyInjection.UnpositionedProjectionRebuildAcknowledgement)) is null)
+		{
+			throw new InvalidOperationException(
+				$"Cannot replay projection '{typeof(TProjection).Name}': its store does not implement "
+				+ "IPositionedProjectionStore, so a write cannot be made conditional on the position it "
+				+ "read and a concurrent writer cannot be detected. A rebuild racing the projection host "
+				+ "would silently overwrite newer state with older, and both would report success. Use a "
+				+ "projection store that records positions -- every persistent store this framework ships "
+				+ "does -- or, if you have stopped the projection host and every other writer of these "
+				+ "rows for the duration of the rebuild, call "
+				+ "services.AllowUnpositionedProjectionRebuild() to record that.");
+		}
 	}
 
 	/// <summary>

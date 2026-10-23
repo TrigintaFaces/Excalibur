@@ -397,6 +397,7 @@
       "samples/11-real-world/ECommerceSample/ECommerceSample.csproj",
       "samples/11-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj",
       "samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj",
+      "samples/11-real-world/TwoProcessProjections/TwoProcessProjections.csproj",
       "samples/11-real-world/HealthcareApi/HealthcareApi.csproj",
       "samples/11-real-world/MultiTenantEventSourcing/MultiTenantEventSourcing.csproj",
       "samples/11-real-world/OrderProcessing/OrderProcessing.csproj",
@@ -1118,6 +1119,15 @@
           "Azure Key Vault",
           "Elasticsearch",
           "RabbitMQ",
+          "SQL Server"
+        ]
+      },
+      {
+        "project": "samples/11-real-world/TwoProcessProjections/TwoProcessProjections.csproj",
+        "mode": "build",
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": [
           "SQL Server"
         ]
       },

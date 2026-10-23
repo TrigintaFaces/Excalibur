@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Integration.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -331,6 +333,7 @@ public sealed class ErasureVerificationAuditIntegrationShould : IDisposable
 	{
 		return new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			DataSubjectIdHash = "hash-abc123",
 			IdType = DataSubjectIdType.UserId,

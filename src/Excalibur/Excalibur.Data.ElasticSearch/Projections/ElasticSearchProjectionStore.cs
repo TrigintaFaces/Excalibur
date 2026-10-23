@@ -13,6 +13,7 @@ using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Mapping;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 using Elastic.Transport;
+using Elastic.Transport.Extensions;
 
 using Excalibur.Data.ElasticSearch.Diagnostics;
 using Excalibur.Data.ElasticSearch.Exceptions;
@@ -42,7 +43,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </para>
 /// <para>
 /// Each projection type resolves its own named options instance keyed by
-/// <c>typeof(TProjection).Name</c>, allowing multiple projection stores to
+/// <c>typeof(TProjection).FullName</c>, allowing multiple projection stores to
 /// coexist with independent configurations.
 /// </para>
 /// </remarks>
@@ -65,7 +66,7 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// <summary>
 	/// The named options key used for this projection type.
 	/// </summary>
-	internal static readonly string OptionsName = typeof(TProjection).Name;
+	internal static readonly string OptionsName = ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>();
 
 	private readonly ElasticSearchProjectionStoreOptions _options;
 	private readonly ILogger<ElasticSearchProjectionStore<TProjection>> _logger;
@@ -216,7 +217,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var response = await _client!
 			.IndexAsync(
 				BuildDocument(projection, ProjectionPosition.Unplaceable),
-				r => r.Index(_indexName).Id(id),
+				r => r.Index(_indexName).Id(id).Refresh(WriteRefresh),
 				cancellationToken)
 			.ConfigureAwait(false);
 
@@ -267,7 +268,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var response = await _client!
 			.IndexAsync(
 				BuildDocument(projection, ProjectionPosition.Unnumbered),
-				r => r.Index(_indexName).Id(id),
+				r => r.Index(_indexName).Id(id).Refresh(WriteRefresh),
 				cancellationToken)
 			.ConfigureAwait(false);
 
@@ -371,7 +372,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var deleteRequest = new DeleteRequest(_indexName, new Id(id));
+		var deleteRequest = new DeleteRequest(_indexName, new Id(id)) { Refresh = WriteRefresh };
 		var response = await _client!
 			.DeleteAsync(deleteRequest, cancellationToken)
 			.ConfigureAwait(false);
@@ -406,9 +407,9 @@ public sealed partial class ElasticSearchProjectionStore<
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
 		var searchRequest = BuildSearchRequest(filters, options);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var response = await _client!
 			.SearchAsync<TProjection>(searchRequest, cancellationToken)
@@ -442,9 +443,9 @@ public sealed partial class ElasticSearchProjectionStore<
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
 		var query = BuildQuery(filters);
+
+		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var response = await _client!
 			.CountAsync<TProjection>(c => c
@@ -532,12 +533,20 @@ public sealed partial class ElasticSearchProjectionStore<
 				value,
 				RangeOperator.LessThanOrEqual),
 			FilterOperator.In => BuildInCondition(fieldName, fieldType, requiresKeywordSuffix, value),
-			FilterOperator.Contains => q => q.Wildcard(w => w.Field(fieldName).Value($"*{value}*").CaseInsensitive(true)),
+			FilterOperator.Contains => q => q.Wildcard(w => w
+				.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
+				.Value($"*{EscapeWildcardLiteral(value.ToString() ?? string.Empty)}*")
+				.CaseInsensitive(true)),
 			_ => q => q.Term(t => t
 				.Field(GetExactMatchFieldName(fieldName, requiresKeywordSuffix))
 				.Value(ConvertToFieldValue(value)))
 		};
 	}
+
+	private static string EscapeWildcardLiteral(string value) => value
+		.Replace("\\", "\\\\", StringComparison.Ordinal)
+		.Replace("*", "\\*", StringComparison.Ordinal)
+		.Replace("?", "\\?", StringComparison.Ordinal);
 
 	private static Action<QueryDescriptor<TProjection>> BuildInCondition(
 		string fieldName,
@@ -721,16 +730,17 @@ public sealed partial class ElasticSearchProjectionStore<
 		// consumer who sets `dynamic: strict` through the index convention would have every positioned
 		// write REJECTED for an undeclared field, and nothing in this store would explain why. Declaring
 		// it removes the dependence on a setting we do not control.
-		properties[PositionField] = new LongNumberProperty();
-
-		// Convention-based customization, applied last so it can override anything above. This allows
+		// Convention-based customization can override projection fields. This allows
 		// consumers to globally override mapping defaults (e.g. text + keyword multi-fields for strings)
 		// without implementing IElasticIndexConfiguration<T> per type.
 		var convention = _options.Index.IndexMappingConvention;
 
-		return convention is not null
+		var mapping = convention is not null
 			? convention.ConfigureMappings(typeof(TProjection), properties)
 			: properties;
+		// Framework metadata is reserved: a convention cannot remove or retype its position.
+		mapping[PositionField] = new LongNumberProperty();
+		return mapping;
 	}
 
 	private static IReadOnlyDictionary<string, ProjectionFieldDefinition> BuildFieldDefinitions(
@@ -760,10 +770,20 @@ public sealed partial class ElasticSearchProjectionStore<
 				property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
 				ToCamelCase(property.Name);
 			var (fieldType, requiresKeywordSuffix) = ClassifyDeclaredField(declaredByName, jsonName);
-			var definition = new ProjectionFieldDefinition(jsonName, fieldType, requiresKeywordSuffix);
+			var definition = new ProjectionFieldDefinition(jsonName, fieldType, requiresKeywordSuffix,
+				SupportsLiteralContains: HasLiteralContainsField(declaredByName, jsonName));
 
 			_ = definitions.TryAdd(property.Name, definition);
 			_ = definitions.TryAdd(jsonName, definition);
+		}
+
+		// Conventions may declare fields beyond CLR properties. Their actual text mapping must
+		// participate in Contains validation instead of being mistaken for an undeclared dynamic field.
+		foreach (var jsonName in declaredByName.Keys)
+		{
+			var (fieldType, requiresKeywordSuffix) = ClassifyDeclaredField(declaredByName, jsonName);
+			_ = definitions.TryAdd(jsonName, new ProjectionFieldDefinition(jsonName, fieldType, requiresKeywordSuffix,
+				SupportsLiteralContains: HasLiteralContainsField(declaredByName, jsonName)));
 		}
 
 		return definitions;
@@ -795,6 +815,14 @@ public sealed partial class ElasticSearchProjectionStore<
 		// Not in the declared mapping (complex/nested type) → ES dynamic mapping maps a string as `text` with
 		// a `.keyword` sub-field, so exact-match/sort still needs the suffix (unchanged for dynamic fields).
 		return (ProjectionFieldType.Unknown, true);
+	}
+
+	private static bool HasLiteralContainsField(IReadOnlyDictionary<string, IProperty> declaredByName, string jsonName)
+	{
+		// An analyzed text field stores terms, so wildcard queries cannot preserve literal whole-value
+		// substring semantics. Only an actual declared keyword sub-field makes Contains supported.
+		return !declaredByName.TryGetValue(jsonName, out var declared) || declared is not TextProperty text
+			|| (text.Fields is not null && text.Fields.Any(field => field.Key.ToString() == "keyword" && field.Value is KeywordProperty));
 	}
 
 	private static string ToCamelCase(string value)
@@ -854,6 +882,21 @@ public sealed partial class ElasticSearchProjectionStore<
 
 	private Action<QueryDescriptor<TProjection>> BuildQuery(IDictionary<string, object>? filters)
 	{
+		// Validate before descriptor serialization or I/O rather than silently querying analyzed terms.
+		if (filters is not null)
+		{
+			foreach (var key in filters.Keys)
+			{
+				var parsed = FilterParser.Parse(key);
+				var field = ResolveFieldDefinition(parsed.PropertyName);
+				if (parsed.Operator == FilterOperator.Contains && !field.SupportsLiteralContains)
+				{
+					throw new NotSupportedException(
+						$"Contains requires a keyword field or a declared keyword sub-field; '{field.JsonName}' is analyzed text without one. Use a full-text query for analyzed text.");
+				}
+			}
+		}
+
 		return q =>
 		{
 			// Each projection type gets its own index (via ElasticSearchProjectionIndexConvention),
@@ -906,10 +949,8 @@ public sealed partial class ElasticSearchProjectionStore<
 				_client = new ElasticsearchClient(ElasticSearchProjectionClientSettings.Create(_options));
 			}
 
-			if (_options.Index.CreateIndexOnInitialize)
-			{
-				await CreateIndexIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
-			}
+			await CreateIndexIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
+			await ValidateIndexMappingAsync(cancellationToken).ConfigureAwait(false);
 
 			_initialized = true;
 		}
@@ -920,6 +961,67 @@ public sealed partial class ElasticSearchProjectionStore<
 		LogInitialized(_indexName, _projectionType);
 	}
 
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			return new ConfiguredDestinationIdentity("elasticsearch/" + _indexName);
+		}
+
+		if (serviceType == typeof(IProjectionVisibilityBarrier))
+		{
+			return _options.Index.WaitForSearchVisibilityOnWrite || _options.Index.EnsureSearchVisibilityOnProjectionCheckpoint
+				? new SearchVisibilityBarrier(this) : null;
+		}
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
+	}
+
+	private sealed class SearchVisibilityBarrier(ElasticSearchProjectionStore<TProjection> store)
+		: IProjectionVisibilityBarrier
+	{
+		public async Task EnsureVisibleAsync(CancellationToken cancellationToken)
+		{
+			ObjectDisposedException.ThrowIf(store._disposed, store);
+			await store.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+			var response = await store._client!.Indices.RefreshAsync(store._indexName, cancellationToken)
+				.ConfigureAwait(false);
+			if (!response.IsValidResponse || response.Shards is null || response.Shards.Failed > 0)
+			{
+				throw new InvalidOperationException($"Projection search visibility failed for index '{store._indexName}'. {response.DebugInformation}");
+			}
+		}
+	}
+
+	private Refresh WriteRefresh => _options.Index.WaitForSearchVisibilityOnWrite ? Refresh.WaitFor : Refresh.False;
+
+	private async Task ValidateIndexMappingAsync(CancellationToken cancellationToken)
+	{
+		var response = await _client!.Indices.GetMappingAsync(_indexName, cancellationToken).ConfigureAwait(false);
+		if (!response.IsValidResponse || response.Mappings.Count == 0)
+		{
+			throw new InvalidOperationException($"Cannot validate mapping for projection index '{_indexName}'. {response.DebugInformation}");
+		}
+
+		var serializer = _client.RequestResponseSerializer;
+		var expected = JsonNode.Parse(serializer.SerializeToString(_declaredMapping))!.AsObject();
+		foreach (var index in response.Mappings)
+		{
+			var actual = index.Value.Mappings?.Properties
+				?? throw new InvalidOperationException($"Projection index '{index.Key}' has no declared field mappings.");
+			var stored = JsonNode.Parse(serializer.SerializeToString(actual))!.AsObject();
+			var mismatch = ProjectionMappingCompatibility.FindMismatch(expected, stored);
+			if (mismatch is not null)
+			{
+				throw new InvalidOperationException($"Projection index '{index.Key}' has an incompatible mapping: {mismatch}. Recreate or migrate the index before processing.");
+			}
+		}
+	}
 	private async Task CreateIndexIfNotExistsAsync(CancellationToken cancellationToken)
 	{
 		var existsResponse = await _client!.Indices
@@ -931,6 +1033,12 @@ public sealed partial class ElasticSearchProjectionStore<
 			return;
 		}
 
+		if (!_options.Index.CreateIndexOnInitialize)
+		{
+			throw new InvalidOperationException(
+				$"Projection index '{_indexName}' does not exist and CreateIndexOnInitialize is false. "
+				+ "Provision the declared projection mapping before starting the processor.");
+		}
 		// The mapping composed in the constructor, which the query-side field table is also derived from.
 		// Three-tier strategy, in BuildDeclaredIndexMapping: explicit IElasticIndexConfiguration<TProjection>,
 		// then reflection over public properties, then whatever Elasticsearch infers dynamically for types
@@ -980,7 +1088,8 @@ public sealed partial class ElasticSearchProjectionStore<
 	private sealed record ProjectionFieldDefinition(
 		string JsonName,
 		ProjectionFieldType FieldType,
-		bool RequiresKeywordSuffix);
+		bool RequiresKeywordSuffix,
+		bool SupportsLiteralContains = true);
 	/// <summary>
 	/// Reserved document field holding the last global-stream position folded into this projection.
 	/// </summary>
@@ -1070,7 +1179,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			var created = await _client!
 				.IndexAsync(
 					document,
-					r => r.Index(_indexName).Id(id).OpType(OpType.Create),
+					r => r.Index(_indexName).Id(id).OpType(OpType.Create).Refresh(WriteRefresh),
 					cancellationToken).ConfigureAwait(false);
 
 			if (created.IsValidResponse)
@@ -1252,7 +1361,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var response = await _client!
 			.IndexAsync(
 				document,
-				r => r.Index(_indexName).Id(id).IfSeqNo(sequenceNumber).IfPrimaryTerm(primaryTerm),
+				r => r.Index(_indexName).Id(id).IfSeqNo(sequenceNumber).IfPrimaryTerm(primaryTerm).Refresh(WriteRefresh),
 				cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)

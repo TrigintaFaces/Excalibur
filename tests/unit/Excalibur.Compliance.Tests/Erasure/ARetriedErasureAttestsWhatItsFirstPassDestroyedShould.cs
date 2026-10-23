@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Excalibur.Compliance.Erasure;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
@@ -357,6 +359,7 @@ public sealed class ARetriedErasureAttestsWhatItsFirstPassDestroyedShould
 
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = SubjectHash,

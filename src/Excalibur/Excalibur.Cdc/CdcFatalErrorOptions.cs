@@ -53,11 +53,40 @@ public sealed class CdcFatalErrorOptions<TEvent>
 	/// Gets or sets the longest delay between reconnect attempts after a transient failure.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// The delay starts at the provider's own polling or reconnect interval and doubles with each
-	/// consecutive failure until it reaches this value. A connection that stays up at least this long before
-	/// failing is treated as healthy, and its failure starts a new count. A value below the provider's own
-	/// interval is raised to that interval.
+	/// consecutive failure until it reaches this value. A value below the provider's own interval is raised
+	/// to that interval.
+	/// </para>
+	/// <para>
+	/// <b>This is ONLY the delay cap.</b> It used to double as the threshold an attempt had to survive to
+	/// count as stable, so shortening it to bound a reconnect storm also, invisibly, shortened how long a
+	/// connection had to stay up before its failure started a new count — which silently bought extra
+	/// retries past <see cref="MaxConsecutiveTransientFailures"/>. That threshold is now
+	/// <see cref="AttemptStabilityThreshold"/> and is set independently.
+	/// </para>
 	/// </remarks>
 	/// <value>The maximum delay; defaults to one minute. Must be greater than zero.</value>
 	public TimeSpan MaxReconnectDelay { get; set; } = TimeSpan.FromMinutes(1);
+
+	/// <summary>
+	/// Gets or sets how long an attempt must stay up before its failure counts as the start of a new run
+	/// rather than a continuation of the previous one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A quiet source is the case this exists for: a stream with nothing to confirm, disconnected by an
+	/// idle timeout every few minutes, is healthy, and its failures must not accumulate towards
+	/// <see cref="MaxConsecutiveTransientFailures"/> and stop the loop.
+	/// </para>
+	/// <para>
+	/// <b>Independent of <see cref="MaxReconnectDelay"/>, and that separation is the fix.</b> One option
+	/// served both meanings, so a consumer who shortened the delay cap also shortened this threshold
+	/// without being told. The default is one minute — the same value the delay cap defaults to — so a
+	/// deployment that sets neither behaves exactly as before; only a deployment that had shortened the cap
+	/// changes, and for it the change is the repair.
+	/// </para>
+	/// </remarks>
+	/// <value>The stability threshold; defaults to one minute. Must be greater than zero.</value>
+	public TimeSpan AttemptStabilityThreshold { get; set; } = TimeSpan.FromMinutes(1);
 }

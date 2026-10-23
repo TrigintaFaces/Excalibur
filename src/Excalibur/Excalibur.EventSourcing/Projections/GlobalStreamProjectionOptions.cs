@@ -10,33 +10,40 @@ namespace Excalibur.EventSourcing.Projections;
 /// </summary>
 public sealed class GlobalStreamProjectionOptions
 {
-	/// <summary>
-	/// Gets or sets the interval at which checkpoints are persisted.
-	/// </summary>
-	/// <value>The checkpoint interval in number of events processed. Default is 100.</value>
+	/// <summary>Gets or sets the event interval between checkpoint writes for custom global-stream hosts.</summary>
+	/// <value>The interval for GlobalStreamProjectionHost implementations; default is 100.</value>
+	/// <remarks>
+	/// The built-in asynchronous projection processor ignores this interval and checkpoints every finite
+	/// page after all required folds settle. A crash can redeliver that page, up to BatchSize events per
+	/// attempt. Repeated failures can repeat effects again; there is no bound on the total number of
+	/// attempts. Custom global-stream hosts using this threshold can overshoot it by a page and have a
+	/// different replay window. External handler effects must be idempotent in either case because their
+	/// commit and the checkpoint commit are separate operations.
+	/// </remarks>
 	[Range(1, 100000)]
 	public int CheckpointInterval { get; set; } = 100;
 
-	/// <summary>The name used when a host has not been given one explicitly.</summary>
-	/// <remarks>
-	/// Exposed as a constant so a host can tell "the consumer chose this" from "nobody chose", and derive
-	/// a unique name in the second case. A shared default is not a safe fallback here: two hosts holding
-	/// the same name share one checkpoint row, and the compare-and-set then does exactly what it was told
-	/// on an identifier that names two different subscriptions.
-	/// </remarks>
+	/// <summary>The default logical subscription name.</summary>
+	/// <remarks>Cooperating built-in processors may share it only with an identical bound definition. Choose an explicit stable name for each independent subscription.</remarks>
 	public const string DefaultProjectionName = "AsyncProjectionProcessingHost";
 
-	/// <summary>
-	/// Gets or sets the name of the projection for checkpoint tracking.
-	/// </summary>
+	/// <summary>Gets or sets the stable subscription name used for checkpoint and definition binding.</summary>
 	/// <remarks>
-	/// A checkpoint is keyed by this name, so two hosts sharing it share one mark: the first to advance
-	/// wins and the other is told it was superseded, on a subscription that was never actually contested.
-	/// Hosts that can derive a unique name from their own type do so when this is left at the default;
-	/// set it explicitly when running more than one host of the same type.
+	/// API and Jobs processes processing the same work use the same name, scope, revision and projection
+	/// set. A different definition under this name is refused before effects. To deploy changed projection
+	/// semantics, choose a new subscription name and deliberately rebuild or cut over its destination.
 	/// </remarks>
-	/// <value>The projection name. Defaults to <see cref="DefaultProjectionName"/>.</value>
+	/// <value>Defaults to DefaultProjectionName.</value>
 	public string ProjectionName { get; set; } = DefaultProjectionName;
+
+	/// <summary>Gets or sets the stable logical identity of the event source and projection destination.</summary>
+	/// <remarks>All cooperating processes must use the same value. Required for asynchronous projection processing.</remarks>
+	public string SubscriptionScope { get; set; } = string.Empty;
+
+	/// <summary>Gets or sets the consumer's projection-definition revision.</summary>
+	/// <remarks>Change this when fold logic, routing, dependencies, or destination semantics change; use a new subscription and rebuild.</remarks>
+	public string SubscriptionRevision { get; set; } = "1";
+
 
 	/// <summary>
 	/// Gets or sets the maximum number of events to read per batch.

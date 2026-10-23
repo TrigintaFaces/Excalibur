@@ -287,9 +287,17 @@ public class GetCustomerOrdersHandler(
 
 An event handler listens to domain events and updates the read model. This is the "projection" -- it projects events into a queryable shape.
 
-:::tip Inline projections for immediate consistency
+:::tip The builder API, and reading your own write
 
-This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch pipeline (eventually consistent). For **immediate read-after-write consistency**, use the `AddProjection<T>().Inline()` builder API instead -- see [Inline Projections](../event-sourcing/projections.md#inline-projections-mutable) and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections) for a complete example.
+This tutorial uses `IEventHandler<T>` for projections, which processes events through the Dispatch
+pipeline. The framework's own projection system is the `AddProjection<T>().Async()` builder API: it
+stores the projection, applies it through the projection host, and lets a caller that needs to observe
+its own write carry the save's token into `IProjectionSessionReader.ReadAsync`.
+
+See [Mutable Projections](../event-sourcing/projections.md#mutable-projections),
+[Reading Your Own Writes](../event-sourcing/projections.md#reading-your-own-writes-session-consistency),
+and the [CQRS Program.cs template](./program-cs-templates.md#cqrs-with-event-sourcing-and-projections)
+for a complete example.
 :::
 
 ```csharp title="Projections/OrderSummaryProjection.cs"
@@ -363,7 +371,7 @@ position leaves the row recording that its state cannot be related to any prefix
 matters if you later register the same projection through `AddProjection<OrderSummary>().Async()`, because
 the async host **does** write positioned: the first positioned write against such a row is refused
 terminally with `ProjectionAdvanceOutcome.Unplaceable`, and the projection must be rebuilt from the event
-stream before it can advance. `.Inline()` is unaffected — it writes without a position too.
+stream before it can advance.
 
 So choose per projection, and if you migrate one from a pipeline handler to `.Async()`, rebuild it as part
 of the migration rather than meeting the refusal at runtime. [What a projection's position

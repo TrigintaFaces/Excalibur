@@ -44,7 +44,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromMilliseconds(1)
+			ProjectionApplyWarningThreshold = TimeSpan.FromMilliseconds(1)
 		};
 
 		// Act
@@ -61,7 +61,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromMinutes(10)
+			ProjectionApplyWarningThreshold = TimeSpan.FromMinutes(10)
 		};
 
 		// Act
@@ -78,7 +78,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.Zero
+			ProjectionApplyWarningThreshold = TimeSpan.Zero
 		};
 
 		// Act
@@ -86,7 +86,7 @@ public sealed class EventNotificationOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(EventNotificationOptions.InlineProjectionWarningThreshold));
+		result.FailureMessage.ShouldContain(nameof(EventNotificationOptions.ProjectionApplyWarningThreshold));
 	}
 
 	[Fact]
@@ -96,7 +96,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromMilliseconds(-1)
+			ProjectionApplyWarningThreshold = TimeSpan.FromMilliseconds(-1)
 		};
 
 		// Act
@@ -104,7 +104,7 @@ public sealed class EventNotificationOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(EventNotificationOptions.InlineProjectionWarningThreshold));
+		result.FailureMessage.ShouldContain(nameof(EventNotificationOptions.ProjectionApplyWarningThreshold));
 	}
 
 	[Fact]
@@ -114,7 +114,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromMinutes(11)
+			ProjectionApplyWarningThreshold = TimeSpan.FromMinutes(11)
 		};
 
 		// Act
@@ -122,7 +122,7 @@ public sealed class EventNotificationOptionsValidatorShould
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(EventNotificationOptions.InlineProjectionWarningThreshold));
+		result.FailureMessage.ShouldContain(nameof(EventNotificationOptions.ProjectionApplyWarningThreshold));
 	}
 
 	[Fact]
@@ -144,7 +144,7 @@ public sealed class EventNotificationOptionsValidatorShould
 	public void DefaultWarningThresholdIs100Ms()
 	{
 		var options = new EventNotificationOptions();
-		options.InlineProjectionWarningThreshold.ShouldBe(TimeSpan.FromMilliseconds(100));
+		options.ProjectionApplyWarningThreshold.ShouldBe(TimeSpan.FromMilliseconds(100));
 	}
 
 	[Fact]
@@ -154,7 +154,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromMinutes(5)
+			ProjectionApplyWarningThreshold = TimeSpan.FromMinutes(5)
 		};
 
 		// Act
@@ -188,7 +188,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromTicks(9_999) // 0.9999ms
+			ProjectionApplyWarningThreshold = TimeSpan.FromTicks(9_999) // 0.9999ms
 		};
 
 		// Act
@@ -205,7 +205,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var validator = CreateValidator();
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = TimeSpan.FromMinutes(10).Add(TimeSpan.FromTicks(1))
+			ProjectionApplyWarningThreshold = TimeSpan.FromMinutes(10).Add(TimeSpan.FromTicks(1))
 		};
 
 		// Act
@@ -223,7 +223,7 @@ public sealed class EventNotificationOptionsValidatorShould
 		var threshold = TimeSpan.FromMinutes(15);
 		var options = new EventNotificationOptions
 		{
-			InlineProjectionWarningThreshold = threshold
+			ProjectionApplyWarningThreshold = threshold
 		};
 
 		// Act

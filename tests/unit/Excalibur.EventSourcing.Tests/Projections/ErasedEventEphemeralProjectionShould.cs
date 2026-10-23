@@ -28,12 +28,17 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Component", "EventSourcing")]
 public sealed class ErasedEventEphemeralProjectionShould
 {
+	// A SCOPE FACTORY, because the engine is a singleton whose handlers may take scoped dependencies
+	// and must therefore resolve them inside a scope per build rather than from the root container.
+	private static readonly IServiceScopeFactory EngineServices =
+		new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
 	private readonly InMemoryProjectionRegistry _registry = new();
 	private readonly IEventStore _eventStore = A.Fake<IEventStore>();
 	private readonly IEventSerializer _serializer = A.Fake<IEventSerializer>();
 
 	private EphemeralProjectionEngine CreateEngine() =>
-		new(_eventStore, _serializer, _registry, NullLogger<EphemeralProjectionEngine>.Instance, cache: null);
+		new(_eventStore, _serializer, _registry, NullLogger<EphemeralProjectionEngine>.Instance, EngineServices, cache: null);
 
 	private void RegisterProjection()
 	{

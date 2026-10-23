@@ -5,6 +5,7 @@ using Excalibur.EventSourcing.Postgres;
 #elif (UseInMemoryDatabase)
 using Excalibur.EventSourcing.InMemory;
 #endif
+using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Observability.Metrics;
 using Company.ExcaliburCqrs.Domain.Events;
@@ -55,12 +56,20 @@ builder.Services.AddExcalibur(excalibur =>
     {
         es.RegisterEventTypesFromAssembly(typeof(OrderCreated).Assembly);
         es.AddRepository<Order, Guid>(id => new Order(id));
-        // Inline projections run after event persistence. A projection failure does not roll back
-        // committed events; recover the projection rather than retrying the whole create command.
+        // One writer owns the read model: the projection host applies committed events in position
+        // order. A save returns a session token; pass it to a read that must observe its own write.
         es.AddProjection<OrderReadModel>(projection => projection
-            .Inline()
+            .Async()
             .WhenHandledBy<OrderCreated, OrderProjection>()
             .WhenHandledBy<OrderShipped, OrderProjection>());
+        // Runs the projection host. Without it nothing applies the events to the read model.
+        //
+        // SubscriptionScope is required and has no default. It names this event source and this
+        // projection destination together, and every process that cooperates on the same read model
+        // must use the same value — that is how they agree to share one checkpoint. Two processes
+        // using different values would each advance the same checkpoint past work the other never
+        // did, so there is no value the framework can safely invent for you.
+        es.EnableProjectionProcessing(opts => opts.SubscriptionScope = "orders-read-model");
 #if (UseSqlServer)
         es.UseSqlServer(sql => sql.ConnectionStringName("EventStore"));
 #elif (UsePostgreSql)

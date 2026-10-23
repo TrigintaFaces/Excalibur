@@ -90,7 +90,7 @@ public sealed class EventSourcedRepositoryDisposedOutboxStoreShould
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 		return eventStore;
 	}
 

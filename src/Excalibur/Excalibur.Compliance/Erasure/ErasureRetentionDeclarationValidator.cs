@@ -53,30 +53,33 @@ internal sealed class ErasureRetentionDeclarationValidator : IValidateOptions<Ag
 					+ "exactly as the event store records it.");
 			}
 
-			// The TENANT is checked for BLANKNESS, and it is the member `required` cannot protect: `required`
-			// binds the C# compiler, while a reflection binder or a hand-built options instance reaches an
-			// empty string. A blank tenant is not a declaration that the deployment is untenanted -- it is a
-			// declaration that says nothing, and a reader cannot tell the two apart. Name
-			// TenantScope.UntenantedSentinel to mean untenanted, which is also what such a deployment's own
-			// erasure requests carry.
-			if (string.IsNullOrWhiteSpace(retention.TenantId))
+			// THE TENANT IS NOW A PARTITION, so this check shrank from "is it blank" to "is it there".
+			// A string could be empty, and an empty tenant stated neither "this tenant" nor "untenanted"
+			// while looking like a decision; KeyedTenantPartition has no empty inhabitant, so the only
+			// remaining failure is absence. `required` binds the C# compiler but not a reflection binder or
+			// a hand-built options instance, which is why this still runs.
+			if (retention.Tenant is null)
 			{
 				failures.Add(
-					$"{where}.{nameof(ErasureRetention.TenantId)} must name the tenant whose obligation this "
-					+ $"is, or '{TenantScope.UntenantedSentinel}' when the deployment is not multi-tenant. A "
-					+ "blank value states neither, and an erasure cannot decide whose retention applies from "
-					+ "it.");
+					$"{where}.{nameof(ErasureRetention.Tenant)} must name the partition whose obligation this "
+					+ "is: KeyedTenantPartition.Scoped(\"<tenant>\") for a multi-tenant deployment, or "
+					+ "KeyedTenantPartition.Untenanted when the deployment is not multi-tenant. An absent "
+					+ "partition states neither, and an erasure cannot decide whose retention applies.");
 			}
 
-			if (!string.IsNullOrWhiteSpace(retention.AggregateType))
+			// BOTH operands required, and the Tenant half is why this reads `is not null` rather than
+			// trusting the check above: that check REPORTS an absent partition, it does not skip the rest
+			// of the loop, so dereferencing it here threw a NullReferenceException out of the options
+			// factory -- turning a precise startup failure into a container-build stack trace, which is
+			// the opposite of what a validator is for.
+			if (!string.IsNullOrWhiteSpace(retention.AggregateType) && retention.Tenant is not null)
 			{
-				// Keyed on the NORMALISED tenant, which is what the registry groups on. Keying on the
-				// tenant as written let two declarations whose tenants normalise together pass this rule
-				// and then collapse in the registry, where the first declared wins and the second is
-				// discarded silently -- so a signed erasure record could carry the wrong lawful basis and
-				// a shorter retention period, decided by declaration order.
-				if (!seenScopes.Add((
-					ErasureRetentionRegistry.NormaliseTenant(retention.TenantId), retention.AggregateType)))
+				// The declared partition IS the key -- one inhabitant per partition, so this check and the
+				// registry's lookup cannot disagree about a spelling the way they could when both sides
+				// were strings and two spellings of untenanted normalised together: the first declared
+				// won, the second was discarded silently, and a signed erasure record could carry the
+				// wrong lawful basis and a shorter period decided by declaration order.
+				if (!seenScopes.Add((retention.Tenant.TenantId, retention.AggregateType)))
 				{
 					failures.Add(
 						$"{where} declares '{retention.AggregateType}' a second time for the same tenant. One "

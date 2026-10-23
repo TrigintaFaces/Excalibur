@@ -37,7 +37,7 @@ public static class InMemoryProjectionStoreServiceCollectionExtensions
 	/// services.AddExcalibur(x => x.AddEventSourcing(es =>
 	/// {
 	///     es.UseInMemory().AddRepository&lt;OrderAggregate, Guid&gt;();
-	///     es.AddProjection&lt;OrderSummary&gt;(p => p.Inline().When&lt;OrderPlaced&gt;(/* … */));
+	///     es.AddProjection&lt;OrderSummary&gt;(p => p.Async().When&lt;OrderPlaced&gt;(/* … */));
 	/// }));
 	///
 	/// services.AddInMemoryProjectionStore&lt;OrderSummary&gt;();

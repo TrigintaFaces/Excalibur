@@ -47,7 +47,7 @@ public enum OutboxStagingStrategy
 
 	/// <summary>
 	/// Does not stage integration events during the save operation. Events are processed later
-	/// by a background service (e.g., via inline projections or event store polling).
+	/// by a background service (e.g., event store polling).
 	/// Zero added latency to save operations. Suitable for high-throughput scenarios
 	/// where minimal save latency is more important than immediate message delivery.
 	/// </summary>

@@ -141,6 +141,50 @@ public sealed class PostgresComplianceSchemaShapeShould : IntegrationTestBase
 		hold.ShouldBeNull("no hold was ever saved under this id; the READ must succeed with no result.");
 	}
 
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public async Task RejectAnErasureSchemaWithoutTenantPartition(bool autoCreate)
+	{
+		var suffix = Guid.NewGuid().ToString("N")[..8];
+		var requests = $"EraReq_{suffix}";
+		var certificates = $"EraCert_{suffix}";
+		using (var provisioner = CreateErasureStore(requests, certificates, autoCreate: true))
+		{
+			await provisioner.ValidateSchemaAsync(TestCancellationToken);
+		}
+
+		await DropColumnAsync(requests, "tenant_partition");
+
+		using var restarted = CreateErasureStore(requests, certificates, autoCreate);
+		var thrown = await Should.ThrowAsync<ErasureStoreNotProvisionedException>(
+			async () => await restarted.ValidateSchemaAsync(TestCancellationToken));
+
+		thrown.Message.ShouldContain("tenant_partition");
+	}
+
+	[Fact]
+	public async Task PersistOwnerAndPartitionSeparatelyInAnAutoCreatedErasureSchema()
+	{
+		var suffix = Guid.NewGuid().ToString("N")[..8];
+		using var store = CreateErasureStore($"EraReq_{suffix}", $"EraCert_{suffix}", autoCreate: true);
+		var request = new ErasureRequest
+		{
+			DataSubjectId = "subject-for-schema-roundtrip",
+			IdType = DataSubjectIdType.UserId,
+			TenantId = "explicit-key-owner",
+			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+			RequestedBy = "schema-test",
+		};
+
+		await store.SaveRequestAsync(request, DateTimeOffset.UtcNow, TestCancellationToken);
+		var status = await store.GetStatusAsync(request.RequestId, TestCancellationToken);
+
+		status.ShouldNotBeNull();
+		status.TenantId.ShouldBe("explicit-key-owner");
+		status.TenantPartition.ShouldBe(KeyedTenantPartition.Untenanted);
+	}
+
 	// ---------- helpers ----------
 
 	// Each arm gets its own table pair/name, derived from the calling test, so arms never collide over a

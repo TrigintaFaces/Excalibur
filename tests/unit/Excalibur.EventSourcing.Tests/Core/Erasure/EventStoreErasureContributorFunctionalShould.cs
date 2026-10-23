@@ -14,6 +14,8 @@ using Shouldly;
 
 using Xunit;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.Core.Erasure;
 
 /// <summary>
@@ -42,6 +44,7 @@ public sealed class EventStoreErasureContributorFunctionalShould
 		ErasureScope scope = ErasureScope.User) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = dataSubjectHash,
 			IdType = DataSubjectIdType.UserId,

@@ -25,8 +25,8 @@ public sealed class ConcurrentAppendMeasurementShould
         {
             AppendOutcome.Failed => AppendResult.CreateFailure("negative control"),
             AppendOutcome.ConcurrencyConflict => AppendResult.CreateConcurrencyConflict(-1, 0),
-            _ => AppendResult.CreateAlreadyCommitted(0, 1),
-        } : AppendResult.CreateSuccess(0, 1));
+            _ => AppendResult.CreateAlreadyCommitted(0, 1, 1),
+        } : AppendResult.CreateSuccess(0, 1, 1));
         var benchmark = CreateBenchmark(store);
         benchmark.IterationSetup();
 
@@ -45,7 +45,7 @@ public sealed class ConcurrentAppendMeasurementShould
     public async Task RejectIncorrectDurableCounts(long events, long streams, long identities)
     {
         var benchmark = new SqlServerConcurrentAppendBenchmarks(
-            CreateStore(() => AppendResult.CreateSuccess(0, 1)),
+            CreateStore(() => AppendResult.CreateSuccess(0, 1, 1)),
             _ => Task.FromResult((events, streams, identities))) { WriterCount = 4 };
         benchmark.IterationSetup();
         await benchmark.ConcurrentAppendToDistinctAggregates();
@@ -56,7 +56,7 @@ public sealed class ConcurrentAppendMeasurementShould
     [Fact]
     public async Task RejectSkippedWork()
     {
-        var benchmark = CreateBenchmark(CreateStore(() => AppendResult.CreateSuccess(0, 1)));
+        var benchmark = CreateBenchmark(CreateStore(() => AppendResult.CreateSuccess(0, 1, 1)));
         benchmark.IterationSetup();
         await Should.ThrowAsync<InvalidOperationException>(benchmark.IterationCleanup);
     }
@@ -65,7 +65,7 @@ public sealed class ConcurrentAppendMeasurementShould
     public async Task PropagateVerificationFailure()
     {
         var benchmark = new SqlServerConcurrentAppendBenchmarks(
-            CreateStore(() => AppendResult.CreateSuccess(0, 1)),
+            CreateStore(() => AppendResult.CreateSuccess(0, 1, 1)),
             _ => throw new InvalidOperationException("database unavailable")) { WriterCount = 4 };
         benchmark.IterationSetup();
         await benchmark.ConcurrentAppendToDistinctAggregates();
@@ -95,7 +95,7 @@ public sealed class ConcurrentAppendMeasurementShould
                 @event.AggregateId.ShouldBe(aggregateId);
                 @event.Version.ShouldBe(0);
                 events.Add((aggregateType, @event));
-                return new ValueTask<AppendResult>(AppendResult.CreateSuccess(0, 1));
+                return new ValueTask<AppendResult>(AppendResult.CreateSuccess(0, 1, 1));
             });
         var benchmark = new SqlServerConcurrentAppendBenchmarks(store, type =>
         {

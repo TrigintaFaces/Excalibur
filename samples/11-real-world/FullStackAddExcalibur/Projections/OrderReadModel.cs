@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace FullStackAddExcalibur.Projections;
 
 /// <summary>
-/// ElasticSearch read-model (inline projection) for order search.
+/// ElasticSearch read-model for order search, applied by the projection host.
 /// </summary>
 public sealed class OrderReadModel
 {

@@ -363,7 +363,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		if (eventList.Count == 0)
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -465,7 +465,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		var eventList = events as IReadOnlyCollection<IDomainEvent> ?? [.. events];
 		if (eventList.Count == 0)
 		{
-			return AppendResult.CreateSuccess(expectedVersion, null);
+			return AppendResult.CreateSuccess(expectedVersion, null, null);
 		}
 
 		try
@@ -499,7 +499,8 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 						// about the append and silently false about the call: these rows are durable, but
 						// they are a prior attempt's, and anything may have happened to them since â€” an
 						// erasure included.
-						return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
+						return AppendResult.CreateAlreadyCommitted(
+							retryVersion, retryLanded.FirstPosition, retryLanded.LastPosition);
 					}
 
 					return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
@@ -507,17 +508,17 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 
 				await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
 
-				var (version, firstPosition) = await InsertEventsAsync(
+				var appended = await InsertEventsAsync(
 						connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 					.ConfigureAwait(false);
 
 				state.Dispatched = true;
 				await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
-				state.Acknowledged = AppendResult.CreateSuccess(version, firstPosition);
+				state.Acknowledged = appended;
 
 				_logger.LogDebug(
 					"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
-					eventList.Count, aggregateType, aggregateId, version);
+					eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
 				return state.Acknowledged;
 			}
@@ -592,25 +593,26 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 
 				// RECOGNISED, not written by this call â€” see the staging overload's pre-check branch.
-				return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
+				return AppendResult.CreateAlreadyCommitted(
+					retryVersion, retryLanded.FirstPosition, retryLanded.LastPosition);
 			}
 
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 		}
 
-		var (version, firstPosition) = await InsertEventsAsync(
+		var appended = await InsertEventsAsync(
 				connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 			.ConfigureAwait(false);
 
 		state.Dispatched = true;
 		await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
-		state.Acknowledged = AppendResult.CreateSuccess(version, firstPosition);
+		state.Acknowledged = appended;
 
 		_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
-			eventList.Count, aggregateType, aggregateId, version);
+			eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
-		_ = (activity?.SetTag(EventSourcingTags.Version, version));
+		_ = (activity?.SetTag(EventSourcingTags.Version, appended.NextExpectedVersion));
 		activity.SetOperationResult(EventSourcingTagValues.Success);
 		return state.Acknowledged;
 	}
@@ -788,7 +790,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 		}
 	}
 
-	private async ValueTask<(long Version, long FirstPosition)> InsertEventsAsync(
+	private async ValueTask<AppendResult> InsertEventsAsync(
 		NpgsqlConnection connection,
 		NpgsqlTransaction transaction,
 		string aggregateId,
@@ -868,7 +870,12 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				.ConfigureAwait(false);
 		}
 
-		return (version, firstPosition);
+		// The block reserved above is contiguous and ordered by version -- see AllocateAndInsertEventsRequest,
+		// which reserves it in one statement under the counter row's lock and documents that it must never
+		// become a sequence. So the last event sits at firstPosition + rows.Count - 1, and this is reported
+		// from HERE, where the range is assigned, rather than derived by a caller who would have to assume
+		// the contiguity this function guarantees.
+		return AppendResult.CreateSuccess(version, firstPosition, firstPosition + rows.Count - 1);
 	}
 
 	private static void RecordAppendTelemetry(string result, TimeSpan elapsed)

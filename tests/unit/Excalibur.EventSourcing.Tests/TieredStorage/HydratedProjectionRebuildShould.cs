@@ -37,6 +37,13 @@ public sealed class HydratedProjectionRebuildShould
         services.AddSingleton<IGlobalStreamQuery>(fixture.Query);
         services.AddSingleton(projection);
         services.AddSingleton<IProjectionStore<Amounts>>(store);
+
+        // TestProjectionStore records no positions, so a rebuild on it cannot make its writes
+        // conditional and a concurrent writer would be undetectable. This arm is the only writer -- no
+        // projection host runs -- so the exclusivity the acknowledgement attests to genuinely holds.
+        // Stating it is the point: the framework now refuses the unsound combination rather than
+        // silently overwriting newer state with older.
+        _ = services.AllowUnpositionedProjectionRebuild();
         using var provider = services.BuildServiceProvider();
         var rebuild = new ProjectionRebuildService(provider, fixture.Serializer,
             Options.Create(new ProjectionRebuildOptions { BatchSize = 10, BatchDelay = TimeSpan.Zero }),

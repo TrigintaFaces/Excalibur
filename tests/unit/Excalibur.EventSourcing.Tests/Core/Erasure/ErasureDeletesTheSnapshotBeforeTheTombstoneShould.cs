@@ -13,6 +13,8 @@ using Shouldly;
 
 using Xunit;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.Core.Erasure;
 
 /// <summary>
@@ -52,6 +54,7 @@ public sealed class ErasureDeletesTheSnapshotBeforeTheTombstoneShould
 	private static ErasureContributorContext CreateContext() =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash-123",
 			IdType = DataSubjectIdType.UserId,

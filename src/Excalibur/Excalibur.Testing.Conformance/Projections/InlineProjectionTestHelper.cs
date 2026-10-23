@@ -8,8 +8,8 @@ namespace Excalibur.Testing.Conformance.Projections;
 
 /// <summary>
 /// Test utility for applying events to projections without DI or event store.
-/// Reuses the same <see cref="MultiStreamProjection{TProjection}"/> handler mechanism
-/// as inline and async projections at runtime.
+/// Reuses the same <see cref="MultiStreamProjection{TProjection}"/> handler mechanism that
+/// projections use at runtime.
 /// </summary>
 /// <typeparam name="TProjection">The projection state type.</typeparam>
 public sealed class InlineProjectionTestHelper<TProjection>

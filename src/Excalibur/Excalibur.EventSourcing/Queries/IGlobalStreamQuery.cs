@@ -25,12 +25,40 @@ namespace Excalibur.EventSourcing.Queries;
 public interface IGlobalStreamQuery
 {
 	/// <summary>
-	/// Reads events from the global stream starting at the specified position.
+	/// Reads events from the global stream lying STRICTLY ABOVE the specified position.
 	/// </summary>
-	/// <param name="position">The position to start reading from.</param>
+	/// <param name="position">
+	/// The exclusive lower bound. The event at this position is NOT returned; reading resumes at the
+	/// next one.
+	/// </param>
 	/// <param name="maxCount">The maximum number of events to return.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
-	/// <returns>The events in global order from the specified position.</returns>
+	/// <returns>
+	/// The events strictly above <paramref name="position"/>, in ascending global order, with no
+	/// duplicates.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Exclusivity is a contract, not an implementation detail, and a consumer of this interface
+	/// relies on it for correctness.</b> A subscription records its progress as the position it has
+	/// applied through, and resumes by passing that position here. An implementation that returned the
+	/// event AT the given position would redeliver the last applied event on every single poll, and a
+	/// subscription would never make progress past it.
+	/// </para>
+	/// <para>
+	/// It also decides what counts as a re-delivery. Because every event returned here is above the
+	/// caller's own recorded progress, a reader resuming from its checkpoint knows that nothing it
+	/// receives has been applied before — which is why the projection host can state that its
+	/// deliveries are first deliveries rather than having to compute it. An inclusive implementation
+	/// silently breaks that reasoning.
+	/// </para>
+	/// <para>
+	/// Implementers: the bound is <c>&gt;</c>, never <c>&gt;=</c>. Ascending order and absence of
+	/// duplicates are required, and a position must not be returned before every position below it is
+	/// committed — a reader cannot distinguish a gap that will fill from one that never will, so
+	/// returning past a gap converts a transient hole into a permanently skipped event.
+	/// </para>
+	/// </remarks>
 	ValueTask<IReadOnlyList<StoredEvent>> ReadAllAsync(
 		GlobalStreamPosition position,
 		int maxCount,

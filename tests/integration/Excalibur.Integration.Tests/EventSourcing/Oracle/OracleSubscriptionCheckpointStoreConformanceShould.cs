@@ -70,6 +70,22 @@ public sealed class OracleSubscriptionCheckpointStoreConformanceShould
 	}
 
 	[Fact]
+	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+
+	[Fact]
+	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
+		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+
+	[Fact]
+	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctNames_ShouldRemainIndependent();
+
+	[Fact]
 	public Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing_Test() =>
 		Advance_WithInvalidPositions_ShouldThrowAndChangeNothing();
 
@@ -126,6 +142,12 @@ public sealed class OracleSubscriptionCheckpointStoreConformanceShould
 			+ "POSITION NUMBER(19) NOT NULL, "
 			+ "UPDATEDAT TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, "
 			+ $"CONSTRAINT PK_{CheckpointTable} PRIMARY KEY (SUBSCRIPTIONNAME))'; "
+			+ "END IF; "
+			+ $"SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = '{CheckpointTable}DEFINITIONS'; "
+			+ "IF n = 0 THEN EXECUTE IMMEDIATE '"
+			+ $"CREATE TABLE {CheckpointTable}DEFINITIONS ("
+			+ "SUBSCRIPTIONNAME VARCHAR2(255) NOT NULL PRIMARY KEY, "
+			+ "DEFINITIONHASH VARCHAR2(64 BYTE) NOT NULL)'; "
 			+ "END IF; END;";
 
 #pragma warning disable CA2100 // Table name is a test-controlled constant

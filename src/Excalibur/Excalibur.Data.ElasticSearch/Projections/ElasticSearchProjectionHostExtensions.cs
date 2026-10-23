@@ -98,7 +98,7 @@ public static class ElasticSearchProjectionHostExtensions
 				probed[cluster] = entry = (options, []);
 			}
 
-			entry.Projections.Add(projectionType.Name);
+			entry.Projections.Add(projectionType.FullName ?? projectionType.Name);
 		}
 
 		foreach (var (cluster, entry) in probed)

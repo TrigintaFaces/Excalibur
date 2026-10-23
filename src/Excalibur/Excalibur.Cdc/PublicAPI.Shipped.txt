@@ -32,6 +32,8 @@ Excalibur.Cdc.CdcFatalDecision.Stop.get -> bool
 Excalibur.Cdc.CdcFatalDecision.Stop.init -> void
 Excalibur.Cdc.CdcFatalErrorHandler<TEvent>
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.AttemptStabilityThreshold.get -> System.TimeSpan
+Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.AttemptStabilityThreshold.set -> void
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.CdcFatalErrorOptions() -> void
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.MaxConsecutiveTransientFailures.get -> int?
 Excalibur.Cdc.CdcFatalErrorOptions<TEvent>.MaxConsecutiveTransientFailures.set -> void

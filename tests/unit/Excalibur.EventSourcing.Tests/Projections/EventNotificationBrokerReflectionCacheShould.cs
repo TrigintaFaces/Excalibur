@@ -21,7 +21,6 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Component", "Core")]
 public sealed class EventNotificationBrokerReflectionCacheShould
 {
-	private readonly InMemoryProjectionRegistry _registry = new();
 	private readonly ServiceCollection _services = new();
 
 	private EventNotificationBroker CreateBroker(IServiceProvider? sp = null)
@@ -32,13 +31,8 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 			sp = _services.BuildServiceProvider();
 		}
 
-		var processor = new InlineProjectionProcessor(
-			_registry,
-			sp.GetRequiredService<IServiceScopeFactory>(),
-			NullLogger<InlineProjectionProcessor>.Instance);
 
 		return new EventNotificationBroker(
-			processor,
 			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,
@@ -67,8 +61,8 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		var events = new List<IDomainEvent> { new TestOrderPlaced() };
 
 		// Act — invoke twice (second call uses cached reflection)
-		await broker.NotifyAsync(events, CreateContext(), CancellationToken.None).ConfigureAwait(false);
-		await broker.NotifyAsync(events, CreateContext(), CancellationToken.None).ConfigureAwait(false);
+		await broker.NotifyAsync(events, CreateContext()).ConfigureAwait(false);
+		await broker.NotifyAsync(events, CreateContext()).ConfigureAwait(false);
 
 		// Assert
 		invokeCount.ShouldBe(2);
@@ -106,8 +100,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 				new TestOrderShipped(),
 				new TestOrderPlaced(),
 			},
-			CreateContext(),
-			CancellationToken.None).ConfigureAwait(false);
+			CreateContext()).ConfigureAwait(false);
 
 		// Assert — each event type resolved correctly via reflection cache
 		placedCount.ShouldBe(2);
@@ -126,10 +119,6 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 			new DelegatingHandler<TestOrderPlaced>((_, _, _) => throw thrownException));
 		var sp = services.BuildServiceProvider();
 
-		var processor = new InlineProjectionProcessor(
-			_registry,
-			sp.GetRequiredService<IServiceScopeFactory>(),
-			NullLogger<InlineProjectionProcessor>.Instance);
 
 		var options = new EventNotificationOptions
 		{
@@ -137,7 +126,6 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		};
 
 		var broker = new EventNotificationBroker(
-			processor,
 			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(options),
 			NullLogger<EventNotificationBroker>.Instance,
@@ -147,8 +135,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			broker.NotifyAsync(
 				new List<IDomainEvent> { new TestOrderPlaced() },
-				CreateContext(),
-				CancellationToken.None)).ConfigureAwait(false);
+				CreateContext())).ConfigureAwait(false);
 
 		// The original exception (not wrapped in TargetInvocationException)
 		ex.Message.ShouldBe("original error");
@@ -165,10 +152,6 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 				throw new InvalidOperationException("swallowed")));
 		var sp = services.BuildServiceProvider();
 
-		var processor = new InlineProjectionProcessor(
-			_registry,
-			sp.GetRequiredService<IServiceScopeFactory>(),
-			NullLogger<InlineProjectionProcessor>.Instance);
 
 		var options = new EventNotificationOptions
 		{
@@ -176,7 +159,6 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		};
 
 		var broker = new EventNotificationBroker(
-			processor,
 			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(options),
 			NullLogger<EventNotificationBroker>.Instance,
@@ -185,8 +167,7 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		// Act — should NOT throw
 		await broker.NotifyAsync(
 			new List<IDomainEvent> { new TestOrderPlaced() },
-			CreateContext(),
-			CancellationToken.None).ConfigureAwait(false);
+			CreateContext()).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -197,12 +178,9 @@ public sealed class EventNotificationBrokerReflectionCacheShould
 		var testConfig = new TestConfigureProjection();
 
 		var sp = _services.BuildServiceProvider();
-		var processor = new InlineProjectionProcessor(
-			_registry, sp.GetRequiredService<IServiceScopeFactory>(), NullLogger<InlineProjectionProcessor>.Instance);
 
 		// Act
 		_ = new EventNotificationBroker(
-			processor,
 			sp.GetRequiredService<IServiceScopeFactory>(),
 			Options.Create(new EventNotificationOptions()),
 			NullLogger<EventNotificationBroker>.Instance,

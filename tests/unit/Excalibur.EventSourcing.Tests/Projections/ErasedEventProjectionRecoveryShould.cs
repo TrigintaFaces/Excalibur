@@ -57,7 +57,7 @@ public sealed class ErasedEventProjectionRecoveryShould
 	private void RegisterProjection()
 	{
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
 			proj.Total = e.Amount;

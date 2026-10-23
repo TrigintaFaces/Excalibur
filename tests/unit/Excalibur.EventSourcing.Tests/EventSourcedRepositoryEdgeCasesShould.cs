@@ -176,7 +176,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 		_ = A.CallTo(() => snapshotStrategy.ShouldCreateSnapshot(A<IAggregateRoot>._))
 			.Returns(true);
 		// Use the specific type for the generic method
@@ -225,7 +225,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 		_ = A.CallTo(() => snapshotStrategy.ShouldCreateSnapshot(A<IAggregateRoot>._))
 			.Returns(false);
 
@@ -262,7 +262,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,
@@ -526,7 +526,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repository = new EventSourcedRepository<EdgeCaseAggregate>(
 			eventStore,

@@ -81,6 +81,22 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
 	}
 
 	[Fact]
+	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+
+	[Fact]
+	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
+		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+
+	[Fact]
+	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctNames_ShouldRemainIndependent();
+
+	[Fact]
 	public Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing_Test() =>
 		Advance_WithInvalidPositions_ShouldThrowAndChangeNothing();
 
@@ -137,6 +153,10 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
 				position          BIGINT NOT NULL,
 				updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
 				CONSTRAINT pk_{CheckpointTable} PRIMARY KEY (subscription_name)
+			);
+			CREATE TABLE IF NOT EXISTS public.{CheckpointTable}_definitions (
+				subscription_name VARCHAR(255) COLLATE "C" NOT NULL PRIMARY KEY,
+				definition_hash VARCHAR(64) COLLATE "C" NOT NULL
 			);
 			""";
 

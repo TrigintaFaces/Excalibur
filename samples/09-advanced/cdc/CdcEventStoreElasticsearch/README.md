@@ -208,17 +208,20 @@ docker-compose --profile visualization up -d
 | `IMaterializedViewBuilder<T>` | `Excalibur.EventSourcing.Abstractions` | View contract (ViewName + GetViewId + Apply) |
 | `UseElasticSearch(...)` | `Excalibur.Data.ElasticSearch` | ES-backed materialized view store |
 
-## Materialized Views vs Inline Projections
+## Materialized Views vs Builder-API Projections
 
 The sample wires both patterns side-by-side so you can compare:
 
-| Aspect | Inline Projection (existing) | Materialized View (new) |
-|--------|------------------------------|-------------------------|
-| Registration | `es.AddProjection<T>(p => p.Inline().When<...>(...))` | `services.AddMaterializedViews(v => v.AddBuilder<TView, TBuilder>().UseElasticSearch(...))` |
-| Position tracking | Handled implicitly by the projection engine | Explicit `ViewName` -> store `IMaterializedViewStore.GetPositionAsync / SavePositionAsync` |
-| Event routing | Dispatched inside the aggregate repository save path | Independent catch-up loop per view (resumable) |
-| View identity | Implicit from the event's AggregateId | Explicit `IMaterializedViewBuilder<TView>.GetViewId(@event)` |
-| Best for | Hot read-models updated with each write | Secondary/aggregated views fed by many streams |
+| Aspect | Builder-API Projection | Materialized View |
+|--------|------------------------|-------------------|
+| Registration | `es.AddProjection<T>(p => p.Async().When<...>(...))` + `es.EnableProjectionProcessing()` | `services.AddMaterializedViews(v => v.AddBuilder<TView, TBuilder>().UseElasticSearch(...))` |
+| Position tracking | Subscription checkpoint, held by the projection host | Explicit `ViewName` -> store `IMaterializedViewStore.GetPositionAsync / SavePositionAsync` |
+| Event routing | The host reads the global stream in order and applies in position order | Independent catch-up loop per view (resumable) |
+| View identity | Implicit from the event's AggregateId, or `KeyedBy` | Explicit `IMaterializedViewBuilder<TView>.GetViewId(@event)` |
+| Best for | Per-aggregate read models | Secondary/aggregated views fed by many streams |
+
+Neither is written by `SaveAsync`. For a read that must observe its own write through a
+builder-API projection, carry the `SaveResult` into `IProjectionSessionReader.ReadAsync`.
 
 See `Projections/CustomerOrderCountView.cs` for the complete
 `IMaterializedViewBuilder<T>` example and `Program.cs` for the registration.

@@ -1,0 +1,91 @@
+{
+  "STALE": true,
+  "staleReason": "DO NOT CITE. These results were produced against model SHA-256 B247303C6234AF0218AC3A29D119C14FCAB28957E9F981256EA7D1709357B0C6. Compare that against the live model before reading any line below it: sha256sum spec/tla/cooperative-projection/CooperativeProjection.tla. A mismatch means these arms never evaluated the model in the tree. The current hash is deliberately NOT recorded here -- a cached hash decays on the next edit, and this marker already decayed once that way. What changed: the search-visibility barrier became a modeled step (previously neither modeled nor declared in ABSTRACTED, which is the defect this supersedes), the row-CAS outcome mapping and the per-action correspondence were stated, and two invariants were added (VisibleNeverExceedsWritten, CheckpointVisibility) that these runs never evaluated. Nine arms exist now, not seven. Regenerate with check-cooperative-projection.py before any rung claim rests on this file.",
+  "markedStaleOn": "2026-10-22",
+  "jarSha256": "5BD7B64DB99AE4C6C35F290DE5E809C0EE41AF43F8699CF696099FFB6452B1E2",
+  "modelSha256": "B247303C6234AF0218AC3A29D119C14FCAB28957E9F981256EA7D1709357B0C6",
+  "scope": "3 actors, 2 processes, 2 rows, 2 events; one crash/cancel per actor; FIFO local gates",
+  "arms": [
+    {
+      "name": "healthy",
+      "expectedViolation": null,
+      "exitCode": 0,
+      "correctAnswer": true,
+      "seconds": 113.23,
+      "stateCounts": [
+        "5661908",
+        "1845287"
+      ]
+    },
+    {
+      "name": "mixed-manifest-rejected",
+      "expectedViolation": null,
+      "exitCode": 0,
+      "correctAnswer": true,
+      "seconds": 1.24,
+      "stateCounts": [
+        "31008",
+        "14001"
+      ]
+    },
+    {
+      "name": "skip-manifest-check",
+      "expectedViolation": "ManifestAgreement",
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 0.52,
+      "stateCounts": [
+        "12",
+        "12"
+      ]
+    },
+    {
+      "name": "blind-stale-row-write",
+      "expectedViolation": "RowNeverRewinds",
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 1.17,
+      "stateCounts": [
+        "158730",
+        "59977"
+      ]
+    },
+    {
+      "name": "premature-checkpoint",
+      "expectedViolation": "CheckpointCoverage",
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 0.61,
+      "stateCounts": [
+        "665",
+        "352"
+      ]
+    },
+    {
+      "name": "cancel-waiter-overrelease",
+      "expectedViolation": "GateOwnership",
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 0.55,
+      "stateCounts": [
+        "9",
+        "9"
+      ]
+    },
+    {
+      "name": "checker-self-test",
+      "expectedViolation": "NeverThree",
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 0.44,
+      "stateCounts": [
+        "4",
+        "4"
+      ]
+    }
+  ],
+  "checkedDate": "2026-10-22",
+  "tlcVersion": "2026.10.20.183001 (rev d2e1472)",
+  "javaVersion": "Microsoft OpenJDK 21.0.8",
+  "limitation": "Design-model evidence only; not a full R4 discharge or production refinement proof."
+}

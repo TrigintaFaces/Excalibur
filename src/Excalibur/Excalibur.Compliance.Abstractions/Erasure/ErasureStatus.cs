@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance;
 
 /// <summary>
@@ -28,9 +30,41 @@ public sealed record ErasureStatus
 	public required DataSubjectIdType IdType { get; init; }
 
 	/// <summary>
-	/// Gets the tenant ID if applicable.
+	/// Gets the tenant identity this request was filed as — the OWNER of the data it erases.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the exact ambient term the write path encrypted under, and it is what key handles are
+	/// derived from. It is NOT a partition and must not be compared against one: a single-tenant
+	/// deployment operates as <see cref="TenantDefaults.DefaultTenantId"/>, which is a real tenant
+	/// identity rather than a reserved marker. Use <see cref="TenantPartition"/> for anything that joins
+	/// against a declaration.
+	/// </para>
+	/// </remarks>
 	public string? TenantId { get; init; }
+
+	/// <summary>
+	/// Gets the tenant partition this request belongs to — the thing a retention declaration names.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the second of two facts, and they are separate because they answer different
+	/// questions.</b> <see cref="TenantId"/> answers <em>whose data is this, and therefore which key
+	/// decrypts it</em>; this answers <em>which partition's legal obligations apply</em>. They were one
+	/// field, and the consequence was not a missed lookup: a single-tenant deployment filed a request as
+	/// <see cref="TenantDefaults.DefaultTenantId"/> while declaring its retention against
+	/// <see cref="KeyedTenantPartition.Untenanted"/>, the join missed, and the key protecting the legally
+	/// retained record was destroyed while the signed certificate reported the record as kept.
+	/// </para>
+	/// <para>
+	/// It is decided when the request is FILED, from whether multi-tenancy is configured — not from the
+	/// shape of the tenant string. A host with multi-tenancy active yields a scoped partition whatever its
+	/// tenants are named, including one named like the single-tenant default; a host without it yields
+	/// <see cref="KeyedTenantPartition.Untenanted"/>. It is persisted so a certificate stays reproducible
+	/// if the deployment is reconfigured between filing and execution.
+	/// </para>
+	/// </remarks>
+	public required KeyedTenantPartition TenantPartition { get; init; }
 
 	/// <summary>
 	/// Gets the scope of the erasure request.

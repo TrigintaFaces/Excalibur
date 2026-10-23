@@ -194,7 +194,7 @@ public sealed class TenantShardRoutingShould
 		var tenantAStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => tenantAStore.AppendAsync(
 			A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 1));
+			.Returns(AppendResult.CreateSuccess(1, 1, 1));
 
 		var resolver = A.Fake<ITenantStoreResolver<IEventStore>>();
 		_ = A.CallTo(() => resolver.Resolve("tenant-a")).Returns(tenantAStore);

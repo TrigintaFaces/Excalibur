@@ -3,6 +3,8 @@ using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 [Trait("Category", "Unit")]
@@ -335,6 +337,7 @@ public sealed class ErasureVerificationServiceShould
 		Guid? certificateId = null) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			DataSubjectIdHash = "hash-abc123",
 			IdType = DataSubjectIdType.UserId,

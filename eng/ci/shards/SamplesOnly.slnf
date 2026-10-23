@@ -83,6 +83,7 @@
       "samples\\09-advanced\\querying\\Postgres\\Postgres.csproj",
       "samples\\09-advanced\\querying\\Redis\\Redis.csproj",
       "samples\\11-real-world\\FullStackAddExcalibur\\FullStackAddExcalibur.csproj",
+      "samples\\11-real-world\\TwoProcessProjections\\TwoProcessProjections.csproj",
       "samples\\11-real-world\\MultiTenantEventSourcing\\MultiTenantEventSourcing.csproj",
       "samples\\06-security\\GdprCompliance\\GdprCompliance.csproj",
       "samples\\06-security\\GrantAuthorizedApi\\GrantAuthorizedApi.csproj",

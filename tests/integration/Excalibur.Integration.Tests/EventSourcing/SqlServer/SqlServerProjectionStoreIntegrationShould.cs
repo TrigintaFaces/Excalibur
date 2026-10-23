@@ -325,21 +325,12 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 
 	private async Task InitializeDatabaseAsync()
 	{
-		const string createTableSql = """
-			IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='OrderSummary' AND xtype='U')
-			CREATE TABLE [OrderSummary] (
-				TenantId NVARCHAR(200) NOT NULL,
-				Id NVARCHAR(255) NOT NULL,
-				Data NVARCHAR(MAX) NOT NULL,
-				CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				UpdatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				-- The store's unconditional write now INVALIDATES the position rather than leaving
-				-- it stale, so this column is part of the contract the store writes against. -1, not
-				-- 0, because zero is a legitimate stream position.
-				LastAppliedPosition BIGINT NOT NULL DEFAULT (-2),
-				CONSTRAINT [PK_OrderSummary] PRIMARY KEY (TenantId, Id)
-			)
-			""";
+		// THE SHIPPED SCRIPT, not a local copy. Three test files each carried their own hand-written
+		// CREATE TABLE, and they had already drifted -- this one declared Id as NVARCHAR(255) where its
+		// sibling declared NVARCHAR(450). A store whose columns changed without every copy changing
+		// would still pass here and fail on a consumer's database, which is the one place no gate of
+		// ours can see. Emitting it from the store's own schema makes this arm the binding.
+		var createTableSql = SqlServerProjectionSchema.CreateTableScript("OrderSummary");
 
 		Console.WriteLine($"Connection string: {_connectionString}");
 
@@ -347,7 +338,13 @@ public sealed class SqlServerProjectionStoreIntegrationShould : IAsyncLifetime
 		await connection.OpenAsync().ConfigureAwait(false);
 		Console.WriteLine("Database connection opened successfully");
 
+		// CA2100: the text is provider-generated DDL from a compile-time constant table name, and
+		// CreateTableScript refuses an identifier that is not letters, digits or underscores for exactly
+		// this reason. It fires only because the script stopped being a const -- which is the point of
+		// the change, since the const copies are what drifted.
+#pragma warning disable CA2100
 		await using var command = new SqlCommand(createTableSql, connection);
+#pragma warning restore CA2100
 		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 		Console.WriteLine("OrderSummary table created successfully");
 	}

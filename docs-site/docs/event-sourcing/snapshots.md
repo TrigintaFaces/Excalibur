@@ -173,7 +173,7 @@ public sealed record SnapshotDecisionContext(
 
 ### How It Works
 
-1. After `SaveAsync` commits events and runs inline projections, the repository evaluates the auto-snapshot policy.
+1. After `SaveAsync` commits events and runs the post-commit notification handlers, the repository evaluates the auto-snapshot policy.
 2. If any threshold is met, `aggregate.CreateSnapshot()` is called and the snapshot is saved.
 3. If the snapshot save fails, the error is logged at `Warning` level but **does not propagate** -- the original save already succeeded.
 4. Aggregates at version 1 (just created) are never auto-snapshotted.

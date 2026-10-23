@@ -8,6 +8,8 @@ using Excalibur.EventSourcing.Erasure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.Core.Erasure;
 
 /// <summary>
@@ -202,6 +204,7 @@ public sealed class EventStoreErasureContributorDepthShould
 	{
 		return new ErasureContributorContext
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hashed-subject-1",
 			IdType = DataSubjectIdType.UserId,

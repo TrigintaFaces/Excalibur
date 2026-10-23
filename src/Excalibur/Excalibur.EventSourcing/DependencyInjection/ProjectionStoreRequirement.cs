@@ -227,11 +227,10 @@ internal sealed class ProjectionHandlerProbe<
 /// <b>Why this exists, and why it is not opt-in.</b> A stored projection takes two registrations —
 /// <c>AddProjection&lt;T&gt;</c> says what it folds, and a provider's <c>Add&lt;T&gt;</c> says where it
 /// is stored. Nothing connected them, so omitting the second produced a projection that folds into
-/// nothing. For an inline projection that surfaced as a resolution failure on the first save, after the
-/// events were already durable, wrapped in advice about rebuilding from the event stream — the wrong
-/// remedy when the fix is one registration line. For an async projection it surfaced inside a background
-/// host, where nobody was looking. A projection with no store is wrong on every host, not only on hosts
-/// that asked for something extra, so the check runs for all of them.
+/// nothing. Without this guard it surfaced as a resolution failure inside the projection host, where
+/// nobody was looking, wrapped in advice about rebuilding from the event stream — the wrong remedy
+/// when the fix is one registration line. A projection with no store is wrong on every host, not only
+/// on hosts that asked for something extra, so the check runs for all of them.
 /// </para>
 /// <para>
 /// <b>It probes the RESOLVED store, in a scope, not the registration.</b> Resolving the way the apply

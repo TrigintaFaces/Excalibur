@@ -62,11 +62,11 @@ public sealed record ErasureRetention
 	public required string AggregateType { get; init; }
 
 	/// <summary>
-	/// Gets the tenant whose obligation this is.
+	/// Gets the tenant partition whose obligation this is.
 	/// </summary>
 	/// <value>
-	/// The tenant identifier, matched ordinally, or <see cref="TenantScope.UntenantedSentinel"/> for a
-	/// deployment that is not multi-tenant.
+	/// <see cref="KeyedTenantPartition.Untenanted"/> for a deployment that is not multi-tenant, or
+	/// <see cref="KeyedTenantPartition.Scoped(string)"/> naming the tenant that owes the obligation.
 	/// </value>
 	/// <remarks>
 	/// <para>
@@ -76,19 +76,21 @@ public sealed record ErasureRetention
 	/// other direction, and the one the mandatory period exists to prevent at the type level.
 	/// </para>
 	/// <para>
-	/// <b>A single-tenant deployment declares <see cref="TenantScope.UntenantedSentinel"/>, and this is the
-	/// one detail worth reading twice.</b> The value is compared against the tenant an erasure REQUEST
-	/// carries, and an untenanted request carries that sentinel — every spelling of <em>untenanted</em>
-	/// (absent, empty, whitespace, or the sentinel itself) collapses onto it through
-	/// <see cref="KeyedTenantPartition.FromStoredValue(string)"/>, which is this framework's single predicate
-	/// for what counts as absent. Declaring the sentinel is therefore how a single-tenant declaration names
-	/// the same tenant its own erasure requests do.
+	/// <b>A single-tenant deployment writes <c>KeyedTenantPartition.Untenanted</c>, and there is no second
+	/// way to write it.</b> That is why this is a partition and not a string. It is joined against
+	/// <see cref="ErasureStatus.TenantPartition"/>, which an erasure request carries alongside the tenant
+	/// IDENTITY it was filed as — two facts, because they answer different questions: the identity decides
+	/// which key decrypts the data, the partition decides whose legal obligations apply.
 	/// </para>
 	/// <para>
-	/// It is NOT the identity an ambient tenant context reports for such a deployment, and that is not an
-	/// inconsistency — the two describe different things. A context reports the identity an operation is
-	/// running as; this names the tenant a legal obligation belongs to, and it is only ever compared against
-	/// another erasure-domain value of the same kind. Nothing on the write path reads a tenant at all.
+	/// <b>SUPERSEDED DOCUMENTATION, quoted so a reader who inherited it recognises it.</b> This contract
+	/// previously claimed that "an untenanted request carries that sentinel — every spelling of untenanted
+	/// … collapses onto it", and that the ambient identity being a different value "is not an
+	/// inconsistency — the two describe different things". Both halves were false in the same direction. A
+	/// single-tenant request was stamped with the ambient identity and compared DIRECTLY against this
+	/// value, so the join missed; and because a retention miss destroys the key protecting the retained
+	/// record, the second sentence talked a reader out of noticing the exact mismatch that shredded it.
+	/// The fields are separate now, so neither claim is needed and neither can be reintroduced.
 	/// </para>
 	/// <para>
 	/// <b>A mismatch erases rather than retains, and that is the chosen direction.</b> A retention declared
@@ -97,7 +99,7 @@ public sealed record ErasureRetention
 	/// from every other tenant's data subjects.
 	/// </para>
 	/// </remarks>
-	public required string TenantId { get; init; }
+	public required KeyedTenantPartition Tenant { get; init; }
 
 	/// <summary>
 	/// Gets the lawful basis under which the data is retained.
@@ -161,7 +163,7 @@ public interface IErasureRetentionRegistry
 	/// <summary>
 	/// Attempts to find the retention declared for an aggregate type.
 	/// </summary>
-	/// <param name="tenantId">
+	/// <param name="tenant">
 	/// The tenant this erasure belongs to, as the erasure request recorded it. Every spelling of
 	/// <em>untenanted</em> is accepted and collapsed onto <see cref="TenantScope.UntenantedSentinel"/>, so a
 	/// single-tenant deployment matches its own declarations whether its requests name no tenant, an empty
@@ -186,8 +188,17 @@ public interface IErasureRetentionRegistry
 	/// its own aggregate type, and every retention this returns is one of them.
 	/// </para>
 	/// </remarks>
+	/// <remarks>
+	/// <b>TOTAL IN THE AGGREGATE TYPE, NOT IN THE PARTITION.</b> An unknown, empty or whitespace type
+	/// answers <see langword="false"/> rather than throwing, because this runs on the path that decides
+	/// whether to destroy a record and a throw would turn an unrecognised type into a failed erasure.
+	/// An ABSENT partition is different in kind: it cannot arise from data, only from a caller that did
+	/// not supply one, and answering <see langword="false"/> for it would mean "no retention applies",
+	/// which on this path means DESTROY. So that case throws, loudly, rather than being absorbed into a
+	/// verdict it cannot support.
+	/// </remarks>
 	bool TryGetRetention(
-		string? tenantId,
+		KeyedTenantPartition tenant,
 		string? aggregateType,
 		[NotNullWhen(true)] out ErasureRetention? retention);
 

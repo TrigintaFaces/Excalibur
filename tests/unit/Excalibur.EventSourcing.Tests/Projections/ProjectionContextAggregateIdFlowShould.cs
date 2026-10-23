@@ -39,7 +39,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		// Arrange
 		string? observed = null;
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline().When<TestOrderPlaced>((proj, e, ctx) =>
+		builder.Async().When<TestOrderPlaced>((proj, e, ctx) =>
 		{
 			observed = ctx.AggregateId;
 			proj.Total = e.Amount;
@@ -63,7 +63,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		// Arrange
 		string? observed = "sentinel";
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline().When<TestOrderPlaced>((_, _, ctx) => observed = ctx.AggregateId);
+		builder.Async().When<TestOrderPlaced>((_, _, ctx) => observed = ctx.AggregateId);
 		builder.Build();
 
 		// Act
@@ -81,7 +81,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline().When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
+		builder.Async().When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
 		// Act
@@ -104,7 +104,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		// assembly-scanning tests as a duplicate for an event they already cover.
 		string? observed = null;
 		var builder = new ProjectionBuilder<IsolatedProjection>(_registry);
-		builder.Inline()
+		builder.Async()
 			.When<TestOrderPlaced>((proj, e, ctx) =>
 			{
 				observed = ctx.AggregateId;
@@ -119,12 +119,12 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		registration.InlineApply.ShouldNotBeNull();
 
 		var services = new ServiceCollection();
-		services.AddSingleton<IProjectionStore<IsolatedProjection>>(new NullStore());
+		services.AddSingleton<IProjectionStore<IsolatedProjection>>(new InMemoryProjectionStore<IsolatedProjection>());
 		services.AddTransient<NoOpShippedHandler>();
 		using var provider = services.BuildServiceProvider();
 
 		await registration.InlineApply(
-			[new ProjectionEvent(new TestOrderPlaced { Amount = 5m }, AggregateId, GlobalPosition: null)],
+			[new ProjectionEvent(new TestOrderPlaced { Amount = 5m }, AggregateId, GlobalPosition: 1)],
 			new EventNotificationContext(AggregateId, "Customer", 1, DateTimeOffset.UnixEpoch),
 			provider,
 			CancellationToken.None).ConfigureAwait(true);
@@ -152,36 +152,6 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		public decimal Total { get; set; }
 	}
 
-	/// <summary>Store for the isolated projection; the arm asserts on the captured context, not on state.</summary>
-	private sealed class NullStore : IProjectionStore<IsolatedProjection>
-	{
-		private IsolatedProjection? _last;
-
-		public Task<IsolatedProjection?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
-			Task.FromResult(_last);
-
-		public Task UpsertAsync(string id, IsolatedProjection projection, CancellationToken cancellationToken)
-		{
-			_last = projection;
-			return Task.CompletedTask;
-		}
-
-		public Task DeleteAsync(string id, CancellationToken cancellationToken)
-		{
-			_last = null;
-			return Task.CompletedTask;
-		}
-
-		public Task<IReadOnlyList<IsolatedProjection>> QueryAsync(
-			IDictionary<string, object>? filters,
-			QueryOptions? options,
-			CancellationToken cancellationToken) =>
-			Task.FromResult<IReadOnlyList<IsolatedProjection>>(_last is null ? [] : [_last]);
-
-		public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken) =>
-			Task.FromResult(_last is null ? 0L : 1L);
-	}
-
 	/// <summary>
 	/// Drives the registered inline apply delegate the way the framework does, and returns the
 	/// projection state the store was left holding.
@@ -194,7 +164,7 @@ public sealed class ProjectionContextAggregateIdFlowShould
 		registration.ShouldNotBeNull();
 		registration.InlineApply.ShouldNotBeNull();
 
-		var store = new CapturingProjectionStore();
+		var store = new TestProjectionStore<OrderSummary>();
 		var services = new ServiceCollection();
 		services.AddSingleton<IProjectionStore<OrderSummary>>(store);
 		configureServices?.Invoke(services);
@@ -208,43 +178,12 @@ public sealed class ProjectionContextAggregateIdFlowShould
 			Timestamp: DateTimeOffset.UnixEpoch);
 
 		await registration.InlineApply(
-			[new ProjectionEvent(@event, AggregateId, GlobalPosition: null)],
+			[new ProjectionEvent(@event, AggregateId, GlobalPosition: 1)],
 			context,
 			provider,
 			CancellationToken.None).ConfigureAwait(true);
 
-		return store.Last ?? new OrderSummary();
+		return (await store.GetByIdAsync(AggregateId, CancellationToken.None))!;
 	}
 
-	/// <summary>
-	/// Minimal store that records what the apply delegate wrote.
-	/// </summary>
-	private sealed class CapturingProjectionStore : IProjectionStore<OrderSummary>
-	{
-		public OrderSummary? Last { get; private set; }
-
-		public Task<OrderSummary?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
-			Task.FromResult<OrderSummary?>(Last);
-
-		public Task UpsertAsync(string id, OrderSummary projection, CancellationToken cancellationToken)
-		{
-			Last = projection;
-			return Task.CompletedTask;
-		}
-
-		public Task DeleteAsync(string id, CancellationToken cancellationToken)
-		{
-			Last = null;
-			return Task.CompletedTask;
-		}
-
-		public Task<IReadOnlyList<OrderSummary>> QueryAsync(
-			IDictionary<string, object>? filters,
-			QueryOptions? options,
-			CancellationToken cancellationToken) =>
-			Task.FromResult<IReadOnlyList<OrderSummary>>(Last is null ? [] : [Last]);
-
-		public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken) =>
-			Task.FromResult(Last is null ? 0L : 1L);
-	}
 }

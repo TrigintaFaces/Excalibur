@@ -184,8 +184,11 @@ public sealed partial class EventStoreErasureContributor : IErasureContributor
 			//
 			// The event store needs no change and is told nothing about any of this. It is asked which
 			// aggregate to erase and has no opinion about which ones it should be asked for.
+			// THE PARTITION, not the owner. These were one field; a single-tenant deployment's owner never
+			// equalled the untenanted partition its own declaration named, so this join missed and a
+			// retained type was tombstoned.
 			if (_retentions?.TryGetRetention(
-					context.TenantId, reference.AggregateType, out var retention) == true)
+					context.TenantPartition, reference.AggregateType, out var retention) == true)
 			{
 				// Reported once per TYPE rather than once per aggregate. The retention is a statement
 				// about the type, so N entries for N instances would repeat one fact N times on a signed

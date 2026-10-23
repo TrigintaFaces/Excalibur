@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Excalibur.Compliance.Erasure;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
@@ -120,6 +122,7 @@ public sealed class CertificateVerifiedMeansEstablishedShould
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(new ErasureStatus
 			{
+				TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 				RequestId = requestId,
 				DataSubjectIdHash = "abc123hash",

@@ -47,10 +47,14 @@ public sealed class ProjectionHandlerContext
 	/// </summary>
 	/// <remarks>
 	/// <para>
+	/// <b>It means a rebuild, recovery or on-demand replay is deliberately re-folding history</b> —
+	/// nothing more. It is a property of the OPERATION, set by the caller that asked for the re-fold,
+	/// not a judgement about whether any particular effect already happened.
+	/// </para>
+	/// <para>
 	/// A rebuild or a recovery re-runs every handler over history. An asynchronous handler is
 	/// arbitrary code with arbitrary side effects -- it may send mail, call a payment provider, or
-	/// publish a message -- and without this flag it cannot tell a replay from a first delivery, so it
-	/// performs those effects again.
+	/// publish a message -- and a whole-history re-fold would perform all of them again.
 	/// </para>
 	/// <para>
 	/// It is a REQUIRED constructor parameter rather than an optional one with a default. A default of
@@ -60,14 +64,27 @@ public sealed class ProjectionHandlerContext
 	/// <para>
 	/// <b>This deliberately diverges from the sibling <c>EventNotificationContext</c></b>, which
 	/// carries the same flag with a default of <see langword="false"/>. That type is a record with
-	/// init-only members constructed in many places, where the default buys real ergonomics. This one
-	/// has two construction sites in the framework, so the ergonomic saving is nil and the safety is
-	/// not. The divergence is a choice, not an oversight.
+	/// init-only members, where the default buys real ergonomics. This one is constructed only by the
+	/// framework's own apply and replay paths, so the ergonomic saving is small and the safety is not.
+	/// The divergence is a choice, not an oversight.
 	/// </para>
 	/// <para>
-	/// <b>Consumer obligation:</b> a handler with side effects outside the projection state MUST check
-	/// this and skip them when it is <see langword="true"/>. Folding into the projection state itself
-	/// is always correct and needs no guard.
+	/// <b>Consumer obligation: a handler with side effects outside the projection state MUST be
+	/// idempotent, keyed on the event identifier.</b> Delivery is at-least-once — an effect may be
+	/// requested more than once for a single event after a process crash or an overlap between two
+	/// readers of one subscription, and this flag is <see langword="false"/> on those deliveries,
+	/// because they are not re-folds of history. The duplicate window is bounded by the events applied
+	/// since the last durable checkpoint.
+	/// </para>
+	/// <para>
+	/// So use it to skip effects during a deliberate re-fold of the whole of history, where repeating
+	/// them is certainly wrong. <b>Never use it as the mechanism that makes a handler correct.</b> No
+	/// flag the framework computes can be that mechanism: the effect is performed by consumer code,
+	/// in a process the framework does not control, against a resource it cannot name, so the effect
+	/// and the record of it cannot commit together. Idempotency is the only thing that closes it.
+	/// </para>
+	/// <para>
+	/// Folding into the projection state itself is idempotent by construction and needs no guard.
 	/// </para>
 	/// </remarks>
 	/// <value><see langword="true"/> during a rebuild or recovery; otherwise <see langword="false"/>.</value>

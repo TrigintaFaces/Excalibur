@@ -114,6 +114,7 @@ public sealed partial class CosmosDbCdcProcessor : ICosmosDbCdcProcessor
 		_backoff = new CdcTransientFailureBackoff(
 			_options.ChangeFeed.PollInterval,
 			_fatalErrorOptions.MaxReconnectDelay,
+			_fatalErrorOptions.AttemptStabilityThreshold,
 			_fatalErrorOptions.MaxConsecutiveTransientFailures,
 			_timeProvider,
 			_healthState);

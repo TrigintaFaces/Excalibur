@@ -14,13 +14,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for registering inline projections and event notification
+/// Extension methods for registering projections and event notification
 /// services on <see cref="IEventSourcingBuilder"/>.
 /// </summary>
 public static class EventNotificationServiceCollectionExtensions
 {
 	/// <summary>
-	/// Registers an inline projection with the event notification system.
+	/// Registers a projection with the event notification system.
 	/// </summary>
 	/// <typeparam name="TProjection">The projection state type.</typeparam>
 	/// <param name="builder">The event sourcing builder.</param>
@@ -40,7 +40,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// services.AddExcalibur(x => x.AddEventSourcing(builder =>
 	/// {
 	///     builder.AddProjection&lt;OrderSummary&gt;(p => p
-	///         .Inline()
+	///         .Async()
 	///         .When&lt;OrderPlaced&gt;((proj, e) => { proj.Total = e.Amount; })
 	///         .When&lt;OrderShipped&gt;((proj, e) => { proj.ShippedAt = e.ShippedAt; }));
 	/// }));
@@ -91,7 +91,7 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Registers an inline projection using a DI-resolved <see cref="IProjectionConfiguration{TProjection}"/>
+	/// Registers a projection using a DI-resolved <see cref="IProjectionConfiguration{TProjection}"/>
 	/// implementation. The configuration class is resolved from the service provider at startup
 	/// to configure the projection's mode, event handlers, and options.
 	/// </summary>
@@ -283,8 +283,8 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Registers the <see cref="IProjectionRecovery"/> service for recovering
-	/// inline projections that failed after events were committed.
+	/// Registers the <see cref="IProjectionRecovery"/> service, which re-folds one aggregate's
+	/// projection row from its event stream on demand.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
@@ -321,8 +321,8 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Registers the event notification broker, inline projection processor,
-	/// and projection registry. Called automatically by <see cref="AddProjection{TProjection}"/>.
+	/// Registers the event notification broker and the projection registry.
+	/// Called automatically by <see cref="AddProjection{TProjection}"/>.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
@@ -335,7 +335,6 @@ public static class EventNotificationServiceCollectionExtensions
 
 		// Idempotent: only register once
 		builder.Services.TryAddSingleton<IProjectionRegistry, InMemoryProjectionRegistry>();
-		builder.Services.TryAddSingleton<InlineProjectionProcessor>();
 		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton<IEventNotificationBroker, EventNotificationBroker>();
 		builder.Services.TryAddSingleton<ICursorMapStore, InMemoryCursorMapStore>();
@@ -343,7 +342,22 @@ public static class EventNotificationServiceCollectionExtensions
 			ServiceDescriptor.Singleton<Options.IValidateOptions<EventNotificationOptions>, EventNotificationOptionsValidator>());
 		builder.UseProjectionRecovery();
 
+		// The read half of session consistency. Registered unconditionally and costing nothing until a
+		// caller passes a token: a read with no token never waits and never touches the checkpoint store.
+		builder.Services.TryAddSingleton<IProjectionSessionReader, ProjectionSessionReader>();
+		_ = builder.Services.AddOptions<ProjectionSessionOptions>().ValidateOnStart();
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<Options.IValidateOptions<ProjectionSessionOptions>, ProjectionSessionOptionsValidator>());
+
 		// Observability: metrics, health state
+		//
+		// AddMetrics() is OURS to call, not the consumer's. ProjectionObservability takes IMeterFactory
+		// as a required constructor parameter, and a generic host happens to register one -- so this
+		// resolved for anyone using WebApplication.CreateBuilder and threw for anyone composing a
+		// ServiceCollection by hand, which is the shape a test or a worker uses. A library that depends
+		// on IMeterFactory ensures it; the call is idempotent, so a consumer who already called it is
+		// unaffected.
+		_ = builder.Services.AddMetrics();
 		builder.Services.TryAddSingleton<ProjectionHealthState>();
 		builder.Services.TryAddSingleton<Excalibur.EventSourcing.Diagnostics.ProjectionObservability>();
 
@@ -353,6 +367,10 @@ public static class EventNotificationServiceCollectionExtensions
 				sp.GetRequiredService<Excalibur.Dispatch.IEventSerializer>(),
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredService<Logging.ILogger<EphemeralProjectionEngine>>(),
+				// The SCOPE FACTORY, not the root provider: the engine is a singleton and its handlers
+				// may take scoped dependencies, which need a scope per build rather than the root's
+				// lifetime.
+				sp.GetRequiredService<IServiceScopeFactory>(),
 				sp.GetService<Caching.Distributed.IDistributedCache>(),
 				sp.GetService<System.Text.Json.JsonSerializerOptions>()));
 
@@ -360,7 +378,7 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds a health check for inline projections.
+	/// Adds a health check for projections.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
@@ -421,6 +439,7 @@ public static class EventNotificationServiceCollectionExtensions
 	{
 		private readonly IProjectionRegistry _registry;
 		private readonly ProjectionBuilder<TProjection> _projectionBuilder;
+		private readonly Lock _configureGate = new();
 		private bool _configured;
 
 		internal ConfigureProjection(
@@ -435,13 +454,16 @@ public static class EventNotificationServiceCollectionExtensions
 		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public void Configure()
 		{
-			if (_configured)
+			lock (_configureGate)
 			{
-				return;
-			}
+				if (_configured)
+				{
+					return;
+				}
 
-			_configured = true;
-			_projectionBuilder.Build(_registry);
+				_projectionBuilder.Build(_registry);
+				_configured = true;
+			}
 		}
 	}
 }

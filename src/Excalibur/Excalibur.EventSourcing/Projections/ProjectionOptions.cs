@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// </para>
 /// <code>
 /// builder.AddProjection&lt;OrderSummary&gt;(p => p
-///     .Inline()
+///     .Async()
 ///     .WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(200))
 ///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
 /// </code>

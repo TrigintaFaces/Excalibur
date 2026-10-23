@@ -62,6 +62,12 @@ services:
   elasticsearch-node1:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
     container_name: excalibur-es-node1
+    # hostname MUST match the node.name below and the discovery.seed_hosts of the other two.
+    # Docker resolves a service by its SERVICE name (elasticsearch-node1) and its
+    # container_name (excalibur-es-node1); node.name is an Elasticsearch identity, not a DNS
+    # name. Without this the seed hosts named es-node1..3 resolve to nothing, every node logs
+    # UnknownHostException, and the cluster never forms.
+    hostname: es-node1
     environment:
       - node.name=es-node1
       - cluster.name=excalibur-cluster
@@ -84,6 +90,7 @@ services:
   elasticsearch-node2:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
     container_name: excalibur-es-node2
+    hostname: es-node2
     environment:
       - node.name=es-node2
       - cluster.name=excalibur-cluster
@@ -95,13 +102,17 @@ services:
       - "9201:9200"
     volumes:
       - elasticsearch-node2-data:/usr/share/elasticsearch/data
-    depends_on:
-      elasticsearch-node1:
-        condition: service_healthy
+    # NO depends_on, deliberately. These nodes are MEMBERS of the cluster node1 is trying to form, not
+    # clients of it. cluster.initial_master_nodes lists all three, so bootstrapping needs a quorum of
+    # two -- node1 alone can never elect a master and so never becomes healthy. Waiting for it here
+    # deadlocked the stack: node1 waited for 2 and 3 to appear, while 2 and 3 waited for node1 to be
+    # healthy, and `docker compose up --wait` reported "dependency failed to start" after the timeout.
+    # They must start in parallel and discover each other.
 
   elasticsearch-node3:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
     container_name: excalibur-es-node3
+    hostname: es-node3
     environment:
       - node.name=es-node3
       - cluster.name=excalibur-cluster
@@ -113,9 +124,7 @@ services:
       - "9202:9200"
     volumes:
       - elasticsearch-node3-data:/usr/share/elasticsearch/data
-    depends_on:
-      elasticsearch-node1:
-        condition: service_healthy
+    # No depends_on -- see the note on node2. Members form the cluster together.
 
   # Kibana - Optional visualization
   kibana:

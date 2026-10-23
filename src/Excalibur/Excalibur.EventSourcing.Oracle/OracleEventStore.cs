@@ -67,11 +67,12 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		IReadOnlyCollection<IDomainEvent> eventList,
 		CancellationToken cancellationToken)
 	{
-		var firstEventId = eventList
+		var eventIds = eventList
 			.Select(static e => e.EventId)
-			.FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+			.Where(static id => !string.IsNullOrWhiteSpace(id))
+			.ToArray();
 
-		if (string.IsNullOrWhiteSpace(firstEventId))
+		if (eventIds.Length == 0)
 		{
 			return null;
 		}
@@ -80,7 +81,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		{
 			return await connection.ResolveAsync(
 				new GetCommittedAppendOutcomeRequest(
-					firstEventId, CurrentTenantScope, cancellationToken, _schema, _table)).ConfigureAwait(false);
+					eventIds, CurrentTenantScope, cancellationToken, _schema, _table)).ConfigureAwait(false);
 		}
 		catch (OracleException)
 		{
@@ -240,7 +241,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		if (eventList.Count == 0)
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -316,7 +317,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		if (eventList.Count == 0)
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -390,7 +391,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 					// RECOGNISED, not written by this call. Reporting plain success here would be true about
 					// the append and silently false about the call: these rows are durable, but they are a
 					// prior attempt's, and anything may have happened to them since — an erasure included.
-					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
+					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition, retryLanded.LastPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -412,7 +413,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			// version-conflict branch above returns before reaching this line.
 			await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
 
-			var (version, firstPosition) = await InsertEventsAsync(
+			var appended = await InsertEventsAsync(
 					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 				.ConfigureAwait(false);
 
@@ -420,11 +421,11 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 
 			_logger.LogDebug(
 				"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
-				eventList.Count, aggregateType, aggregateId, version);
+				eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
-			_ = (activity?.SetTag(EventSourcingTags.Version, version));
+			_ = (activity?.SetTag(EventSourcingTags.Version, appended.NextExpectedVersion));
 			activity.SetOperationResult(EventSourcingTagValues.Success);
-			return AppendResult.CreateSuccess(version, firstPosition);
+			return appended;
 		}
 		// Mirrors ExecuteAppendTransactionAsync's classification (surfaced through AppendAsync's
 		// outer catch) and SqlServerEventStore.ExecuteAppendWithOutboxTransactionAsync. Before this, EVERY
@@ -504,25 +505,25 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 
 				// RECOGNISED, not written by this call — see the staging overload's pre-check branch.
-				return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
+				return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition, retryLanded.LastPosition);
 			}
 
 			activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 		}
 
-		var (version, firstPosition) = await InsertEventsAsync(
+		var appended = await InsertEventsAsync(
 				connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 			.ConfigureAwait(false);
 
 		await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
 		_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
-			eventList.Count, aggregateType, aggregateId, version);
+			eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
-		_ = (activity?.SetTag(EventSourcingTags.Version, version));
+		_ = (activity?.SetTag(EventSourcingTags.Version, appended.NextExpectedVersion));
 		activity.SetOperationResult(EventSourcingTagValues.Success);
-		return AppendResult.CreateSuccess(version, firstPosition);
+		return appended;
 	}
 
 
@@ -667,7 +668,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		}
 	}
 
-	private async ValueTask<(long Version, long FirstPosition)> InsertEventsAsync(
+	private async ValueTask<AppendResult> InsertEventsAsync(
 		OracleConnection connection,
 		OracleTransaction transaction,
 		string aggregateId,
@@ -725,7 +726,11 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				.ConfigureAwait(false);
 		}
 
-		return (version, firstPosition);
+		// The block reserved above is contiguous and ordered by version -- this method assigns every
+		// position from it directly -- so the last event sits at firstPosition + rows.Count - 1. Reported
+		// from HERE, where the range is assigned, rather than derived by a caller who would have to
+		// assume the contiguity this method guarantees.
+		return AppendResult.CreateSuccess(version, firstPosition, firstPosition + rows.Count - 1);
 	}
 
 	private static void RecordAppendTelemetry(string result, TimeSpan elapsed)

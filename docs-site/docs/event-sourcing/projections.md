@@ -46,34 +46,39 @@ Excalibur offers several projection approaches. Use this decision tree to pick t
 
 ```mermaid
 flowchart TD
-    START[I need a projection] --> Q1{Must the read model<br/>be up-to-date immediately<br/>after SaveAsync?}
-
-    Q1 -->|Yes| Q2{Is my state type<br/>a C# record or<br/>immutable?}
-    Q1 -->|No| Q3{Do I need the result<br/>persisted?}
-
-    Q2 -->|Yes| IMMUTABLE[AddImmutableProjection&lt;T&gt;<br/>.Inline]
-    Q2 -->|No| Q4{Do I need DI,<br/>logging, or async<br/>in my handler?}
-
-    Q4 -->|No| Q5{Does my projection key<br/>differ from aggregate ID?}
-    Q4 -->|Yes| INLINE_DI["AddProjection&lt;T&gt;<br/>.Inline().WhenHandledBy&lt;TEvent, THandler&gt;()"]
-
-    Q5 -->|No| INLINE_LAMBDA["AddProjection&lt;T&gt;<br/>.Inline().When&lt;TEvent&gt;(lambda)"]
-    Q5 -->|Yes| INLINE_KEYED["AddProjection&lt;T&gt;<br/>.Inline().KeyedBy&lt;TEvent&gt;(selector)"]
+    START[I need a projection] --> Q3{Do I need the<br/>result persisted?}
 
     Q3 -->|No| EPHEMERAL["AddProjection&lt;T&gt;<br/>.Ephemeral()"]
-    Q3 -->|Yes| ASYNC["AddProjection&lt;T&gt;<br/>.Async()"]
+    Q3 -->|Yes| Q2{Is my state type<br/>a C# record or<br/>immutable?}
+
+    Q2 -->|Yes| IMMUTABLE["AddImmutableProjection&lt;T&gt;<br/>.Async()"]
+    Q2 -->|No| Q4{Do I need DI,<br/>logging, or async<br/>in my handler?}
+
+    Q4 -->|Yes| ASYNC_DI["AddProjection&lt;T&gt;<br/>.Async().WhenHandledBy&lt;TEvent, THandler&gt;()"]
+    Q4 -->|No| Q5{Does my projection key<br/>differ from aggregate ID?}
+
+    Q5 -->|No| ASYNC_LAMBDA["AddProjection&lt;T&gt;<br/>.Async().When&lt;TEvent&gt;(lambda)"]
+    Q5 -->|Yes| ASYNC_KEYED["AddProjection&lt;T&gt;<br/>.Async().KeyedBy&lt;TEvent&gt;(selector)"]
 ```
+
+**The mode is not how you choose your consistency.** Every stored projection is `Async`: the save commits
+events, and the projection host applies them afterwards. A caller that must observe its own write asks
+for that at the **read**, by carrying the token the save returned — see
+[Reading Your Own Writes](#reading-your-own-writes-session-consistency). A caller that does not need it
+pays nothing.
 
 ### Quick Comparison
 
-| Approach | Consistency | State Type | DI Support | Best For |
-|----------|------------|------------|------------|----------|
-| **Inline lambda** | Immediate | Mutable class | No | Simple property mapping |
-| **Inline + KeyedBy** | Immediate | Mutable class | No | Multi-stream aggregation (category, tenant) |
-| **Inline DI handler** | Immediate | Mutable class | Yes | Complex logic, logging |
-| **Inline immutable** | Immediate | Records, immutable | Yes | Functional patterns, audit trails |
-| **Async** | Eventual | Any | Yes | Reporting, search indexes |
-| **Ephemeral** | On-demand | Any | No | Debugging, ad-hoc queries |
+| Approach | State Type | DI Support | Best For |
+|----------|------------|------------|----------|
+| **`Async` lambda** | Mutable class | No | Simple property mapping |
+| **`Async` + `KeyedBy`** | Mutable class | No | Multi-stream aggregation (category, tenant) |
+| **`Async` DI handler** | Mutable class | Yes | Complex logic, logging |
+| **`Async` immutable** | Records, immutable | Yes | Functional patterns, audit trails |
+| **`Ephemeral`** | Any | No | Debugging, ad-hoc queries |
+
+An `Async` projection is stored and is written by the projection host. An `Ephemeral` projection is
+folded from the stream on each request and is never stored.
 
 ---
 
@@ -87,7 +92,7 @@ public class OrderSummaryProjectionConfig : IProjectionConfiguration<OrderSummar
 {
     public void Configure(IProjectionBuilder<OrderSummary> builder)
     {
-        builder.Inline()
+        builder.Async()
             .When<OrderPlaced>((proj, e) =>
             {
                 proj.Status = "Placed";
@@ -112,27 +117,93 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 // 3. Say WHERE each projection is stored. AddProjection says what a projection folds; it does not
 //    give it anywhere to live, and the host refuses to start if nothing does.
 services.AddInMemoryProjectionStore<OrderSummary>();
+
+// 4. Say WHAT APPLIES them. Nothing writes a projection without this, and nothing complains.
+services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
+    builder.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models")));
 ```
 
-:::info Two registrations, always
+:::danger Three registrations, always — and only two of them are checked for you
 
-A stored projection needs both: `AddProjection<T>()` (or assembly scanning) for **what it folds**, and a
-store registration for **where it lives**. If the second is missing the host refuses to start and names
-the projection, so this is a mistake you find at `dotnet run` rather than in production. For a real
-backend, swap the in-memory store for a provider — see [Registering Store Backends](#registering-store-backends).
+A stored projection needs all three:
 
-`AddInMemoryProjectionStore<T>()` is for development, tests and samples: it keeps nothing after the
-process exits and is **not tenant-confined**.
+| registration | says | if you omit it |
+|---|---|---|
+| `AddProjection<T>()` or assembly scanning | **what it folds** | nothing folds the events |
+| a store registration | **where it lives** | **start-up fails**, naming the projection |
+| `EnableProjectionProcessing()` | **what applies it** | **start-up succeeds and the read model never updates** |
+
+The third is the one to watch, and it is the trap for anyone converting an older registration.
+`AddProjection<T>(p => p.Async())` registers a projection; it does not register anything that writes
+one. Omit `EnableProjectionProcessing()` and your application starts, reports healthy, serves reads, and
+every one of them is empty — indefinitely. Nothing throws, because nothing failed: you asked for a
+projection and never asked for the host that applies it.
+
+A host that should not run a background poller calls `AddProjectionProcessor()` instead and drives the
+work itself. That is the right registration in two cases: a host that *cannot* run a `BackgroundService`
+at all (an Azure Function, a Lambda), and a host that wants its read models current by the time a request
+returns. See [Hosts that drive projections themselves](#hosts-that-cannot-run-a-background-service).
 
 :::
 
-After `SaveAsync`, the read model is immediately consistent:
+:::warning The projection table's columns are decided by the STORE, not by your projection type
+
+A SQL projection store keeps the projection body as JSON in a single `Data` column. A table with
+columns named after your projection's own properties will create, deploy, and then fail at the first
+apply with `Invalid column name 'Data'` — against your database, which is the one place this
+framework cannot see.
+
+Do not hand-write it. Either run the shipped template beside your provider's other migrations
+(`Scripts/005_CreateProjectionSchema.sql`), replacing its one token, or generate the script:
 
 ```csharp
-await repository.SaveAsync(order, cancellationToken);
-var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
-// summary.Status == "Placed" -- guaranteed, not eventual
+// SQL Server
+var ddl = SqlServerProjectionSchema.CreateTableScript("OrderSummary");
+
+// Postgres -- lowercase columns, JSONB body, no schema qualifier
+var ddl = PostgresProjectionSchema.CreateTableScript("order_summary");
 ```
+
+The two differ in more than naming: Postgres stores the body as `JSONB`, its column names are
+lowercase because the store references them unquoted (an unquoted identifier folds to lower case, so
+a quoted mixed-case column would be unreachable), and it takes **no schema parameter** — the store
+addresses the table unqualified, so it resolves through `search_path`, and a table created in a named
+schema would be one the store cannot find.
+
+Prefer the generated form: it is emitted from the provider's own schema, so it cannot drift from the
+queries the store runs. The position column is the one nobody guesses correctly — it must be
+`NOT NULL` defaulting to `-2`, because `0` is a legitimate stream position and a `NULL` compares
+equal to nothing in the compare-and-set that orders two concurrent writers.
+
+The store does **not** create the table for you. A store that silently created a missing table would
+also create it in the wrong database when a connection string is wrong, and a projection reading an
+empty table it just made is indistinguishable from one that is merely behind.
+
+:::
+
+:::info Picking a store
+
+For a real backend, swap the in-memory store for a provider — see
+[Registering Store Backends](#registering-store-backends). `AddInMemoryProjectionStore<T>()` is for
+development, tests and samples: it keeps nothing after the process exits and is **not tenant-confined**.
+
+:::
+
+`SaveAsync` does not write the projection, so a read taken straight afterwards may not see it yet. Carry
+the token the save returned, and the read waits:
+
+```csharp
+var save = await repository.SaveAsync(order, cancellationToken);
+
+var read = await sessionReader.ReadAsync<OrderSummary>(
+    order.Id.ToString(), save, cancellationToken);
+
+// read.Freshness is Fresh when the projection had applied this save before the read returned.
+var summary = read.Projection;
+```
+
+[Reading Your Own Writes](#reading-your-own-writes-session-consistency) covers the token, the bound, and
+what to do when the bound expires.
 
 ### Why IProjectionConfiguration&lt;T&gt;?
 
@@ -145,14 +216,14 @@ var summary = await projectionStore.GetByIdAsync(order.Id, cancellationToken);
 
 :::warning AOT Compatibility
 
-`AddProjectionsFromAssembly` uses reflection and is annotated with `[RequiresUnreferencedCode]`. For AOT/trimming scenarios, use explicit `AddProjection<T>()` calls with inline lambdas instead.
+`AddProjectionsFromAssembly` uses reflection and is annotated with `[RequiresUnreferencedCode]`. For AOT/trimming scenarios, use explicit `AddProjection<T>()` calls with lambda handlers instead.
 :::
 
 ---
 
-## Quick Start: Inline Lambda (Alternative)
+## Quick Start: Lambda Registration (Alternative)
 
-For simple cases or AOT scenarios, register projections directly with inline lambdas:
+For simple cases or AOT scenarios, register projections directly with lambda handlers:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
@@ -160,7 +231,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
     builder.UseInMemory().AddRepository<OrderAggregate, Guid>();
 
     builder.AddProjection<OrderSummary>(p => p
-        .Inline()
+        .Async()
         .When<OrderPlaced>((proj, e) =>
         {
             proj.Status = "Placed";
@@ -172,6 +243,8 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
             proj.Status = "Shipped";
             proj.ShippedAt = e.ShippedAt;
         }));
+
+    builder.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models");
 }));
 ```
 
@@ -182,9 +255,11 @@ This approach is best for:
 
 ---
 
-## Inline Projections (Mutable)
+## Mutable Projections
 
-Inline projections run during `SaveAsync()` and guarantee read-after-write consistency. The projection type must be a mutable class with a parameterless constructor (`new()` constraint).
+`AddProjection<T>()` folds events into a mutable class with a parameterless constructor (`new()`
+constraint). The projection host loads the row, applies the handlers below, and writes it back — reading
+the global stream in order, using positioned compare-and-set writes to cooperate across processes.
 
 ### Lambda Handlers (Tier 1)
 
@@ -192,7 +267,7 @@ Lambda handlers invoke registered delegates without resolving a separate handler
 
 ```csharp
 builder.AddProjection<OrderSummary>(p => p
-    .Inline()
+    .Async()
     .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; proj.Total = e.Total; })
     .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 ```
@@ -204,7 +279,7 @@ third handler parameter supplies it:
 
 ```csharp
 builder.AddProjection<OrderSummary>(p => p
-    .Inline()
+    .Async()
     .When<OrderPlaced>((proj, e, ctx) =>
     {
         proj.Id = ctx.AggregateId ?? string.Empty;   // which order this projection describes
@@ -245,11 +320,11 @@ handle and the identity map both need something to map *from*.
 
 ### Multi-Stream Projections (KeyedBy)
 
-By default, inline projections are keyed by aggregate ID -- each aggregate gets its own projection instance. Use `KeyedBy<TEvent>()` to derive the projection key from event data instead, enabling projections that aggregate across multiple streams:
+By default, a projection is keyed by aggregate ID -- each aggregate gets its own projection instance. Use `KeyedBy<TEvent>()` to derive the projection key from event data instead, enabling projections that aggregate across multiple streams:
 
 ```csharp
 builder.AddProjection<CategorySummaryProjection>(p => p
-    .Inline()
+    .Async()
     .KeyedBy<ProductCreated>(e => e.Category.ToUpperInvariant())
     .KeyedBy<ProductPriceChanged>(e => e.Category.ToUpperInvariant())
     .KeyedBy<ProductStockAdded>(e => e.Category.ToUpperInvariant())
@@ -269,7 +344,7 @@ builder.AddProjection<CategorySummaryProjection>(p => p
     }));
 ```
 
-All products in "Electronics" share one `CategorySummaryProjection` instance, automatically loaded and saved during `SaveAsync()`. No manual handler classes or `GetUncommittedEvents()` loops needed.
+All products in "Electronics" share one `CategorySummaryProjection` instance, loaded and saved by the projection host as it applies each event. No manual handler classes or `GetUncommittedEvents()` loops needed.
 
 **Key rules:**
 
@@ -290,7 +365,7 @@ key by whatever the read model is *about*, and keep the originating aggregate as
 
 ```csharp
 builder.AddProjection<RegionSummary>(p => p
-    .Inline()
+    .Async()
     .KeyedBy<CustomerCreated>(e => e.Region)
     .When<CustomerCreated>((view, e, ctx) =>
     {
@@ -346,7 +421,7 @@ Register with `WhenHandledBy`. You can mix lambdas and DI handlers in the same p
 
 ```csharp
 builder.AddProjection<CustomerSearchProjection>(p => p
-    .Inline()
+    .Async()
     .WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
     .WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
     .When<CustomerDeactivated>((proj, e) => { proj.IsActive = false; }));
@@ -386,7 +461,7 @@ For projects with many handlers, scan an assembly to auto-discover all `IProject
 
 ```csharp
 builder.AddProjection<CustomerSearchProjection>(p => p
-    .Inline()
+    .Async()
     .AddProjectionHandlersFromAssembly(typeof(CustomerCreatedHandler).Assembly));
 ```
 
@@ -464,84 +539,229 @@ public sealed class ProjectionHandlerContext
 
 When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors are registered, the pipeline avoids multi-ID dictionary tracking. Adding `KeyedBy` selectors or any Tier 3 handler activates the multi-ID code path with `Dictionary<string, TProjection>` tracking. This distinction does not guarantee zero allocations: selectors, callbacks, handler dependencies, stores and the rest of projection processing can allocate. Measure the complete projection workload with the configured lifetimes and store before publishing latency or allocation values.
 
-### Read-After-Write Consistency Guarantee
+### Reading Your Own Writes (Session Consistency)
 
-Inline projections provide a **read-after-write consistency guarantee**: after `SaveAsync()` returns, any query against the projection store will reflect all events just committed. This is the strongest consistency model available in Excalibur's projection system.
+**The save does not wait for a projection. The read does, and only if you ask it to.** A save returns a
+token; carrying that token to the read makes the read observe the write that produced it.
 
-#### How It Works
+This is the shape Azure Cosmos DB uses for session consistency, and for the same reason: making every
+save wait for every read model puts that latency on the saves nobody ever reads back. Here only the
+caller who needs the guarantee pays for it, and a caller that passes no token waits for nothing.
+
+#### The pipeline
 
 ```mermaid
 sequenceDiagram
     participant App as Application Code
     participant Repo as EventSourcedRepository
     participant ES as Event Store
-    participant Broker as EventNotificationBroker
-    participant IP as InlineProjectionProcessor
+    participant Host as AsyncProjectionProcessingHost
     participant PS as IProjectionStore
+    participant Reader as IProjectionSessionReader
 
     App->>Repo: SaveAsync(aggregate)
     Repo->>ES: AppendAsync(events)
-    ES-->>Repo: Success (events committed)
-    Repo->>Broker: NotifyAsync(events)
-    Broker->>IP: ProcessAsync(events)
-    IP->>PS: Load → Apply → Save (per projection)
-    PS-->>IP: Projection updated
-    IP-->>Broker: All projections complete
-    Broker-->>Repo: Done
-    Repo-->>App: SaveAsync returns
-    Note over App,PS: Projection is now queryable with latest state
+    ES-->>Repo: committed, last event at position N
+    Repo-->>App: SaveResult { CommittedVersion, SessionToken = N }
+    Note over Host,PS: independently, in global-stream order
+    Host->>ES: read global stream
+    Host->>PS: Load → Apply → UpsertAtPosition
+    App->>Reader: ReadAsync<T>(id, saveResult, ct)
+    Reader->>Reader: wait until applied position >= N, up to Bound
+    Reader->>PS: Get
+    Reader-->>App: ProjectionRead { Projection, Freshness }
 ```
 
-#### Execution Semantics
-
-| Aspect | Behavior |
-|--------|----------|
-| **Timing** | Projections update *after* events are committed but *before* `SaveAsync` returns to the caller |
-| **Concurrency** | Multiple projection types run concurrently via `Task.WhenAll` |
-| **Event ordering** | Events are applied sequentially within each projection type |
-| **Failure policy** | Configurable: `Propagate` (throw to caller) or `LogAndContinue` (best-effort) |
-| **Partial failure** | If one projection fails, others still commit — only the failed projection needs recovery |
-
-#### When to Rely on This Guarantee
+#### End to end
 
 ```csharp
-// After SaveAsync returns, the OrderSummary projection is up-to-date
-await repository.SaveAsync(order, cancellationToken);
+public async Task<IResult> PlaceOrder(PlaceOrder command, CancellationToken ct)
+{
+    var order = Order.Place(command);
 
-// This query reflects the events just committed ✓
-var summary = await projectionStore.GetAsync<OrderSummary>(
-    order.Id.ToString(), cancellationToken);
+    // 1. Save. The token is the global position of the LAST event this save wrote.
+    SaveResult save = await _repository.SaveAsync(order, ct);
 
-// summary.Status is guaranteed to reflect the latest event
+    // 2. Carry it to the read. The reader waits until the projection has applied that position.
+    ProjectionRead<OrderSummary> read =
+        await _sessionReader.ReadAsync<OrderSummary>(order.Id.ToString(), save, ct);
+
+    // 3. Branch on what the read could establish.
+    return read.Freshness switch
+    {
+        ProjectionFreshness.Fresh        => Results.Ok(read.Projection),
+        ProjectionFreshness.BoundExpired => Results.Accepted(value: read.Projection),
+        _                                => Results.Ok(read.Projection),
+    };
+}
 ```
 
-:::warning Failure Policy Matters
+`IProjectionSessionReader` is registered for you by `AddProjection<T>()` (and by
+`UseEventNotification()`), so there is nothing extra to wire. Inject it like any other service.
 
-The read-after-write guarantee holds only when using `NotificationFailurePolicy.Propagate` (the default). If you configure `LogAndContinue`, projection updates become best-effort — `SaveAsync` returns successfully even if a projection update fails.
+:::tip Working code for this whole sequence
 
-```csharp
-services.Configure<EventNotificationOptions>(opts =>
-    opts.FailurePolicy = NotificationFailurePolicy.Propagate); // Default — guarantees consistency
-```
+[`ProjectionsSample`](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/09-advanced/persistence-patterns/ProjectionsSample) runs it end to end with no
+infrastructure: it registers `.Async()` projections and the host, saves, drives
+`IProjectionProcessor.ProcessPendingAsync`, reads the last write back through its `SaveResult`, and
+prints the resulting `Freshness`. It is the one place in the repository that **executes** the
+session-consistent read rather than describing it.
 
 :::
 
-#### Comparison with Other Modes
+#### SaveResult
+
+```csharp
+public readonly record struct SaveResult(long CommittedVersion, long? SessionToken);
+```
+
+| member | meaning |
+|---|---|
+| `CommittedVersion` | the aggregate's version after the save |
+| `SessionToken` | the global position of the **last** event this save wrote |
+
+`SessionToken` is `null` when the event store assigns no global ordering, or when the save wrote
+nothing. **That is a real answer, not a missing one:** it means there is no coordinate to wait on, so a
+consistent read cannot be requested against this write. It does not mean the save failed.
+
+#### ProjectionFreshness
+
+`ReadAsync` returns `ProjectionRead<T>`, which carries the value **and** what the read could establish
+about it. It never throws for staleness and never returns a bare `bool`.
+
+| `Freshness` | what happened | what to do |
+|---|---|---|
+| `NotRequested` | no token was supplied, so nothing was waited for | treat it as an ordinary, possibly stale read |
+| `Fresh` | the projection had applied the token's position before the read | trust it against your own write |
+| `BoundExpired` | the projection had **not** reached the token within `Bound` | the value may predate your write — retry, surface it, or serve it as stale |
+
+`BoundExpired` is deliberately not an exception. A projection being behind is something a caller may
+reasonably choose to tolerate, and throwing would make the common *show slightly stale data rather than
+fail* choice the awkward one. It also does not mean the save failed: the events are durable either way.
+
+`read.Projection` is `null` when no row exists for that id — which, on a fresh `Fresh` read, means the
+handlers folded nothing for that key.
+
+#### Configuring the bound
+
+```csharp
+services.Configure<ProjectionSessionOptions>(o =>
+{
+    o.Bound        = TimeSpan.FromSeconds(5);        // default; 50 ms .. 2 minutes
+    o.PollInterval = TimeSpan.FromMilliseconds(25);  // default; 1 ms .. Bound
+});
+```
+
+| option | default | range | notes |
+|---|---|---|---|
+| `Bound` | 5 seconds | 50 ms – 2 minutes | how long a consistent read waits before reporting `BoundExpired` |
+| `PollInterval` | 25 ms | 1 ms – `Bound` | how often the read re-checks the projection's progress |
+
+**Raising `Bound` does not make a stopped projection start; it makes the request hang while one is
+stopped.** If reads are routinely reporting `BoundExpired`, the projection is behind or halted — look at
+the lag metric and the host, not at this number.
+
+The read waits on the greater of the in-process applied mark and the durable checkpoint, because neither
+alone is sufficient: the in-process mark moves the instant a batch applies but knows only this process,
+while the durable checkpoint is shared across processes and advances after every fully applied page.
+
+#### What this model costs, and what it bought
+
+Be clear about the trade, in both directions.
+
+| | the old save-time write | this model |
+|---|---|---|
+| when the read model is written | during `SaveAsync` | by the projection host, afterwards |
+| what a read costs with no token | nothing | nothing |
+| what a read costs with a token | n/a | waits until the projection catches up, bounded |
+| what a save costs | the projection I/O, on every save | nothing |
+| concurrent saves to one projection row | **both folded, last write won** | committed global order, positioned writes and checkpoint CAS |
+
+The old model advertised immediate consistency and had a silent hole underneath it: two saves whose
+events keyed to the same projection row each read that row, each folded their own events into it, and the
+last write won. **Both saves reported success, and the events the losing fold carried stayed durable in
+the event store and permanently absent from the read model.** Nothing downstream ever learned.
+
+Positioned conditional writes prevent that stale-state overwrite; competing readers reconcile their durable progress. The cost is that a read
+needing its own write may have to wait, bounded, and can report `BoundExpired`.
+
+#### Hosts that cannot run a background service
+
+An Azure Function or a Lambda has no long-running process to host a `BackgroundService`, so without a
+pull API its projections would never advance. `IProjectionProcessor` is that API — the projection
+counterpart of `IOutboxProcessor`, and the **same object** as the background host, so there is only one
+page protocol carrying poison handling, definition binding and the checkpoint compare-and-set.
+
+Register it with `AddProjectionProcessor()`, which supplies the processor and **no** background worker:
+
+```csharp
+builder.Services.AddExcalibur(x => x.AddEventSourcing(es =>
+{
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString));
+    es.AddProjection<OrderSummary>(p => p.Async().When<OrderPlaced>(/* ... */));
+
+    es.AddProjectionProcessor(options => options.SubscriptionScope = "orders/events/read-models");   // no BackgroundService is registered
+}));
+```
+
+`EnableProjectionProcessing()` registers the same processor **and** the background worker, so a
+long-running host needs only that one call.
+
+**Manual drives and the background worker can run together.** One finite page holds the fair local
+gate, which is released before idle polling. API and Jobs processes can independently process the same
+subscription when they use the same projection types, `ProjectionName`, `SubscriptionScope` and
+`SubscriptionRevision`. The scope identifies the logical source, filters/routing and destination; it must
+be nonempty. Revision defaults to `"1"` and must change when consumer fold semantics change.
+
+The first processor atomically binds that definition to the stable subscription name. A different
+definition is refused before effects. Use a new name and deliberately rebuild or cut over its destination
+for changed semantics. Do not give each cooperating instance a different name. Ambient outbox leadership
+does not gate projection processing. Every participating store must expose positioned writes through its
+decorator chain; missing capabilities and uncommitted/unpositioned pages are refused.
+
+This mirrors how the outbox is composed: its registration supplies `IOutboxProcessor`, and the background
+drain is a separate explicit opt-in.
+
+```csharp
+var processor = serviceProvider.GetRequiredService<IProjectionProcessor>();
+
+ProjectionProcessingResult result = await processor.ProcessPendingAsync(cancellationToken);
+
+if (result.Outcome == ProjectionProcessingOutcome.Halted)
+{
+    // An event could not be deserialized, or a projection's apply faulted. The position was NOT
+    // advanced past it, so the next invocation re-reads the same batch rather than skipping it.
+    logger.LogError("Projection processing halted after {Applied} events", result.EventsApplied);
+}
+```
+
+| `Outcome` | why it stopped | is it an error? |
+|---|---|---|
+| `CaughtUp` | the shared subscription reached the stream head captured at invocation entry | no |
+| `Halted` | a poison event, declined/faulted apply, unavailable prefix or failed checkpoint left work pending | investigate and retry |
+| `Cancelled` | the caller cancelled before completion | retry if the work is still wanted |
+
+The built-in pull processor reconciles contested checkpoint writes internally. It does not emit
+`NotLeader` or `BackgroundWorkerOwnsCursor`. `EventsApplied` counts processed stream events, including
+tombstones and contested pages; it is not a count of unique handler effects. Partially completed pages
+can have effects omitted from that count and are redelivered. A handler that catches cancellation cannot
+acknowledge the page once the caller's token is signalled. External effects must be idempotent.
+
+With only a pull processor, nothing advances between invocations. Add background processing when the
+host should continue polling independently of requests.
+
+#### Trade-offs by mode
 
 | Mode | Consistency | Trade-off |
 |------|------------|-----------|
-| **Inline** | Read-after-write | Adds latency to `SaveAsync` (projection I/O) |
-| **Async** | Eventually consistent | No latency impact on writes; background catch-up |
-| **Ephemeral** | On-demand rebuild | No persistence; rebuilt from full event stream |
-
-Choose inline when your application reads the projection immediately after writing (e.g., returning updated state in an API response). Choose async when projection latency is acceptable and write throughput is prioritized.
+| **`Async`** | eventual; read-your-writes on demand via the session token | the save pays nothing; a token-carrying read may wait |
+| **`Ephemeral`** | on-demand fold | no persistence; folded from the full event stream on each request |
 
 ### IProjectionBuilder&lt;T&gt; API Reference
 
 | Method | Description |
 |--------|-------------|
-| `.Inline()` | Run during `SaveAsync()` for immediate consistency |
-| `.Async()` | Run via background host (default if neither is called) |
+| `.Async()` | Store the projection and let the projection host apply it (the default) |
 | `.Ephemeral()` | Build on-demand, no persistence |
 | `.When<TEvent>(Action<TProjection, TEvent>)` | Register a synchronous event handler (Tier 1) |
 | `.WhenHandledBy<TEvent, THandler>()` | Register a DI-resolved async event handler (Tier 3) |
@@ -566,7 +786,7 @@ Use `WithSearchText` to compute a denormalized search field automatically whenev
 
 ```csharp
 builder.AddProjection<OrderSummary>(p => p
-    .Inline()
+    .Async()
     .WithSearchText(
         proj => $"{proj.CustomerName} {proj.OrderNumber} {proj.Status}",
         (proj, text) => proj.SearchText = text)
@@ -643,7 +863,7 @@ public record OrderSummaryRecord(
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddImmutableProjection<OrderSummaryRecord>(p => p
-        .Inline()
+        .Async()
         .WhenCreating<OrderPlaced>(e =>
             new OrderSummaryRecord(e.OrderId.ToString(), e.Amount, "Placed"))
         .WhenTransforming<OrderShipped>((proj, e) =>
@@ -699,7 +919,7 @@ public sealed class RegionSummaryOnOrderPlaced
 }
 
 builder.AddImmutableProjection<RegionSummaryRecord>(p => p
-    .Inline()
+    .Async()
     .WhenHandledBy<OrderPlaced, RegionSummaryOnOrderPlaced>());
 ```
 
@@ -734,7 +954,7 @@ Register with `WhenHandledBy`:
 
 ```csharp
 builder.AddImmutableProjection<CustomerRecord>(p => p
-    .Inline()
+    .Async()
     .WhenHandledBy<CustomerCreated, CustomerCreatedImmutableHandler>()
     .WhenTransforming<CustomerDeactivated>((proj, e) =>
         proj with { IsActive = false }));
@@ -744,7 +964,7 @@ Assembly scanning is also supported:
 
 ```csharp
 builder.AddImmutableProjection<CustomerRecord>(p => p
-    .Inline()
+    .Async()
     .AddImmutableProjectionHandlersFromAssembly(typeof(CustomerCreatedImmutableHandler).Assembly));
 ```
 
@@ -752,8 +972,7 @@ builder.AddImmutableProjection<CustomerRecord>(p => p
 
 | Method | Description |
 |--------|-------------|
-| `.Inline()` | Run during `SaveAsync()` |
-| `.Async()` | Run via background host (default) |
+| `.Async()` | Store the projection and let the projection host apply it (the default) |
 | `.WhenCreating<TEvent>(Func<TEvent, T>)` | Factory: event -> new projection |
 | `.WhenTransforming<TEvent>(Func<T, TEvent, T>)` | Reducer: (current, event) -> new projection |
 | `.WhenHandledBy<TEvent, THandler>()` | DI-resolved immutable handler |
@@ -797,6 +1016,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
     // Start the background host that processes async projections
     builder.EnableProjectionProcessing(opts =>
     {
+        opts.SubscriptionScope = "orders/events/read-models";
         opts.IdlePollingInterval = TimeSpan.FromSeconds(2);
         opts.BatchSize = 200;
     });
@@ -818,8 +1038,10 @@ would return immediately, and the application would report healthy while no proj
 |--------|---------|-------------|
 | `IdlePollingInterval` | 1 second | Delay between polls when no new events are found |
 | `BatchSize` | 500 | Maximum events read per batch |
-| `CheckpointInterval` | 100 | Events between checkpoint saves |
-| `ProjectionName` | `"AsyncProjectionProcessingHost"` | Unique name for checkpoint tracking (must differ per host instance) |
+| `CheckpointInterval` | 100 | Custom global-stream hosts only; the built-in async processor checkpoints every page |
+| `ProjectionName` | `"AsyncProjectionProcessingHost"` | Stable subscription name shared by cooperating instances |
+| `SubscriptionScope` | empty; required | Logical source, filters/routing and destination identity; identical across cooperating instances |
+| `SubscriptionRevision` | `"1"` | Consumer semantic revision; use a new subscription and deliberate rebuild when changing it |
 
 Async projections are processed by `AsyncProjectionProcessingHost` using checkpoint-based delivery. For CDC-based processing, see [CDC Pattern](../patterns/cdc.md).
 
@@ -830,13 +1052,12 @@ Async projections are processed by `AsyncProjectionProcessingHost` using checkpo
 A checkpoint is how far a projection has processed. Held in memory, it is lost on every restart and
 deployment, so the projection replays the stream from the beginning each time.
 
-:::warning Replaying an async projection is not idempotent
-Replay is not merely slower — it can corrupt the read model. An async projection is applied by loading
-the stored projection, applying the event to it, and writing it back, and the stored projection carries
-no record of the last position applied. So a handler that **assigns** (`p.Status = e.Status`) survives a
-replay, while one that **accumulates** (`p.Total++`, appending to a list) double-counts on every restart,
-without bound and without any error. Register a durable checkpoint store for any process that can
-restart, and make your handlers idempotent regardless.
+:::warning Checkpoints and external effects have different guarantees
+Positioned projection rows suppress already-folded stream events. Losing an in-memory checkpoint still
+forces a full stream scan and can repeat external handler effects. Use a durable checkpoint for a
+restartable or multi-process deployment and make external effects idempotent on the event identifier.
+The built-in processor checkpoints each finite page; a crash may redeliver the in-flight page, up to
+`BatchSize` events per attempt. Repeated failures can cause further attempts.
 :::
 
 :::danger Do not register a durable checkpoint store for `GlobalStreamProjectionHost<TState>`
@@ -909,7 +1130,7 @@ var auditTrail = await engine.BuildAsync<OrderAuditTrail>(
 ```
 
 Key characteristics:
-- Uses the **same `When<T>` handlers** as inline and async projections
+- Uses the **same `When<T>` handlers** as stored (`Async`) projections
 - Returns a **fresh instance** on every call (no shared mutable state)
 - **Never invoked** by the notification broker -- consumer-initiated only
 - Optional caching via `IDistributedCache` when configured with `.WithCacheTtl()`
@@ -1240,6 +1461,76 @@ Because projections are stored flat, an `ElasticRepositoryBase<OrderSummary>` ta
 
 ---
 
+### Who creates the store's table, index or container
+
+**Every shipped document projection store provisions its own backing object by default or needs no explicit provisioning.**
+SQL projection stores require you to run the supplied table script.
+What differs is *what* gets created and what happens when you turn that off, so this is stated per
+provider rather than left to be inferred. Each row is falsifiable: point the store at an empty database
+and the stated behaviour is what you can observe.
+
+| provider | what it creates | knob (default) | with the knob OFF and the object absent |
+|---|---|---|---|
+| SQL Server | the projection table, from `SqlServerProjectionSchema.CreateTableScript(name[, schema])` — also shipped as `Scripts/005_CreateProjectionSchema.sql` | run the script yourself | reads and writes fail with a missing-object error from the database |
+| PostgreSQL | the projection table, from `PostgresProjectionSchema.CreateTableScript(name)` — also shipped as `Scripts/005_CreateProjectionSchema.sql`. Takes no schema argument on purpose: the store addresses the table unqualified and resolves it through `search_path` | run the script yourself | as above |
+| Elasticsearch | the index, with a **declared** mapping built from your projection's public properties plus the reserved position field as `long`, honouring the configured shard count, replica count and refresh interval | `CreateIndexOnInitialize` (**true**) | initialization fails before any document write; an existing index must have compatible declared field mappings, including the reserved position field |
+| OpenSearch | the index, same shape as Elasticsearch | `CreateIndexOnInitialize` (**true**) | the engine may dynamically create an absent index on first write, or reject it when automatic index creation is disabled; provision its declared mapping before disabling initialization |
+| Cosmos DB | the container | `CreateContainerIfNotExists` (**true**) | reads and writes fail until you create the container with a partition key matching the store's keying |
+| MongoDB | its **indexes**; the collection itself is created by the engine on first write | `CreateIndexesOnInitialize` (**true**) | writes still succeed, but queries fall back to collection scans |
+| DynamoDB | the table | `AutoCreateTable` (**true**) | reads and writes fail with a resource-not-found error |
+| Firestore | nothing, and nothing is needed — the engine materialises collections and documents on write | — | not applicable |
+
+**Why the declared mapping matters on Elasticsearch and OpenSearch, and why the store refuses rather
+than carrying on.** The position field is one the projection type does not declare, so a mapping built
+from its properties cannot contain it. Under default dynamic mapping the engine would infer `long` and
+the write would work — but a consumer who sets `dynamic: strict` through the index convention would have
+every positioned write rejected for an undeclared field, with nothing in the store explaining why.
+Declaring it removes the dependence on a cluster setting the framework does not control. For the same
+reason, a failed index creation **raises** instead of being logged and skipped: a store that carried on
+would have the first write auto-create the index with an inferred mapping, silently discarding the
+declared mapping, the position field and the shard, replica and refresh settings while reporting healthy.
+
+**In production, prefer creating the object yourself.** Auto-provisioning is there so a first projection
+runs without a migration step; it is not a deployment strategy. The credentials a running application
+holds should not usually include DDL rights, and an index or table created on a cold start is created
+with whatever settings that process happened to be configured with.
+
+### Elasticsearch session reads and search visibility
+
+`IProjectionSessionReader` waits for the applied position and reads by identifier. Elasticsearch's
+GET-by-id is realtime; a successful GET does not imply the same write is searchable yet. A session
+token does not change Elasticsearch's search refresh behavior.
+
+For a projection processor, set `options.Index.EnsureSearchVisibilityOnProjectionCheckpoint = true`
+and leave `WaitForSearchVisibilityOnWrite` false. Writes use the normal fast indexing path, then the
+processor refreshes the index once per projection page before advancing its checkpoint. The barrier
+also covers events skipped as already folded by a cooperating writer. This avoids serially waiting
+for a refresh interval on every document. The option defaults to false; explicit page refreshes have
+their own indexing cost and should be enabled only when the stronger search guarantee is needed.
+
+For direct writes outside the processor, set `options.Index.WaitForSearchVisibilityOnWrite = true`
+when each successful write or delete must already be searchable before it returns. This separate
+option uses `refresh=wait_for`, adds refresh latency per write, and also defaults to false. Prefer bulk
+indexing for large direct-write workloads rather than serial waits. Automatic refresh must be enabled
+on the actual index for this option; configured `RefreshInterval = "-1"` is rejected. The checkpoint
+option uses an explicit page refresh and can work with automatic refresh disabled.
+
+**Configured destination identity.** Elasticsearch contributes its convention-resolved logical index
+name (`elasticsearch/` plus the bounded-context prefix and explicit or default index name) to the
+subscription definition. `SubscriptionScope` must still distinguish the event source and destination
+cluster; node URI topology is deliberately excluded. This detects configuration drift, not physical
+resource replacement. Repointing an alias or recreating an index under the same name requires deliberate
+subscription/revision and rebuild handling. Custom decorators must mediate the optional
+`IProjectionDestinationIdentity` capability; other providers rely on the consumer's scope and revision.
+
+Provisioned indexes are checked during store initialization against required declared field mappings.
+Unrelated additional fields are allowed. Incompatible keyword/text mappings, reserved position types,
+normalizers, disabled indexing or doc values, and incompatible nested fields are refused before serving.
+Initialization is a check at a point in time: deleting or changing an active index afterward is outside
+that guarantee. Disable automatic index creation in production if accidental index recreation must be
+prevented, and stop the processor before replacing its index. A per-write existence check would still
+race deletion and would not establish that stronger guarantee.
+
 ## What a Projection's Position Means
 
 A projection row carries the position of the last event folded into it. That number is not bookkeeping:
@@ -1319,59 +1610,147 @@ stream; then it can be advanced again.
 Every store that records positions is held to this by a conformance arm, so the three states behave the
 same on SQL Server, PostgreSQL, Cosmos DB, DynamoDB, MongoDB, Firestore, Elasticsearch and OpenSearch.
 
+### Rebuilding onto a store that records no positions
+
+**A rebuild or replay onto a projection store that does not implement
+`IPositionedProjectionStore<T>` is refused when the service is constructed**, rather than running and
+hoping. Every persistent store this framework ships implements it — SQL Server, PostgreSQL,
+Elasticsearch, OpenSearch, MongoDB, Cosmos DB, DynamoDB and Firestore — so in production the answer is
+to use one of those.
+
+What the refusal is protecting you from is a blind overwrite:
+
+```
+rebuild  replays to P, folds {count: 100}
+host     applies the event at P+1, commits  {count: 101}
+rebuild  writes {count: 100}        <- nothing refuses it
+```
+
+On a positioned store that last write is conditional, so the losing writer is detected and refused
+visibly. Without positions there is no coordinate to be conditional on. The event at `P+1` is committed
+and absent from the read model permanently, **and both operations report success** — nothing downstream
+ever learns.
+
+If no coordinate is available and you can guarantee exclusivity by other means — a consumer's own simple
+store, or a test — say so explicitly:
+
+```csharp
+services.AllowUnpositionedProjectionRebuild();
+```
+
+:::warning This acknowledges exclusivity, not safety
+
+It does not make the rebuild safe. It records that **you** have made it safe, by stopping the projection
+host and every other writer of those rows for the duration of the rebuild.
+
+"Every other writer" is more than the host. `ProjectionRebuildService`, `ProjectionRecoveryService`, a
+second `GlobalStreamProjectionHost` (which performs no leader election) and any code holding
+`IProjectionStore<T>` all write the same rows.
+
+:::
+
 ## Execution and Failure Handling
 
 ### Execution Order
 
-When `SaveAsync()` completes event persistence, the notification broker runs in two strict phases:
+There are two independent timelines, and keeping them apart is the whole model.
 
-1. **Phase 1 -- Inline projections:** All registered inline projections run concurrently via `Task.WhenAll` (different projection types in parallel, events applied sequentially within each type).
-2. **Phase 2 -- Notification handlers:** All `IEventNotificationHandler<T>` handlers run sequentially, only after ALL projections complete.
+**On the save path**, once the events are durable, the notification broker runs
+`IEventNotificationHandler<T>` handlers. **It does not write projections.** A read model is a replica,
+and replicas are updated by replication rather than by the writer dual-writing into them.
 
-Projections and handlers **never overlap**, so handlers can safely read updated projection state.
+**On the projection host**, `AsyncProjectionProcessingHost` polls the global stream and applies events
+in position order, advancing its checkpoint only after a batch applies cleanly.
+
+```
+save:   append events ──> durable ──> notification handlers ──> SaveAsync returns (with a token)
+host:   read global stream ──> apply in position order ──> conditional write ──> advance checkpoint
+```
+
+Because the host is not on the save path, a notification handler **cannot** assume the projection has
+been updated by the time it runs. If a handler needs to read a projection that this save contributed to,
+pass the save's token through `IProjectionSessionReader` like any other caller.
+
+The post-commit phase is bounded by `EventNotificationOptions.PostCommitTimeout` (30 seconds by
+default). **It deliberately does not honour the caller's cancellation token:** it runs after the events
+are durable, and at that point nothing can un-commit them — honouring cancellation would leave an
+abandoned request's work undone while telling the caller its durable save failed.
 
 ### Failure Handling
 
-Since events are already committed when inline projections run, failure handling is critical:
+The failure policy governs the post-commit **notification handlers**. A projection apply failure is
+handled by the host, not by this policy — see [Recovery](#recovery) below.
 
 ```csharp
 services.Configure<EventNotificationOptions>(options =>
 {
-    // Default: surface projection failures to the caller
+    // Default: surface a failing notification handler to the caller
     options.FailurePolicy = NotificationFailurePolicy.Propagate;
 
-    // Alternative: log and continue (async path catches up)
+    // Alternative: log at Error level and run the remaining handlers
     // options.FailurePolicy = NotificationFailurePolicy.LogAndContinue;
 
-    // Warn when inline processing exceeds this threshold
-    options.InlineProjectionWarningThreshold = TimeSpan.FromMilliseconds(100);
+    // Warn when applying one batch to one projection exceeds this threshold. A slow apply is the
+    // earliest signal that session-consistent reads are about to report BoundExpired.
+    // A per-projection WithOptions(o => o.WarningThreshold = ...) takes precedence over this.
+    options.ProjectionApplyWarningThreshold = TimeSpan.FromMilliseconds(100);
 });
 ```
 
+Set the apply threshold per projection — the form the global value exists only to back:
+
+```csharp
+builder.AddProjection<OrderSummary>(p => p
+    .Async()
+    .WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(200))
+    .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
+```
+
+| option | scope | default | range |
+|---|---|---|---|
+| `ProjectionOptions.WarningThreshold` (via `.WithOptions(...)`) | one projection | 100 ms | — |
+| `EventNotificationOptions.ProjectionApplyWarningThreshold` | projections that set none | 100 ms | 1 ms – 10 minutes |
+
+The global value is validated at start-up, so a figure outside that range fails the host rather than
+being clamped. Raising either only quiets the warning — the apply is no faster, and a
+session-consistent read still reaches its `Bound` at the same point.
+
 | Policy | Behavior |
 |--------|----------|
-| `Propagate` (default) | Failed projections throw `AggregateException`, whose `InnerExceptions` carry each projection failure. Events remain committed. **Do NOT retry `SaveAsync`**. |
-| `LogAndContinue` | Failures logged at Error level. Processing continues. Async path catches up. |
+| `Propagate` (default) | A failing notification handler throws `AggregateException`, whose `InnerExceptions` carry each failure. The events remain committed. **Do NOT retry `SaveAsync`** — that would append them a second time. |
+| `LogAndContinue` | Failures logged at Error level; the remaining handlers still run. |
+
+**A failure here never means the save failed.** By the time this phase runs the events are durable, so
+the remedy is to re-do the handler's work, never the save.
+
+When a projection's apply faults on the host, the host **does not advance its checkpoint past the
+failing batch** — it re-reads the same events on the next pass rather than skipping them. A pull caller
+sees this as `ProjectionProcessingOutcome.Halted`.
 
 ### Recovery
 
-Use `IProjectionRecovery` to recover failed inline projections without re-appending events:
+`IProjectionRecovery.ReapplyAsync<T>()` replays one aggregate's events onto a fresh projection state and
+writes the result, for repairing a single row without touching the event stream:
 
 ```csharp
-try
-{
-    await repository.SaveAsync(order, cancellationToken);
-}
-catch (AggregateException)
-{
-    // Events ARE committed -- recover the projection only
-    var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
-    await recovery.ReapplyAsync<OrderSummary>(
-        order.Id, nameof(OrderAggregate), cancellationToken);
-}
+var recovery = serviceProvider.GetRequiredService<IProjectionRecovery>();
+
+await recovery.ReapplyAsync<OrderSummary>(
+    order.Id.ToString(), nameof(OrderAggregate), cancellationToken);
 ```
 
-`IProjectionRecovery` is automatically registered when you call `UseEventNotification()` or `AddProjection<T>()`.
+`IProjectionRecovery` is registered by `UseEventNotification()` — which `AddProjection<T>()` calls for
+you — via `UseProjectionRecovery()`.
+
+**It refuses rather than guessing, in two cases, and both refusals are terminal:**
+
+| situation | why it refuses | the remedy |
+|---|---|---|
+| the projection uses `KeyedBy` | replaying one aggregate onto a fresh state would write that state under the derived key, overwriting every *other* aggregate's contribution to it | rebuild the whole projection |
+| the row's store records no positions | there is no coordinate a conditional write can advance from | rebuild the whole projection |
+
+Retrying a terminal refusal re-reads the same row and refuses identically, so treat it as a rebuild
+signal rather than something to loop on.
 
 ### Event Notification Handlers
 
@@ -1385,7 +1764,8 @@ public class OrderPlacedNotificationHandler : IEventNotificationHandler<OrderPla
         EventNotificationContext context,
         CancellationToken cancellationToken)
     {
-        // Runs after ALL inline projections complete (Phase 2)
+        // Runs on the save path, after the events are durable. The projection host runs
+        // independently, so do NOT assume a read model reflects this save yet.
         return Task.CompletedTask;
     }
 }
@@ -1435,7 +1815,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
         .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
 
     builder.AddProjection<OrderDetail>(p => p
-        .Inline()
+        .Async()
         .When<OrderPlaced>((proj, e) =>
         {
             proj.OrderId = e.OrderId;
@@ -1455,7 +1835,7 @@ The preferred approach for cross-aggregate projections is [`KeyedBy`](#multi-str
 
 ```csharp
 builder.AddProjection<CustomerOrderHistory>(p => p
-    .Inline()
+    .Async()
     .KeyedBy<OrderCreated>(e => e.CustomerId)
     .KeyedBy<OrderShipped>(e => e.CustomerId)
     .When<OrderCreated>((proj, e) =>
@@ -1666,7 +2046,7 @@ The `ProjectionHealthCheck` is available as an opt-in extension. Call `WithProje
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     builder.AddProjection<OrderSummary>(p => p
-        .Inline()
+        .Async()
         .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
 
     builder.WithProjectionHealthChecks();
@@ -1675,30 +2055,57 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 | Status | Condition |
 |--------|-----------|
-| **Healthy** | No inline errors in the configured window AND async lag below degraded threshold |
-| **Degraded** | Inline projection error within the last 5 minutes (configurable), or async lag > 100 events |
-| **Unhealthy** | Async projection lag > 1000 events |
+| **Healthy** | No projection apply error in the configured window AND lag below the degraded threshold |
+| **Degraded** | A projection apply error within the last 5 minutes (configurable), or lag > 100 events |
+| **Unhealthy** | Projection lag > 1000 events |
+
+Lag is the gap between a projection's checkpoint and the head of the global stream. A host that is
+degraded or unhealthy on lag is the same condition a session-consistent read reports as
+`BoundExpired`, seen from the other side — so wire this check if you rely on the session token.
 
 ---
 
 ## Gotchas
 
-### Inline projection failures do NOT roll back events
+### `.Async()` on its own registers a projection that nothing applies
 
-When an inline projection fails during `SaveAsync()`, events are **already committed**. Never retry `SaveAsync()` -- use `IProjectionRecovery.ReapplyAsync<T>()` instead.
+This is the one that costs the most, because it fails silently and the failure looks like an empty
+database.
 
 ```csharp
-// WRONG: This duplicates events!
-try { await repository.SaveAsync(order, ct); }
-catch (AggregateException) { await repository.SaveAsync(order, ct); }
+// WRONG: registered, stored, and never written. Start-up succeeds. Every read is empty.
+builder.AddProjection<OrderSummary>(p => p
+    .Async()
+    .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
 
-// CORRECT: Recover the projection only
-try { await repository.SaveAsync(order, ct); }
-catch (AggregateException)
+// CORRECT: something has to apply it.
+builder.AddProjection<OrderSummary>(p => p
+    .Async()
+    .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
+
+builder.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models");
+```
+
+A missing *store* registration fails start-up and names the projection. A missing
+`EnableProjectionProcessing()` does not — nothing is misconfigured, you simply never asked for the host.
+If your read models are empty and nothing has thrown, check this first.
+
+### A read taken right after `SaveAsync` may not see that save
+
+`SaveAsync` does not write projections. A query issued immediately afterwards is racing the projection
+host.
+
+```csharp
+// WRONG: may return the state from before this save, or null on a first write
+await repository.SaveAsync(order, ct);
+var summary = await store.GetByIdAsync(order.Id.ToString(), ct);
+
+// CORRECT: carry the token, and read what the reader could establish
+var save = await repository.SaveAsync(order, ct);
+var read = await sessionReader.ReadAsync<OrderSummary>(order.Id.ToString(), save, ct);
+if (read.Freshness == ProjectionFreshness.BoundExpired)
 {
-    var recovery = sp.GetRequiredService<IProjectionRecovery>();
-    await recovery.ReapplyAsync<OrderSummary>(
-        order.Id, nameof(OrderAggregate), ct);
+    // The projection had not caught up within the bound. The save succeeded regardless.
 }
 ```
 
@@ -1719,7 +2126,7 @@ catch (ConcurrencyException)
 
 ### Projection handlers must be idempotent
 
-Both inline and async projections may replay events during recovery or rebuild:
+Projections may replay events during recovery, rebuild, or a restart with no durable checkpoint:
 
 ```csharp
 // Wrong: replays double-count
@@ -1736,10 +2143,13 @@ if (existing?.LastProcessedVersion >= context.CommittedVersion) return;
 
 | Practice | Recommendation |
 |----------|----------------|
-| **Start simple** | Use inline lambdas. Add `KeyedBy` for multi-stream. Graduate to DI handlers only when needed |
+| **Start simple** | Use `When<T>` lambdas. Add `KeyedBy` for multi-stream. Graduate to DI handlers only when needed |
+| **Register the host** | `EnableProjectionProcessing()` once, beside your projections. Without it nothing applies them and nothing says so |
 | **Idempotency** | Make all projection handlers safe to replay |
 | **Denormalization** | Don't be afraid to duplicate data for query optimization |
-| **Mode selection** | Inline for immediate consistency, async for eventual, ephemeral for ad-hoc |
+| **Mode selection** | `Async` for anything stored, `Ephemeral` for ad-hoc. Consistency is a read-time choice, not a mode |
+| **Reading your own write** | Carry `SaveResult` into `IProjectionSessionReader.ReadAsync`, and handle `BoundExpired` |
+| **Positioned stores** | Use a store implementing `IPositionedProjectionStore<T>` in production — every persistent store we ship does |
 | **Failure recovery** | Use `IProjectionRecovery.ReapplyAsync<T>(aggregateId, aggregateType, ct)`, never retry `SaveAsync` |
 | **Monitoring** | Use projection observability metrics and health checks |
 | **Indexing** | Index read model tables for your query patterns |

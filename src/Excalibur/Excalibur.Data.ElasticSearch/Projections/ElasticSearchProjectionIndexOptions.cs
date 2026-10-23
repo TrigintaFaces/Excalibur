@@ -49,9 +49,26 @@ public sealed class ElasticSearchProjectionIndexOptions
 	public int NumberOfReplicas { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to create the index on initialization.
+	/// Gets or sets a value indicating whether the store creates its index on initialization.
 	/// </summary>
 	/// <value>Defaults to <see langword="true"/>.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>What it creates, so the alternative is a real choice.</b> The index is created with a DECLARED
+	/// mapping — your projection's public properties, plus the reserved position field as a
+	/// <c>long</c> — honouring the configured shard count, replica count and refresh interval. If
+	/// creation fails the store RAISES rather than carrying on, because a store that continued would have
+	/// the first write auto-create the index with a dynamically inferred mapping, discarding all of those
+	/// settings while reporting healthy.
+	/// </para>
+	/// <para>
+	/// <b>Set it to <see langword="false"/> only when you provision the index yourself.</b> With it off
+	/// and the index absent, initialization refuses before issuing a document write. Existing index mappings
+	/// are checked against the declared mapping. The
+	/// position field is the one a dynamic mapping is most likely to get wrong, because the projection
+	/// type does not declare it.
+	/// </para>
+	/// </remarks>
 	public bool CreateIndexOnInitialize { get; set; } = true;
 
 	/// <summary>
@@ -62,6 +79,25 @@ public sealed class ElasticSearchProjectionIndexOptions
 	/// </remarks>
 	/// <value>Defaults to "1s".</value>
 	public string RefreshInterval { get; set; } = "1s";
+
+	/// <summary>Gets or sets whether writes wait until their changes are searchable.</summary>
+	/// <remarks>
+	/// Defaults to false. GET-by-id is realtime regardless of this setting. When enabled, each write
+	/// uses refresh=wait_for; automatic refresh must be enabled on the actual index. Prefer bulk writes
+	/// for high throughput rather than sequential writes that each wait for a refresh.
+	/// </remarks>
+	public bool WaitForSearchVisibilityOnWrite { get; set; }
+
+	/// <summary>Gets or sets whether a projection page becomes searchable before its checkpoint advances.</summary>
+	/// <remarks>
+	/// Defaults to false. The processor refreshes this index once after the page's folds, including
+	/// folds skipped because another writer already applied them. Individual writes retain their normal
+	/// refresh policy, avoiding one wait_for refresh interval per document. Use this option for
+	/// request-driven or background projection pages; use WaitForSearchVisibilityOnWrite for direct writes
+	/// that must become searchable before the individual write returns.
+	/// </remarks>
+	public bool EnsureSearchVisibilityOnProjectionCheckpoint { get; set; }
+
 
 	/// <summary>
 	/// Gets or sets the index mapping convention for customizing how CLR types

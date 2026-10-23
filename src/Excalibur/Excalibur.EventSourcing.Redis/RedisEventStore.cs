@@ -249,7 +249,7 @@ public sealed partial class RedisEventStore : IEventStore
 		{
 			// Redis tracks only a per-stream version counter, not a store-wide global sequence, so there
 			// is no meaningful global first-event position to report; global ordering is unsupported here.
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		var db = GetDatabase();
@@ -348,8 +348,8 @@ public sealed partial class RedisEventStore : IEventStore
 			LogEventsAppended(aggregateId, aggregateType, eventList.Count, committedVersion);
 			// Per-stream version counter only — no store-wide global sequence, so no global first-event position.
 			return recognisedRetry
-				? AppendResult.CreateAlreadyCommitted(committedVersion, firstEventPosition: null)
-				: AppendResult.CreateSuccess(committedVersion, firstEventPosition: null);
+				? AppendResult.CreateAlreadyCommitted(committedVersion, firstEventPosition: null, lastEventPosition: null)
+				: AppendResult.CreateSuccess(committedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
 		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is

@@ -10,12 +10,23 @@ using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Snapshots;
 using Excalibur.EventSourcing.Subscriptions;
 
-using Microsoft.Extensions.DependencyInjection;
+using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Erasure;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
-namespace Excalibur.EventSourcing.DependencyInjection;
+// THE NAMESPACE IS THE FIX, and it is not cosmetic. EnableProjectionProcessing became MANDATORY when
+// inline projections were removed: a projection registered .Async() is applied by nothing unless the
+// host is enabled. This class was the ONE builder-extension class outside
+// Microsoft.Extensions.DependencyInjection -- its seven siblings (AddProjection, the caching, sharding,
+// auto-snapshot and immutable-projection extensions) are all there -- so a consumer who had the one
+// `using` every DI file already carries could see AddProjection and NOT the call that makes it run.
+// The failure was silent: the projection registers, the application starts, and nothing ever applies an
+// event. Matching the siblings is also this repo's stated DI convention.
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for <see cref="IEventSourcingBuilder"/>.
@@ -213,7 +224,7 @@ public static class EventSourcingBuilderExtensions
 	/// Registers event store erasure support for GDPR compliance.
 	/// </summary>
 	/// <typeparam name="TMapping">
-	/// The <see cref="Erasure.IAggregateDataSubjectMapping"/> implementation that maps
+	/// The <see cref="IAggregateDataSubjectMapping"/> implementation that maps
 	/// data subjects to their aggregates.
 	/// </typeparam>
 	/// <param name="builder"> The builder. </param>
@@ -221,11 +232,11 @@ public static class EventSourcingBuilderExtensions
 	public static IEventSourcingBuilder UseEventStoreErasure<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TMapping>(this IEventSourcingBuilder builder)
-		where TMapping : class, Erasure.IAggregateDataSubjectMapping
+		where TMapping : class, IAggregateDataSubjectMapping
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		builder.Services.TryAddSingleton<Erasure.IAggregateDataSubjectMapping, TMapping>();
+		builder.Services.TryAddSingleton<IAggregateDataSubjectMapping, TMapping>();
 
 		// Declare that event-store erasure honors the ambient tenant: the erasure contributor scopes the
 		// tombstone to the data subject's tenant (BeginScope) and the erase/is-erased requests fail closed
@@ -245,7 +256,7 @@ public static class EventSourcingBuilderExtensions
 		// method are already idempotent; this makes the contributors match them. The generic
 		// implementation-type argument is what lets TryAddEnumerable de-duplicate a factory registration.
 		builder.Services.TryAddEnumerable(ServiceDescriptor
-			.Singleton<global::Excalibur.Compliance.IErasureContributor, Erasure.EventStoreErasureContributor>(sp =>
+			.Singleton<global::Excalibur.Compliance.IErasureContributor, EventStoreErasureContributor>(sp =>
 		{
 			var eventStore = sp.GetRequiredKeyedService<IEventStore>("default");
 			// Ask the store, do not test its type: the resolved store is the decorated one, and a decorator
@@ -255,10 +266,10 @@ public static class EventSourcingBuilderExtensions
 							  $"The registered IEventStore ({eventStore.GetType().Name}) does not implement IEventStoreErasure. " +
 							  $"GDPR event store erasure requires an event store that supports the IEventStoreErasure interface.");
 
-			return new Erasure.EventStoreErasureContributor(
+			return new EventStoreErasureContributor(
 				erasure,
-				sp.GetRequiredService<Erasure.IAggregateDataSubjectMapping>(),
-				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Erasure.EventStoreErasureContributor>>(),
+				sp.GetRequiredService<IAggregateDataSubjectMapping>(),
+				sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<EventStoreErasureContributor>>(),
 				sp.GetKeyedService<ISnapshotStore>("default"),
 				// Lets the contributor reach the read models: it enumerates the projection registry and
 				// invokes each registration's pre-bound clear delegate after the tombstone. Passed as the
@@ -280,8 +291,8 @@ public static class EventSourcingBuilderExtensions
 		// consumer's diligence; it stands down when no projections are registered, and when a consumer
 		// registers their own contributor covering projections.
 		builder.Services.TryAddEnumerable(ServiceDescriptor
-			.Singleton<global::Excalibur.Compliance.IErasureContributor, Erasure.ProjectionErasureGapContributor>(
-				sp => new Erasure.ProjectionErasureGapContributor(sp)));
+			.Singleton<global::Excalibur.Compliance.IErasureContributor, ProjectionErasureGapContributor>(
+				sp => new ProjectionErasureGapContributor(sp)));
 
 		// Fail-closed startup gate: GDPR event-store erasure composed with tenant-sharding is not yet
 		// supported — the tenant-routing store does not route erasure to per-tenant shards, so an erase would
@@ -311,21 +322,32 @@ public static class EventSourcingBuilderExtensions
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <param name="configure">
-	/// Optional action to configure <see cref="GlobalStreamProjectionOptions"/> (polling interval, batch size, checkpoint interval).
-	/// When omitted, defaults apply: 1 second idle polling, 500 batch size, 100 checkpoint interval.
+	/// Configures subscription identity, polling and page size. SubscriptionScope must be supplied here
+	/// or through options configuration. SubscriptionRevision defaults to "1". The built-in processor
+	/// checkpoints every page; CheckpointInterval applies only to custom global-stream hosts.
 	/// </param>
 	/// <returns>The builder for fluent configuration.</returns>
 	/// <remarks>
 	/// <para>
+	/// <b>THIS CALL IS REQUIRED, and omitting it fails silently.</b> A projection registered with
+	/// <c>.Async()</c> is applied by nothing unless a projection processor runs, so without this (or a
+	/// manual <see cref="IProjectionProcessor"/> drive, which this also registers) the
+	/// projection exists, the application starts clean, and no event is ever folded into it. There is no
+	/// error to notice. Nothing else in the registration hints that it is outstanding — which is why this
+	/// extension lives in the same namespace as <c>AddProjection</c> rather than one a consumer has to
+	/// discover.
+	/// </para>
+	/// <para>
 	/// This is the projection-side equivalent of CDC's <c>EnableBackgroundProcessing()</c>.
 	/// It registers a hosted service that polls the global event stream via
-	/// <see cref="Queries.IGlobalStreamQuery"/> and dispatches events to all projections
+	/// <see cref="IGlobalStreamQuery"/> and dispatches events to all projections
 	/// registered with <c>.Async()</c> mode.
 	/// </para>
 	/// <para>
-	/// Requires an <see cref="Queries.IGlobalStreamQuery"/> implementation to be registered
-	/// by the event store provider (e.g., <c>UseSqlServer()</c>). If none is registered,
-	/// the host logs a warning and exits gracefully.
+	/// Requires an <see cref="IGlobalStreamQuery"/> implementation to be registered
+	/// by the event store provider (e.g., <c>UseSqlServer()</c>), a positioned projection store, and an
+	/// explicit checkpoint durability choice. Background startup refuses invalid composition or a different
+	/// definition already bound to the subscription. Ambient leader election does not gate this worker.
 	/// </para>
 	/// </remarks>
 	/// <example>
@@ -341,6 +363,8 @@ public static class EventSourcingBuilderExtensions
 	///     // Start the background host that processes async projections
 	///     es.EnableProjectionProcessing(opts =>
 	///     {
+	///         opts.SubscriptionScope = "orders/sql-events/order-summaries";
+	///         opts.SubscriptionRevision = "1";
 	///         opts.IdlePollingInterval = TimeSpan.FromSeconds(2);
 	///         opts.BatchSize = 200;
 	///     });
@@ -349,6 +373,79 @@ public static class EventSourcingBuilderExtensions
 	/// </example>
 	
 	public static IEventSourcingBuilder EnableProjectionProcessing(
+		this IEventSourcingBuilder builder,
+		Action<GlobalStreamProjectionOptions>? configure = null)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+
+		_ = builder.AddProjectionProcessor(configure);
+
+		// THE ONLY THING THIS ADDS over AddProjectionProcessor: the background worker that drives the
+		// processor on a timer. Registered by interface against the same singleton the processor
+		// resolves, so a consumer who calls both still gets ONE cursor over the subscription.
+		// By implementation type, which TryAddEnumerable requires -- it de-duplicates on that type, and
+		// refuses a bare factory as indistinguishable from any other IHostedService. Safe here: walking
+		// this descriptor resolves AsyncProjectionProcessingHost, which IS a factory, so the walk stops
+		// there and never reaches the registry dependency.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, AsyncProjectionProcessingHostedService>());
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Registers projection processing WITHOUT a background service, for a host that drives it itself.
+	/// </summary>
+	/// <param name="builder">The event sourcing builder.</param>
+	/// <param name="configure">
+	/// Configures the stable subscription identity and page size. SubscriptionScope is required;
+	/// SubscriptionRevision defaults to "1". IdlePollingInterval is used only by a background worker.
+	/// </param>
+	/// <returns>The builder for fluent configuration.</returns>
+	/// <remarks>
+	/// <para>
+	/// Resolve <see cref="IProjectionProcessor"/> and call
+	/// <see cref="IProjectionProcessor.ProcessPendingAsync"/> when you want projections advanced. It
+	/// processes through the stream head captured at invocation entry and returns. A halt or cancellation
+	/// returns its own outcome; callers must inspect it before claiming a read model is current.
+	/// </para>
+	/// <para>
+	/// <b>Two cases need this rather than <see cref="EnableProjectionProcessing"/>.</b> A host that
+	/// cannot run a background service at all — a Function, a Lambda — drives it from its trigger. And
+	/// a host that wants its read models current by the time a request returns drives it immediately
+	/// after saving, which costs one read of the stream and makes the projection visible to the next
+	/// read with no session token and no waiting.
+	/// </para>
+	/// <para>
+	/// Manual processing and background polling may run together. They share a FIFO gate for one finite
+	/// page, released before idle polling. Across processes, positioned projection writes and a checkpoint
+	/// compare-and-set reconcile competing readers. All participants sharing a subscription name must use
+	/// identical projection types, SubscriptionScope and SubscriptionRevision. A different definition is
+	/// refused before effects; external effects remain at-least-once and must be idempotent.
+	/// </para>
+	/// <para>
+	/// This mirrors how the outbox is composed: its registration supplies the manually-driven processor,
+	/// and the background drain is a separate explicit opt-in.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddExcalibur(x => x.AddEventSourcing(es =>
+	/// {
+	///     es.UseSqlServer(sql => sql.ConnectionString(connStr));
+	///     es.AddProjection&lt;OrderSummary&gt;(p => p
+	///         .Async()
+	///         .When&lt;OrderCreated&gt;((proj, e) => { proj.Total++; }));
+	///
+	///     es.AddProjectionProcessor(opts => opts.SubscriptionScope = "orders/sql-events/order-summaries");
+	/// }));
+	///
+	/// // then, where the work happens:
+	/// await repository.SaveAsync(order, ct);
+	/// var result = await processor.ProcessPendingAsync(ct); // inspect Outcome before claiming freshness
+	/// </code>
+	/// </example>
+	public static IEventSourcingBuilder AddProjectionProcessor(
 		this IEventSourcingBuilder builder,
 		Action<GlobalStreamProjectionOptions>? configure = null)
 	{
@@ -376,11 +473,46 @@ public static class EventSourcingBuilderExtensions
 		builder.Services.TryAddSingleton<IProjectionLagReadModel>(static sp =>
 			new ProjectionLagReadModel(
 				sp.GetRequiredService<ISubscriptionCheckpointStore>(),
-				sp.GetService<IGlobalStreamQuery>()));
+				sp.GetService<IGlobalStreamQuery>(),
+				// The subscription this host checkpoints under. Without it the read model can only
+				// enumerate subscriptions that have already recorded progress, so a configured
+				// projection that has never run is invisible rather than behind.
+				sp.GetRequiredService<IOptions<GlobalStreamProjectionOptions>>().Value.ProjectionName));
 
-		// Register the background service
-		builder.Services.TryAddEnumerable(
-			ServiceDescriptor.Singleton<IHostedService, AsyncProjectionProcessingHost>());
+		// ONE INSTANCE, TWO ENTRY POINTS. The concrete host is registered as a singleton and BOTH the
+		// hosted service and the pull API resolve that same object, so a consumer registering both cannot
+		// end up with two independent cursors over one subscription. Registering the hosted service
+		// directly by type would construct a SECOND instance, which is the defect this shape prevents.
+		// Registered by FACTORY, not by implementation type, and that is load-bearing rather than
+		// stylistic -- the same reason the outbox registers its processor this way. The host needs an
+		// IProjectionRegistry, which arrives with UseEventNotification() and therefore only when at
+		// least one projection is registered. An implementation-type descriptor is walked by
+		// BuildServiceProvider(validateOnBuild: true), so a host that enabled processing and registered
+		// no projection failed THERE, with a raw "Unable to resolve service for type
+		// 'IProjectionRegistry'" that names the type but not the call that supplies it -- and it failed
+		// before ProjectionProcessingPrerequisiteValidator, which exists to own exactly that message,
+		// could speak. A factory descriptor is opaque to that walk, so the fail-fast keeps the
+		// explanation. Resolution order is unchanged.
+		builder.Services.TryAddSingleton(static sp =>
+		{
+			// A separate projection process may never resolve a repository or the notification broker.
+			// Populate its registry before publishing the processor, rather than relying on a save in
+			// this process to initialize the registered projections as a side effect.
+			foreach (var configuration in sp.GetServices<EventNotificationServiceCollectionExtensions.IConfigureProjection>())
+			{
+#pragma warning disable IL2026, IL3050 // Configuration builds registered apply delegates; processing already requires projection serialization metadata.
+				configuration.Configure();
+#pragma warning restore IL2026, IL3050
+			}
+
+			return ActivatorUtilities.CreateInstance<AsyncProjectionProcessingHost>(sp);
+		});
+
+		// The pull API for hosts that cannot run a background service -- serverless, above all. Always
+		// registered: it costs nothing until called, and a Function app that discovered at deploy time
+		// that its projections never advance is the outcome this exists to prevent.
+		builder.Services.TryAddSingleton<IProjectionProcessor>(
+			sp => sp.GetRequiredService<AsyncProjectionProcessingHost>());
 
 		// A processing host with no stream to poll returns immediately, so the application would start,
 		// report healthy, and process nothing forever. Turn that silence into a startup failure — the same

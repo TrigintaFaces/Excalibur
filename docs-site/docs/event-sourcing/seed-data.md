@@ -24,10 +24,11 @@ Event-sourced systems need a way to initialize reference data — configuration 
 |----------|-----------|-------------------|------------|--------------|
 | SQL INSERT scripts | No | No (bypasses event store) | Manual | Fragile |
 | EF migrations | No | No | Requires tracking | Fragile |
-| **Event-sourced seed (this pattern)** | Yes | Yes (inline + async) | Built-in | Yes |
+| **Event-sourced seed (this pattern)** | Yes | Yes (via the projection host) | Built-in | Yes |
 
 Seeding through the event store means:
-- Projections automatically reflect seed data (inline and async)
+- Projections reflect seed data once the projection host applies the seed events — which means the host
+  must be running, or driven, for a seeded read model to appear
 - Full audit trail of when and how data was initialized
 - Concurrency checks prevent duplicate seeding naturally
 - Upcasters and versioning apply to seed events like any other
@@ -242,4 +243,4 @@ public sealed class DevelopmentSeedService : IHostedService
 
 - [Aggregates](./aggregates.md) — Define the domain objects being seeded
 - [Repositories](./repositories.md) — Load and save event-sourced aggregates
-- [Projections](./projections.md) — Seed data automatically updates inline projections
+- [Projections](./projections.md) — How seed events reach your read models

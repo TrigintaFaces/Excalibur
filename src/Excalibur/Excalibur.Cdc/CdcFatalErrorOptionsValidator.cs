@@ -32,6 +32,15 @@ internal sealed class CdcFatalErrorOptionsValidator<TEvent> : IValidateOptions<C
 				$"{nameof(CdcFatalErrorOptions<>.MaxReconnectDelay)} must be greater than zero (was {options.MaxReconnectDelay}).");
 		}
 
+		if (options.AttemptStabilityThreshold <= TimeSpan.Zero)
+		{
+			failures.Add(
+				$"{nameof(CdcFatalErrorOptions<>.AttemptStabilityThreshold)} must be greater than zero (was "
+				+ $"{options.AttemptStabilityThreshold}); it is how long an attempt must stay up to count as "
+				+ "stable, and a non-positive value would make every failure start a new run, so the "
+				+ "consecutive-failure limit could never be reached.");
+		}
+
 		return failures.Count > 0 ? ValidateOptionsResult.Fail(failures) : ValidateOptionsResult.Success;
 	}
 }

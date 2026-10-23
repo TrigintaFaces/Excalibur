@@ -1227,8 +1227,10 @@ each reader applies a whole batch *before* either contests the checkpoint, so th
 though the mark is not. The checkpoint guards the mark, not the work. That is the reason the gate exists,
 and it is the part a hand-rolled loop usually gets wrong.
 
-Use `.Inline()` instead when a projection must be updated in the same transaction as the append; inline
-projections are not leader-gated, because there is only ever one writer of a given append.
+There is no non-leader-gated alternative: a stored projection is only ever written by the host, so
+leader election is how you stop two instances applying the same subscription. A caller that needs to
+observe its own write does that at the read instead — see
+[Reading Your Own Writes](../event-sourcing/projections.md#reading-your-own-writes-session-consistency).
 
 ## Health-Based Elections
 

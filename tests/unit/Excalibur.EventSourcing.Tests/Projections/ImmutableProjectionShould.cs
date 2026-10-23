@@ -28,7 +28,7 @@ public sealed class ImmutableProjectionShould
 
 		var registry = new InMemoryProjectionRegistry();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.WhenCreating<TestOrderPlaced>(e => new OrderRecord(e.Amount, null));
 		builder.Build(registry);
 
@@ -40,7 +40,7 @@ public sealed class ImmutableProjectionShould
 		var context = new EventNotificationContext("order-1", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var result = store.Get("order-1");
@@ -61,7 +61,7 @@ public sealed class ImmutableProjectionShould
 
 		var registry = new InMemoryProjectionRegistry();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.WhenCreating<TestOrderPlaced>(e => new OrderRecord(e.Amount, null));
 		builder.Build(registry);
 
@@ -73,7 +73,7 @@ public sealed class ImmutableProjectionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- replaced, not merged
 		var result = store.Get("order-1");
@@ -96,7 +96,7 @@ public sealed class ImmutableProjectionShould
 
 		var registry = new InMemoryProjectionRegistry();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.WhenTransforming<TestOrderShipped>((current, e) =>
 			current with { ShippedAt = e.ShippedAt });
 		builder.Build(registry);
@@ -110,7 +110,7 @@ public sealed class ImmutableProjectionShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- new instance with ShippedAt set, Total preserved
 		var result = store.Get("order-1");
@@ -130,7 +130,7 @@ public sealed class ImmutableProjectionShould
 
 		var registry = new InMemoryProjectionRegistry();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.WhenTransforming<TestOrderShipped>((current, e) =>
 			current with { ShippedAt = e.ShippedAt });
 		builder.Build(registry);
@@ -144,7 +144,7 @@ public sealed class ImmutableProjectionShould
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(
-			() => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
+			() => registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
 		ex.Message.ShouldContain("Cannot transform");
 		ex.Message.ShouldContain("OrderRecord");
 	}
@@ -161,7 +161,7 @@ public sealed class ImmutableProjectionShould
 
 		var registry = new InMemoryProjectionRegistry();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.WhenCreating<TestOrderPlaced>(e => new OrderRecord(e.Amount, null));
 		builder.WhenTransforming<TestOrderShipped>((current, e) =>
 			current with { ShippedAt = e.ShippedAt });
@@ -176,7 +176,7 @@ public sealed class ImmutableProjectionShould
 		};
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		var result = store.Get("order-1");
 		result.ShouldNotBeNull();
@@ -196,7 +196,7 @@ public sealed class ImmutableProjectionShould
 
 		var registry = new InMemoryProjectionRegistry();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.WhenCreating<TestOrderPlaced>(e => new OrderRecord(e.Amount, null));
 		builder.Build(registry);
 
@@ -208,7 +208,7 @@ public sealed class ImmutableProjectionShould
 		};
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		var result = store.Get("order-1");
 		result.ShouldNotBeNull();
@@ -246,7 +246,7 @@ public sealed class ImmutableProjectionShould
 	public void ThrowOnBuildWithNullRegistry()
 	{
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		Should.Throw<ArgumentNullException>(() => builder.Build(null!));
 	}
 
@@ -257,7 +257,7 @@ public sealed class ImmutableProjectionShould
 	{
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
 		var result = builder
-			.Inline()
+			.Async()
 			.WhenCreating<TestOrderPlaced>(e => new OrderRecord(e.Amount, null))
 			.WhenTransforming<TestOrderShipped>((c, e) => c with { ShippedAt = e.ShippedAt })
 			.WithCacheTtl(TimeSpan.FromMinutes(5));
@@ -271,7 +271,7 @@ public sealed class ImmutableProjectionShould
 	{
 		var services = new ServiceCollection();
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(services);
-		builder.Inline();
+		builder.Async();
 		builder.AddImmutableProjectionHandlersFromAssembly(typeof(TestImmutableHandler).Assembly);
 		builder.Build(new InMemoryProjectionRegistry());
 
@@ -285,7 +285,7 @@ public sealed class ImmutableProjectionShould
 	public void NoOpWhenAssemblyHasNoImmutableHandlers()
 	{
 		var builder = new ImmutableProjectionBuilder<OrderRecord>(new ServiceCollection());
-		builder.Inline();
+		builder.Async();
 		builder.AddImmutableProjectionHandlersFromAssembly(typeof(object).Assembly);
 		var registry = new InMemoryProjectionRegistry();
 		builder.Build(registry);

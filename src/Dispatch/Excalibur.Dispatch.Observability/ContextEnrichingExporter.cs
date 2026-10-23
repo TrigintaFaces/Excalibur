@@ -31,7 +31,16 @@ internal sealed partial class ContextEnrichingExporter(IServiceProvider serviceP
 	[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Bucket D: enrichment serializes context values reflectively, but BaseExporter<T>.Export is a third-party base member that cannot carry the annotation, so no consumer signal is reachable from here. Tracked for a source-generated context-serialization seam.")]
 	public override ExportResult Export(in Batch<Activity> batch)
 	{
-		EnrichActivities(serviceProvider, batch);
+		try
+		{
+			EnrichActivities(serviceProvider, batch);
+		}
+		catch (ObjectDisposedException)
+		{
+			// A queued batch may flush after the host's root provider has been disposed.
+			// Optional enrichment must not crash the export worker during graceful shutdown.
+			// Do not resolve or use a logger from that provider in this path.
+		}
 		return ExportResult.Success;
 	}
 

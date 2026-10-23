@@ -169,7 +169,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		_options.Mode = EncryptionMode.Disabled;
 		var sut = CreateSut();
 		var events = new List<Dispatch.IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -187,7 +187,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		_options.Mode = EncryptionMode.DecryptOnlyWritePlaintext;
 		var sut = CreateSut();
 		var events = new List<Dispatch.IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -203,7 +203,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		_options.Mode = EncryptionMode.EncryptAndDecrypt;
 		var sut = CreateSut();
 		var events = new List<Dispatch.IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
 			.Returns(expectedResult);
@@ -219,7 +219,7 @@ public sealed class EncryptingEventStoreDecoratorShould
 		_options.Mode = EncryptionMode.EncryptNewDecryptAll;
 		var sut = CreateSut();
 		var events = new List<Dispatch.IDomainEvent>();
-		var expectedResult = AppendResult.CreateSuccess(1, 0);
+		var expectedResult = AppendResult.CreateSuccess(1, 0, 0);
 
 		_ = A.CallTo(() => _innerStore.AppendAsync("agg-1", "TestAggregate", events, 0L, A<CancellationToken>._))
 			.Returns(expectedResult);

@@ -47,24 +47,13 @@ public sealed class SqlServerProjectionStoreShould : IClassFixture<SqlServerFixt
 		// matches on the tenant as well as the id so a tenant-A write can never overwrite a tenant-B row
 		// with the same Id. A table keyed on Id alone would make two tenants sharing an id collide here
 		// while they do not collide in production -- the direction of drift that stays green and hides.
-		_ = await connection.ExecuteAsync($"""
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '{TableName}')
-			BEGIN
-				CREATE TABLE [{TableName}] (
-					TenantId NVARCHAR(200) NOT NULL,
-					Id NVARCHAR(450) NOT NULL,
-					Data NVARCHAR(MAX) NOT NULL,
-					CreatedAt DATETIMEOFFSET NOT NULL,
-					UpdatedAt DATETIMEOFFSET NOT NULL,
-					-- The store's unconditional write now INVALIDATES the position rather than leaving it
-					-- stale, so this column is part of the contract the store writes against, not an
-					-- optional extra. -1 rather than 0 because zero is a legitimate stream position: a
-					-- zero default would make a brand-new row claim it had already folded the first event.
-					LastAppliedPosition BIGINT NOT NULL DEFAULT (-2),
-					CONSTRAINT [PK_{TableName}] PRIMARY KEY (TenantId, Id)
-				)
-			END
-			""");
+		// THE SHIPPED SCRIPT, not a local copy. Three test files each carried their own hand-written
+		// CREATE TABLE and they had already drifted on Id's width. A store whose columns changed without
+		// every copy changing would still pass here and fail on a consumer's database, which is the one
+		// place no gate of ours can see. Emitting it from the store's own schema makes this arm the
+		// binding: the DDL and the queries cannot drift apart without this going red.
+		_ = await connection.ExecuteAsync(
+			SqlServerProjectionSchema.CreateTableScript(TableName)).ConfigureAwait(false);
 
 		// The store REQUIRES an ambient tenant -- it has no unscoped mode and throws
 		// TenantRequiredException rather than degrading to an unscoped query. Passing no tenant context

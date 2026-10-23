@@ -144,6 +144,7 @@ public sealed partial class DynamoDbCdcProcessor : IDynamoDbCdcProcessor
 		_backoff = new CdcTransientFailureBackoff(
 			_options.PollInterval,
 			_fatalErrorOptions.MaxReconnectDelay,
+			_fatalErrorOptions.AttemptStabilityThreshold,
 			_fatalErrorOptions.MaxConsecutiveTransientFailures,
 			_timeProvider,
 			_healthState);

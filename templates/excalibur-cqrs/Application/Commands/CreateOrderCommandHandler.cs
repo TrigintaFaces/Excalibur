@@ -6,7 +6,7 @@ namespace Company.ExcaliburCqrs.Application.Commands;
 
 /// <summary>
 /// Handles <see cref="CreateOrderCommand"/> by creating a new Order aggregate,
-/// persisting it to the event store, and returning its identifier after inline projection processing.
+/// persisting it to the event store, and returning its identifier.
 /// </summary>
 public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderCommand, Guid>
 {
@@ -29,9 +29,14 @@ public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderComman
 
         _logger.LogInformation("Persisting order {OrderId} with {ItemCount} items", orderId, order.Items.Count);
 
-        // The repository notifies framework-managed inline projections after the event commit.
-        await _orderRepository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("Order {OrderId} persisted and inline projection processing completed", orderId);
+        // The projection host applies the events; nothing has been projected when this returns.
+        // SaveAsync returns a session token (SaveResult.SessionToken) -- hand it to
+        // IProjectionSessionReader.ReadAsync when a read must observe this write.
+        var saved = await _orderRepository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation(
+            "Order {OrderId} persisted at version {Version}; the read model follows asynchronously",
+            orderId,
+            saved.CommittedVersion);
         return orderId;
     }
 }

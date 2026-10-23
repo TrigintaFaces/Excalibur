@@ -221,11 +221,17 @@ builder.Services.AddErasureRetention(new ErasureRetention
 	// record would be destroyed.
 	AggregateType = nameof(SalesRecord),
 
-	// This deployment is not multi-tenant, so it names the untenanted sentinel — the same value an
-	// untenanted erasure request carries. A retention is a statement about a jurisdiction and a
-	// controller, so it is always tenanted; declaring the wrong tenant does not match, and the record
-	// is erased rather than silently withheld from every other tenant's data subjects.
-	TenantId = TenantScope.UntenantedSentinel,
+	// This deployment is not multi-tenant, so it names the UNTENANTED PARTITION. A retention is a
+	// statement about a jurisdiction and a controller, so it is always tenanted; declaring the wrong
+	// partition does not match, and the record is erased rather than silently withheld from every other
+	// tenant's data subjects.
+	//
+	// It is a KeyedTenantPartition rather than a string because there is exactly one way to write each
+	// partition. This comment used to say the sentinel was "the same value an untenanted erasure request
+	// carries", and that was FALSE: a single-tenant request is stamped with the ambient single-tenant
+	// identity, which is a different reserved value. The two were compared directly, the join missed, and
+	// the key protecting the retained record was destroyed while the certificate reported it kept.
+	Tenant = KeyedTenantPartition.Untenanted,
 
 	Basis = LegalHoldBasis.LegalObligation,
 

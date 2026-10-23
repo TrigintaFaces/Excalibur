@@ -24,3 +24,9 @@ CREATE TABLE IF NOT EXISTS [SubscriptionCheckpoints] (
 
     PRIMARY KEY (SubscriptionName)
 );
+
+-- Immutable work-set binding, separate from the nullable/absent checkpoint state.
+CREATE TABLE IF NOT EXISTS [SubscriptionCheckpointsDefinitions] (
+    SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
+    DefinitionHash TEXT NOT NULL COLLATE BINARY CHECK (length(DefinitionHash) = 64)
+);

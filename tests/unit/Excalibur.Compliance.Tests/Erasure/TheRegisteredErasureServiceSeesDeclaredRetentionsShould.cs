@@ -188,7 +188,7 @@ public class TheRegisteredErasureServiceSeesDeclaredRetentionsShould
 		_ = services.AddErasureRetention(new ErasureRetention
 		{
 			AggregateType = RetainedType,
-			TenantId = TenantScope.UntenantedSentinel,
+			Tenant = KeyedTenantPartition.Untenanted,
 			Basis = LegalHoldBasis.LegalObligation,
 			Justification = Justification,
 			RetentionPeriod = TimeSpan.FromDays(365 * 6),

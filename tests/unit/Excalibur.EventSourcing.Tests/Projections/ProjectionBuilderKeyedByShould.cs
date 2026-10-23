@@ -21,7 +21,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(e => $"region-{e.Amount}");
         builder.When<TestOrderPlaced>((proj, e) =>
         {
@@ -38,7 +38,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- stored under derived key, NOT aggregate ID
@@ -57,7 +57,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(e => $"custom-{e.Amount}");
         builder.When<TestOrderPlaced>((proj, e) =>
         {
@@ -81,7 +81,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- OrderPlaced stored under derived key
@@ -107,7 +107,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(e => $"key-{e.Amount}");
         builder.When<TestOrderPlaced>((proj, e) =>
         {
@@ -125,7 +125,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 2, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- two distinct projections created
@@ -153,7 +153,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(e => $"tenant-{e.Amount}");
         builder.When<TestOrderPlaced>((proj, e) =>
         {
@@ -170,7 +170,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- new projection created under derived key
@@ -194,7 +194,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(_ => "category-electronics");
         builder.When<TestOrderPlaced>((proj, e) =>
         {
@@ -211,7 +211,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- existing state merged, not replaced
@@ -240,7 +240,7 @@ public sealed class ProjectionBuilderKeyedByShould
 
         // Act -- chain Inline, KeyedBy, When, KeyedBy, When
         var result = builder
-            .Inline()
+            .Async()
             .KeyedBy<TestOrderPlaced>(e => $"key-{e.Amount}")
             .When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount)
             .KeyedBy<TestOrderShipped>(e => $"shipped-{e.ShippedAt.Ticks}")
@@ -262,7 +262,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(e => $"async-key-{e.Amount}");
         builder.WhenHandledBy<TestOrderPlaced, OrderPlacedHandler>();
         builder.Build();
@@ -275,7 +275,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- stored under derived key, NOT aggregate ID
@@ -295,7 +295,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.WhenHandledBy<TestOrderPlaced, OrderPlacedHandler>();
         builder.Build();
 
@@ -307,7 +307,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("order-42", "Order", 1, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- stored under aggregate ID (no KeyedBy registered)
@@ -325,7 +325,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(_ => null!);
         builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
         builder.Build();
@@ -339,7 +339,7 @@ public sealed class ProjectionBuilderKeyedByShould
 
         // Act & Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(
-            () => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
+            () => registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
         ex.Message.ShouldContain("null or empty projection ID");
     }
 
@@ -353,7 +353,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(_ => string.Empty);
         builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
         builder.Build();
@@ -367,7 +367,7 @@ public sealed class ProjectionBuilderKeyedByShould
 
         // Act & Assert
         var ex = await Should.ThrowAsync<InvalidOperationException>(
-            () => registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
+            () => registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None));
         ex.Message.ShouldContain("null or empty projection ID");
     }
 
@@ -382,7 +382,7 @@ public sealed class ProjectionBuilderKeyedByShould
             .BuildServiceProvider();
 
         var builder = new ProjectionBuilder<OrderSummary>(_registry);
-        builder.Inline();
+        builder.Async();
         builder.KeyedBy<TestOrderPlaced>(e => $"key-{e.Amount}");
         builder.When<TestOrderPlaced>((proj, e) =>
         {
@@ -400,7 +400,7 @@ public sealed class ProjectionBuilderKeyedByShould
         var context = new EventNotificationContext("agg-1", "Order", 2, DateTimeOffset.UtcNow);
 
         // Act
-        await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+        await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
             .ConfigureAwait(false);
 
         // Assert -- only the handled event produced a projection; unhandled event was skipped

@@ -56,6 +56,16 @@ public sealed class ContextEnrichingExporterShould
 		exporter.ShouldNotBeNull();
 	}
 
+    [Fact]
+    [Trait("Pattern", "Regression")]
+    public void SkipQueuedEnrichmentAfterRootProviderDisposal()
+    {
+        var provider = new ServiceCollection().BuildServiceProvider();
+        using var exporter = new ContextEnrichingExporter(provider);
+        provider.Dispose();
+        exporter.Export(default).ShouldBe(ExportResult.Success);
+    }
+
 	[Fact]
 	public void ExportEmptyBatchSuccessfully()
 	{

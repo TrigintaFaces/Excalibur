@@ -45,7 +45,7 @@ public sealed class ProjectionBuilderSearchTextShould
 
 		// Act
 		var result = builder
-			.Inline()
+			.Async()
 			.WithSearchText(p => p.Label ?? "", (p, text) => p.SearchText = text)
 			.When<TestOrderPlaced>((proj, e) => proj.Label = "Test");
 
@@ -88,7 +88,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
 
 		// Act
-		builder.Inline();
+		builder.Async();
 		builder.WithSearchText(
 			p => $"{p.Label} {p.Total}",
 			(p, text) => p.SearchText = text);
@@ -109,7 +109,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
 
 		// Act — no WithSearchText call (zero overhead opt-in)
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -125,7 +125,7 @@ public sealed class ProjectionBuilderSearchTextShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.WithSearchText(
 			p => $"{p.Label} {p.Total}",
 			(p, text) => p.SearchText = text);
@@ -153,7 +153,7 @@ public sealed class ProjectionBuilderSearchTextShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.WithSearchText(
 			p => $"{p.Label} {p.Total}".Trim(),
 			(p, text) => p.SearchText = text);
@@ -171,7 +171,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(100m)];
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -186,7 +186,7 @@ public sealed class ProjectionBuilderSearchTextShould
 	{
 		// Arrange — no WithSearchText (zero overhead)
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
 			proj.Label = "Placed";
@@ -201,7 +201,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(50m)];
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert — SearchText should remain null (zero overhead)
@@ -216,7 +216,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		// Arrange — track how many times the computer is called
 		var computeCount = 0;
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.WithSearchText(
 			p =>
 			{
@@ -242,7 +242,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(75m), CreateOrderShipped()];
 
 		// Act — batch of 2 events, search text computed once after both applied
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -261,7 +261,7 @@ public sealed class ProjectionBuilderSearchTextShould
 	{
 		// Arrange — two events keyed to different projection IDs by amount
 		var builder = new ProjectionBuilder<SearchableOrder>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.WithSearchText(
 			p => $"{p.Label} {p.Total}",
 			(p, text) => p.SearchText = text);
@@ -281,7 +281,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(100m), CreateOrderPlaced(200m)];
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert — each projection instance gets its own search text
@@ -304,7 +304,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		// Arrange — use WhenHandledBy to force the async handler path
 		var services = new ServiceCollection();
 		var builder = new ProjectionBuilder<SearchableOrder>(services);
-		builder.Inline();
+		builder.Async();
 		builder.WithSearchText(
 			p => $"{p.Label} {p.Total}",
 			(p, text) => p.SearchText = text);
@@ -322,7 +322,7 @@ public sealed class ProjectionBuilderSearchTextShould
 		IDomainEvent[] events = [CreateOrderPlaced(500m)];
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, sp, CancellationToken.None)
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, sp, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert

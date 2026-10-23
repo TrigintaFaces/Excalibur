@@ -1036,6 +1036,8 @@ Excalibur.Compliance.ErasureContributorContext.Scope.get -> Excalibur.Compliance
 Excalibur.Compliance.ErasureContributorContext.Scope.init -> void
 Excalibur.Compliance.ErasureContributorContext.TenantId.get -> string?
 Excalibur.Compliance.ErasureContributorContext.TenantId.init -> void
+Excalibur.Compliance.ErasureContributorContext.TenantPartition.get -> Excalibur.Dispatch.KeyedTenantPartition!
+Excalibur.Compliance.ErasureContributorContext.TenantPartition.init -> void
 Excalibur.Compliance.ErasureContributorResult
 Excalibur.Compliance.ErasureContributorResult.DischargedLocations.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.DataLocationKey>!
 Excalibur.Compliance.ErasureContributorResult.DischargedLocations.init -> void
@@ -1196,8 +1198,8 @@ Excalibur.Compliance.ErasureRetention.Justification.get -> string!
 Excalibur.Compliance.ErasureRetention.Justification.init -> void
 Excalibur.Compliance.ErasureRetention.RetentionPeriod.get -> System.TimeSpan
 Excalibur.Compliance.ErasureRetention.RetentionPeriod.init -> void
-Excalibur.Compliance.ErasureRetention.TenantId.get -> string!
-Excalibur.Compliance.ErasureRetention.TenantId.init -> void
+Excalibur.Compliance.ErasureRetention.Tenant.get -> Excalibur.Dispatch.KeyedTenantPartition!
+Excalibur.Compliance.ErasureRetention.Tenant.init -> void
 Excalibur.Compliance.ErasureRetentionOptions
 Excalibur.Compliance.ErasureRetentionOptions.CertificateRetentionPeriod.get -> System.TimeSpan
 Excalibur.Compliance.ErasureRetentionOptions.CertificateRetentionPeriod.set -> void
@@ -1258,6 +1260,8 @@ Excalibur.Compliance.ErasureStatus.Status.get -> Excalibur.Compliance.ErasureReq
 Excalibur.Compliance.ErasureStatus.Status.init -> void
 Excalibur.Compliance.ErasureStatus.TenantId.get -> string?
 Excalibur.Compliance.ErasureStatus.TenantId.init -> void
+Excalibur.Compliance.ErasureStatus.TenantPartition.get -> Excalibur.Dispatch.KeyedTenantPartition!
+Excalibur.Compliance.ErasureStatus.TenantPartition.init -> void
 Excalibur.Compliance.ErasureStatus.UpdatedAt.get -> System.DateTimeOffset
 Excalibur.Compliance.ErasureStatus.UpdatedAt.init -> void
 Excalibur.Compliance.ErasureStoreNotProvisionedException
@@ -1570,6 +1574,8 @@ Excalibur.Compliance.IEncryptionTelemetryDetails.RecordCacheAccess(bool hit, str
 Excalibur.Compliance.IEncryptionTelemetryDetails.RecordFieldsMigrated(long count, string! fromProvider, string! toProvider, string! store) -> void
 Excalibur.Compliance.IEncryptionTelemetryDetails.UpdateActiveKeyCount(int count, string! provider) -> void
 Excalibur.Compliance.IEncryptionTelemetryDetails.UpdateProviderHealth(string! provider, string! status, int score) -> void
+Excalibur.Compliance.IErasureBackgroundQueryStore
+Excalibur.Compliance.IErasureBackgroundQueryStore.GetAwaitingKeyDestructionRequestsAsync(int pageNumber, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureStatus!>!>!
 Excalibur.Compliance.IErasureCertificateStore
 Excalibur.Compliance.IErasureCertificateStore.CleanupExpiredCertificatesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Excalibur.Compliance.IErasureCertificateStore.GetCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Compliance.ErasureCertificate?>!
@@ -1587,7 +1593,7 @@ Excalibur.Compliance.IErasureQueryStore.ListRequestsAsync(Excalibur.Compliance.E
 Excalibur.Compliance.IErasureRetentionRegistry
 Excalibur.Compliance.IErasureRetentionRegistry.Declared.get -> System.Collections.Generic.IReadOnlyCollection<Excalibur.Compliance.ErasureRetention!>!
 Excalibur.Compliance.IErasureRetentionRegistry.IsRetainedForAnyTenant(string? aggregateType) -> bool
-Excalibur.Compliance.IErasureRetentionRegistry.TryGetRetention(string? tenantId, string? aggregateType, out Excalibur.Compliance.ErasureRetention? retention) -> bool
+Excalibur.Compliance.IErasureRetentionRegistry.TryGetRetention(Excalibur.Dispatch.KeyedTenantPartition! tenant, string? aggregateType, out Excalibur.Compliance.ErasureRetention? retention) -> bool
 Excalibur.Compliance.IErasureSchemaValidator
 Excalibur.Compliance.IErasureSchemaValidator.ValidateSchemaAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.Compliance.IErasureService
@@ -3088,5 +3094,3 @@ static Excalibur.Compliance.VersionMigrationResult.Succeeded(byte[]! original, b
 static readonly Excalibur.Compliance.EncryptionVersion.Unknown -> Excalibur.Compliance.EncryptionVersion
 static readonly Excalibur.Compliance.EncryptionVersion.Version10 -> Excalibur.Compliance.EncryptionVersion
 static readonly Excalibur.Compliance.EncryptionVersion.Version11 -> Excalibur.Compliance.EncryptionVersion
-Excalibur.Compliance.IErasureBackgroundQueryStore
-Excalibur.Compliance.IErasureBackgroundQueryStore.GetAwaitingKeyDestructionRequestsAsync(int pageNumber, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Compliance.ErasureStatus!>!>!

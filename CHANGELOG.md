@@ -17,6 +17,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (breaking) — inline projections, replaced by session-consistent reads
+
+`.Inline()`, `ProjectionMode.Inline` and the inline dispatch path are **deleted**. There is no obsolete
+overload: a projection registered the old way no longer compiles, which is deliberate — the alternative
+was a silent downgrade to the behaviour described next.
+
+**What was wrong with it.** An inline projection folded inside `SaveAsync`, after the events were
+committed, as a second writer that held no position. Two concurrent saves could read the same projection
+row, both fold it, and the later write won — **both reporting success**, with the losing save's events
+durable in the event store and permanently absent from the read model. Nothing downstream ever learned.
+Because such a row carried no position, repair was also unavailable: only a full rebuild could fix it.
+Carrying positions would not have helped, since a single scalar position cannot be held by several
+out-of-order writers.
+
+**What replaces it, and it is the model Cosmos DB uses.** The writer no longer updates the read model.
+A save returns a token and the *read* honours it:
+
+```csharp
+var save = await repository.SaveAsync(order, ct);        // SaveResult: version + session token
+// a long-running host needs nothing here; a serverless host drives the processor itself:
+//   await processor.ProcessPendingAsync(ct);
+var read = await sessionReader.ReadAsync<OrderSummary>(order.Id, save, ct);
+if (read.Freshness == ProjectionFreshness.BoundExpired) { /* the projection had not caught up */ }
+```
+
+The projection host is the only writer and applies in global-stream order, so the lost fold is no longer
+expressible rather than merely unlikely. A caller that passes no token waits for nothing and gets
+`ProjectionFreshness.NotRequested`.
+
+**Migration.** Replace `.Inline()` with `.Async()` **and call `EnableProjectionProcessing()`** — `.Async()`
+alone registers a projection that nothing applies, which would leave the read model silently empty. Where
+the old code relied on reading immediately after writing, pass the `SaveResult` to
+`IProjectionSessionReader.ReadAsync`. Hosts that cannot run a `BackgroundService` (Azure Functions, AWS
+Lambda) call `IProjectionProcessor.ProcessPendingAsync` instead, the same way `IOutboxProcessor` works.
+
+### Changed (breaking) — `SaveAsync` returns the session token
+
+`IEventSourcedRepository.SaveAsync` now returns `Task<SaveResult>` carrying the committed version and the
+global position of the **last** event appended. `await repository.SaveAsync(x, ct)` is unchanged;
+implementations of the interface must be updated. `AppendResult` gained `LastEventPosition` alongside
+`FirstEventPosition` — each provider reports its own, because contiguity of an allocated block is a
+provider invariant rather than something shared code may assume.
+
+### Changed (breaking) — a rebuild refuses a store that records no positions
+
+Rebuilding or recovering a projection whose store does not implement `IPositionedProjectionStore<T>` now
+throws at construction instead of writing blindly. Without a position there is no coordinate to make the
+write conditional on, so a rebuild racing the host overwrote newer state with older and both reported
+success. Every persistent store shipped here records positions, so this affects only a custom store; if
+you have stopped every other writer for the duration, `services.AllowUnpositionedProjectionRebuild()`
+records that — it attests exclusivity, not safety.
+
 ### Security (breaking) — field decryption now establishes who is asking
 
 `IFieldEncryptor.DecryptAsync` and `SubjectFieldCryptor.DecryptFieldsAsync` each gained an
@@ -257,18 +309,22 @@ sealed`, which removes seven entries from the public API surface.
 from the container instead.
 
 
-### Fixed — the slow-inline-projection warning is now emitted, with a per-projection threshold
+### Fixed — the slow-projection-apply warning is now emitted, with a per-projection threshold
 
-Two public settings promised a warning when an inline projection ran long, and **neither was read by any
-production code**: the global `EventNotificationOptions.InlineProjectionWarningThreshold` and the
-per-projection `ProjectionOptions.WarningThreshold` reached through `WithOptions`. The global one was
-even validated at startup, so a host was told its value was in range and then nothing used it. An event
-ID for the warning was reserved and never emitted.
+Two public settings promised a warning when a projection ran long, and **neither was read by any
+production code**: the global threshold on `EventNotificationOptions` and the per-projection
+`ProjectionOptions.WarningThreshold` reached through `WithOptions`. The global one was even validated at
+startup, so a host was told its value was in range and then nothing used it. An event ID for the warning
+was reserved and never emitted.
 
-`InlineProjectionProcessor` now times each projection's apply and warns when it exceeds its threshold,
+The projection host now times each projection's apply and warns when it exceeds its threshold,
 preferring the per-projection value and falling back to the global one — so one slow projection no longer
 forces every other projection's threshold up. The message names the projection, both durations, and the
-two ways to act on it. Timing goes through `TimeProvider`, so it is deterministic under test.
+batch size. Timing goes through `TimeProvider`, so it is deterministic under test.
+
+The global setting is now `EventNotificationOptions.ProjectionApplyWarningThreshold`; it was named for a
+processing mode that no longer exists (see below). A slow apply is also the earliest signal that
+session-consistent reads are about to report an expired bound, which is what the warning is for.
 
 ### Removed — `IProjectionBuilder<T>.WithStore<TStore>()`
 

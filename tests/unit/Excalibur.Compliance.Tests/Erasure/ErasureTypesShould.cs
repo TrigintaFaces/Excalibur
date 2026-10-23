@@ -1,5 +1,7 @@
 using Excalibur.Compliance;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 [Trait("Category", "Unit")]
@@ -119,6 +121,7 @@ public sealed class ErasureStatusShould
 	{
 		var erasureStatus = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -143,6 +146,7 @@ public sealed class ErasureStatusShould
 	{
 		var erasureStatus = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -165,6 +169,7 @@ public sealed class ErasureStatusShould
 		var requestedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var erasureStatus = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,
@@ -185,6 +190,7 @@ public sealed class ErasureStatusShould
 		var requestedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 		var erasureStatus = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.UserId,

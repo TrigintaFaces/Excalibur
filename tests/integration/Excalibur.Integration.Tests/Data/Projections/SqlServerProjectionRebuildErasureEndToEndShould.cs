@@ -13,6 +13,8 @@ using Excalibur.Integration.Tests.Data.EventStore;
 
 using Microsoft.Data.SqlClient;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Integration.Tests.Data.Projections;
 
 /// <summary>
@@ -189,6 +191,7 @@ public sealed class SqlServerProjectionRebuildErasureEndToEndShould
 			.EraseAsync(
 				new ErasureContributorContext
 				{
+					TenantPartition = KeyedTenantPartition.Untenanted,
 					RequestId = Guid.NewGuid(),
 					DataSubjectIdHash = erasedSubject,
 					IdType = default,

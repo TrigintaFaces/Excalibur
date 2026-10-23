@@ -36,6 +36,7 @@ internal sealed class SqliteSubscriptionCheckpointStore : ISubscriptionCheckpoin
 {
 	private readonly string _connectionString;
 	private readonly string _table;
+	private readonly string _definitionsTable;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SqliteSubscriptionCheckpointStore"/> class.
@@ -56,6 +57,36 @@ internal sealed class SqliteSubscriptionCheckpointStore : ISubscriptionCheckpoin
 
 		_connectionString = connectionString;
 		_table = table;
+		_definitionsTable = table + "Definitions";
+		SqlIdentifierValidator.ThrowIfInvalid(_definitionsTable, nameof(table));
+	}
+
+	/// <inheritdoc />
+	public async Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+		cancellationToken.ThrowIfCancellationRequested();
+		await using var connection = new SqliteConnection(_connectionString);
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		await SqliteTableInitializer.EnsureCheckpointsTableAsync(connection, _table, cancellationToken)
+			.ConfigureAwait(false);
+
+#pragma warning disable CA2100 // Identifiers validated in the constructor
+		_ = await connection.ExecuteAsync(new CommandDefinition(
+			$"INSERT INTO [{_definitionsTable}] (SubscriptionName, DefinitionHash) VALUES (@Name, @Hash) ON CONFLICT (SubscriptionName) DO NOTHING;",
+			new { Name = subscriptionName, Hash = definitionHash },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+#pragma warning restore CA2100
+
+		// No operation in this contract changes or deletes a definition. A separate read after the
+		// insert therefore observes the same immutable winner even when another instance won first.
+#pragma warning disable CA2100 // Identifiers validated in the constructor
+		var actual = await connection.ExecuteScalarAsync<string>(new CommandDefinition(
+			$"SELECT DefinitionHash FROM [{_definitionsTable}] WHERE SubscriptionName = @Name",
+			new { Name = subscriptionName },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+#pragma warning restore CA2100
+		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
 	}
 
 	/// <inheritdoc />

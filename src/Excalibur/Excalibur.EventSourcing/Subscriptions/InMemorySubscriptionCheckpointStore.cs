@@ -19,6 +19,17 @@ namespace Excalibur.EventSourcing.Subscriptions;
 internal sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpointStore
 {
 	private readonly ConcurrentDictionary<string, long> _checkpoints = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<string, string> _definitions = new(StringComparer.Ordinal);
+
+	/// <inheritdoc />
+	public Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+		cancellationToken.ThrowIfCancellationRequested();
+		var actual = _definitions.GetOrAdd(subscriptionName, definitionHash);
+		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
+		return Task.CompletedTask;
+	}
 
 	/// <inheritdoc />
 	public Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken)

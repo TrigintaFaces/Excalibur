@@ -60,6 +60,33 @@ internal static class PositionedProjectionWriter<TProjection>
 	}
 
 	/// <summary>
+	/// Resolves the mandatory positioned capability for a persisted asynchronous page.
+	/// </summary>
+	/// <remarks>
+	/// Validate the entire page before invoking any handler or loading a projection. A later missing
+	/// position must not leave an earlier event's external effect performed under an invalid contract.
+	/// Rechecked per invocation because a scoped store factory can differ from the startup probe.
+	/// </remarks>
+	internal static IPositionedProjectionStore<TProjection> ResolveRequired(
+		IProjectionStore<TProjection> store, IReadOnlyList<ProjectionEvent> events)
+	{
+		ArgumentNullException.ThrowIfNull(events);
+		var positioned = Resolve(store)
+			?? throw new InvalidOperationException(
+				$"Asynchronous projection '{typeof(TProjection).FullName}' requires a store that exposes "
+				+ "positioned compare-and-set writes through its decorator chain. Unconditional writes "
+				+ "cannot safely participate in cooperative projection processing.");
+		if (events.Any(static e => e.GlobalPosition is not > 0))
+		{
+			throw new InvalidOperationException(
+				$"Asynchronous projection '{typeof(TProjection).FullName}' received an event without a "
+				+ "positive committed global position. Persisted asynchronous pages must come from the global stream.");
+		}
+
+		return positioned;
+	}
+
+	/// <summary>
 	/// Whether one event is already folded into the stored projection, and must therefore be skipped.
 	/// </summary>
 	/// <param name="storedPosition">The position read alongside the state, or <see langword="null"/>.</param>
@@ -67,17 +94,15 @@ internal static class PositionedProjectionWriter<TProjection>
 	/// <returns><see langword="true"/> when the event is at or below the stored position.</returns>
 	/// <remarks>
 	/// <para>
-	/// <b>AN EVENT WITH NO POSITION IS KEPT, and that is the half most likely to be "fixed" into a
-	/// defect.</b> Such an event cannot be placed relative to the stored one, and it is the save path --
-	/// the event is being committed right now and no global position exists yet. Returning
-	/// <see langword="true"/> for it would drop it, and on the save path EVERY event is unpositioned, so
-	/// the whole batch would vanish. That has already shipped once: see the note on
-	/// <see cref="WriteAsync"/> about a shape that "silently discarded every projection folded on the SAVE
-	/// PATH ... with nothing logged".
+	/// A missing event or stored position returns false: this predicate cannot establish that the
+	/// event is already folded. False does not establish that a write is safe; an existing row without
+	/// a usable position can still require rebuilding before it accepts a positioned advance.
 	/// </para>
 	/// <para>
-	/// <b>A row with no stored position keeps everything too</b>, for the same reason: there is no
-	/// coordinate to compare against, so nothing can be shown to be already folded.
+	/// Persisted asynchronous factories call ResolveRequired before invoking handlers and reject every
+	/// event without a positive committed position. Their events come from the global stream, not from
+	/// SaveAsync. The nullable case is part of this internal helper's general contract, not an
+	/// unpositioned fallback available to persisted asynchronous processing.
 	/// </para>
 	/// <para>
 	/// <b>Why this is a predicate over ONE event rather than a filter over a batch.</b> Its four callers
@@ -126,18 +151,11 @@ internal static class PositionedProjectionWriter<TProjection>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The store's decision, or <see langword="null"/> when the write was unconditional.</returns>
 	/// <remarks>
-	/// <para>
-	/// <b>A missing position withdraws the CONDITION, never the WRITE.</b> This distinction is the whole
-	/// reason both stores are passed in together rather than the caller choosing. An earlier shape took
-	/// only the positioned store and returned without writing when it had no position to be conditional
-	/// on — which silently discarded every projection folded on the SAVE PATH, where events are being
-	/// committed now and no global position exists yet. The state was computed, the handlers ran, and the
-	/// object was dropped, on every store that had the capability, with nothing logged.
-	/// </para>
-	/// <para>
-	/// So the branch lives HERE, in the one place every apply path already routes through, and the
-	/// callers no longer get to decide. "Forgot to write" is not expressible at a call site any more.
-	/// </para>
+	/// This internal helper retains a generic unconditional branch when either a capability or a target
+	/// position is absent. That branch supplies no positioned concurrency guarantee. Persisted asynchronous
+	/// factories first call ResolveRequired, which requires the capability and validates every event's
+	/// committed position before any fold; those factories cannot select the unconditional branch.
+	/// SaveAsync does not invoke projection factories or persist read models.
 	/// </remarks>
 	[RequiresUnreferencedCode("Projection serialization is reflective.")]
 	[RequiresDynamicCode("Projection serialization is reflective.")]
@@ -182,13 +200,10 @@ internal static class PositionedProjectionWriter<TProjection>
 				+ "that position would then be missing from the read model while the position claimed "
 				+ "otherwise. THIS WILL NOT RESOLVE ON RETRY. "
 				+ "Replay the stream and rebuild this projection through RebuildAtPositionAsync, which writes "
-				+ "the state and its position together. THREE things leave a row in this state, and one of "
-				+ "them is this framework rather than your code: a batch in which no event carried a global "
-				+ "position is written unconditionally by the apply path itself, which happens on the save "
-				+ "path where the events are being committed now. The other two are direct calls -- "
-				+ "IProjectionStore.UpsertAsync, which stores a state related to no prefix at all, and "
-				+ "IPositionedProjectionStore.UpsertUnnumberedAsync, which stores a complete fold it has no "
-				+ "global position for. Read the projection's position to see which state the row is in -- it "
+				+ "the state and its position together. Direct unconditional or unnumbered writes can leave "
+				+ "a row without a usable coordinate. Persisted asynchronous processing rejects missing event "
+				+ "positions before handlers run; SaveAsync does not write read models. "
+				+ "Read the projection's position to see which state the row is in -- it "
 				+ "distinguishes them, and this outcome deliberately does not, because it is the result of a "
 				+ "write rather than an observation of the row.");
 		}

@@ -20,7 +20,13 @@ namespace Excalibur.EventSourcing.SqlServer.Requests;
 /// <param name="LastVersion">
 /// The highest stream version among them, or <see langword="null"/> when none are present.
 /// </param>
-internal readonly record struct CommittedAppendOutcome(int CommittedCount, long? FirstPosition, long? LastVersion);
+/// <param name="LastPosition">
+/// The global position of the LATEST of them, if any -- the value a reader waits for to observe the
+/// whole recognised append. Measured rather than derived from a count, because a probe answers about
+/// rows that are already durable and must report what is there.
+/// </param>
+internal readonly record struct CommittedAppendOutcome(
+	int CommittedCount, long? FirstPosition, long? LastPosition, long? LastVersion);
 
 /// <summary>
 /// Asks whether THIS append's events are in the table, after its transaction failed to report success.
@@ -79,7 +85,7 @@ internal sealed class GetCommittedAppendOutcomeRequest : DataRequestBase<IDbConn
 		// about durably committed rows: a row either survived the commit or it did not.
 #pragma warning disable CA2100 // Table name is validated by SqlTableName.Format; every value is bound
 		var sql =
-			$"SELECT COUNT(*) AS CommittedCount, MIN(Position) AS FirstPosition, MAX(Version) AS LastVersion "
+			$"SELECT COUNT(*) AS CommittedCount, MIN(Position) AS FirstPosition, MAX(Position) AS LastPosition, MAX(Version) AS LastVersion "
 			+ $"FROM {qualifiedTable} WHERE EventId IN @EventIds{TenantPredicate};";
 #pragma warning restore CA2100
 
@@ -96,7 +102,7 @@ internal sealed class GetCommittedAppendOutcomeRequest : DataRequestBase<IDbConn
 			// emit an empty IN list, which is not valid SQL.
 			if (eventIds.Count == 0)
 			{
-				return new CommittedAppendOutcome(0, null, null);
+				return new CommittedAppendOutcome(0, null, null, null);
 			}
 
 			return await connection.QuerySingleAsync<CommittedAppendOutcome>(Command).ConfigureAwait(false);

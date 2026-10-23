@@ -13,11 +13,13 @@ public sealed class AppendResult
 		AppendOutcome outcome,
 		long? nextExpectedVersion,
 		long? firstEventPosition,
+		long? lastEventPosition,
 		string? errorMessage = null)
 	{
 		Outcome = outcome;
 		NextExpectedVersion = nextExpectedVersion;
 		FirstEventPosition = firstEventPosition;
+		LastEventPosition = lastEventPosition;
 		ErrorMessage = errorMessage;
 	}
 
@@ -98,6 +100,36 @@ public sealed class AppendResult
 	public long? FirstEventPosition { get; }
 
 	/// <summary>
+	/// Gets the global stream position of the LAST event that was appended, or <see langword="null"/>
+	/// when the store does not support a global ordering.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>This is the value a reader must wait for, and <see cref="FirstEventPosition"/> is not.</b> An
+	/// append of three events reports a first position of <c>N</c> and a last of <c>N+2</c>; a read model
+	/// that has reached <c>N</c> may still be missing two of this caller's events, so waiting on the
+	/// first position silently fails to deliver read-your-writes.
+	/// </para>
+	/// <para>
+	/// <b>Each provider reports this itself rather than letting a caller derive it.</b> Deriving
+	/// <c>first + count - 1</c> assumes one append's positions are contiguous, which is a property of a
+	/// provider's allocation strategy, not of this contract — PostgreSQL's store reserves a contiguous
+	/// block under a counter-row lock held to COMMIT and documents that it must never become a sequence,
+	/// but nothing obliges another provider to do the same. A derivation in shared code would be correct
+	/// today and silently wrong the first time a provider allocates differently.
+	/// </para>
+	/// <para>
+	/// Null under exactly the same conditions as <see cref="FirstEventPosition"/>: a provider without a
+	/// store-wide sequence, a failed append, or a successful append that carried no events.
+	/// </para>
+	/// </remarks>
+	/// <value>
+	/// The monotonic global position of the last appended event, or <see langword="null"/> when global
+	/// ordering is unsupported for the originating provider.
+	/// </value>
+	public long? LastEventPosition { get; }
+
+	/// <summary>
 	/// Gets the error message if the operation failed.
 	/// </summary>
 	public string? ErrorMessage { get; }
@@ -116,9 +148,14 @@ public sealed class AppendResult
 	/// The global stream position of the first appended event, or <see langword="null"/> when the store
 	/// does not support a global ordering.
 	/// </param>
+	/// <param name="lastEventPosition">
+	/// The global stream position of the last appended event -- the value a reader waits for to observe
+	/// this whole append -- or <see langword="null"/> when the store does not support a global ordering.
+	/// </param>
 	/// <returns>A successful append result.</returns>
-	public static AppendResult CreateSuccess(long nextExpectedVersion, long? firstEventPosition) =>
-		new(AppendOutcome.Committed, nextExpectedVersion, firstEventPosition);
+	public static AppendResult CreateSuccess(
+		long nextExpectedVersion, long? firstEventPosition, long? lastEventPosition) =>
+		new(AppendOutcome.Committed, nextExpectedVersion, firstEventPosition, lastEventPosition);
 
 	/// <summary>
 	/// Creates a successful append result for events that were <em>already</em> durably present, which the
@@ -129,14 +166,19 @@ public sealed class AppendResult
 	/// The global stream position of the first recognised event, or <see langword="null"/> when the store
 	/// does not support a global ordering or cannot state one.
 	/// </param>
+	/// <param name="lastEventPosition">
+	/// The global stream position of the last recognised event, or <see langword="null"/> when the store
+	/// does not support a global ordering or cannot state one.
+	/// </param>
 	/// <returns>A successful append result carrying <see cref="AppendOutcome.AlreadyCommitted"/>.</returns>
 	/// <remarks>
 	/// Every store that answers a committed-append identity probe reports through here rather than through
 	/// <see cref="CreateSuccess"/>. The two are indistinguishable to a caller reading only
 	/// <see cref="Success"/>, and that is deliberate — the distinction is for the caller that needs it.
 	/// </remarks>
-	public static AppendResult CreateAlreadyCommitted(long nextExpectedVersion, long? firstEventPosition) =>
-		new(AppendOutcome.AlreadyCommitted, nextExpectedVersion, firstEventPosition);
+	public static AppendResult CreateAlreadyCommitted(
+		long nextExpectedVersion, long? firstEventPosition, long? lastEventPosition) =>
+		new(AppendOutcome.AlreadyCommitted, nextExpectedVersion, firstEventPosition, lastEventPosition);
 
 	/// <summary>
 	/// Creates a failed append result due to version mismatch.
@@ -175,6 +217,7 @@ public sealed class AppendResult
 			AppendOutcome.ConcurrencyConflict,
 			actualVersion,
 			firstEventPosition: null,
+			lastEventPosition: null,
 			actualVersion is { } measured
 				? string.Format(
 					CultureInfo.InvariantCulture,
@@ -195,7 +238,8 @@ public sealed class AppendResult
 	/// cannot prove abortion while the original operation retains authority to commit.
 	/// </remarks>
 	public static AppendResult CreateUnknown(string errorMessage) =>
-		new(AppendOutcome.Unknown, nextExpectedVersion: null, firstEventPosition: null, errorMessage);
+		new(AppendOutcome.Unknown, nextExpectedVersion: null, firstEventPosition: null,
+			lastEventPosition: null, errorMessage);
 
 	/// <summary>
 	/// Creates a failed append result with custom error.
@@ -208,5 +252,6 @@ public sealed class AppendResult
 	/// version to report.
 	/// </remarks>
 	public static AppendResult CreateFailure(string errorMessage) =>
-		new(AppendOutcome.Failed, nextExpectedVersion: null, firstEventPosition: null, errorMessage);
+		new(AppendOutcome.Failed, nextExpectedVersion: null, firstEventPosition: null,
+			lastEventPosition: null, errorMessage);
 }

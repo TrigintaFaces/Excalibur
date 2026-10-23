@@ -6,6 +6,8 @@ using Excalibur.Compliance.Erasure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
@@ -147,6 +149,7 @@ public sealed class ErasureCompletionConcurrencyShould
 
 	private static ErasureStatus StatusOf(Guid requestId, ErasureRequestStatus status) => new()
 	{
+		TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 		RequestId = requestId,
 		DataSubjectIdHash = "hash",

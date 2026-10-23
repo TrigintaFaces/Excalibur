@@ -17,10 +17,11 @@ namespace Excalibur.Cdc;
 /// </para>
 /// <para>
 /// <b>What counts.</b> An attempt ends a run of consecutive failures when it made progress — the caller
-/// reports that through <see cref="RecordProgress"/> — or when it stayed up for at least the maximum
-/// reconnect delay before failing. The second rule exists for quiet sources: a stream with nothing to
-/// confirm, disconnected by an idle timeout every few minutes, is healthy, and must not be counted towards
-/// a stop.
+/// reports that through <see cref="RecordProgress"/> — or when it stayed up for at least the STABILITY
+/// THRESHOLD before failing. The second rule exists for quiet sources: a stream with nothing to confirm,
+/// disconnected by an idle timeout every few minutes, is healthy, and must not be counted towards a stop.
+/// That threshold is its own value, not the delay cap: they were one, and shortening the cap silently
+/// shortened the definition of healthy.
 /// </para>
 /// <para>
 /// One instance serves one consume loop for the lifetime of one start call, on that loop's thread. It is
@@ -31,6 +32,7 @@ internal sealed class CdcTransientFailureBackoff
 {
 	private readonly TimeSpan _baseDelay;
 	private readonly TimeSpan _maxDelay;
+	private readonly TimeSpan _stabilityThreshold;
 	private readonly int? _maxConsecutiveFailures;
 	private readonly TimeProvider _timeProvider;
 	private readonly CdcHealthState? _healthState;
@@ -41,9 +43,14 @@ internal sealed class CdcTransientFailureBackoff
 	/// </summary>
 	/// <param name="baseDelay">The delay after the first failure; doubled for each consecutive one.</param>
 	/// <param name="maxDelay">
-	/// The largest delay between attempts, and also how long an attempt must stay up to count as stable. A
-	/// value below <paramref name="baseDelay"/> is raised to it, so a loop never retries faster than the
-	/// interval it was configured to wait.
+	/// The largest delay between attempts. A value below <paramref name="baseDelay"/> is raised to it, so a
+	/// loop never retries faster than the interval it was configured to wait. It no longer decides
+	/// stability — see <paramref name="stabilityThreshold"/>.
+	/// </param>
+	/// <param name="stabilityThreshold">
+	/// How long an attempt must stay up before its failure starts a new run instead of extending the
+	/// previous one. Separate from <paramref name="maxDelay"/> because a consumer shortening the delay cap
+	/// must not, invisibly, also shorten what counts as a healthy connection.
 	/// </param>
 	/// <param name="maxConsecutiveFailures">
 	/// The number of consecutive transient failures after which the loop must stop, or
@@ -54,6 +61,7 @@ internal sealed class CdcTransientFailureBackoff
 	public CdcTransientFailureBackoff(
 		TimeSpan baseDelay,
 		TimeSpan maxDelay,
+		TimeSpan stabilityThreshold,
 		int? maxConsecutiveFailures,
 		TimeProvider timeProvider,
 		CdcHealthState? healthState)
@@ -67,6 +75,7 @@ internal sealed class CdcTransientFailureBackoff
 
 		_baseDelay = baseDelay;
 		_maxDelay = maxDelay < baseDelay ? baseDelay : maxDelay;
+		_stabilityThreshold = stabilityThreshold;
 		_maxConsecutiveFailures = maxConsecutiveFailures;
 		_timeProvider = timeProvider;
 		_healthState = healthState;
@@ -110,10 +119,12 @@ internal sealed class CdcTransientFailureBackoff
 	/// <returns>The delay before the next attempt, and whether the configured limit has been reached.</returns>
 	public CdcTransientFailureOutcome RecordTransientFailure()
 	{
-		if (_timeProvider.GetElapsedTime(_attemptStarted) >= _maxDelay)
+		if (_timeProvider.GetElapsedTime(_attemptStarted) >= _stabilityThreshold)
 		{
-			// The attempt stayed up longer than the longest backoff: it was healthy, and this failure
-			// starts a new run rather than extending the previous one.
+			// The attempt stayed up longer than the stability threshold: it was healthy, and this failure
+			// starts a new run rather than extending the previous one. Compared against the THRESHOLD and
+			// not the delay cap -- when it was the cap, a consumer shortening the cap to bound a reconnect
+			// storm also shortened the definition of healthy, which bought extra retries past the limit.
 			ConsecutiveFailures = 0;
 		}
 

@@ -185,11 +185,7 @@ internal static class AdvertisedStrategyRegistry
 					"Excalibur.EventSourcing.Projections.AsyncProjectionProcessingHost", EsAsm,
 					"Async projections are driven by the AsyncProjectionProcessingHost (GetByMode(Async))."),
 				new StrategyValueCoverage(
-					"Inline", 1, CoverageKind.Implementor,
-					"Excalibur.EventSourcing.Projections.InlineProjectionProcessor", EsAsm,
-					"Inline projections are driven by the InlineProjectionProcessor during SaveAsync (GetByMode(Inline))."),
-				new StrategyValueCoverage(
-					"Ephemeral", 2, CoverageKind.Implementor,
+					"Ephemeral", 1, CoverageKind.Implementor,
 					"Excalibur.EventSourcing.Projections.ProjectionBuilder", EsAsm,
 					"Ephemeral (on-demand replay, no persistence) is a real builder-selectable projection mode."),
 			]),

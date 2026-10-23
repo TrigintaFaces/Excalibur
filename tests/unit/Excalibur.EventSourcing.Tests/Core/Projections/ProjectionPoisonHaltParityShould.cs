@@ -51,7 +51,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		// Real registry double (internal IProjectionRegistry is not FakeItEasy-proxyable).
 		var registry = new InMemoryProjectionRegistry();
 		registry.Register(new ProjectionRegistration(
-			typeof(RebuildPoisonProjection), ProjectionMode.Async, projection: new object(), inlineApply: null));
+			typeof(RebuildPoisonProjection), ProjectionMode.Async, projection: new object(), inlineApply: static (_, _, _, _) => Task.CompletedTask));
 
 		var globalStreamQuery = A.Fake<IGlobalStreamQuery>();
 		var readCount = 0;
@@ -74,15 +74,14 @@ public sealed class ProjectionPoisonHaltParityShould
 		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
-		var serviceProvider = A.Fake<IServiceProvider>();
-		A.CallTo(() => serviceProvider.GetService(typeof(IGlobalStreamQuery))).Returns(globalStreamQuery);
+		using var serviceProvider = new ServiceCollection().AddSingleton(globalStreamQuery).BuildServiceProvider();
 
 		var host = new AsyncProjectionProcessingHost(
 			registry,
 			eventSerializer,
 			checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
-			{
+			{ SubscriptionScope = "unit-test",
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 				CheckpointInterval = 1,
 			}),
@@ -236,7 +235,7 @@ public sealed class ProjectionPoisonHaltParityShould
 			eventSerializer,
 			checkpointStore,
 			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
-			{
+			{ SubscriptionScope = "unit-test",
 				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
 				CheckpointInterval = 1,
 			}),

@@ -24,21 +24,22 @@ namespace Boundary.Tests;
 /// the only thing standing between that and a silent double-count is this census.
 /// </para>
 /// <para>
-/// <b>Scope, stated so the exclusion is visible.</b> The census covers provider stores — the types that
-/// talk to a database — and deliberately excludes the core framework assembly, which holds decorators,
-/// capability views and the tenant router. Those must not DECLARE the capability: they mediate it, by
-/// returning a wrapping view only when the store they wrap actually provides it. A decorator that declared
-/// it outright would advertise behaviour its inner store may be unable to perform, which is the failure the
+/// <b>Scope, stated so the exclusion is visible.</b> The census covers stores that OWN their storage,
+/// wherever they live — the provider stores that talk to a database, and the in-memory store that holds
+/// its own rows. It excludes stores that get their storage from another store: decorators, capability
+/// views and the tenant router. Those must not DECLARE the capability, they mediate it, by returning a
+/// wrapping view only when the store they wrap actually provides it; a decorator that declared it outright
+/// would advertise behaviour its inner store may be unable to perform, which is the failure the
 /// deny-by-default resolution in <c>IsolatingProjectionStoreDecorator</c> exists to prevent.
+/// <para>
+/// <b>The split is derived, not listed.</b> It used to be the assembly name, which read as a tidy proxy
+/// and silently became wrong when a real store landed in the core assembly — banning it from declaring a
+/// capability it genuinely has. See <c>WrapsAnotherStore</c>.
+/// </para>
 /// </para>
 /// </summary>
 public sealed class ProjectionStoresRecordTheirPositionShould
 {
-	/// <summary>
-	/// The assembly holding decorators, capability views and the tenant router — mediators, not providers.
-	/// </summary>
-	private const string CoreAssemblyName = "Excalibur.EventSourcing";
-
 	/// <summary>
 	/// A store that must always be discovered. Without it, a census that finds nothing — a renamed
 	/// assembly, an unloaded dependency, a moved namespace — would report a clean sweep over zero types,
@@ -88,19 +89,19 @@ public sealed class ProjectionStoresRecordTheirPositionShould
 	/// the shortcut.
 	/// </remarks>
 	[Fact]
-	public void Mediate_the_capability_from_the_core_assembly_rather_than_declaring_it()
+	public void Mediate_the_capability_from_a_wrapping_store_rather_than_declaring_it()
 	{
 		var declaring = FrameworkTypes()
-			.Where(static type => type.Assembly.GetName().Name == CoreAssemblyName)
 			.Where(static type => Classifiable(type, static t => t is { IsClass: true, IsAbstract: false, IsNested: false }))
 			.Where(static type => Classifiable(type, ImplementsProjectionStore))
+			.Where(static type => Classifiable(type, WrapsAnotherStore))
 			.Where(static type => Classifiable(type, ImplementsPositioned))
 			.Select(static type => type.Name)
 			.OrderBy(static name => name, StringComparer.Ordinal)
 			.ToArray();
 
 		declaring.ShouldBeEmpty(
-			"these core types declare IPositionedProjectionStore<T> directly. A decorator or router must "
+			"these WRAPPING stores declare IPositionedProjectionStore<T> directly. A decorator or router must "
 			+ "instead return a mediating view from its capability resolution, and only when the store it "
 			+ "wraps actually provides the capability -- declaring it outright advertises behaviour the "
 			+ "inner store may be unable to perform: "
@@ -110,10 +111,43 @@ public sealed class ProjectionStoresRecordTheirPositionShould
 	/// <summary>Provider projection stores: the types that talk to a database.</summary>
 	private static Type[] Census() =>
 		[.. FrameworkTypes()
-			.Where(static type => type.Assembly.GetName().Name != CoreAssemblyName)
 			.Where(static type => Classifiable(type, static t => t is { IsClass: true, IsAbstract: false, IsNested: false }))
 			.Where(static type => Classifiable(type, ImplementsProjectionStore))
+			.Where(static type => !Classifiable(type, WrapsAnotherStore))
 			.OrderBy(static type => type.FullName, StringComparer.Ordinal)];
+
+	/// <summary>
+	/// Whether this type obtains another projection store rather than owning its storage -- the
+	/// structural definition of a mediator.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// THE DISCRIMINATOR USED TO BE THE ASSEMBLY NAME, and that premise stopped being true. The scope
+	/// note above said the core assembly holds only decorators, capability views and the tenant router;
+	/// it now also holds <c>InMemoryProjectionStore</c>, which owns its rows outright
+	/// (<c>Entry(byte[] Snapshot, long StoredPosition)</c>) and can therefore perform the positioned
+	/// contract honestly. Under the old rule it was BANNED from declaring a capability it genuinely has,
+	/// while a wrapping store living in a provider package would have been OBLIGED to declare one it
+	/// cannot keep. Both answers were wrong, and in opposite directions.
+	/// </para>
+	/// <para>
+	/// So the rule is now the property itself: a mediator is a store that gets its storage from another
+	/// store, directly as an <c>IProjectionStore&lt;T&gt;</c> parameter or through a resolver generic over
+	/// one. That is derivable, so a seventh type added next year is classified rather than remembered --
+	/// and the census now COVERS the in-memory store instead of excluding it, so an in-memory store that
+	/// lost its positioned write reddens the arm above.
+	/// </para>
+	/// </remarks>
+	private static bool WrapsAnotherStore(Type type) =>
+		type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+			.SelectMany(static constructor => constructor.GetParameters())
+			.Any(static parameter => MentionsProjectionStore(parameter.ParameterType));
+
+	/// <summary>Whether a type IS a projection store or is generic over one, at any depth.</summary>
+	private static bool MentionsProjectionStore(Type type) =>
+		type.IsGenericType
+		&& (type.GetGenericTypeDefinition() == typeof(IProjectionStore<>)
+			|| Array.Exists(type.GetGenericArguments(), MentionsProjectionStore));
 
 	/// <summary>
 	/// Applies a reflection predicate, treating a type that cannot be inspected as not matching.

@@ -242,8 +242,19 @@ internal static class EventSourcingEventId
 	/// <summary>Two readers are processing one subscription; the contested span may be applied twice.</summary>
 	public const int AsyncProjectionContested = 113209;
 
-	/// <summary>The global stream head could not be read at startup, so replay cannot be distinguished.</summary>
-	public const int AsyncProjectionHeadUnavailable = 113210;
+	// 113210 is RETIRED and deliberately not reused. It reported that the global stream head could not
+	// be read at startup, which mattered only while delivery was classified against that head. A
+	// re-application is now decided by the subscription's own checkpoint, which the loop already holds,
+	// so there is no head read to fail and nothing to warn about.
+
+	/// <summary>Applying one batch to one projection exceeded its configured warning threshold.</summary>
+	public const int AsyncProjectionApplySlow = 113211;
+
+	/// <summary>
+	/// The durable checkpoint write failed, so the host rewound to the last recorded mark rather than
+	/// continuing to apply events whose progress nothing durable knows about.
+	/// </summary>
+	public const int AsyncProjectionCheckpointWriteFailed = 113212;
 
 	// ========================================
 	// 113300-113399: Materialized View Processor

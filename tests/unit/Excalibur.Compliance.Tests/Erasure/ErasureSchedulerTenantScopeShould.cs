@@ -411,6 +411,7 @@ public sealed class ErasureSchedulerTenantScopeShould
 
 	private static ErasureStatus ScheduledStatus(string tenant) => new()
 	{
+		TenantPartition = KeyedTenantPartition.Untenanted,
 		RequestId = Guid.NewGuid(), DataSubjectIdHash = "test-subject", IdType = DataSubjectIdType.UserId,
 		Scope = ErasureScope.User, LegalBasis = ErasureLegalBasis.DataSubjectRequest,
 		Status = ErasureRequestStatus.Scheduled, RequestedBy = "test", TenantId = tenant,

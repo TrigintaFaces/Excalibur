@@ -10,6 +10,7 @@ using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.Queries;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -151,6 +152,7 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 	// a shared fixture's connection out from under the suite that owns it.
 	private readonly Dictionary<object, IEventStore> _resolvedStores =
 		new(ReferenceEqualityComparer.Instance);
+	private readonly Dictionary<IEventStore, IGlobalStreamQuery> _globalQueries = new(ReferenceEqualityComparer.Instance);
 
 	// The refusal arm's store, held apart from the map above because it differs by REGISTRATION rather
 	// than by ambient tenant: same provider, same backing set, same untenanted partition, but registered
@@ -226,7 +228,12 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 				+ "supplying one -- use TryAdd for any default so a host-supplied context wins.");
 		}
 
-		return provider.GetRequiredService<IEventStore>();
+		var store = provider.GetRequiredService<IEventStore>();
+		if (provider.GetService<IGlobalStreamQuery>() is { } query)
+		{
+			_globalQueries[store] = query;
+		}
+		return store;
 	}
 
 	/// <summary>
@@ -452,6 +459,33 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 			return;
 		}
 
+		// THE LAST POSITION IS WHAT A READER WAITS FOR, SO IT IS CHECKED, NOT ASSUMED.
+		//
+		// The token must match the actual endpoint, including for providers with gaps. A provider that reports its FIRST position here instead would let a
+		// caller wait for a read model that has seen only the first of its N events and call that
+		// read-your-writes -- silent, and indistinguishable from success for N == 1, which is why this
+		// arm runs against a chunked append of many.
+		if (result.LastEventPosition is not { } lastPosition)
+		{
+			throw new TestFixtureAssertionException(
+				"The append reported a first global position but no last one. A store either assigns "
+				+ "global positions or it does not; reporting one end of the block and not the other "
+				+ "leaves a caller unable to wait for its own write to become visible.");
+		}
+
+		await VerifyStoredAppendPositionsAsync(store, loaded, firstPosition, lastPosition).ConfigureAwait(false);
+
+		// These inequalities are only sanity checks. The global read above establishes the exact
+		// endpoints when the provider exposes it; a follow-up allocation alone cannot prove truthfulness.
+		if (Count > 1 && lastPosition <= firstPosition)
+		{
+			throw new TestFixtureAssertionException(
+				$"A {Count}-event append reported first position {firstPosition} and last position "
+				+ $"{lastPosition}. An append of more than one event consumes more than one position, so "
+				+ "its last cannot be at or below its first. Positions need not be contiguous -- they "
+				+ "must be truthful.");
+		}
+
 		var followUpId = GenerateAggregateId();
 		var followUp = await store.AppendAsync(
 			followUpId,
@@ -476,13 +510,89 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 				+ "subscriber unable to order the two.");
 		}
 
-		if (nextPosition <= firstPosition + Count - 1)
+		// The next allocation must not overlap the reported range. Gaps are permitted.
+		if (nextPosition <= lastPosition)
 		{
 			throw new TestFixtureAssertionException(
-				$"The {Count}-event append reserved positions {firstPosition}..{firstPosition + Count - 1}, "
-				+ $"but the next append was given {nextPosition}, which is inside that block. Two events "
-				+ "now share a global position, so a subscriber reading in position order sees one of them "
-				+ "twice and the other never.");
+				$"The {Count}-event append reported its last event at {lastPosition}, but the next append "
+				+ $"was given {nextPosition}, which is at or below it. Either two events share a global "
+				+ "position -- so a subscriber reading in order sees one twice and the other never -- or "
+				+ "the reported last position is not the top of what this append consumed, which makes a "
+				+ "read-your-writes wait on it return early.");
+		}
+	}
+
+	private async Task VerifyStoredAppendPositionsAsync(
+		IEventStore store, IReadOnlyList<StoredEvent> appended, long firstPosition, long lastPosition)
+	{
+		// LoadAsync need not return global positions. Resolve the global reader from the SAME provider
+		// registration instead. Without one, the generic arm can assert only the sanity checks below.
+		if (!_globalQueries.TryGetValue(store, out var query))
+		{
+			return;
+		}
+
+		var remaining = appended.Select(e => e.EventId).ToHashSet(StringComparer.Ordinal);
+		var positions = new List<long>(appended.Count);
+		// THE WALK STARTS AT THIS APPEND'S OWN BLOCK, NOT AT THE BEGINNING OF HISTORY.
+		//
+		// Walking from GlobalStreamPosition.Start asserts something this arm is not about: that the
+		// whole stream is gapless from position 0. The global reader is wrapped by
+		// ContiguousGlobalStreamQuery, which TRUNCATES at the first gap BY DESIGN, so a projection can
+		// never skip an event that is merely not visible yet. A leading gap therefore returns an EMPTY
+		// page, and this arm then reported "the global stream did not contain every event" while every
+		// event was in fact present, contiguous and ordered inside its own block.
+		//
+		// A leading gap is reachable and legitimate: a fixture that deletes rows without resetting the
+		// position counter leaves the next append starting above 1, which is what happens whenever these
+		// arms share one database. Measured: appended=300 at reported=46..345 with 45 positions already
+		// consumed, and readAll(Start, int.MaxValue) returning 0 rows.
+		//
+		// The subject of this arm is its OWN block being contiguous and ordered -- which is what its
+		// name says -- so it starts just below its own first position. Max(0, ...) because the decorator
+		// refuses a negative checkpoint, and a provider reporting position 0 would otherwise produce one.
+		var cursor = new GlobalStreamPosition(Math.Max(0, firstPosition - 1), DateTimeOffset.MinValue);
+		var pagesRead = 0;
+		while (remaining.Count > 0)
+		{
+			var page = await query.ReadAllAsync(cursor, 1000, CancellationToken.None).ConfigureAwait(false);
+			pagesRead++;
+			if (page.Count == 0)
+			{
+				// The numbers are the message. The previous wording was "The global stream did not contain
+				// every event from the successful append" and nothing else -- no count, no position, no id --
+				// which is why a real defect in this walk went undiagnosed. The id list is CAPPED: an
+				// uncapped one printed 300 ids and flooded the log it was meant to explain.
+				var shown = remaining.Take(5).ToList();
+				throw new TestFixtureAssertionException(
+					"The global stream did not contain every event from the successful append. "
+					+ $"appended={appended.Count} found={appended.Count - remaining.Count} "
+					+ $"missing={remaining.Count} pagesRead={pagesRead} lastCursor={cursor.Position} "
+					+ $"reported={firstPosition}..{lastPosition} "
+					+ $"foundPositions=[{string.Join(",", positions)}] "
+					+ $"firstMissingEventIds=[{string.Join(",", shown)}]"
+					+ (remaining.Count > shown.Count ? $" (+{remaining.Count - shown.Count} more)" : string.Empty));
+			}
+
+			foreach (var entry in page)
+			{
+				if (entry.GlobalPosition <= cursor.Position)
+				{
+					throw new TestFixtureAssertionException("The global reader did not advance in strict position order.");
+				}
+				if (remaining.Remove(entry.EventId))
+				{
+					positions.Add(entry.GlobalPosition);
+				}
+				cursor = new GlobalStreamPosition(entry.GlobalPosition, entry.Timestamp);
+			}
+		}
+
+		if (positions.Min() != firstPosition || positions.Max() != lastPosition)
+		{
+			throw new TestFixtureAssertionException(
+				$"The append reported positions {firstPosition}..{lastPosition}, but its stored global positions "
+				+ $"span {positions.Min()}..{positions.Max()}. A session token must name the actual last event.");
 		}
 	}
 

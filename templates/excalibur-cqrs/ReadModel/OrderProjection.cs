@@ -7,9 +7,11 @@ namespace Company.ExcaliburCqrs.ReadModel;
 /// Projects order events using framework-managed loading and persistence.
 /// </summary>
 /// <remarks>
-/// Registered through AddProjection with Inline and WhenHandledBy. Inline writes are unpositioned;
-/// migrating an existing database projection to Async requires rebuilding it from the event stream.
-/// Projection failures propagate after event persistence and do not roll back committed events.
+/// Registered through AddProjection with Async and WhenHandledBy, and applied by the projection host
+/// in global-stream order -- so this type is the only writer of these rows. A read that must observe a
+/// particular write passes that write's session token to IProjectionSessionReader.ReadAsync.
+/// A failure here does not roll back the committed events; the host halts at the failure rather than
+/// advancing past it, so the projection resumes from the same event once the fault is fixed.
 /// </remarks>
 public sealed class OrderProjection :
     IProjectionEventHandler<OrderReadModel, OrderCreated>,

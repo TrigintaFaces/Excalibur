@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Excalibur.Compliance.Erasure;
 
-using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
+using Excalibur.Compliance;using Excalibur.Dispatch;
+
+namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
 /// Tests the full erasure execution workflow including contributors,
@@ -326,6 +328,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
@@ -373,6 +376,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",
@@ -494,6 +498,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 	private static ErasureStatus CreateStatus(Guid requestId, ErasureRequestStatus status) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",

@@ -10,9 +10,13 @@
 // Key concepts demonstrated:
 // - IProjection<TKey> - Read model interface
 // - IProjectionStore<T> - Storage abstraction
-// - AddProjection<T>().Inline() - Framework-managed inline projections
+// - AddProjection<T>().Async() - the projection host owns the read model
+// - EnableProjectionProcessing() - starts that host; without it nothing applies
+// - IProjectionProcessor.ProcessPendingAsync() - driving the host by hand, which is
+//   what a console app or a serverless trigger does instead of a BackgroundService
+// - SaveResult.SessionToken + IProjectionSessionReader - reading your own write
 // - KeyedBy<TEvent>() - Multi-stream projections keyed by custom data
-// - Checkpoint tracking - For async projection support
+// - Checkpoint tracking - how the host remembers where it got to
 // - Projection rebuild - Rebuilding from scratch
 // - IEventSourcedRepository - Aggregate persistence
 // ============================================================================
@@ -22,6 +26,8 @@
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
+using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Projections;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -48,26 +54,27 @@ services.AddMetrics();
 // Register event types so the serializer resolves them without an assembly scan.
 services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
-// Add Excalibur event sourcing with in-memory event store and inline projections.
-// The AddProjection<T>() API registers projections that run automatically during
-// SaveAsync(), providing read-after-write consistency without manual event iteration.
+// Add Excalibur event sourcing with an in-memory event store and async projections.
+// AddProjection<T>() registers a projection; EnableProjectionProcessing() below starts the
+// host that applies events to it. A save does NOT write read models -- it returns a session
+// token, and a read that must observe that save presents the token.
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
 	_ = builder.AddRepository<ProductAggregate, Guid>(id => new ProductAggregate(id));
 
 	// -----------------------------------------------------------------------
-	// Inline projection: ProductCatalogProjection (single-stream)
+	// Async projection: ProductCatalogProjection (single-stream)
 	// -----------------------------------------------------------------------
 	// This projection demonstrates all three handler tiers:
 	//
 	// Tier 1: When<TEvent> lambdas -- simple, synchronous, no DI
 	// Tier 3: WhenHandledBy<TEvent, THandler> -- DI-resolved, async, logging
 	//
-	// The framework loads the projection from IProjectionStore<T>, applies
-	// each handler, then saves it back -- all within SaveAsync().
-	// WhenHandledBy handlers are resolved from DI and registered automatically.
+	// The projection host loads the projection from IProjectionStore<T>, applies
+	// each handler, then writes it back -- reading the global stream in order, as the
+	// only writer. WhenHandledBy handlers are resolved from DI and registered automatically.
 	builder.AddProjection<ProductCatalogProjection>(p => p
-		.Inline()
+		.Async()
 		// Tier 3: DI-resolved handler (has ILogger injection, see ProductCreatedHandler)
 		.WhenHandledBy<ProductCreated, ProductCreatedHandler>()
 		// Tier 1: Simple lambdas for straightforward property updates
@@ -76,7 +83,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			proj.CurrentPrice = e.NewPrice;
 			proj.LastModified = DateTimeOffset.UtcNow;
 			// The aggregate stream version travels in the persistence envelope, not the
-			// event payload. Inline lambda handlers receive replay/position context only;
+			// event payload. Lambda handlers receive replay/position context only;
 			// use the DI-resolved handler tier (ProjectionHandlerContext.CommittedVersion)
 			// when a projection must record the committed stream version.
 			proj.Version = ctx.GlobalPosition ?? proj.Version;
@@ -97,16 +104,16 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 		.WhenHandledBy<ProductDiscontinued, ProductDiscontinuedHandler>());
 
 	// -----------------------------------------------------------------------
-	// Inline projection: CategorySummaryProjection (multi-stream via KeyedBy)
+	// Async projection: CategorySummaryProjection (multi-stream via KeyedBy)
 	// -----------------------------------------------------------------------
 	// This projection aggregates data across multiple product streams into
 	// category-level summaries. KeyedBy<TEvent>() tells the framework to
 	// derive the projection ID from the event's Category field instead of
 	// the aggregate ID. This means all products in "Electronics" share one
-	// CategorySummaryProjection instance, automatically loaded and saved
-	// during SaveAsync() -- no manual handler calls needed.
+	// CategorySummaryProjection instance, loaded and saved by the projection
+	// host as it applies each event -- no manual handler calls needed.
 	builder.AddProjection<CategorySummaryProjection>(p => p
-		.Inline()
+		.Async()
 		.KeyedBy<ProductCreated>(e => e.Category.ToUpperInvariant())
 		.KeyedBy<ProductPriceChanged>(e => e.Category.ToUpperInvariant())
 		.KeyedBy<ProductStockAdded>(e => e.Category.ToUpperInvariant())
@@ -210,17 +217,20 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			proj.LastModified = DateTimeOffset.UtcNow;
 			proj.Version++;
 		}));
+	// WITHOUT THIS LINE EVERY READ MODEL BELOW STAYS EMPTY. Registering a projection does not
+	// start anything; this registers the host that applies committed events to it, in
+	// global-stream order, as the only writer of those rows.
+	_ = builder.EnableProjectionProcessing(options => options.SubscriptionScope = "projections-sample/memory-events/memory-views");
 }));
 services.AddInMemoryEventStore();
 
 // Register in-memory projection stores.
 // In production, use SqlServerProjectionStore, PostgresProjectionStore, etc.
-// The inline projection system resolves IProjectionStore<T> from DI to persist state.
-services.AddSingleton<IProjectionStore<ProductCatalogProjection>>(
-	new InMemoryProjectionStore<ProductCatalogProjection>(p => p.Id));
-
-services.AddSingleton<IProjectionStore<CategorySummaryProjection>>(
-	new InMemoryProjectionStore<CategorySummaryProjection>(p => p.Id));
+// The projection host resolves IProjectionStore<T> from DI to persist state.
+// The framework ships this store, so the sample uses it rather than carrying its own copy. It is
+// keyed by the id the projection system passes on each write, so there is no key selector.
+services.AddInMemoryProjectionStore<ProductCatalogProjection>();
+services.AddInMemoryProjectionStore<CategorySummaryProjection>();
 
 // Register checkpoint store (for async projection support)
 services.AddSingleton<InMemoryCheckpointStore>();
@@ -234,17 +244,23 @@ var categoryStore = provider.GetRequiredService<IProjectionStore<CategorySummary
 var checkpointStore = provider.GetRequiredService<InMemoryCheckpointStore>();
 var repository = provider.GetRequiredService<IEventSourcedRepository<ProductAggregate, Guid>>();
 
+// The host, driven by hand. A long-running service lets the BackgroundService poll; a console app
+// and a serverless trigger call the processor directly, which is the same code path.
+var processor = provider.GetRequiredService<IProjectionProcessor>();
+var sessionReader = provider.GetRequiredService<IProjectionSessionReader>();
+
 // ============================================================================
-// Demo 1: Inline Projections - Synchronous Updates
+// Demo 1: Stored Projections - Session-Consistent Reads
 // ============================================================================
 Console.WriteLine("╔════════════════════════════════════════════════╗");
-Console.WriteLine("║  Demo 1: Inline Projections                    ║");
+Console.WriteLine("║  Demo 1: Stored Projections                    ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("Inline projections update read models synchronously during");
-Console.WriteLine("SaveAsync(). No manual event iteration is needed -- the");
-Console.WriteLine("framework processes events through registered When<T> handlers");
-Console.WriteLine("automatically.");
+Console.WriteLine("A save commits events and returns a session token. The");
+Console.WriteLine("projection host applies those events to the read models in");
+Console.WriteLine("global-stream order -- as the only writer, so two concurrent");
+Console.WriteLine("saves cannot overwrite each other's fold. A read that must");
+Console.WriteLine("observe a particular save presents that save's token.");
 Console.WriteLine();
 
 // Create some products
@@ -259,15 +275,33 @@ var chair = ProductAggregate.Create(
 var desk = ProductAggregate.Create(
 	Guid.NewGuid(), "Standing Desk", "Furniture", 599.99m, 15);
 
-// Save aggregates -- both inline projections update automatically during SaveAsync():
+// Save aggregates. Both projections are fed by the host afterwards:
 // - ProductCatalogProjection: keyed by aggregate ID (single-stream, default)
 // - CategorySummaryProjection: keyed by Category via KeyedBy<TEvent> (multi-stream)
+var lastSave = default(SaveResult);
 foreach (var aggregate in new[] { laptop, phone, headphones, chair, desk })
 {
-	await repository.SaveAsync(aggregate, CancellationToken.None).ConfigureAwait(false);
+	lastSave = await repository.SaveAsync(aggregate, CancellationToken.None).ConfigureAwait(false);
 }
 
-// Query the catalog projection -- populated automatically by the inline projection
+// Drive the host once. In a web application a BackgroundService has already done this; here the
+// process would exit before any background poll ran, so the sample drives it explicitly -- the
+// same call a Function or a Lambda makes on its trigger.
+var processed = await processor.ProcessPendingAsync(CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine(
+	$"Projection host applied {processed.EventsApplied} event(s); outcome {processed.Outcome}.");
+
+// Read the last product back THROUGH ITS TOKEN. Freshness is the part worth noticing: Fresh means
+// the projection had observed this very save before the read returned, so this is not a hopeful
+// query -- it is a read that can tell you whether it saw your write.
+var confirmed = await sessionReader
+	.ReadAsync<ProductCatalogProjection>(desk.Id.ToString(), lastSave, CancellationToken.None)
+	.ConfigureAwait(false);
+Console.WriteLine(
+	$"Read of the last save: Freshness={confirmed.Freshness}, found={confirmed.Projection is not null}.");
+Console.WriteLine();
+
+// Query the catalog projection -- populated by the host above
 Console.WriteLine("Product Catalog Read Model:");
 var allProducts = await catalogStore.QueryAsync(null, new QueryOptions(OrderBy: "Name"), CancellationToken.None);
 foreach (var product in allProducts)
@@ -289,10 +323,10 @@ Console.WriteLine("aggregates. The CategorySummaryProjection combines data");
 Console.WriteLine("from all products in a category. KeyedBy<TEvent>() tells");
 Console.WriteLine("the framework to derive the projection ID from the event's");
 Console.WriteLine("Category field, so all products in the same category share");
-Console.WriteLine("one projection instance -- updated automatically in SaveAsync().");
+Console.WriteLine("one projection instance, updated by the host as events arrive.");
 Console.WriteLine();
 
-// Query category summaries -- populated automatically by the inline KeyedBy projection
+// Query category summaries -- populated by the host from the KeyedBy projection
 var allCategories = await categoryStore.QueryAsync(null, null, CancellationToken.None);
 foreach (var category in allCategories)
 {
@@ -313,10 +347,10 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 3: Projection Updates from Events        ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("When domain events occur, both single-stream and multi-stream");
-Console.WriteLine("inline projections update automatically during SaveAsync().");
-Console.WriteLine("KeyedBy ensures the correct CategorySummaryProjection instance");
-Console.WriteLine("is loaded and saved without manual handler calls.");
+Console.WriteLine("When domain events are committed, the host applies them to both");
+Console.WriteLine("the single-stream and the multi-stream projection. KeyedBy ensures");
+Console.WriteLine("the correct CategorySummaryProjection instance is loaded and saved");
+Console.WriteLine("without manual handler calls.");
 Console.WriteLine();
 
 // Reload aggregates from repository for mutations (correct load-mutate-save pattern)
@@ -327,7 +361,6 @@ laptop = await repository.GetByIdAsync(laptop.Id, CancellationToken.None).Config
 Console.WriteLine("1. Changing laptop price from $1,299.99 to $1,099.99 (sale!)");
 laptop.ChangePrice(1099.99m);
 
-// SaveAsync updates both projections inline automatically
 await repository.SaveAsync(laptop, CancellationToken.None).ConfigureAwait(false);
 
 // Reload headphones for mutation
@@ -349,6 +382,12 @@ Console.WriteLine("3. Restocking desks (+10 units)");
 desk.AddStock(10);
 
 await repository.SaveAsync(desk, CancellationToken.None).ConfigureAwait(false);
+
+// Drive the host again. The three saves above are durable; the read models are not updated until
+// something applies them, and in this console app that something is this line.
+processed = await processor.ProcessPendingAsync(CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine(
+	$"Projection host applied {processed.EventsApplied} event(s); outcome {processed.Outcome}.");
 
 Console.WriteLine();
 Console.WriteLine("Updated Product Catalog:");
@@ -495,10 +534,10 @@ Console.WriteLine("╔═══════════════════�
 Console.WriteLine("║  Demo 7: Discontinue a Product                 ║");
 Console.WriteLine("╚════════════════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("When a product is discontinued, both projections update");
-Console.WriteLine("automatically during SaveAsync(). The catalog projection");
-Console.WriteLine("marks the product inactive; the category summary recalculates");
-Console.WriteLine("statistics -- all driven by KeyedBy and When<T> handlers.");
+Console.WriteLine("When a product is discontinued, the host applies the event");
+Console.WriteLine("to both projections. The catalog projection marks the product");
+Console.WriteLine("inactive; the category summary recalculates statistics -- all");
+Console.WriteLine("driven by KeyedBy and When<T> handlers.");
 Console.WriteLine();
 
 // Reload chair for mutation
@@ -508,8 +547,11 @@ chair = await repository.GetByIdAsync(chair.Id, CancellationToken.None).Configur
 Console.WriteLine("Discontinuing the Office Chair...");
 chair.Discontinue("End of product line");
 
-// SaveAsync updates both projections inline automatically
 await repository.SaveAsync(chair, CancellationToken.None).ConfigureAwait(false);
+
+processed = await processor.ProcessPendingAsync(CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine(
+	$"Projection host applied {processed.EventsApplied} event(s); outcome {processed.Outcome}.");
 
 Console.WriteLine();
 Console.WriteLine("Updated Furniture Category Summary:");
@@ -532,9 +574,10 @@ Console.WriteLine("  Sample Complete!");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Key takeaways:");
-Console.WriteLine("  - AddProjection<T>().Inline() for single-stream projections");
+Console.WriteLine("  - AddProjection<T>().Async() for single-stream projections");
 Console.WriteLine("  - KeyedBy<TEvent>() for multi-stream projections (custom key)");
-Console.WriteLine("  - Both projection types update automatically during SaveAsync()");
+Console.WriteLine("  - The projection host applies both projection types, not SaveAsync()");
+Console.WriteLine("  - A read that must observe its own write carries the save's token");
 Console.WriteLine("  - No manual GetUncommittedEvents() iteration needed");
 Console.WriteLine("  - IProjectionStore<T> provides storage abstraction for both");
 Console.WriteLine("  - Checkpoints enable async projections and rebuilds");

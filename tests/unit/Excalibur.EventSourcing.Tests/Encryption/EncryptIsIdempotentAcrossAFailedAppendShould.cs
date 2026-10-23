@@ -69,7 +69,7 @@ public sealed class EncryptIsIdempotentAcrossAFailedAppendShould
 
             return AppendAttempts == 1
                 ? throw new InvalidOperationException("transient store fault on the first append")
-                : ValueTask.FromResult(AppendResult.CreateSuccess(expectedVersion + 1, firstEventPosition: null));
+                : ValueTask.FromResult(AppendResult.CreateSuccess(expectedVersion + 1, firstEventPosition: null, lastEventPosition: null));
         }
 
         public ValueTask<IReadOnlyList<StoredEvent>> LoadAsync(string aggregateId, string aggregateType, CancellationToken cancellationToken) =>

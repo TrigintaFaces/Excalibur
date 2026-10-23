@@ -451,7 +451,7 @@ public sealed class EventStoreTenantArmsBindShould
 						domainEvent.OccurredAt));
 				}
 
-				return ValueTask.FromResult(AppendResult.CreateSuccess(current, null));
+				return ValueTask.FromResult(AppendResult.CreateSuccess(current, null, null));
 			}
 		}
 	}

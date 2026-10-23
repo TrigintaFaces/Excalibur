@@ -35,7 +35,7 @@ public sealed class ProjectionRecoveryServiceShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
 			proj.Total = e.Amount;
@@ -80,7 +80,7 @@ public sealed class ProjectionRecoveryServiceShould
 			CancellationToken.None);
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -178,7 +178,7 @@ public sealed class ProjectionRecoveryServiceShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
 			proj.Total += e.Amount;

@@ -278,7 +278,7 @@ public sealed class TieredStorageArchiveRoundTripShould
         public ValueTask<AppendResult> AppendAsync(
             string aggregateId, string aggregateType, IEnumerable<IDomainEvent> events,
             long expectedVersion, CancellationToken cancellationToken) =>
-            ValueTask.FromResult(AppendResult.CreateSuccess(_events.Count, null));
+            ValueTask.FromResult(AppendResult.CreateSuccess(_events.Count, null, null));
 
         public Task<IReadOnlyList<ArchiveCandidate>> GetArchiveCandidatesAsync(
             ArchivePolicy policy, int batchSize, CancellationToken cancellationToken) =>

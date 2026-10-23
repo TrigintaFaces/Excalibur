@@ -1163,10 +1163,11 @@ checkpoint; `e1 -> e2` means `e1` happens-before `e2`.
 | **S2** | uniqueness | no position hosts two event rows | **enforced by the engine**, not by the allocation lock: `PRIMARY KEY CLUSTERED (Position)` |
 | **S3** | no rewind | `cp[s]` never decreases | enforced within a checkpoint lifetime by nonnegative/nondecreasing argument validation plus atomic compare-and-set; external writes or restoration are outside this guarantee |
 | **S4** | no silent skip | no committed event remains undelivered below `cp[s]` | the correction above is precisely about this; a contiguous scan is required, a high-water mark is not sufficient |
-| **S5** | replay honesty | an event delivered with `IsReplay = false` committed **after** the subscription started | **NEWLY STATED.** Relied upon by `AsyncProjectionProcessingHost.cs`, which captures a head position at start and classifies against it |
+| **S5** | replay honesty | `IsReplay = true` **iff** the delivery is part of a deliberate re-fold of stored history (rebuild, recovery, on-demand build); the live subscription never sets it | **RESTATED.** The previous wording — *"an event delivered with `IsReplay = false` committed after the subscription started"* — described the MECHANISM (a head position captured at start, classified against) rather than any promise a consumer could rely on, and the mechanism did not satisfy it: an event committed after start but below the captured head was delivered `true`. The three re-fold paths now hard-code `true` and the live host passes the literal `false`, so the property is structural. **It is NOT a duplicate-effect guarantee** — see E1 |
 | **S6** | causal delivery | if `e1 -> e2` then every projection applies `e1` before `e2` | **NEWLY STATED.** Rests on the allocation being SERIALISED to commit, not on density — see below |
 | **L1** | allocation liveness | every allocated block is eventually committed or returned, and the counter lock is eventually released | the allocation is inside the appending transaction, so it ends when that transaction does |
 | **L2** | delivery liveness | every committed event is eventually delivered to every subscription | requires the contiguous scan to make progress |
+| **E1** | handler effect delivery | **at-least-once.** An effect may be requested more than once for a single event. The duplicate window is bounded by the events applied since the last durable checkpoint: at most `CheckpointInterval + BatchSize - 1` on a process crash -- **599 at the defaults of 100 and 500**, NOT 99. A whole page is applied before the threshold is tested, so the count overshoots by almost a full page. **CORRECTED:** this row previously stated `CheckpointInterval - 1` (99), which was false and was the number a consumer would have sized their idempotency against. An interval of 1 does not yield zero repeats either, because the effect and the record of it are separate commits. A checkpoint store refusing writes would remove any finite bound, so the host rewinds to its last durable mark rather than applying progress it cannot record, which holds the span to one page for the duration of the outage. A second concurrent reader of one subscription widens it to that reader's unchecked span. | **NEWLY STATED**, and previously absent — the obligation existed only in XML remarks, with no guarantee row and no conformance arm. **Handlers with effects outside the projection state MUST be idempotent on the event identifier; the framework cannot make them exactly-once and does not claim to.** The effect is performed by consumer code against a resource the framework cannot name, so the effect and the record of it cannot commit together. Folding into projection state is idempotent by construction and needs no guard. `IsReplay` is NOT the mechanism for this and must not be used as one: it is `false` on a redelivery after a crash, because such a delivery is not a re-fold of history |
 
 **S6 is the one to read twice, because the obvious test for it does not work.** A projection need not
 *compare* two positions to be harmed by a delivery order that violates causality — it only has to fold
@@ -1517,12 +1518,18 @@ store list.** What is actually true:
   It registers a validator that resolves each registered projection store and fails startup when the
   capability is not reachable. It is **opt-in and off by default**, so a host that has not called it
   gets the silent degradation described above. Nothing in the framework calls it, and no sample does.
-- **The claim "all eight stores the framework ships provide the capability, so … no action" was FALSE.**
-  The eight **provider** stores (SQL Server, Postgres, MongoDB, Cosmos DB, DynamoDB, Elasticsearch,
-  OpenSearch, Firestore) do provide it. **`InMemoryProjectionStore<T>` — shipped in this package, and
-  the store the samples and most first projections run on — does NOT.** A host on the in-memory store
-  was told it had the guarantee and had no action to take, while its projections folded at-least-once.
-  If that is you, the handler guidance in the next bullet applies to you.
+- **Every projection store this framework ships provides the capability.** The eight **provider** stores
+  (SQL Server, Postgres, MongoDB, Cosmos DB, DynamoDB, Elasticsearch, OpenSearch, Firestore) do, and so
+  does **`InMemoryProjectionStore<T>`**, shipped in this package and the store a first projection runs on.
+  It holds the position beside the value in one immutable entry and refuses a stale write under its own
+  write gate, so a projection that starts there can be replayed and rebuilt without an attestation its
+  host cannot honestly make. It is held to the same conformance kit as the eight; see Evidence below.
+  *(Superseded wording, quoted so a reader who inherited it recognises it: "`InMemoryProjectionStore<T>`
+  — shipped in this package, and the store the samples and most first projections run on — does NOT. A
+  host on the in-memory store was told it had the guarantee and had no action to take, while its
+  projections folded at-least-once." That was true when written and is no longer. What is unchanged is the
+  bullet above: the startup requirement is opt-in, so a host that has not called it still gets the silent
+  degradation from any store — including one of its own — that lacks the capability.)*
 - **If you supply your own `IProjectionStore<T>`, implement `IPositionedProjectionStore<T>` as well**, or
   accept that your projections are folded at-least-once and make your handlers assignment-shaped rather
   than accumulating. An accumulating handler on a store without the capability double-counts on every
@@ -1666,6 +1673,13 @@ note:
   safe rather than the read.
 - `Still_persist_a_fold_that_carries_no_position` (in the apply-path suite) — the arm that catches a
   store-aware apply path dropping the save path's work.
+
+The eight provider suites run against real servers, because for them the refusal is the ENGINE's behaviour
+and a mocked client would certify a broken predicate. `InMemoryProjectionStore<T>` is held to the same kit
+in the **unit** shard (`InMemoryPositionedProjectionConformanceTests`): there the engine IS the code under
+test, so there is no fidelity gap to close and no container to gate on — the arms never skip. Removing the
+compare-and-set conjunct from that store reddens five arms including the exactly-once one; removing the
+monotonicity conjunct reddens exactly one. The two mutations redden disjoint sets, as they do on SQL Server.
 
 Six more cover the RE-FOLD, the operation an erasure needs because it changes the fold beneath a fixed
 position. They are a distinct set because the advancing arms above are satisfied by a store that refuses
@@ -1927,3 +1941,113 @@ asserts that **without** an erasure the same fixture loads the full pre-erasure 
 succeed from the snapshot, since the fixture's serializer throws if a single event row is read. Without
 that control the defect arm could pass by never consulting the snapshot at all and read as a refutation.
 R3 UNVERIFIED.
+
+# Architecture — Projection Fold Completeness and Read-Your-Writes
+
+## Guarantee
+
+**A projection's row is folded from every event it selects, exactly once — on a store that records
+positions.** The qualifier is the guarantee, not a footnote: what makes the fold exactly-once is the
+*position*, not the number of writers.
+
+The falsifiable form, in two parts:
+
+1. **Fold completeness.** Given a projection registered `Async` whose store implements
+   `IPositionedProjectionStore<TProjection>`, and two aggregates whose events key to the *same* projection
+   row: after both saves commit and the projection host has applied past both, the row's state contains
+   **both** aggregates' contributions, and the row's position equals the highest position folded into it.
+   A write that cannot establish that is **refused and the refusal is visible** — never silently dropped.
+
+2. **Read-your-writes.** `SaveAsync` returns a `SaveResult` whose `SessionToken` is the global position of
+   the **last** event the save committed. A read through
+   `IProjectionSessionReader.ReadAsync(id, saveResult, ct)` either observes that write and reports
+   `ProjectionFreshness.Fresh`, or reports `BoundExpired` — it never reports `Fresh` for a projection that
+   has not reached the token. A caller that supplies no token is told `NotRequested` and waits for nothing.
+
+**What is deliberately NOT guaranteed: synchronous visibility.** A save does not wait for any projection.
+Read models are replicas, and replicas are updated by replication rather than by the writer dual-writing
+into them. A caller needing its own write back carries the token to the read; a caller that does not need
+it pays nothing.
+
+## How it is achieved (the seam)
+
+- **One serialised writer applies in position order.** `AsyncProjectionProcessingHost` polls the global
+  stream and applies events in order, advancing its mark only after a batch applies cleanly
+  (`AsyncProjectionProcessingHost.cs`, where `_currentPosition` is set). Projections are **not** written
+  during `SaveAsync`; `EventNotificationBroker.NotifyAsync` runs notification handlers only.
+- **The conditional write is what refuses a racing writer.** `PositionedProjectionWriter.WriteAsync`
+  routes a positioned fold through `UpsertAtPositionAsync(id, state, expectedPosition, newPosition)`; the
+  store compares and sets on the stored position, so a writer working from a stale read is refused rather
+  than overwriting. `ProjectionReplayFold.cs:276` states it plainly — that compare-and-set is *"the only
+  thing that surfaces a live writer racing the rebuild."*
+- **The token is the last event's position.** Six providers report it on `AppendResult.LastEventPosition`;
+  `EventSourcedRepository.SaveAsync` carries it into `SaveResult.SessionToken`. The *first* position would
+  not do: a save of three events reports `N` while a reader needs `N+2`.
+- **The read waits on `max(in-process applied mark, durable checkpoint)`.** `ProjectionSessionReader`
+  consults both because neither is sufficient — the in-process mark moves the instant a batch applies but
+  knows only this process, while the durable checkpoint is shared but persists only once
+  `CheckpointInterval` events accumulate, so on a quiet host it lags a projection that is fully caught up.
+
+## Evidence (conformance)
+
+- **The last-position contract** is held by every provider in `EventStoreConformanceTestKit`: a chunked
+  append's reported last position must equal `firstPosition + Count - 1`, and a store reporting one end of
+  the block but not the other is refused. It runs against a *many*-event append deliberately — at one
+  event the first and last positions coincide and the arm could not tell a correct provider from the
+  defect.
+- **The read-your-writes pipeline** is bound by `ProjectionSessionConsistencyShould`,
+  `ProjectionHandlerSessionConsistencyShould` and `ImmutableProjectionSessionConsistencyShould`: each arm
+  saves, drives the processor, then reads through the session reader and asserts **both** the projected
+  data **and** `Freshness == Fresh`. Driving the processor to apply nothing, or stripping the token from
+  the read, reddens them.
+- **The absence of a second writer** is bound by `EventNotificationBrokerShould`: the notification handler
+  runs (liveness) and the registered apply delegate is never invoked (safety).
+- **UNVERIFIED at the sampling boundary.** All of the above are example-based. No property-based suite
+  generates the concurrent-writer interleavings, and no model checks the state space. The fold-completeness
+  guarantee is therefore asserted against the cases written down, not against every reachable state.
+
+## Consumer obligations
+
+- **Run the projection host, or drive it.** Projections advance only when
+  `AsyncProjectionProcessingHost` runs or `IProjectionProcessor.ProcessPendingAsync` is called. A host that
+  can run a background service should; a serverless host calls the pull API on its trigger. Nothing
+  advances between pull invocations, so read models are as current as the trigger schedule.
+- **Register leader election when more than one instance can run the host.** Without it, every instance
+  polls and applies the same subscription concurrently, and events in the contested span may be applied
+  twice.
+- **Use a projection store that records positions if you need the fold guarantee.** See the gap below.
+- **Pass the session token to a read that must observe its own write**, and handle `BoundExpired` — it
+  means the projection had not caught up within the bound, not that the save failed.
+- **Set your projection's own identity in a handler, if your projection has one.** The framework does not
+  populate it and will not: the apply path creates a new row with `new TProjection()` and passes the key to
+  the store as a separate argument, and every store persists it out of band — the SQL providers in their own
+  `Id` column, the document providers as the document id. A read deserializes only the stored body, so a key
+  no handler wrote into the body comes back as the property's default rather than the key the row is filed
+  under. This is deliberate rather than an omission: the framework touches a projection's own properties only
+  through delegates you supply (see `WithSearchText`, which takes both a getter and a setter), because
+  resolving a property by name would not survive trimming. **The falsifiable form:** a projection read back
+  through `IProjectionStore<TProjection>.GetByIdAsync` carries exactly the fields some handler assigned, and
+  no others. The conformance arm that detects a violation is
+  `SqlServerToElasticsearchSessionConsistencyShould.ObserveAWriteThroughTheSessionTokenAfterTheProcessorRuns`,
+  which folds the aggregate id in a handler and asserts it survives the store round trip.
+
+## Known gaps
+
+- **On a projection store that does NOT implement `IPositionedProjectionStore<TProjection>`, fold
+  completeness is UNVERIFIED and a rebuild can silently regress a row.** `ProjectionReplayFold` upserts
+  unconditionally when no positioned capability is present (`:243`, `:252`), because there is no
+  coordinate to be conditional on. A rebuild that replays to position `P` while the host applies `P+1`
+  then writes its older state over the newer one; the event at `P+1` is committed and absent from the read
+  model forever, and both operations report success. Removing the save-time projection write did not close
+  this: the host is **not** the only writer. `ProjectionRebuildService`, `ProjectionRecoveryService`, a
+  second `GlobalStreamProjectionHost` (which performs no leader election) and any consumer holding the
+  public `IProjectionStore<TProjection>` all write the same rows.
+- **`ProjectionRebuildService`'s own exclusion is in-process only.** It claims a rebuild through a
+  `ConcurrentDictionary`, so two hosts rebuilding the same projection concurrently do not exclude each
+  other.
+- **A crash between the durable append and the notification phase loses that phase's work with nothing
+  recording it was owed.** For projections this is benign — the host re-reads from its checkpoint — but a
+  notification handler is not re-invoked.
+- **A projection whose store records no positions cannot be repaired by recovery.** Such a row has no
+  coordinate a conditional write can advance from; `IProjectionRecovery.ReapplyAsync` refuses it terminally
+  and the remedy is a full rebuild.

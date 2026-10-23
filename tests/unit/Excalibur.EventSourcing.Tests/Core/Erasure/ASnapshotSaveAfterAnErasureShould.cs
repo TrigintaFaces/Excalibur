@@ -252,6 +252,7 @@ public sealed class ASnapshotSaveAfterAnErasureShould : IDisposable
 	{
 		var context = new ErasureContributorContext
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash-of-the-subject",
 			IdType = DataSubjectIdType.UserId,

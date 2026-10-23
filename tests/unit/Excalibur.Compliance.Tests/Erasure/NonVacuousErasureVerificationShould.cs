@@ -6,6 +6,8 @@ using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
@@ -111,6 +113,7 @@ public sealed class NonVacuousErasureVerificationShould
     private static ErasureStatus CreateCompletedStatus(Guid requestId, Guid certificateId) =>
         new()
         {
+        	TenantPartition = KeyedTenantPartition.Untenanted,
             RequestId = requestId,
             DataSubjectIdHash = "hash-abc123",
             IdType = DataSubjectIdType.UserId,

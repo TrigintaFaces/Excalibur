@@ -11,9 +11,10 @@ namespace Excalibur.EventSourcing;
 /// <remarks>
 /// <para>
 /// The broker is invoked by <c>EventSourcedRepository.SaveAsync</c> immediately after
-/// <c>IEventStore.AppendAsync</c> succeeds. It runs inline projections first (via
-/// <c>Task.WhenAll</c> across projection types), then notification handlers sequentially.
-/// Projections and handlers never overlap.
+/// <c>IEventStore.AppendAsync</c> succeeds. It invokes the registered
+/// <c>IEventNotificationHandler&lt;TEvent&gt;</c> instances sequentially, one event at a time in
+/// commit order. It writes no projection: a projection row is folded by the projection host,
+/// which applies committed events in global-stream order.
 /// </para>
 /// <para>
 /// This interface is resolved from DI as a nullable service. When no broker is registered,
@@ -21,26 +22,37 @@ namespace Excalibur.EventSourcing;
 /// </para>
 /// <para>
 /// <b>Important:</b> Because events are already committed when the broker runs,
-/// callers must NOT retry <c>SaveAsync</c> if notification fails. Instead, use
-/// <c>IProjectionRecovery.ReapplyAsync</c> for failed projections.
+/// callers must NOT retry <c>SaveAsync</c> if notification fails. The save succeeded; only a
+/// handler did not.
 /// </para>
 /// </remarks>
 public interface IEventNotificationBroker
 {
 	/// <summary>
-	/// Notifies inline projections and event notification handlers about committed events.
+	/// Notifies the registered event notification handlers about committed events.
 	/// </summary>
 	/// <param name="events">The domain events that were committed, in order.</param>
 	/// <param name="context">Context about the aggregate that produced the events.</param>
-	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous notification operation.</returns>
-	/// <exception cref="System.AggregateException">
-	/// Thrown when one or more inline projections fail and
+	/// <exception cref="System.Exception">
+	/// A failing handler's own exception is rethrown with its stack trace preserved, when
 	/// <see cref="EventNotificationOptions.FailurePolicy"/> is
 	/// <see cref="NotificationFailurePolicy.Propagate"/>.
 	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// <b>This method takes no cancellation token, and the omission is the contract.</b> It runs after
+	/// the events are durable, so a caller that gives up cannot un-commit them -- the only thing its
+	/// cancellation could still achieve is leaving the read model unapplied while the caller is told a
+	/// durable save failed. Accepting a token would make that outcome expressible at every call site;
+	/// not accepting one makes it expressible at none.
+	/// </para>
+	/// <para>
+	/// The phase is bounded instead by <see cref="EventNotificationOptions.PostCommitTimeout"/>, on its
+	/// own clock, so an unresponsive store still cannot hold a save open forever.
+	/// </para>
+	/// </remarks>
 	Task NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
-		EventNotificationContext context,
-		CancellationToken cancellationToken);
+		EventNotificationContext context);
 }

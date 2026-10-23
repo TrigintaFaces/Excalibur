@@ -30,12 +30,6 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	}
 
 	/// <inheritdoc />
-	public IImmutableProjectionBuilder<TProjection> Inline()
-	{
-		_mode = ProjectionMode.Inline;
-		return this;
-	}
-
 	/// <inheritdoc />
 	public IImmutableProjectionBuilder<TProjection> Async()
 	{
@@ -160,9 +154,9 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 
-		// Both Inline and Async modes need apply delegates: Inline runs during SaveAsync,
-		// Async runs via the background AsyncProjectionProcessingHost.
-		var inlineApply = _mode is ProjectionMode.Inline or ProjectionMode.Async
+		// Only an Async registration folds into a store, and the apply delegate is what the projection
+		// host calls to do it. An Ephemeral projection is replayed on demand and needs none.
+		var inlineApply = _mode is ProjectionMode.Async
 			? CreateImmutableInlineApplyDelegate()
 			: null;
 
@@ -189,7 +183,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+			var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
 			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
 			var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
@@ -293,7 +287,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 
 				// Nothing folded means nothing to record. An UNPOSITIONED fold is a different case and
 				// is still written -- unconditionally, by the writer. Conflating the two silently
-				// discarded every inline projection on a store that records positions.
+				// discarded every unpositioned fold on a store that records positions.
 				if (folded[id].Count == 0)
 				{
 					continue;

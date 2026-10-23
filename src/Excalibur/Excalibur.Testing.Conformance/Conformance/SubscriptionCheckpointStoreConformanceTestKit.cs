@@ -42,6 +42,81 @@ public abstract class SubscriptionCheckpointStoreConformanceTestKit : Conformanc
 	/// <returns>A unique subscription name.</returns>
 	protected virtual string GenerateSubscriptionName() => "sub-" + Guid.NewGuid().ToString("N");
 
+	/// <summary>Identical processors may join without inventing a checkpoint at zero.</summary>
+	public virtual async Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint()
+	{
+		var name = GenerateSubscriptionName();
+		var hash = new string('A', 64);
+		await CreateStore().BindSubscriptionAsync(name, hash, CancellationToken.None).ConfigureAwait(false);
+		await CreateStore().BindSubscriptionAsync(name, hash, CancellationToken.None).ConfigureAwait(false);
+		if (await CreateStore().GetCheckpointAsync(name, CancellationToken.None).ConfigureAwait(false) is not null)
+		{
+			throw new TestFixtureAssertionException("Binding a definition must not create a checkpoint.");
+		}
+	}
+
+	/// <summary>A mismatched work set is refused and cannot alter a live checkpoint or its definition.</summary>
+	public virtual async Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint()
+	{
+		var name = GenerateSubscriptionName();
+		var first = new string('A', 64);
+		await CreateStore().BindSubscriptionAsync(name, first, CancellationToken.None).ConfigureAwait(false);
+		_ = await CreateStore().AdvanceCheckpointAsync(name, null, 7, CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await CreateStore().BindSubscriptionAsync(name, new string('B', 64), CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (InvalidOperationException ex) when (ex.Message.Contains(name, StringComparison.Ordinal))
+		{
+			await CreateStore().BindSubscriptionAsync(name, first, CancellationToken.None).ConfigureAwait(false);
+			if (await CreateStore().GetCheckpointAsync(name, CancellationToken.None).ConfigureAwait(false) != 7)
+			{
+				throw new TestFixtureAssertionException("A refused definition must not alter the checkpoint.");
+			}
+
+			return;
+		}
+
+		throw new TestFixtureAssertionException("A different definition must be refused naming the subscription.");
+	}
+
+	/// <summary>Independent instances cannot both establish different definitions under one name.</summary>
+	public virtual async Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne()
+	{
+		var name = GenerateSubscriptionName();
+		var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		async Task<bool> Attempt(string hash)
+		{
+			await start.Task.ConfigureAwait(false);
+			try
+			{
+				await CreateStore().BindSubscriptionAsync(name, hash, CancellationToken.None).ConfigureAwait(false);
+				return true;
+			}
+			catch (InvalidOperationException ex) when (ex.Message.Contains(name, StringComparison.Ordinal))
+			{
+				return false;
+			}
+		}
+
+		var first = Attempt(new string('A', 64));
+		var second = Attempt(new string('B', 64));
+		start.SetResult();
+		var answers = await Task.WhenAll(first, second).ConfigureAwait(false);
+		if (answers.Count(static accepted => accepted) != 1)
+		{
+			throw new TestFixtureAssertionException("Exactly one different definition must win atomic first binding.");
+		}
+	}
+
+	/// <summary>Subscription names are ordinal keys even for definition binding.</summary>
+	public virtual async Task Bind_CaseDistinctNames_ShouldRemainIndependent()
+	{
+		var name = "case-" + GenerateSubscriptionName();
+		await CreateStore().BindSubscriptionAsync(name.ToUpperInvariant(), new string('A', 64), CancellationToken.None).ConfigureAwait(false);
+		await CreateStore().BindSubscriptionAsync(name, new string('B', 64), CancellationToken.None).ConfigureAwait(false);
+	}
+
 	/// <summary>An unknown subscription has no checkpoint, reported as null rather than zero.</summary>
 	/// <remarks>
 	/// Zero is the before-first-event position. A stored zero and an absent checkpoint are distinct

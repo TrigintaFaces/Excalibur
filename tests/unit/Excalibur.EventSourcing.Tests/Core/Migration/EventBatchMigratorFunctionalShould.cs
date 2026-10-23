@@ -62,7 +62,7 @@ public sealed class EventBatchMigratorFunctionalShould
 		A.CallTo(() => _eventStore.LoadAsync("source", "source", A<CancellationToken>._))
 			.Returns(storedEvents);
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(3, 0));
+			.Returns(AppendResult.CreateSuccess(3, 0, 0));
 
 		var plan = new MigrationPlan("source", "target");
 		var sut = CreateSut();
@@ -90,7 +90,7 @@ public sealed class EventBatchMigratorFunctionalShould
 		A.CallTo(() => _eventStore.LoadAsync("source", "source", A<CancellationToken>._))
 			.Returns(storedEvents);
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(2, 0));
+			.Returns(AppendResult.CreateSuccess(2, 0, 0));
 
 		var plan = new MigrationPlan("source", "target",
 			EventFilter: e => e.EventType == "Keep");
@@ -147,7 +147,7 @@ public sealed class EventBatchMigratorFunctionalShould
 		A.CallTo(() => _eventStore.LoadAsync("source", "source", A<CancellationToken>._))
 			.Returns(storedEvents);
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(2, 0));
+			.Returns(AppendResult.CreateSuccess(2, 0, 0));
 
 		var plan = new MigrationPlan("source", "target");
 		var sut = CreateSut(new MigrationOptions { MaxEvents = 2, BatchSize = 100 });
@@ -205,7 +205,7 @@ public sealed class EventBatchMigratorFunctionalShould
 		A.CallTo(() => _eventStore.LoadAsync("source", "source", A<CancellationToken>._))
 			.Returns(storedEvents);
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var plan = new MigrationPlan("source", "target",
 			TransformFunc: e => new StoredEvent(

@@ -137,7 +137,7 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 		using var sp = services.BuildServiceProvider();
 		// Named options keyed by projection type name
 		var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
-		var options = optionsMonitor.Get(nameof(TestProjection));
+		var options = optionsMonitor.Get(typeof(TestProjection).FullName!);
 		options.ShouldNotBeNull();
 		options.Index.IndexPrefix.ShouldBe("test-proj");
 	}
@@ -151,7 +151,7 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 		using var sp = services.BuildServiceProvider();
 		// Named options keyed by projection type name
 		var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
-		var options = optionsMonitor.Get(nameof(TestProjection));
+		var options = optionsMonitor.Get(typeof(TestProjection).FullName!);
 		options.NodeUri.ShouldBe("http://custom:9200");
 	}
 
@@ -166,7 +166,7 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 		using var sp = services.BuildServiceProvider();
 		// Named options keyed by projection type name
 		var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
-		var options = optionsMonitor.Get(nameof(TestProjection));
+		var options = optionsMonitor.Get(typeof(TestProjection).FullName!);
 		options.NodeUri.ShouldBe("http://custom:9200");
 		options.Index.IndexPrefix.ShouldBe("custom-proj");
 	}

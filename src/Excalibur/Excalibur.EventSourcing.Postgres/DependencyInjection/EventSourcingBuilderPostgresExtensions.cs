@@ -180,18 +180,7 @@ public static class EventSourcingBuilderPostgresExtensions
 		// The global stream query is what lets projections, materialized views, projection rebuilds and
 		// the lag read-model run on this provider. Without it those features resolve nothing and the
 		// provider is an event store that silently cannot project.
-		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp =>
-		{
-			var binding = sp.GetRequiredService<ProviderBinding>();
-			IGlobalStreamQuery global = new PostgresGlobalStreamQuery(binding.DataSource, Options.Create(new PostgresEventSourcingOptions
-			{
-				EventStoreSchema = binding.EventStoreSchema,
-				EventStoreTable = binding.EventStoreTable,
-			}));
-			var cold = TieredStorageServiceCollectionExtensions.ResolveGlobalColdStore(sp, binding.SourceIdentity);
-			return cold is null ? global : new TieredGlobalStreamQuery(global, cold, new PostgresAuthoritativeEventReader(
-				binding.DataSource, binding.EventStoreSchema, binding.EventStoreTable, authorizedTenant: null));
-		});
+		RegisterGlobalStreamQuery(builder.Services);
 		RegisterSnapshotStore(builder.Services);
 
 		// Register health checks if enabled and connection string is available
@@ -205,6 +194,26 @@ public static class EventSourcingBuilderPostgresExtensions
 					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "postgres", "eventsourcing"]);
 		}
+	}
+
+	private static void RegisterGlobalStreamQuery(IServiceCollection services)
+	{
+		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
+		{
+			var binding = sp.GetRequiredService<ProviderBinding>();
+			var provider = new PostgresGlobalStreamQuery(binding.DataSource, Options.Create(new PostgresEventSourcingOptions
+			{
+				EventStoreSchema = binding.EventStoreSchema,
+				EventStoreTable = binding.EventStoreTable,
+			}));
+			// Positions are allocated inside the append transaction. Enforce a contiguous scan before
+			// archive hydration, which must not hide a missing committed prefix behind later events.
+			IGlobalStreamQuery global = new ContiguousGlobalStreamQuery(
+				provider, sp.GetRequiredService<ILogger<ContiguousGlobalStreamQuery>>());
+			var cold = TieredStorageServiceCollectionExtensions.ResolveGlobalColdStore(sp, binding.SourceIdentity);
+			return cold is null ? global : new TieredGlobalStreamQuery(global, cold, new PostgresAuthoritativeEventReader(
+				binding.DataSource, binding.EventStoreSchema, binding.EventStoreTable, authorizedTenant: null));
+		});
 	}
 
 	private static void RegisterEventStore(

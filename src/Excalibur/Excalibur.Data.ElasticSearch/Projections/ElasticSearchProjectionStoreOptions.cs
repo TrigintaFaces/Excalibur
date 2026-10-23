@@ -92,6 +92,10 @@ public sealed class ElasticSearchProjectionStoreOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
+		if (Index.WaitForSearchVisibilityOnWrite && Index.RefreshInterval.Trim() == "-1")
+		{
+			throw new InvalidOperationException("WaitForSearchVisibilityOnWrite requires an enabled refresh interval.");
+		}
 		// A supplied client makes the node address dead, so neither requiring nor parsing one is
 		// meaningful. The checks below are all about the node address; nothing else is skipped.
 		if (ClientSuppliedByRegistration)

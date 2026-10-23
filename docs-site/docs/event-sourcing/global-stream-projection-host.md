@@ -21,7 +21,7 @@ description: Host custom projections over the global event stream
 
 | Scenario | Use |
 |----------|-----|
-| Standard per-aggregate read models | `AddProjection<T>().Inline()` or `.Async()` |
+| Standard per-aggregate read models | `AddProjection<T>().Async()` + `EnableProjectionProcessing()` |
 | Cross-aggregate custom state machines | **GlobalStreamProjectionHost** |
 | Global metrics / statistics | **GlobalStreamProjectionHost** |
 | CDC-like stream tailing with custom logic | **GlobalStreamProjectionHost** |
@@ -36,6 +36,11 @@ description: Host custom projections over the global event stream
 | **Registration** | Manual — register as hosted service | Automatic via `EnableProjectionProcessing()` |
 | **Flexibility** | Full control over event handling logic | Convention-based `When<T>` handlers |
 | **Use case** | Global aggregations, custom state machines | Standard async read models |
+
+The built-in `AsyncProjectionProcessingHost` has a different coordination contract: set a stable
+`SubscriptionScope` (and consumer revision), use positioned stores, and share an identical bound definition
+across API and Jobs. It checkpoints every page. The `CheckpointInterval` settings below describe this
+custom global-stream host, not the built-in processor. See [Projections](./projections.md).
 
 ## Architecture
 
@@ -251,6 +256,6 @@ public async Task AppliesOrderCreatedToMetrics()
 
 ## See Also
 
-- [Projections](./projections.md) — Standard projection system (inline, async, ephemeral)
+- [Projections](./projections.md) — Standard projection system (stored and ephemeral)
 - [Materialized Views](./materialized-views.md) — Schedule-driven views with `IMaterializedViewProcessor`
 - [Event Store](./event-store.md) — Core event persistence and global stream queries

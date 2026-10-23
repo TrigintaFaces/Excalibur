@@ -13,18 +13,30 @@ internal sealed class EventNotificationOptionsValidator : IValidateOptions<Event
 {
 	private static readonly TimeSpan MinThreshold = TimeSpan.FromMilliseconds(1);
 	private static readonly TimeSpan MaxThreshold = TimeSpan.FromMinutes(10);
+	// A sub-second bound would abandon the post-commit phase on ordinary store latency and leave the
+	// read model unapplied for no reason; the floor keeps the backstop from becoming a budget.
+	private static readonly TimeSpan MinPostCommitTimeout = TimeSpan.FromSeconds(1);
+	private static readonly TimeSpan MaxPostCommitTimeout = TimeSpan.FromMinutes(10);
 
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, EventNotificationOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		if (options.InlineProjectionWarningThreshold < MinThreshold ||
-			options.InlineProjectionWarningThreshold > MaxThreshold)
+		if (options.ProjectionApplyWarningThreshold < MinThreshold ||
+			options.ProjectionApplyWarningThreshold > MaxThreshold)
 		{
 			return ValidateOptionsResult.Fail(
-				$"{nameof(EventNotificationOptions)}.{nameof(EventNotificationOptions.InlineProjectionWarningThreshold)} " +
-				$"must be between {MinThreshold} and {MaxThreshold} (was {options.InlineProjectionWarningThreshold}).");
+				$"{nameof(EventNotificationOptions)}.{nameof(EventNotificationOptions.ProjectionApplyWarningThreshold)} " +
+				$"must be between {MinThreshold} and {MaxThreshold} (was {options.ProjectionApplyWarningThreshold}).");
+		}
+
+		if (options.PostCommitTimeout < MinPostCommitTimeout ||
+			options.PostCommitTimeout > MaxPostCommitTimeout)
+		{
+			return ValidateOptionsResult.Fail(
+				$"{nameof(EventNotificationOptions)}.{nameof(EventNotificationOptions.PostCommitTimeout)} " +
+				$"must be between {MinPostCommitTimeout} and {MaxPostCommitTimeout} (was {options.PostCommitTimeout}).");
 		}
 
 		return ValidateOptionsResult.Success;

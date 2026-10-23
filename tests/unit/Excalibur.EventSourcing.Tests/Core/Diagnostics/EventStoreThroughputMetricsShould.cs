@@ -70,7 +70,7 @@ public sealed class EventStoreThroughputMetricsShould : IDisposable
 	{
 		// Arrange
 		var events = new[] { A.Fake<IDomainEvent>() };
-		var expected = AppendResult.CreateSuccess(1, 0);
+		var expected = AppendResult.CreateSuccess(1, 0, 0);
 #pragma warning disable CA2012
 		A.CallTo(() => _inner.AppendAsync("agg-1", "Order", A<IEnumerable<IDomainEvent>>._, 0L, A<CancellationToken>._))
 			.Returns(new ValueTask<AppendResult>(expected));

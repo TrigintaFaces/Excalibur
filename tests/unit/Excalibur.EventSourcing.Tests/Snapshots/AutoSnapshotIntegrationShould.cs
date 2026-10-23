@@ -75,7 +75,7 @@ public sealed class AutoSnapshotIntegrationShould
 
 		_ = A.CallTo(() => store.AppendAsync(
 			A<string>._, A<string>._, A<IReadOnlyList<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(existingEvents.Length + 1, 1));
+			.Returns(AppendResult.CreateSuccess(existingEvents.Length + 1, 1, 1));
 
 		return store;
 	}
@@ -198,6 +198,58 @@ public sealed class AutoSnapshotIntegrationShould
 		A.CallTo(() => eventStore.AppendAsync(
 			A<string>._, A<string>._, A<IReadOnlyList<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task NotFailSaveWhenTheSnapshotPhaseIsCancelledAfterTheCommit()
+	{
+		// The arm above proves an InvalidOperationException cannot fail the save. It could not catch the
+		// case that shipped, because the catch it exercises used to EXCLUDE OperationCanceledException --
+		// so a caller who cancelled while the snapshot was in flight had its durable save reported as a
+		// failure. The exception type is the whole difference between the two arms.
+		var snapshotManager = A.Fake<ISnapshotManager>();
+
+		using var caller = new CancellationTokenSource();
+
+		// Commits and THEN cancels: at the instant the caller gives up, the events are already durable, so
+		// nothing cancellation does here can undo them.
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._, A<string>._, A<IReadOnlyList<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
+			.Invokes(() => caller.Cancel())
+			.Returns(AppendResult.CreateSuccess(2, 1, 2));
+
+		// Honours the token it is handed, as a real snapshot manager does.
+		_ = A.CallTo(() => snapshotManager.CreateSnapshotAsync(
+				A<SnapshotTestAggregate>._, A<CancellationToken>._))
+			.Invokes((SnapshotTestAggregate _, CancellationToken token) => token.ThrowIfCancellationRequested())
+			.Returns(A.Fake<ISnapshot>());
+
+		var options = CreateOptions(o => o.EventCountThreshold = 1);
+
+		var repo = new EventSourcedRepository<SnapshotTestAggregate>(
+			eventStore,
+			CreateFakeSerializer(),
+			id => new SnapshotTestAggregate(id),
+			Options.Create(new EventSourcedRepositoryOptions()),
+			snapshotManager: snapshotManager,
+			autoSnapshotOptions: options);
+
+		var aggregate = new SnapshotTestAggregate("agg-1");
+		aggregate.SetValue(42);
+		aggregate.SetValue(43);
+
+		// SAFETY -- the durable save is not reported as failed.
+		var result = await repo.SaveAsync(aggregate, caller.Token);
+		result.CommittedVersion.ShouldBe(aggregate.Version);
+
+		// LIVENESS -- and the snapshot was actually attempted, so a repository that skipped the phase
+		// whenever the caller had cancelled would not pass on the assertion above alone.
+		A.CallTo(() => snapshotManager.CreateSnapshotAsync(
+			A<SnapshotTestAggregate>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		caller.IsCancellationRequested.ShouldBeTrue("this arm is vacuous unless the caller really cancelled");
 	}
 
 	[Fact]

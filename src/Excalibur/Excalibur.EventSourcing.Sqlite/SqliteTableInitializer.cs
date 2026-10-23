@@ -189,6 +189,10 @@ internal static class SqliteTableInitializer
 			UpdatedAt        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (SubscriptionName)
 		);
+		CREATE TABLE IF NOT EXISTS [{table}Definitions] (
+			SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
+			DefinitionHash TEXT NOT NULL COLLATE BINARY CHECK (length(DefinitionHash) = 64)
+		);
 		""";
 
 	// Distinguishes physical tables AND logical roles: the same table name in two different database

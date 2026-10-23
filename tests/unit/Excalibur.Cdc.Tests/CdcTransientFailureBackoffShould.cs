@@ -30,7 +30,7 @@ public sealed class CdcTransientFailureBackoffShould
 	[Fact]
 	public void DoubleTheDelay_UntilItReachesTheMaximum()
 	{
-		var backoff = new CdcTransientFailureBackoff(Base, Max, null, new FakeTimeProvider(), null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, null, new FakeTimeProvider(), null);
 
 		var delays = Enumerable.Range(0, 7).Select(_ => backoff.RecordTransientFailure().Delay).ToList();
 
@@ -59,7 +59,7 @@ public sealed class CdcTransientFailureBackoffShould
 	[InlineData(int.MaxValue)]
 	public void ReturnTheMaximum_ForAnyLargeCount(int consecutiveFailures)
 	{
-		var backoff = new CdcTransientFailureBackoff(Base, Max, null, new FakeTimeProvider(), null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, null, new FakeTimeProvider(), null);
 
 		backoff.ComputeDelay(consecutiveFailures).ShouldBe(Max);
 	}
@@ -70,7 +70,7 @@ public sealed class CdcTransientFailureBackoffShould
 	[Fact]
 	public void ReportExhaustion_OnExactlyTheFailureThatReachesTheLimit()
 	{
-		var backoff = new CdcTransientFailureBackoff(Base, Max, 3, new FakeTimeProvider(), null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, 3, new FakeTimeProvider(), null);
 
 		backoff.RecordTransientFailure().Exhausted.ShouldBeFalse();
 		backoff.RecordTransientFailure().Exhausted.ShouldBeFalse();
@@ -86,7 +86,7 @@ public sealed class CdcTransientFailureBackoffShould
 	[Fact]
 	public void NeverReportExhaustion_WhenNoLimitIsSet()
 	{
-		var backoff = new CdcTransientFailureBackoff(Base, Max, null, new FakeTimeProvider(), null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, null, new FakeTimeProvider(), null);
 
 		for (var i = 0; i < 50; i++)
 		{
@@ -103,7 +103,7 @@ public sealed class CdcTransientFailureBackoffShould
 	[Fact]
 	public void StartAgainFromTheBase_AfterProgress()
 	{
-		var backoff = new CdcTransientFailureBackoff(Base, Max, 3, new FakeTimeProvider(), null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, 3, new FakeTimeProvider(), null);
 		_ = backoff.RecordTransientFailure();
 		_ = backoff.RecordTransientFailure();
 
@@ -126,7 +126,7 @@ public sealed class CdcTransientFailureBackoffShould
 	public void NotCountTowardsTheLimit_AFailureAfterAStableConnection()
 	{
 		var clock = new FakeTimeProvider();
-		var backoff = new CdcTransientFailureBackoff(Base, Max, 2, clock, null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, 2, clock, null);
 
 		for (var i = 0; i < 10; i++)
 		{
@@ -147,7 +147,7 @@ public sealed class CdcTransientFailureBackoffShould
 	public void CountTowardsTheLimit_FailuresThatComeQuickly()
 	{
 		var clock = new FakeTimeProvider();
-		var backoff = new CdcTransientFailureBackoff(Base, Max, 2, clock, null);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, 2, clock, null);
 
 		backoff.BeginAttempt();
 		clock.Advance(TimeSpan.FromMilliseconds(100));
@@ -159,6 +159,69 @@ public sealed class CdcTransientFailureBackoffShould
 	}
 
 	/// <summary>
+	/// SAFETY. Outliving the DELAY CAP is not the same as being stable, and this is the arm that makes the
+	/// two options separate rather than merely named separately.
+	/// </summary>
+	/// <remarks>
+	/// <b>RED against the previous implementation, which compared the attempt's uptime against the delay
+	/// cap.</b> Under that code this arm resets on every attempt, each failure reports
+	/// ConsecutiveFailures = 1, and Exhausted never becomes true -- so a consumer who shortened the cap to
+	/// bound a reconnect storm silently also shortened what counted as a healthy connection and bought
+	/// itself extra retries past the limit it had configured. Here the cap is short and the threshold is
+	/// long: an attempt that outlives the cap but not the threshold must still COUNT.
+	/// </remarks>
+	[Fact]
+	public void CountTowardsTheLimit_WhenAnAttemptOutlivesTheDelayCapButNotTheStabilityThreshold()
+	{
+		var clock = new FakeTimeProvider();
+		var shortCap = TimeSpan.FromMilliseconds(20);
+		var longThreshold = TimeSpan.FromMinutes(1);
+		var backoff = new CdcTransientFailureBackoff(Base, shortCap, longThreshold, 2, clock, null);
+
+		backoff.BeginAttempt();
+		clock.Advance(TimeSpan.FromSeconds(1));   // well past the cap, nowhere near the threshold
+		var first = backoff.RecordTransientFailure();
+		first.ConsecutiveFailures.ShouldBe(
+			1, "the first failure counts whatever the clock did, so this only pins the starting point");
+
+		backoff.BeginAttempt();
+		clock.Advance(TimeSpan.FromSeconds(1));
+		var second = backoff.RecordTransientFailure();
+
+		second.ConsecutiveFailures.ShouldBe(
+			2,
+			"the attempt outlived the DELAY CAP but not the stability threshold, so it was not healthy and "
+			+ "its failure extends the run -- resetting here is what let a short cap defeat the limit");
+		second.Exhausted.ShouldBeTrue("two counted failures reach the configured limit of two");
+	}
+
+	/// <summary>
+	/// LIVENESS, and the pair of the arm above: outliving the THRESHOLD does still reset the run.
+	/// </summary>
+	/// <remarks>
+	/// Without this, the arm above is satisfied by an implementation that never resets at all, which would
+	/// stop a quiet source for being quiet -- the failure the stability rule exists to prevent.
+	/// </remarks>
+	[Fact]
+	public void NotCountTowardsTheLimit_WhenAnAttemptOutlivesTheStabilityThreshold()
+	{
+		var clock = new FakeTimeProvider();
+		var shortCap = TimeSpan.FromMilliseconds(20);
+		var threshold = TimeSpan.FromSeconds(5);
+		var backoff = new CdcTransientFailureBackoff(Base, shortCap, threshold, 2, clock, null);
+
+		for (var i = 0; i < 10; i++)
+		{
+			backoff.BeginAttempt();
+			clock.Advance(threshold);
+
+			var outcome = backoff.RecordTransientFailure();
+			outcome.ConsecutiveFailures.ShouldBe(1, $"attempt {i + 1} outlived the threshold and was healthy");
+			outcome.Exhausted.ShouldBeFalse();
+		}
+	}
+
+	/// <summary>
 	/// The count reaches the health state as it changes, including the return to zero.
 	/// </summary>
 	[Fact]
@@ -167,7 +230,7 @@ public sealed class CdcTransientFailureBackoffShould
 		var health = new CdcHealthState();
 		health.RecordConsecutiveTransientFailures(7);
 
-		var backoff = new CdcTransientFailureBackoff(Base, Max, null, new FakeTimeProvider(), health);
+		var backoff = new CdcTransientFailureBackoff(Base, Max, Max, null, new FakeTimeProvider(), health);
 		health.ConsecutiveTransientFailures.ShouldBe(0, "a new loop starts from zero, not from a previous loop's count");
 
 		_ = backoff.RecordTransientFailure();
@@ -186,7 +249,7 @@ public sealed class CdcTransientFailureBackoffShould
 	public void NeverWaitLessThanTheBaseInterval()
 	{
 		var fiveMinutes = TimeSpan.FromMinutes(5);
-		var backoff = new CdcTransientFailureBackoff(fiveMinutes, TimeSpan.FromMinutes(1), null, new FakeTimeProvider(), null);
+		var backoff = new CdcTransientFailureBackoff(fiveMinutes, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), null, new FakeTimeProvider(), null);
 
 		backoff.RecordTransientFailure().Delay.ShouldBe(fiveMinutes);
 		backoff.RecordTransientFailure().Delay.ShouldBe(fiveMinutes);

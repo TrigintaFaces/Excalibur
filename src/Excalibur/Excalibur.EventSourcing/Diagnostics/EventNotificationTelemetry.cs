@@ -7,7 +7,7 @@ using System.Diagnostics.Metrics;
 namespace Excalibur.EventSourcing.Diagnostics;
 
 /// <summary>
-/// Telemetry constants and instruments for event notification and inline projection processing.
+/// Telemetry constants and instruments for event notification and projection apply processing.
 /// </summary>
 /// <remarks>
 /// All metrics use a shared <see cref="Meter"/> created via <see cref="IMeterFactory"/>
@@ -26,7 +26,7 @@ internal static class EventNotificationTelemetry
 	internal const string MeterName = "Excalibur.EventSourcing.Projections";
 
 	/// <summary>
-	/// Shared ActivitySource for event notification and inline projection spans.
+	/// Shared ActivitySource for event notification and projection apply spans.
 	/// </summary>
 	internal static readonly ActivitySource Source = new(ActivitySourceName);
 
@@ -36,7 +36,7 @@ internal static class EventNotificationTelemetry
 	internal const string EventsNotifiedCounterName = "excalibur.event_notification.events_notified";
 
 	/// <summary>
-	/// Histogram: duration of the entire notification pipeline (projections + handlers).
+	/// Histogram: duration of the entire post-commit notification pipeline.
 	/// </summary>
 	internal const string NotificationDurationHistogramName = "excalibur.event_notification.duration";
 
@@ -55,10 +55,10 @@ internal static class EventNotificationTelemetry
 	/// <summary>Event notification completed.</summary>
 	internal const int EventNotificationCompleted = 113201;
 
-	/// <summary>Inline projection warning threshold exceeded.</summary>
+	/// <summary>Projection apply warning threshold exceeded.</summary>
 	internal const int InlineProjectionSlowWarning = 113202;
 
-	/// <summary>Inline projection failed.</summary>
+	/// <summary>Projection apply failed.</summary>
 	internal const int InlineProjectionFailed = 113203;
 
 	/// <summary>Notification handler failed.</summary>

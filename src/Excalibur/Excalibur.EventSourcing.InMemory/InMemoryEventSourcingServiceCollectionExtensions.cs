@@ -7,6 +7,8 @@ using Excalibur.EventSourcing.InMemory;
 using Excalibur.EventSourcing.Queries;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -80,8 +82,11 @@ public static class InMemoryEventSourcingServiceCollectionExtensions
 		// provider is an event store that silently cannot project.
 		// Resolves the SAME singleton the event store contract resolves to. A second InMemoryEventStore
 		// would carry its own events and its own position counter, so the stream would read empty.
-		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
-			new InMemoryGlobalStreamQuery(sp.GetRequiredService<InMemoryEventStore>()));
+		// Allocation and insertion share one lock, so committed positions form a gapless prefix.
+		// Keep standalone registration usable without a logging provider.
+		services.TryAddSingleton<IGlobalStreamQuery>(sp => new ContiguousGlobalStreamQuery(
+			new InMemoryGlobalStreamQuery(sp.GetRequiredService<InMemoryEventStore>()),
+			sp.GetService<ILogger<ContiguousGlobalStreamQuery>>() ?? NullLogger<ContiguousGlobalStreamQuery>.Instance));
 
 		// A process-lifetime checkpoint is the COHERENT choice here and the consumer should not be asked
 		// to confirm it: this event store does not outlive the process either, so there is no stream left

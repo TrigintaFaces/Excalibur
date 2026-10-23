@@ -143,7 +143,7 @@ public sealed class ProjectionHandlerRequirementShould
 		var builder = new ExcaliburEventSourcingBuilder(services);
 		_ = builder.AddProjection<HandlerFixtureProjection>(p =>
 		{
-			_ = p.Inline();
+			_ = p.Async();
 			configure(p);
 		});
 		_ = services.AddSingleton<IProjectionStore<HandlerFixtureProjection>>(new FakeProjectionStore<HandlerFixtureProjection>());

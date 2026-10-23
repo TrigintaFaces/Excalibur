@@ -78,7 +78,7 @@ public sealed class ErasedProjectionRecoveryShould
     /// <remarks>
     /// <para>
     /// The framework's own documented remedy used to be a dead end that lied about the reason.
-    /// InlineProjectionProcessor tells a consumer whose inline projection failed to call
+    /// AsyncProjectionProcessingHost tells a consumer whose inline projection failed to call
     /// IProjectionRecovery.ReapplyAsync. Inline mode on a positioned store writes unconditionally, so the
     /// row is unplaceable; every attempt replayed the entire stream, was refused, and looped; and after
     /// the last one the thrown message blamed "another writer" that did not exist and advised retrying

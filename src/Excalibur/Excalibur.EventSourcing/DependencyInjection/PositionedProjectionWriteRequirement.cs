@@ -18,6 +18,9 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// </remarks>
 internal interface IPositionedProjectionProbe
 {
+	/// <summary>The exact projection type whose resolved store is probed.</summary>
+	Type ProjectionType { get; }
+
 	/// <summary>The projection type this probe covers, for the failure message.</summary>
 	string ProjectionTypeName { get; }
 
@@ -27,12 +30,21 @@ internal interface IPositionedProjectionProbe
 	/// <param name="services">The provider, resolved exactly as the apply path resolves it.</param>
 	/// <returns><see langword="true"/> when the capability is reachable.</returns>
 	bool IsPositioned(IServiceProvider services);
+
+	/// <summary>Waits for the store's configured query visibility, including replayed or skipped folds.</summary>
+	Task EnsureVisibleAsync(IServiceProvider services, CancellationToken cancellationToken);
+
+	/// <summary>Gets the provider's configured target identity within the consumer subscription scope.</summary>
+	string? GetDestinationIdentity(IServiceProvider services);
 }
 
 /// <inheritdoc />
 internal sealed class PositionedProjectionProbe<TProjection> : IPositionedProjectionProbe
 	where TProjection : class
 {
+	/// <inheritdoc />
+	public Type ProjectionType => typeof(TProjection);
+
 	/// <inheritdoc />
 	public string ProjectionTypeName => typeof(TProjection).Name;
 
@@ -47,30 +59,47 @@ internal sealed class PositionedProjectionProbe<TProjection> : IPositionedProjec
 		var store = services.GetService<IProjectionStore<TProjection>>();
 		return store is not null && PositionedProjectionWriter<TProjection>.Resolve(store) is not null;
 	}
+	/// <inheritdoc />
+	public string? GetDestinationIdentity(IServiceProvider services)
+	{
+		var store = services.GetRequiredService<IProjectionStore<TProjection>>();
+		if (store.GetService(typeof(IProjectionDestinationIdentity)) is not IProjectionDestinationIdentity destination)
+		{
+			return null;
+		}
+		var identity = destination.Identity;
+		if (string.IsNullOrWhiteSpace(identity))
+		{
+			throw new InvalidOperationException($"Projection '{ProjectionTypeName}' advertised an empty destination identity.");
+		}
+		return identity;
+	}
+
+	/// <inheritdoc />
+	public Task EnsureVisibleAsync(IServiceProvider services, CancellationToken cancellationToken)
+	{
+		var store = services.GetRequiredService<IProjectionStore<TProjection>>();
+		return store.GetService(typeof(IProjectionVisibilityBarrier)) is IProjectionVisibilityBarrier barrier
+			? barrier.EnsureVisibleAsync(cancellationToken)
+			: Task.CompletedTask;
+	}
+
 }
 
 /// <summary>
-/// Startup guard: refuses to start when a host has asked for position-conditional projection writes
-/// and a projection's store cannot provide them.
+/// Additional opt-in startup guard that probes registered projection stores for positioned writes.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why this exists rather than a silent fallback.</b> The apply path can write either way: through
-/// the positioned capability, which refuses a write that does not advance the projection's position, or
-/// through the plain unconditional upsert. Those are not two speeds of the same answer — the plain
-/// write is the double application the capability exists to make impossible. Degrading to it silently
-/// would hand back exactly the defect, reported as success.
+/// This guard supplies extra startup coverage for consumers and custom processing paths that request it.
+/// The built-in persisted asynchronous processor independently requires positioned stores during startup
+/// and each apply invocation. Omitting this optional guard does not permit that processor to fall back
+/// to unconditional writes. Ephemeral projections persist no rows and have a different processing path.
 /// </para>
 /// <para>
-/// So the choice is made once, out loud, at startup: a host that asks for the guarantee gets it or
-/// stops. This is deliberately unlike the optional capabilities beside it — paging and existence checks
-/// correctly fall back, because falling back costs a round trip and nothing else.
-/// </para>
-/// <para>
-/// <b>It probes the RESOLVED store, not the registration.</b> A capability can be present on the
-/// provider and absent from the object the apply path actually receives, because a decorator in between
-/// declined to mediate it. Resolving through the same path the apply uses is the only check that sees
-/// what the writer will see.
+/// The probe asks the resolved store, including decorators, for its capability. A raw provider registration
+/// is insufficient evidence when a decorator can hide the capability the apply path would receive.
+/// A successful probe establishes capability availability, not correctness of the provider's atomic writes.
 /// </para>
 /// </remarks>
 internal sealed class PositionedProjectionWriteValidator : IHostedService, IStartupPrerequisiteValidator
@@ -112,8 +141,8 @@ internal sealed class PositionedProjectionWriteValidator : IHostedService, IStar
 			+ ". Without the capability the apply path writes unconditionally, so an event re-delivered "
 			+ "after a restart or a reconnect is folded into the projection a second time — an "
 			+ "accumulating projection double-counts silently and without bound, and nothing downstream "
-			+ "can detect it. Use a provider that supports positioned writes (SQL Server or PostgreSQL, "
-			+ "with the last-applied-position migration applied), remove the decorator that is dropping "
-			+ "the capability, or do not require positioned writes on this host.");
+			+ "can detect it. Use a provider that exposes positioned writes through the complete decorator "
+			+ "chain. The built-in persisted asynchronous processor always requires this capability; "
+			+ "disabling this additional startup guard is not an opt-out for that processor.");
 	}
 }

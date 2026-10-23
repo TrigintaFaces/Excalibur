@@ -53,33 +53,43 @@ Multiple storage backends are available:
 
 ## Projection Patterns Demonstrated
 
-### 1. Inline Projections (Builder API)
+### 1. Stored Projections (Builder API)
 
-Synchronous updates using the `AddProjection<T>().Inline()` builder API:
+Declarative folds registered through `AddProjection<T>().Async()`, applied by the projection host:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur
-    .AddEventSourcing(es => es.AddProjection<ProductCatalogProjection>(p => p
-        .Inline()
-        .When<ProductCreated>((proj, e) =>
-        {
-            proj.Id = e.ProductId.ToString();
-            proj.Name = e.Name;
-            proj.Price = e.Price;
-        })
-        .When<ProductPriceChanged>((proj, e) =>
-        {
-            proj.Price = e.NewPrice;
-        }))));
+    .AddEventSourcing(es =>
+    {
+        es.AddProjection<ProductCatalogProjection>(p => p
+            .Async()
+            .When<ProductCreated>((proj, e) =>
+            {
+                proj.Id = e.ProductId.ToString();
+                proj.Name = e.Name;
+                proj.Price = e.Price;
+            })
+            .When<ProductPriceChanged>((proj, e) =>
+            {
+                proj.Price = e.NewPrice;
+            }));
+
+        // WITHOUT THIS, NOTHING EVER WRITES THE PROJECTION ABOVE -- and nothing says so.
+        es.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models");
+    }));
 ```
 
 **Pros:**
-- Strong consistency -- read model is up-to-date before `SaveAsync()` returns
 - Declarative -- no handler classes needed
+- One writer applying in global-stream order, so two concurrent saves cannot overwrite each
+  other's fold
+- `SaveAsync` pays nothing for projection I/O
 
 **Cons:**
-- Couples read and write performance
-- Projection failures need `IProjectionRecovery` (events are already committed)
+- The read model is not updated by the save. A caller that must observe its own write carries the
+  `SaveResult` into `IProjectionSessionReader.ReadAsync`, which reports `Fresh` or `BoundExpired`
+- Something must run or drive the host. This sample is a console application, so it calls
+  `IProjectionProcessor.ProcessPendingAsync` explicitly -- the same call a Function or Lambda makes
 
 ### 2. Multi-Stream Projections (KeyedBy)
 
@@ -87,7 +97,7 @@ Use `KeyedBy<TEvent>()` to aggregate data from multiple event streams into a sin
 
 ```csharp
 builder.AddProjection<CategorySummaryProjection>(p => p
-    .Inline()
+    .Async()
     .KeyedBy<ProductCreated>(e => e.Category.ToUpperInvariant())
     .KeyedBy<ProductPriceChanged>(e => e.Category.ToUpperInvariant())
     .When<ProductCreated>((proj, e) =>

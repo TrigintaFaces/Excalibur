@@ -164,6 +164,6 @@ public sealed class RowDiscriminatorColdStoreCapabilityGuardShould
         public ValueTask<AppendResult> AppendAsync(
             string aggregateId, string aggregateType, IEnumerable<IDomainEvent> events,
             long expectedVersion, CancellationToken cancellationToken) =>
-            ValueTask.FromResult(AppendResult.CreateSuccess(0, null));
+            ValueTask.FromResult(AppendResult.CreateSuccess(0, null, null));
     }
 }

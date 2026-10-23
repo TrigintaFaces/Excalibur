@@ -532,7 +532,7 @@ public sealed class EventSourcedRepositoryShould
 				A<IEnumerable<IDomainEvent>>._,
 				A<long>._,
 				A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
@@ -651,7 +651,7 @@ public sealed class EventSourcedRepositoryShould
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
@@ -700,7 +700,7 @@ public sealed class EventSourcedRepositoryShould
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
@@ -909,15 +909,14 @@ public sealed class EventSourcedRepositoryShould
 				A<IEnumerable<IDomainEvent>>._,
 				A<long>._,
 				A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var broker = A.Fake<IEventNotificationBroker>();
 		IReadOnlyList<IDomainEvent>? capturedEvents = null;
 		_ = A.CallTo(() => broker.NotifyAsync(
 				A<IReadOnlyList<IDomainEvent>>._,
-				A<EventNotificationContext>._,
-				A<CancellationToken>._))
-			.Invokes((IReadOnlyList<IDomainEvent> events, EventNotificationContext _, CancellationToken _) =>
+				A<EventNotificationContext>._))
+			.Invokes((IReadOnlyList<IDomainEvent> events, EventNotificationContext _) =>
 			{
 				capturedEvents = events;
 			})
@@ -936,8 +935,7 @@ public sealed class EventSourcedRepositoryShould
 		// Assert -- broker was called with a non-empty event list
 		_ = A.CallTo(() => broker.NotifyAsync(
 			A<IReadOnlyList<IDomainEvent>>._,
-			A<EventNotificationContext>._,
-			A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+			A<EventNotificationContext>._)).MustHaveHappenedOnceExactly();
 
 		capturedEvents.ShouldNotBeNull();
 		capturedEvents.Count.ShouldBe(1);
@@ -963,15 +961,14 @@ public sealed class EventSourcedRepositoryShould
 				A<IEnumerable<IDomainEvent>>._,
 				A<long>._,
 				A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(2, 0));
+			.Returns(AppendResult.CreateSuccess(2, 0, 0));
 
 		var broker = A.Fake<IEventNotificationBroker>();
 		IReadOnlyList<IDomainEvent>? capturedEvents = null;
 		_ = A.CallTo(() => broker.NotifyAsync(
 				A<IReadOnlyList<IDomainEvent>>._,
-				A<EventNotificationContext>._,
-				A<CancellationToken>._))
-			.Invokes((IReadOnlyList<IDomainEvent> events, EventNotificationContext _, CancellationToken _) =>
+				A<EventNotificationContext>._))
+			.Invokes((IReadOnlyList<IDomainEvent> events, EventNotificationContext _) =>
 			{
 				capturedEvents = events;
 			})
@@ -1027,8 +1024,7 @@ public sealed class EventSourcedRepositoryShould
 		// Broker should never have been called
 		A.CallTo(() => broker.NotifyAsync(
 			A<IReadOnlyList<IDomainEvent>>._,
-			A<EventNotificationContext>._,
-			A<CancellationToken>._)).MustNotHaveHappened();
+			A<EventNotificationContext>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -1046,13 +1042,12 @@ public sealed class EventSourcedRepositoryShould
 				A<IEnumerable<IDomainEvent>>._,
 				A<long>._,
 				A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var broker = A.Fake<IEventNotificationBroker>();
 		_ = A.CallTo(() => broker.NotifyAsync(
 				A<IReadOnlyList<IDomainEvent>>._,
-				A<EventNotificationContext>._,
-				A<CancellationToken>._))
+				A<EventNotificationContext>._))
 			.ThrowsAsync(new InvalidOperationException("Broker failed"));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
@@ -1069,4 +1064,193 @@ public sealed class EventSourcedRepositoryShould
 	}
 
 	#endregion Event Notification Snapshot Tests
+
+	#region Post-Commit Cancellation
+
+	[Fact]
+	public async Task SaveAsync_ShouldStillNotify_WhenTheCallerCancelsAfterTheCommit()
+	{
+		// The post-commit phase runs AFTER the events are durable, so the caller's cancellation can no
+		// longer undo anything there. Honouring it would leave the read model unapplied while telling the
+		// caller its durable save failed.
+		var aggregate = new TestAggregate("agg-post-commit");
+		aggregate.Create("durable");
+
+		using var caller = new CancellationTokenSource();
+
+		// Commits and THEN cancels -- the interleaving that matters, because the save is already durable
+		// at the instant the caller gives up. A token cancelled BEFORE the call would be refused by the
+		// append and would prove nothing about this phase.
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Invokes(() => caller.Cancel())
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
+
+		var broker = A.Fake<IEventNotificationBroker>();
+		_ = A.CallTo(() => broker.NotifyAsync(
+				A<IReadOnlyList<IDomainEvent>>._,
+				A<EventNotificationContext>._))
+			.Returns(Task.CompletedTask);
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
+			eventNotificationBroker: broker);
+
+		// SAFETY -- the durable save is not reported as failed.
+		await repository.SaveAsync(aggregate, caller.Token);
+
+		// LIVENESS -- and the read model was actually notified. Without this arm, a repository that
+		// swallowed the cancellation and skipped the phase entirely would satisfy the assertion above.
+		_ = A.CallTo(() => broker.NotifyAsync(
+			A<IReadOnlyList<IDomainEvent>>._,
+			A<EventNotificationContext>._)).MustHaveHappenedOnceExactly();
+
+		caller.IsCancellationRequested.ShouldBeTrue("this arm is vacuous unless the caller really cancelled");
+	}
+
+	[Fact]
+	public void NotifyAsync_ShouldAcceptNoCallerToken()
+	{
+		// The structural half: the defect is unreachable because the parameter does not exist. An edit
+		// that re-adds it reddens here rather than silently restoring the old behaviour.
+		var notify = typeof(IEventNotificationBroker).GetMethod(nameof(IEventNotificationBroker.NotifyAsync));
+
+		notify.ShouldNotBeNull();
+		notify.GetParameters()
+			.Any(p => p.ParameterType == typeof(CancellationToken))
+			.ShouldBeFalse("the post-commit phase must not be cancellable by its caller");
+	}
+
+	[Fact]
+	public async Task SaveAsync_ShouldStillSucceed_WhenTheSnapshotPhaseIsCancelledAfterTheCommit()
+	{
+		// The snapshot sibling of the arm above, and the same mechanism one phase later. Snapshotting runs
+		// after the events are durable, and the method's own closing comment says snapshots "deliberately
+		// cannot fail the save". The catch that was supposed to implement that promise excluded
+		// OperationCanceledException, so a cancellation during snapshotting still escaped SaveAsync and
+		// reported a durable save as failed -- while the snapshot itself is derived state the next save
+		// rebuilds.
+		var aggregate = new TestAggregate("agg-snapshot-cancel");
+		aggregate.Create("durable");
+
+		using var caller = new CancellationTokenSource();
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Invokes(() => caller.Cancel())
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
+
+		var strategy = A.Fake<ISnapshotStrategy>();
+		_ = A.CallTo(() => strategy.ShouldCreateSnapshot(A<IAggregateRoot>._)).Returns(true);
+
+		// Honours the token it is handed, which is what a real snapshot manager does -- so the throw is
+		// CAUSED by the cancellation rather than configured independently of it.
+		var snapshots = A.Fake<ISnapshotManager>();
+		_ = A.CallTo(() => snapshots.CreateSnapshotAsync<TestAggregate>(A<TestAggregate>._, A<CancellationToken>._))
+			.Invokes((TestAggregate _, CancellationToken token) => token.ThrowIfCancellationRequested())
+			.Returns(Task.FromResult(A.Dummy<ISnapshot>()));
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()),
+			snapshotManager: snapshots,
+			snapshotStrategy: strategy);
+
+		// SAFETY -- the durable save is not reported as failed.
+		var result = await repository.SaveAsync(aggregate, caller.Token);
+		result.CommittedVersion.ShouldBe(aggregate.Version);
+
+		// LIVENESS -- and the snapshot was actually attempted. A repository that skipped the phase whenever
+		// the caller had cancelled would satisfy the assertion above on its own.
+		_ = A.CallTo(() => snapshots.CreateSnapshotAsync<TestAggregate>(A<TestAggregate>._, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+
+		caller.IsCancellationRequested.ShouldBeTrue("this arm is vacuous unless the caller really cancelled");
+	}
+
+	#endregion Post-Commit Cancellation
+
+	#region Session Token
+
+	[Fact]
+	public async Task SaveAsync_ShouldReturnTheLastEventsPosition_NotTheFirst()
+	{
+		// The token a reader waits for is the LAST event's position. Returning the FIRST would let a
+		// caller wait for a read model that has seen only the first of its events and call that
+		// read-your-writes. Three events, so the two values differ -- at one event they coincide and this
+		// arm could not tell a correct implementation from the defect.
+		var aggregate = new TestAggregate("agg-session-token");
+		aggregate.Create("one");
+		aggregate.Update("two");
+		aggregate.Update("three");
+
+		const long First = 100;
+		const long Last = 102;
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Returns(AppendResult.CreateSuccess(2, First, Last));
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
+
+		var result = await repository.SaveAsync(aggregate, CancellationToken.None);
+
+		result.SessionToken.ShouldBe(Last);
+		result.SessionToken.ShouldNotBe(First, "returning the first position silently breaks read-your-writes");
+	}
+
+	[Fact]
+	public async Task SaveAsync_ShouldReportNoToken_WhenTheStoreAssignsNoGlobalOrdering()
+	{
+		// LIVENESS's counterpart: a store without a global sequence must report null rather than a
+		// fabricated number, or a caller would wait on a position that means nothing.
+		var aggregate = new TestAggregate("agg-no-ordering");
+		aggregate.Create("only");
+
+		var eventStore = A.Fake<IEventStore>();
+		_ = A.CallTo(() => eventStore.AppendAsync(
+				A<string>._,
+				A<string>._,
+				A<IEnumerable<IDomainEvent>>._,
+				A<long>._,
+				A<CancellationToken>._))
+			.Returns(AppendResult.CreateSuccess(0, firstEventPosition: null, lastEventPosition: null));
+
+		var repository = new EventSourcedRepository<TestAggregate>(
+			eventStore,
+			CreateMockSerializer(),
+			id => new TestAggregate(id),
+			Microsoft.Extensions.Options.Options.Create(new EventSourcedRepositoryOptions()));
+
+		var result = await repository.SaveAsync(aggregate, CancellationToken.None);
+
+		result.SessionToken.ShouldBeNull();
+		result.CommittedVersion.ShouldBe(aggregate.Version);
+	}
+
+	#endregion Session Token
 }

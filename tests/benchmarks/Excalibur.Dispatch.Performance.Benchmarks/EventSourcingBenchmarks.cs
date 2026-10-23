@@ -221,7 +221,7 @@ public class EventSourcingBenchmarks
 			var eventsList = events.ToList();
 			if (eventsList.Count == 0)
 			{
-				return new ValueTask<AppendResult>(AppendResult.CreateSuccess(expectedVersion, 0));
+				return new ValueTask<AppendResult>(AppendResult.CreateSuccess(expectedVersion, 0, 0));
 			}
 
 			lock (_lock)
@@ -264,7 +264,7 @@ public class EventSourcingBenchmarks
 					version++;
 				}
 
-				return new ValueTask<AppendResult>(AppendResult.CreateSuccess(version - 1, stream.Count - eventsList.Count));
+				return new ValueTask<AppendResult>(AppendResult.CreateSuccess(version - 1, stream.Count - eventsList.Count, stream.Count - eventsList.Count));
 			}
 		}
 

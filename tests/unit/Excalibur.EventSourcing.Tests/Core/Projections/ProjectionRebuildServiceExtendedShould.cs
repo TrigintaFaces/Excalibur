@@ -119,7 +119,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		var registry = new InMemoryProjectionRegistry();
 		registry.Register(new ProjectionRegistration(
 			typeof(RebuildTestState),
-			ProjectionMode.Inline,
+			ProjectionMode.Async,
 			projection,
 			inlineApply: null));
 

@@ -33,7 +33,7 @@ public sealed class ProjectionStoreRequirementShould
 	[Fact]
 	public void RefuseToStartWhenAProjectionHasNoStore()
 	{
-		using var provider = Build(es => es.AddProjection<OrderSummary>(p => p.Inline()));
+		using var provider = Build(es => es.AddProjection<OrderSummary>(p => p.Async()));
 
 		var error = Should.Throw<InvalidOperationException>(
 			() => Validate(provider));
@@ -53,7 +53,7 @@ public sealed class ProjectionStoreRequirementShould
 	{
 		using var provider = Build(es =>
 		{
-			_ = es.AddProjection<OrderSummary>(p => p.Inline());
+			_ = es.AddProjection<OrderSummary>(p => p.Async());
 			_ = es.Services.AddSingleton<IProjectionStore<OrderSummary>>(new FakeProjectionStore<OrderSummary>());
 		});
 
@@ -81,8 +81,8 @@ public sealed class ProjectionStoreRequirementShould
 	{
 		using var provider = Build(es =>
 		{
-			_ = es.AddProjection<OrderSummary>(p => p.Inline());
-			_ = es.AddProjection<CustomerSummary>(p => p.Inline());
+			_ = es.AddProjection<OrderSummary>(p => p.Async());
+			_ = es.AddProjection<CustomerSummary>(p => p.Async());
 			_ = es.Services.AddSingleton<IProjectionStore<CustomerSummary>>(
 				new FakeProjectionStore<CustomerSummary>());
 		});
@@ -100,7 +100,7 @@ public sealed class ProjectionStoreRequirementShould
 	[Fact]
 	public void SayWhichSecondRegistrationIsMissingAndOfferTheEphemeralAlternative()
 	{
-		using var provider = Build(es => es.AddProjection<OrderSummary>(p => p.Inline()));
+		using var provider = Build(es => es.AddProjection<OrderSummary>(p => p.Async()));
 
 		var message = Should.Throw<InvalidOperationException>(() => Validate(provider)).Message;
 

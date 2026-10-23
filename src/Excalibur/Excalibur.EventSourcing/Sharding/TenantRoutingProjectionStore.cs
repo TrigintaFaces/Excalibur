@@ -126,7 +126,39 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 				: new TenantRoutingPositionedView(this);
 		}
 
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			return ResolveStore().GetService(serviceType) is IProjectionDestinationIdentity
+				? new TenantRoutingDestinationIdentity(this)
+				: null;
+		}
+
+		if (serviceType == typeof(IProjectionVisibilityBarrier))
+		{
+			return ResolveStore().GetService(serviceType) is IProjectionVisibilityBarrier
+				? new TenantRoutingVisibilityBarrier(this)
+				: null;
+		}
+
 		return null;
+	}
+
+	private sealed class TenantRoutingDestinationIdentity(TenantRoutingProjectionStore<TProjection> outer)
+		: IProjectionDestinationIdentity
+	{
+		public string Identity =>
+			(outer.ResolveStore().GetService(typeof(IProjectionDestinationIdentity)) as IProjectionDestinationIdentity
+				?? throw new InvalidOperationException("The current tenant's projection store no longer provides its configured destination identity."))
+			.Identity;
+	}
+
+	private sealed class TenantRoutingVisibilityBarrier(TenantRoutingProjectionStore<TProjection> outer)
+		: IProjectionVisibilityBarrier
+	{
+		public Task EnsureVisibleAsync(CancellationToken cancellationToken) =>
+			(outer.ResolveStore().GetService(typeof(IProjectionVisibilityBarrier)) as IProjectionVisibilityBarrier
+				?? throw new InvalidOperationException("The current tenant's projection store no longer provides its search visibility barrier."))
+			.EnsureVisibleAsync(cancellationToken);
 	}
 
 	/// <summary>Routes each positioned call to the shard resolved at that moment.</summary>

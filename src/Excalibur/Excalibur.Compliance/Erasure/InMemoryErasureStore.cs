@@ -160,6 +160,16 @@ internal sealed class InMemoryErasureStore
 		// caller file a request into another tenant's partition — and, because every scoped read matches on
 		// the ambient term, that row would then be readable only by the tenant it was planted on.
 
+		// THE PARTITION IS THE SECOND FACT, decided HERE and persisted, from whether multi-tenancy is
+		// configured rather than from the shape of the tenant term. That discriminator is what makes a
+		// tenant named like the single-tenant default harmless: a multi-tenant host yields a scoped
+		// partition whatever its tenants are called. Deciding it at filing time also keeps a certificate
+		// reproducible if the deployment is reconfigured before the request executes. Same derivation as
+		// InMemoryDataInventoryStore:58, deliberately — one rule, written once per store.
+		var partition = _requireTenant
+			? KeyedTenantPartition.FromContext(_tenantContext)
+			: KeyedTenantPartition.Untenanted;
+
 
 		var data = new ErasureRequestData
 		{
@@ -167,6 +177,7 @@ internal sealed class InMemoryErasureStore
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = request.IdType,
 			TenantId = owner,
+			TenantPartition = partition.TenantId,
 			Scope = request.Scope,
 			LegalBasis = request.LegalBasis,
 			ExternalReference = request.ExternalReference,
@@ -793,6 +804,7 @@ internal sealed class InMemoryErasureStore
 			DataSubjectIdHash = data.DataSubjectIdHash,
 			IdType = data.IdType,
 			TenantId = data.TenantId,
+			TenantPartition = KeyedTenantPartition.FromStoredValue(data.TenantPartition),
 			Scope = data.Scope,
 			LegalBasis = data.LegalBasis,
 			Status = data.Status,
@@ -872,6 +884,14 @@ internal sealed class InMemoryErasureStore
 
 	private sealed class ErasureRequestData
 	{
+		/// <summary>The partition a retention declaration must name to apply to this request.</summary>
+		/// <remarks>
+		/// Stored separately from <c>TenantId</c> because they answer different questions: TenantId is the
+		/// OWNER the data was encrypted under and what key handles derive from, this is the PARTITION the
+		/// retention join compares. One field could not be both, and the collision destroyed retained keys.
+		/// </remarks>
+		public required string TenantPartition { get; init; }
+
 		public Guid RequestId { get; init; }
 		public required string DataSubjectIdHash { get; init; }
 		public DataSubjectIdType IdType { get; init; }

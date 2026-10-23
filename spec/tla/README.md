@@ -150,3 +150,18 @@ deployment ordering, provider implementation refinement or the complete complian
 For `check-models.sh`, an optional `TLA_RUN_ARTIFACTS` must name an existing directory. Each TLC
 invocation retains its own unique state directory there; otherwise the runner uses the temporary
 directory. Failed diameter probes fail verification and report unavailable evidence.
+
+## Cooperative asynchronous projection processing
+
+[`cooperative-projection/README.md`](cooperative-projection/README.md) documents a separate seven-arm
+checker for API/manual and background/Jobs cooperation. Run its Python harness with explicit Java and
+TLC jar paths; it is not implicitly included in `check-models.sh`. The healthy finite model and the
+mixed-manifest rejection arm check temporal completion and safety. Four independent mutants and the
+checker self-test must report their named violations. The portable checked-design summary records the
+exact model/jar hashes and measured state counts, without bundling machine-local logs.
+
+This model was checked before restructuring production coordination. It supports replacing ambient
+projection leadership and the proposed checkpoint leadership-token fence with immutable subscription
+binding, mandatory positioned writes, per-page checkpoint CAS and a FIFO local gate. It does not prove
+external side effects exactly once, unbounded liveness, erasure/rebuild interleavings, or provider-code
+refinement. It therefore does not by itself discharge the complete R4 rigor rung.

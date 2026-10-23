@@ -5,6 +5,8 @@ using Excalibur.Compliance.Erasure;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
@@ -130,6 +132,7 @@ public sealed class ARetainedTypeIsNamedEvenOnAPartialErasureShould
 		A.CallTo(() => _store.GetStatusAsync(requestId, A<CancellationToken>._))
 			.Returns(Task.FromResult<ErasureStatus?>(new ErasureStatus
 			{
+				TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 				RequestId = requestId,
 				DataSubjectIdHash = "abc123hash",

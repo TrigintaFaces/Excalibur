@@ -34,12 +34,12 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.EnableProjectionProcessing();
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert — AsyncProjectionProcessingHost should be registered as IHostedService
 		var descriptor = services.FirstOrDefault(d =>
 			d.ServiceType == typeof(IHostedService) &&
-			d.ImplementationType?.Name == "AsyncProjectionProcessingHost");
+			d.ImplementationType?.Name == "AsyncProjectionProcessingHostedService");
 
 		descriptor.ShouldNotBeNull();
 		descriptor.Lifetime.ShouldBe(ServiceLifetime.Singleton);
@@ -53,7 +53,7 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.EnableProjectionProcessing();
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert — ISubscriptionCheckpointStore registered with TryAdd (fallback)
 		var descriptor = services.FirstOrDefault(d =>
@@ -74,7 +74,7 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.EnableProjectionProcessing();
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert — the custom store should still be the resolved instance (TryAdd didn't replace)
 		var sp = services.BuildServiceProvider();
@@ -90,7 +90,7 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.EnableProjectionProcessing();
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert — options should be resolvable
 		var sp = services.BuildServiceProvider();
@@ -112,6 +112,11 @@ public sealed class EnableProjectionProcessingShould
 			opts.BatchSize = 42;
 			opts.IdlePollingInterval = TimeSpan.FromSeconds(5);
 			opts.CheckpointInterval = 200;
+
+			// Required and without a default, so it is set here too. This arm asserts the three values
+			// above are carried through; it is not the arm that asserts the descriptor is refused when
+			// absent, and leaving it blank would make this arm fail for a reason it is not about.
+			opts.SubscriptionScope = "unit-test-subscription";
 		});
 
 		// Assert
@@ -130,7 +135,7 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.EnableProjectionProcessing();
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert
 		var sp = services.BuildServiceProvider();
@@ -149,7 +154,7 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		var result = builder.EnableProjectionProcessing();
+		var result = builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert
 		result.ShouldBeSameAs(builder);
@@ -163,13 +168,13 @@ public sealed class EnableProjectionProcessingShould
 		var builder = CreateBuilder(services);
 
 		// Act
-		builder.EnableProjectionProcessing();
-		builder.EnableProjectionProcessing();
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
+		builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		// Assert — only one IHostedService registration for AsyncProjectionProcessingHost
 		var hostDescriptors = services.Where(d =>
 			d.ServiceType == typeof(IHostedService) &&
-			d.ImplementationType?.Name == "AsyncProjectionProcessingHost")
+			d.ImplementationType?.Name == "AsyncProjectionProcessingHostedService")
 			.ToList();
 
 		hostDescriptors.Count.ShouldBe(1);

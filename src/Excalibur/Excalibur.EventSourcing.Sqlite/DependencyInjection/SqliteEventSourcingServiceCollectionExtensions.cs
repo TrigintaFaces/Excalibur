@@ -186,10 +186,13 @@ public static class SqliteEventSourcingServiceCollectionExtensions
 		// The global stream query is what lets projections, materialized views, projection rebuilds and
 		// the lag read-model run on this provider. Without it those features resolve nothing and the
 		// provider is an event store that silently cannot project.
-		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp => new SqliteGlobalStreamQuery(
-			options.ConnectionString,
-			options.EventStoreTable,
-			sp.GetRequiredService<IOptions<TenantContextOptions>>().Value.RequireTenant));
+		// The counter rolls back with an aborted append, so waiting on the next position is sound.
+		builder.Services.TryAddSingleton<IGlobalStreamQuery>(sp => new ContiguousGlobalStreamQuery(
+			new SqliteGlobalStreamQuery(
+				options.ConnectionString,
+				options.EventStoreTable,
+				sp.GetRequiredService<IOptions<TenantContextOptions>>().Value.RequireTenant),
+			sp.GetRequiredService<ILogger<ContiguousGlobalStreamQuery>>()));
 
 		return builder;
 	}

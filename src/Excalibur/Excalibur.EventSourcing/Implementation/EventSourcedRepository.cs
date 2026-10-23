@@ -48,6 +48,15 @@ namespace Excalibur.EventSourcing.Implementation;
 /// </code>
 /// </para>
 /// </remarks>
+// NAMED AS A TRADE RATHER THAN APPLIED QUIETLY. SaveAsync already carried this suppression for its own
+// coupling, with the justification that orchestration is its role; returning SaveResult pushed the
+// enclosing class one type past the same ceiling. The alternative was to not report the session token --
+// trading a correctness property for a member count, which this repository's own precedence rule
+// forbids: a threshold is a smell, not a veto, and the invariant wins while the threshold becomes
+// tracked debt. The debt is real: this class coordinates append, outbox, snapshots and notification, and
+// splitting it is worth doing on its own terms, not as a side effect of adding a return value.
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+	Justification = "Coordination role; see the note above. Splitting this class is tracked separately.")]
 public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<TAggregate, TKey>
 	where TAggregate : class, Domain.Model.IAggregateRoot<TKey>, Domain.Model.IAggregateSnapshotSupport
 	where TKey : notnull
@@ -94,7 +103,21 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	private const int MaxPendingStages = 1024;
 	private readonly ConcurrentDictionary<string, PendingOutboxStage> _pendingStages = new(StringComparer.Ordinal);
 
-	private sealed record PendingOutboxStage(IReadOnlyList<IDomainEvent> Events);
+	/// <param name="Events">The events the earlier attempt appended but did not finish staging.</param>
+	/// <param name="LastEventPosition">
+	/// The global position that append produced, carried so a recovered save can still return a session
+	/// token.
+	/// </param>
+	/// <remarks>
+	/// <b>The position is part of the breadcrumb because the recovery path SKIPS the append.</b> It has
+	/// to: re-appending the same events would raise a stale-version conflict and orphan the rows that
+	/// already landed. But skipping the append also skipped the only place the token was assigned, so a
+	/// recovery that succeeded returned a null token — and a null token silently downgrades a requested
+	/// consistent read to NotRequested, against a store that knew the position perfectly well.
+	/// </remarks>
+	private sealed record PendingOutboxStage(
+		IReadOnlyList<IDomainEvent> Events,
+		long? LastEventPosition);
 
 	/// <summary>
 	/// Records the latest snapshot-tracking state for an aggregate while bounding the total number of
@@ -180,7 +203,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
-	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
+	/// <param name="eventNotificationBroker"> Optional broker for the post-commit notification handlers. </param>
 	/// <param name="autoSnapshotOptions"> Optional auto-snapshot configuration for automatic snapshot creation after save. </param>
 	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
 	public EventSourcedRepository(
@@ -391,6 +414,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Use LoadFromHistory to properly replay events with version tracking
 		aggregate.LoadFromHistory(eventsToApply);
 
+		// A loaded aggregate participates in the same conditional-save contract as the instance
+		// returned from SaveAsync. Derive its ETag after both snapshot and tail replay establish
+		// the committed version; snapshot metadata or a factory-provided ETag is not authoritative.
+		aggregate.ETag = $"{aggregate.AggregateType}:{aggregate.Id}:v{aggregate.Version}";
+
 		return aggregate;
 	}
 
@@ -415,14 +443,16 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		Justification = "Optional serialization may use dynamic code; the repository's own persistence path does not.")]
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
 		Justification = "SaveAsync orchestrates event append, transactional outbox, fallback outbox, snapshots, and notifications -- coupling is inherent to the coordination role.")]
-	public async Task SaveAsync(TAggregate aggregate, CancellationToken cancellationToken)
+	public async Task<SaveResult> SaveAsync(TAggregate aggregate, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
 
 		var rawEvents = aggregate.GetUncommittedEvents();
 		if (rawEvents.Count == 0)
 		{
-			return;
+			// Nothing was written, so there is no position for a reader to wait on. Null here says exactly
+			// that -- it does not say the save failed.
+			return new SaveResult(aggregate.Version, SessionToken: null);
 		}
 
 		// Snapshot the events before MarkEventsAsCommitted clears the aggregate's internal list.
@@ -443,6 +473,11 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Resolve effective staging strategy
 		var strategy = ResolveEffectiveStagingStrategy();
 
+		// The session token: the global position of the LAST event this save writes, captured from whichever
+		// append path runs. Null stays null when the store assigns no global ordering, or when a recognised
+		// retry appended nothing because an earlier call already had.
+		long? sessionToken = null;
+
 		// Ask the store for the capability rather than testing its type: a decorated store -- telemetry,
 		// tenant scoping, encryption, tiered storage -- does not itself implement ITransactionalEventStore
 		// even when the store beneath it does, and a type test would silently drop us off the atomic path.
@@ -457,6 +492,8 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 			// A recognised retry stages nothing new -- the original transaction already staged -- but the
 			// notification below still runs from the LIVE payloads, so the guard belongs on this path too.
+			sessionToken = txResult.LastEventPosition;
+
 			if (txResult.Outcome == AppendOutcome.AlreadyCommitted)
 			{
 				await RefuseRepublicationIfErasedAsync(stringId, aggregate.AggregateType, cancellationToken)
@@ -478,6 +515,14 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			// events were written by an EARLIER call, so present no longer implies retrievable.
 			var recognisedRetry = alreadyAppended;
 
+			// RECOVER THE TOKEN the earlier attempt produced. The append is deliberately skipped below,
+			// so this is the only place the position can come from on a recovery -- and without it a
+			// successful recovery reported no token at all.
+			if (alreadyAppended)
+			{
+				sessionToken = pending!.LastEventPosition;
+			}
+
 			if (!alreadyAppended)
 			{
 				var result = await _eventStore.AppendAsync(
@@ -489,13 +534,15 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 				ThrowIfAppendFailed(result, aggregate);
 
+				sessionToken = result.LastEventPosition;
+
 				recognisedRetry = result.Outcome == AppendOutcome.AlreadyCommitted;
 
 				// Append committed. Record the appended-but-not-yet-staged breadcrumb BEFORE staging so a
 				// staging failure below leaves a retry trail that skips the (now stale-version) re-append.
 				if (strategy == OutboxStagingStrategy.EventuallyConsistent && _outboxStore is not null)
 				{
-					TrackPendingStage(stringId, new PendingOutboxStage(uncommittedEvents));
+					TrackPendingStage(stringId, new PendingOutboxStage(uncommittedEvents, sessionToken));
 				}
 			}
 
@@ -524,7 +571,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Format: "{AggregateType}:{Id}:v{Version}" provides deterministic, version-linked ETags
 		aggregate.ETag = $"{aggregate.AggregateType}:{aggregate.Id}:v{aggregate.Version}";
 
-		// Notify inline projections and event notification handlers.
+		// Notify the registered event notification handlers.
 		// Events are already committed -- the broker handles failure per the configured policy.
 		// When no broker is registered in DI, this is a no-op (zero behavioral change).
 		if (_eventNotificationBroker is not null)
@@ -535,8 +582,10 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 				aggregate.Version,
 				_timeProvider.GetUtcNow());
 
-			await _eventNotificationBroker.NotifyAsync(
-					uncommittedEvents, context, cancellationToken)
+			// No token passed, and none accepted: the events above are already durable, so the caller's
+			// cancellation can no longer undo anything here -- it can only leave the read model behind
+			// while reporting the durable save as failed. The broker bounds this phase on its own clock.
+			await _eventNotificationBroker.NotifyAsync(uncommittedEvents, context)
 				.ConfigureAwait(false);
 		}
 
@@ -553,7 +602,12 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 				// Update tracked state after successful snapshot
 				TrackSnapshotState(stringId, new SnapshotTrackingState(aggregate.Version, _timeProvider.GetUtcNow()));
 			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
+			// Catches OperationCanceledException deliberately, and the exclusion must not be restored. The
+			// events are already durable here, so a cancellation during snapshotting cannot undo anything --
+			// it can only report a durable save as failed, which is the one outcome this phase must never
+			// produce. The token is still passed so a caller who gives up stops paying for derived work it no
+			// longer wants; abandoning the snapshot is free, because the next save rebuilds it.
+			catch (Exception ex)
 			{
 				_logger?.LogWarning(
 					ex,
@@ -602,7 +656,10 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 						AutoSnapshotMetrics.Created.Add(1);
 					}
-					catch (Exception ex) when (ex is not OperationCanceledException)
+					// Catches OperationCanceledException for the same reason as the strategy-driven snapshot
+					// above: after the commit, cancellation can only turn a durable save into a reported
+					// failure.
+					catch (Exception ex)
 					{
 						AutoSnapshotMetrics.Failed.Add(1);
 
@@ -616,6 +673,10 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 				}
 			}
 		}
+
+		// Snapshots above are best-effort and deliberately cannot fail the save, so the token is reported
+		// regardless of how they went: it describes the durable events, not the derived copies.
+		return new SaveResult(aggregate.Version, sessionToken);
 	}
 
 	/// <inheritdoc />
@@ -623,7 +684,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		Justification = "Optional serialization uses reflection; the repository's own persistence path does not. AOT consumers select an AOT-safe serializer and the interface contract stays clean.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Optional serialization may use dynamic code; the repository's own persistence path does not.")]
-	public async Task SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken)
+	public async Task<SaveResult> SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
 
@@ -637,7 +698,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 				aggregate.ETag ?? string.Empty);
 		}
 
-		await SaveAsync(aggregate, cancellationToken).ConfigureAwait(false);
+		return await SaveAsync(aggregate, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -955,7 +1016,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 	/// answers <see cref="AppendOutcome.AlreadyCommitted"/>, correctly: the append did commit, and erasure
 	/// rewrites existing rows rather than removing them, so the identity probe still finds them. What has
 	/// stopped being true is that present implies retrievable. Staging and notifying from here would push
-	/// the erased subject's own payloads to the outbox and to inline projections AFTER the erasure
+	/// the erased subject's own payloads to the outbox and to its notification handlers AFTER the erasure
 	/// certificate was issued, and nothing downstream would ever learn.
 	/// </para>
 	/// <para>
@@ -1259,7 +1320,7 @@ public class EventSourcedRepository<TAggregate> : EventSourcedRepository<TAggreg
 	/// <param name="transactionalOutboxWriter"> Optional transactional outbox writer for staging integration events atomically with event appends. </param>
 	/// <param name="outboxStore"> Optional outbox store for eventually-consistent staging when transactional writer is unavailable. </param>
 	/// <param name="snapshotVersionManager"> Optional snapshot version manager for automatic snapshot upgrading. </param>
-	/// <param name="eventNotificationBroker"> Optional event notification broker for inline projections and post-commit handlers. </param>
+	/// <param name="eventNotificationBroker"> Optional broker for the post-commit notification handlers. </param>
 	/// <param name="timeProvider"> Optional time provider for deterministic testing. </param>
 	/// <param name="logger"> Optional logger for diagnostics. </param>
 	public EventSourcedRepository(

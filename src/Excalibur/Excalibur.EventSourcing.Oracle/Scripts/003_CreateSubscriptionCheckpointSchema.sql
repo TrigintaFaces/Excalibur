@@ -42,3 +42,20 @@ BEGIN
             )';
     END IF;
 END;
+/
+
+
+-- Immutable work-set binding, separate from the nullable/absent checkpoint state.
+DECLARE
+    table_exists NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO table_exists FROM USER_TABLES WHERE TABLE_NAME = 'SUBSCRIPTIONCHECKPOINTSDEFINITIONS';
+    IF table_exists = 0 THEN
+        EXECUTE IMMEDIATE '
+            CREATE TABLE SUBSCRIPTIONCHECKPOINTSDEFINITIONS (
+                SUBSCRIPTIONNAME VARCHAR2(255) NOT NULL PRIMARY KEY,
+                DEFINITIONHASH VARCHAR2(64 BYTE) NOT NULL CHECK (LENGTH(DEFINITIONHASH) = 64)
+            )';
+    END IF;
+END;
+/

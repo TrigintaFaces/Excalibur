@@ -9,7 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for registering immutable inline projections on <see cref="IEventSourcingBuilder"/>.
+/// Extension methods for registering immutable projections on <see cref="IEventSourcingBuilder"/>.
 /// </summary>
 public static class ImmutableProjectionServiceCollectionExtensions
 {
@@ -32,7 +32,7 @@ public static class ImmutableProjectionServiceCollectionExtensions
 	/// <example>
 	/// <code>
 	/// builder.AddImmutableProjection&lt;OrderSummaryRecord&gt;(p =&gt; p
-	///     .Inline()
+	///     .Async()
 	///     .WhenCreating&lt;OrderPlaced&gt;(e =&gt; new OrderSummaryRecord(e.AggregateId, e.Amount, "Placed"))
 	///     .WhenTransforming&lt;OrderShipped&gt;((proj, e) =&gt; proj with { Status = "Shipped" }));
 	/// </code>
@@ -74,6 +74,7 @@ public static class ImmutableProjectionServiceCollectionExtensions
 	{
 		private readonly IProjectionRegistry _registry;
 		private readonly ImmutableProjectionBuilder<TProjection> _builder;
+		private readonly Lock _configureGate = new();
 		private bool _configured;
 
 		internal ConfigureImmutableProjection(
@@ -88,13 +89,16 @@ public static class ImmutableProjectionServiceCollectionExtensions
 		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public void Configure()
 		{
-			if (_configured)
+			lock (_configureGate)
 			{
-				return;
-			}
+				if (_configured)
+				{
+					return;
+				}
 
-			_configured = true;
-			_builder.Build(_registry);
+				_builder.Build(_registry);
+				_configured = true;
+			}
 		}
 	}
 }

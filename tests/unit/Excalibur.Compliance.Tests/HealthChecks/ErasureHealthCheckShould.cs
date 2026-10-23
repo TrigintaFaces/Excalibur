@@ -4,7 +4,9 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 
 
-using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.HealthChecks;
+using Excalibur.Compliance;using Excalibur.Dispatch;
+
+namespace Excalibur.Compliance.Tests.HealthChecks;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
@@ -82,6 +84,7 @@ public sealed class ErasureHealthCheckShould
 		// Arrange
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "abc123hash",
 			IdType = DataSubjectIdType.UserId,

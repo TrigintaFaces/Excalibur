@@ -57,7 +57,8 @@ public static class SqlServerProjectionStoreExtensions
 				logger,
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options.Value.TableName,
-				jsonOptions: options.Value.JsonSerializerOptions);
+				jsonOptions: options.Value.JsonSerializerOptions,
+				schemaName: options.Value.SchemaName);
 		});
 
 		return services;
@@ -103,7 +104,8 @@ public static class SqlServerProjectionStoreExtensions
 				logger,
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options?.TableName,
-				jsonOptions: options?.JsonSerializerOptions);
+				jsonOptions: options?.JsonSerializerOptions,
+				schemaName: options?.SchemaName ?? "dbo");
 		});
 
 		return services;
@@ -151,7 +153,8 @@ public static class SqlServerProjectionStoreExtensions
 				logger,
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options?.TableName,
-				jsonOptions: options?.JsonSerializerOptions);
+				jsonOptions: options?.JsonSerializerOptions,
+				schemaName: options?.SchemaName ?? "dbo");
 		});
 
 		return services;

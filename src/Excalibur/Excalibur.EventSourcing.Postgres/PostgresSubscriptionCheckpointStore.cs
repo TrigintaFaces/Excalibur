@@ -45,6 +45,7 @@ internal sealed class PostgresSubscriptionCheckpointStore : ISubscriptionCheckpo
 {
 	private readonly Func<NpgsqlConnection> _connectionFactory;
 	private readonly string _table;
+	private readonly string _definitionsTable;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PostgresSubscriptionCheckpointStore"/> class.
@@ -61,6 +62,39 @@ internal sealed class PostgresSubscriptionCheckpointStore : ISubscriptionCheckpo
 
 		_connectionFactory = connectionFactory;
 		_table = PgTableName.Format(schema, table);
+		var definitionsTable = table + "_definitions";
+		if (definitionsTable.Length > 63)
+		{
+			throw new ArgumentException("The derived subscription definitions table name exceeds the provider identifier limit.", nameof(table));
+		}
+
+		_definitionsTable = PgTableName.Format(schema, definitionsTable);
+	}
+
+	/// <inheritdoc />
+	public async Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+		cancellationToken.ThrowIfCancellationRequested();
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+#pragma warning disable CA2100 // Identifiers validated in the constructor
+		_ = await connection.ExecuteAsync(new CommandDefinition(
+			$"INSERT INTO {_definitionsTable} (subscription_name, definition_hash) VALUES (@Name, @Hash) ON CONFLICT (subscription_name) DO NOTHING;",
+			new { Name = subscriptionName, Hash = definitionHash },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+#pragma warning restore CA2100
+
+		// No operation in this contract changes or deletes a definition. A separate read after the
+		// insert therefore observes the same immutable winner even when another instance won first.
+#pragma warning disable CA2100 // Identifiers validated in the constructor
+		var actual = await connection.ExecuteScalarAsync<string>(new CommandDefinition(
+			$"SELECT definition_hash FROM {_definitionsTable} WHERE subscription_name = @Name",
+			new { Name = subscriptionName },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+#pragma warning restore CA2100
+		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
 	}
 
 	/// <inheritdoc />

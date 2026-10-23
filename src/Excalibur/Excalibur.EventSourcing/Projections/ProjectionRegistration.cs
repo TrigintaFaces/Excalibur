@@ -37,7 +37,7 @@ internal readonly record struct ProjectionEvent(
 
 /// <summary>
 /// Represents a registered projection with its mode, event handler dispatch table,
-/// and a pre-bound delegate for AOT-safe inline processing.
+/// and a pre-bound delegate for AOT-safe apply.
 /// </summary>
 internal sealed class ProjectionRegistration
 {
@@ -102,8 +102,8 @@ internal sealed class ProjectionRegistration
 
 	/// <summary>
 	/// Gets the pre-bound delegate for applying events to this projection.
-	/// Set for both <see cref="ProjectionMode.Inline"/> and <see cref="ProjectionMode.Async"/>
-	/// modes. Null only for <see cref="ProjectionMode.Ephemeral"/> projections.
+	/// Set for <see cref="ProjectionMode.Async"/>. Null for
+	/// <see cref="ProjectionMode.Ephemeral"/> projections, which persist no row.
 	/// </summary>
 	internal InlineApplyDelegate? InlineApply { get; }
 

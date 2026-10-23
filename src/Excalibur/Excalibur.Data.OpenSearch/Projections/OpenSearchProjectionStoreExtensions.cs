@@ -45,10 +45,32 @@ public static class OpenSearchProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		var optionsName = typeof(TProjection).Name;
+		var optionsName = OpenSearchProjectionStore<TProjection>.OptionsName;
 		_ = services.Configure(optionsName, configureOptions);
 
 		WireOptionsValidation(services, optionsName);
+
+		// ONE CLIENT PER CLUSTER FOR THE PROCESS -- never one per store instance.
+		//
+		// OpenSearchClient owns an HTTP connection pool. The store is SCOPED and the projection host
+		// creates a DI scope per projection per batch, so a store that falls back to building its own
+		// client built a NEW CONNECTION POOL ON EVERY BATCH. Those pools are not disposed, so their
+		// sockets sit in TIME_WAIT until the process runs out of ephemeral ports -- surfacing as a
+		// request cancelled with NO HTTP RESPONSE, at random, once a job has been running a while, and
+		// reading as an unreachable cluster rather than a client-lifetime bug here.
+		//
+		// Keyed by the options name rather than registered globally, because two projections may address
+		// different clusters. A client the CONSUMER registered still wins over this one.
+		services.TryAddKeyedSingleton<IOpenSearchClient>(optionsName, (sp, key) =>
+		{
+			var clientOptions = sp.GetRequiredService<IOptionsMonitor<OpenSearchProjectionStoreOptions>>()
+				.Get((string)key!);
+#pragma warning disable CA2000 // ConnectionSettings lifetime is managed by OpenSearchClient
+			var settings = new ConnectionSettings(new Uri(clientOptions.NodeUri))
+				.ThrowExceptions();
+#pragma warning restore CA2000
+			return new OpenSearchClient(settings);
+		});
 
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
@@ -63,11 +85,11 @@ public static class OpenSearchProjectionStoreExtensions
 			// since nothing in this framework registers a client for them -- the concrete OpenSearchClient.
 			// Resolving only the interface would leave the concrete registration silently unused and fall
 			// back to NodeUri, which is the very substitution this lookup exists to prevent.
-			var client = sp.GetService<IOpenSearchClient>() ?? sp.GetService<OpenSearchClient>();
+			var client = sp.GetService<IOpenSearchClient>()
+				?? sp.GetService<OpenSearchClient>()
+				?? sp.GetRequiredKeyedService<IOpenSearchClient>(optionsName);
 
-			return client is not null
-				? new OpenSearchProjectionStore<TProjection>(client, optionsMonitor, logger)
-				: new OpenSearchProjectionStore<TProjection>(optionsMonitor, logger);
+			return new OpenSearchProjectionStore<TProjection>(client, optionsMonitor, logger);
 		});
 
 		return services;
@@ -115,7 +137,7 @@ public static class OpenSearchProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(clientFactory);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		var optionsName = typeof(TProjection).Name;
+		var optionsName = OpenSearchProjectionStore<TProjection>.OptionsName;
 		_ = services.Configure(optionsName, configureOptions);
 
 		// Recorded AFTER the consumer's action, so it cannot be cleared by one: this path always supplies
@@ -216,7 +238,7 @@ public static class OpenSearchProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(section);
 
-		var optionsName = typeof(TProjection).Name;
+		var optionsName = OpenSearchProjectionStore<TProjection>.OptionsName;
 
 		// Bound first, so the code action registered by the call below runs after it and wins.
 		_ = services.AddOptions<OpenSearchProjectionStoreOptions>(optionsName).Bind(section);

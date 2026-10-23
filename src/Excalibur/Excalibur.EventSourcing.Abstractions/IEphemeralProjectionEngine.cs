@@ -14,7 +14,7 @@ namespace Excalibur.EventSourcing;
 /// </para>
 /// <para>
 /// Ephemeral projections use the same <c>When&lt;T&gt;</c> handlers registered via
-/// <c>IProjectionBuilder&lt;T&gt;</c>, ensuring consistency with inline and async modes.
+/// <c>IProjectionBuilder&lt;T&gt;</c>, ensuring consistency with stored projections.
 /// </para>
 /// <para>
 /// Optional caching via <c>IDistributedCache</c> is supported when the projection

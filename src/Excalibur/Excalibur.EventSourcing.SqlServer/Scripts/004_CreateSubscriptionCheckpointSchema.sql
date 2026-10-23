@@ -35,3 +35,14 @@ BEGIN
     );
 END;
 GO
+
+-- Immutable work-set binding, separate from the nullable/absent checkpoint state.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SubscriptionCheckpointsDefinitions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[SubscriptionCheckpointsDefinitions] (
+        SubscriptionName NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
+        DefinitionHash VARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+            CHECK (DATALENGTH(DefinitionHash) = 64)
+    );
+END;
+GO

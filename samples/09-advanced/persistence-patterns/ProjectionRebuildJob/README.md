@@ -16,7 +16,7 @@ Demonstrates scheduling a full projection rebuild using `ProjectionRebuildJob` f
 | Projection schema changed | Yes — rebuild regenerates with new mapping |
 | Projection got corrupted | Yes — full rebuild restores correct state |
 | Nightly data integrity check | Yes — schedule off-peak |
-| Real-time view updates | No — use inline projections or AsyncProjectionProcessingHost |
+| Continuous view updates | No — use `AddProjection<T>().Async()` with `EnableProjectionProcessing()` |
 
 ## Running
 

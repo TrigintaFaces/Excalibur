@@ -125,7 +125,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				return;
 			}
 
-			// Resolve the multi-stream projection -- check DI first, then IProjectionRegistry (for inline projections)
+			// Resolve the multi-stream projection -- check DI first, then IProjectionRegistry (for registered projections)
 			var projection = _serviceProvider.GetService(typeof(MultiStreamProjection<TProjection>))
 				as MultiStreamProjection<TProjection>;
 

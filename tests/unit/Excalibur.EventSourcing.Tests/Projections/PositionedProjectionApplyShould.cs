@@ -104,44 +104,22 @@ public sealed class PositionedProjectionApplyShould
 		store.LastExpectedPosition.ShouldBe(5, "the second write expects what the first one stored");
 	}
 
-	/// <summary>
-	/// LIVENESS, and the one that matters most: a fold carrying NO position is still persisted.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// <b>The defect this arm exists for.</b> On the save path every event is dispatched before the
-	/// store has assigned it a global position, so the batch carries none. An earlier shape read that as
-	/// "this apply cannot participate in a position-conditional write" — true of the CONDITION — and
-	/// concluded the write should be skipped, which does not follow. The result was that on every store
-	/// that had the positioned capability, inline projections were computed, handlers ran, search text
-	/// was built, and the object was dropped. No exception, no log line, no test.
-	/// </para>
-	/// <para>
-	/// It survived because the safety arms above are all satisfied by a store that writes nothing, and
-	/// this fixture's unconditional path used to THROW rather than record — encoding the same wrong
-	/// belief in the test that the production code held.
-	/// </para>
-	/// </remarks>
+	/// <summary>Async processing refuses an uncommitted page before it folds or persists anything.</summary>
 	[Fact]
-	public async Task Still_persist_a_fold_that_carries_no_position()
+	public async Task Refuse_an_async_page_that_carries_no_position()
 	{
 		var store = new RecordingPositionedStore();
 		var apply = BuildApply(store);
-
-		// The save path: real events, no global position yet.
-		var batch = (IReadOnlyList<ProjectionEvent>)
+		IReadOnlyList<ProjectionEvent> batch =
 		[
-			new ProjectionEvent(new Counted(), "agg-1", GlobalPosition: null),
 			new ProjectionEvent(new Counted(), "agg-1", GlobalPosition: null),
 		];
 
-		await apply(batch, Context(), Provider(store), CancellationToken.None);
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => apply(batch, Context(), Provider(store), CancellationToken.None));
 
-		store.Get("agg-1").ShouldNotBeNull(
-			"a fold with no position must still be written -- a missing position withdraws the "
-			+ "CONDITION, never the WRITE. Dropping it loses the projection silently.");
-		store.Get("agg-1")!.Total.ShouldBe(2, "both events must be folded into the persisted state");
-		store.UnconditionalWrites.ShouldBe(1, "exactly one unconditional write, not one per event");
+		store.Get("agg-1").ShouldBeNull();
+		store.UnconditionalWrites.ShouldBe(0);
 	}
 
 	private static ProjectionRegistration.InlineApplyDelegate BuildApply(RecordingPositionedStore store)

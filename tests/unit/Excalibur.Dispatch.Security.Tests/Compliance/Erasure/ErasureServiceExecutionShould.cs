@@ -2,6 +2,8 @@ using Excalibur.Compliance.Erasure;
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -647,6 +649,7 @@ public sealed class ErasureServiceExecutionShould
 	private static ErasureStatus CreateErasureStatus(Guid requestId, ErasureRequestStatus status, bool isExecuted = false) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			DataSubjectIdHash = "hash-value",

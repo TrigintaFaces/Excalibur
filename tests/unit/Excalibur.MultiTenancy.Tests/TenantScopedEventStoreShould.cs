@@ -103,7 +103,7 @@ public sealed class TenantScopedEventStoreShould
     public async Task DelegateAppendToInnerAndReturnItsResult_WhenATenantIsResolved()
     {
         WithTenant("tenant-a");
-        var expected = AppendResult.CreateSuccess(5, null);
+        var expected = AppendResult.CreateSuccess(5, null, null);
         A.CallTo(() => _inner.AppendAsync("agg-1", "Order", A<IEnumerable<IDomainEvent>>._, 0L, A<CancellationToken>._))
             .Returns(new ValueTask<AppendResult>(expected));
         var sut = CreateSut();

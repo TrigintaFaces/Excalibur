@@ -301,7 +301,7 @@ public sealed class EventBatchMigratorShould
 		A.CallTo(() => _eventStore.AppendAsync(
 			A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._,
 			A<long>._, A<CancellationToken>._))
-			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(1, 0)));
+			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(1, 0, 0)));
 #pragma warning restore CA2012
 	}
 }

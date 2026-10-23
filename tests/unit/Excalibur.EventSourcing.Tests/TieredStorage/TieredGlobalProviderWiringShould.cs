@@ -129,14 +129,7 @@ public sealed class TieredGlobalProviderWiringShould
         var services = Services(postgres);
         using var provider = services.BuildServiceProvider();
         var query = provider.GetRequiredService<IGlobalStreamQuery>();
-        if (postgres)
-        {
-            query.ShouldBeOfType<PostgresGlobalStreamQuery>();
-        }
-        else
-        {
-            query.ShouldBeOfType<ContiguousGlobalStreamQuery>();
-        }
+        query.ShouldBeOfType<ContiguousGlobalStreamQuery>();
         var store = provider.GetRequiredKeyedService<IEventStore>("default");
         var identity = store.GetService(typeof(EventStoreSourceIdentity));
         identity.ShouldBeOfType<EventStoreSourceIdentity>();

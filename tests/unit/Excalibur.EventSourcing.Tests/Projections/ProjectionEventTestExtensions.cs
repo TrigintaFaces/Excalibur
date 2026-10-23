@@ -23,9 +23,10 @@ internal static class ProjectionEventTestExtensions
 		string aggregateId) =>
 		[.. events.Select(e => new ProjectionEvent(e, aggregateId, GlobalPosition: null))];
 
-	/// <summary>Wraps events as coming from one aggregate, numbering them from 1 in order.</summary>
+	/// <summary>Wraps events as coming from one aggregate, using committed single-stream versions as test positions.</summary>
 	internal static IReadOnlyList<ProjectionEvent> AsPositionedProjectionEvents(
 		this IEnumerable<IDomainEvent> events,
 		string aggregateId) =>
-		[.. events.Select((e, i) => new ProjectionEvent(e, aggregateId, i + 1))];
+		[.. events.Select((e, i) => new ProjectionEvent(e, aggregateId,
+			e.GetType().GetProperty("Version")?.GetValue(e) is long version ? Math.Max(1, version) : i + 1))];
 }

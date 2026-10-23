@@ -187,19 +187,13 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync($"""
-			CREATE TABLE IF NOT EXISTS "{_tableName}" (
-				id VARCHAR(450) NOT NULL,
-				tenant_id VARCHAR(255) NOT NULL,
-				data JSONB NOT NULL,
-				created_at TIMESTAMPTZ NOT NULL,
-				updated_at TIMESTAMPTZ NOT NULL,
-				last_applied_position BIGINT NOT NULL DEFAULT -2,
-				-- Composite (id, tenant_id), never id alone: two tenants may legitimately hold the same
-				-- projection id, and keying on id alone lets one tenant's upsert overwrite another's row.
-				PRIMARY KEY (id, tenant_id)
-			);
-			""").ConfigureAwait(false);
+				// THE SHIPPED SCRIPT, not a local copy. Three test files each carried their own hand-written
+		// CREATE TABLE and they had already drifted -- one declared tenant_id as VARCHAR(450) where its
+		// siblings declared VARCHAR(255). A store whose columns changed without every copy changing
+		// would still pass here and fail on a consumer's database, which is the one place no gate of
+		// ours can see. Emitting it from the provider's own schema makes this arm the binding.
+		_ = await connection.ExecuteAsync(
+			PostgresProjectionSchema.CreateTableScript(_tableName)).ConfigureAwait(false);
 	}
 
 	/// <summary>

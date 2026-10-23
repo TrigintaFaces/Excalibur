@@ -148,6 +148,12 @@ BEGIN
         -- permissive than it, which is a cross-tenant read.
         TenantId              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
             CONSTRAINT DF_ErasureRequests_TenantId DEFAULT '__untenanted__',
+        -- NO DEFAULT, deliberately. TenantId above is the OWNER the data was encrypted under; this is
+        -- the PARTITION a retention declaration names, and the two differ in a single-tenant
+        -- deployment. There is no value that is safe to guess here: guessing untenanted would make a
+        -- multi-tenant row inherit another partition's legal obligations, and guessing the owner is
+        -- what destroyed retained keys. An INSERT that omits it must fail, loudly.
+        TenantPartition       NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
         Scope                 INT              NOT NULL,
         LegalBasisV2          INT              NOT NULL,
         ExternalReference     NVARCHAR(256)    NULL,

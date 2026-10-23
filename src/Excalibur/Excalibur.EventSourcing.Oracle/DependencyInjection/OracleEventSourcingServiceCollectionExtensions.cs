@@ -67,8 +67,10 @@ public static class OracleEventSourcingServiceCollectionExtensions
 		// The global stream query is what lets projections, materialized views, projection rebuilds and
 		// the lag read-model run on this provider. Without it those features resolve nothing and the
 		// provider is an event store that silently cannot project.
-		services.TryAddSingleton<IGlobalStreamQuery>(
-			_ => new OracleGlobalStreamQuery(connectionFactory, schema, table));
+		// The append transaction owns position allocation, so a missing next position must stop a scan.
+		services.TryAddSingleton<IGlobalStreamQuery>(sp => new ContiguousGlobalStreamQuery(
+			new OracleGlobalStreamQuery(connectionFactory, schema, table),
+			sp.GetRequiredService<ILogger<ContiguousGlobalStreamQuery>>()));
 
 		return services;
 	}
@@ -130,7 +132,9 @@ public static class OracleEventSourcingServiceCollectionExtensions
 			var cs = o.ConnectionString
 				?? throw new InvalidOperationException("Oracle event store ConnectionString is not configured.");
 
-			return new OracleGlobalStreamQuery(() => new OracleConnection(cs), o.Schema, o.Table);
+			return new ContiguousGlobalStreamQuery(
+				new OracleGlobalStreamQuery(() => new OracleConnection(cs), o.Schema, o.Table),
+				sp.GetRequiredService<ILogger<ContiguousGlobalStreamQuery>>());
 		});
 
 		return services;

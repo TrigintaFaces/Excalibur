@@ -49,13 +49,36 @@ public static class ElasticSearchProjectionStoreExtensions
 		_ = services.Configure(optionsName, configureOptions);
 		WireOptionsValidation(services, optionsName);
 
+		// ONE CLIENT PER CLUSTER FOR THE PROCESS -- never one per store instance.
+		//
+		// ElasticsearchClient owns an HTTP connection pool. The store is SCOPED, and the inline
+		// projection path creates a DI scope per projection per save, so a store that builds its own
+		// client builds a NEW CONNECTION POOL ON EVERY SAVE. The abandoned pools are not disposable
+		// (the client exposes no disposal), so their sockets sit in TIME_WAIT until the process runs
+		// out of ephemeral ports. What the consumer then sees is a request cancelled with NO HTTP
+		// RESPONSE -- which reads as the cluster being slow or unreachable, not as a client-lifetime
+		// bug here, and it strikes at random once the job has been running a while.
+		//
+		// Elastic's own guidance is a single shared client: it is thread-safe, and reusing it is what
+		// lets TCP connections be pooled and initialisation happen once.
+		//
+		// Keyed by the options name rather than registered globally, because two projections may
+		// address different clusters, and the settings object owns per-cluster caches.
+		services.TryAddKeyedSingleton(optionsName, (sp, key) =>
+		{
+			var clientOptions = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>()
+				.Get((string)key!);
+			return new ElasticsearchClient(ElasticSearchProjectionClientSettings.Create(clientOptions));
+		});
+
 		// Register projection store -- uses IOptionsMonitor to resolve named options
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
+			var client = sp.GetRequiredKeyedService<ElasticsearchClient>(optionsName);
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
-			return new ElasticSearchProjectionStore<TProjection>(optionsMonitor, logger);
+			return new ElasticSearchProjectionStore<TProjection>(client, optionsMonitor, logger);
 		});
 
 		return services;
@@ -305,23 +328,8 @@ public static class ElasticSearchProjectionStoreExtensions
 				ElasticSearchProjectionStoreOptionsValidator>());
 	}
 
-	/// <summary>
-	/// Records which projection type owns an options name, and refuses a second type claiming the same one.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// The options name is the projection's UNQUALIFIED type name, so two read models called
-	/// <c>Summary</c> in different namespaces would share one options instance and therefore one index:
-	/// each would read the other's documents and overwrite them on the same id. Nothing reported it --
-	/// the registrations look correct, the types are plainly distinct, and the collision lives in a
-	/// string neither of them mentions.
-	/// </para>
-	/// <para>
-	/// Refused at REGISTRATION rather than at start-up, because that is where the second type is named
-	/// and where the stack points at the line a developer has to change. Re-registering the SAME
-	/// projection is not a collision: the last call wins, as elsewhere in the framework.
-	/// </para>
-	/// </remarks>
+	/// <summary>Records registered full type identities for host diagnostics.</summary>
+	/// <remarks>Distinct namespaces have distinct buckets. Same full names across assemblies are refused.</remarks>
 	private static void ClaimOptionsName(IServiceCollection services, string optionsName, Type projectionType)
 	{
 		// Held on the collection rather than in a static, so two containers in one process -- a test
@@ -339,11 +347,9 @@ public static class ElasticSearchProjectionStoreExtensions
 		if (claims.Owners.TryGetValue(optionsName, out var owner) && owner != projectionType)
 		{
 			throw new InvalidOperationException(
-				$"Two projection types would share the options instance and the index named "
-				+ $"'{optionsName}': '{owner.FullName}' and '{projectionType.FullName}'. A projection's "
-				+ "store options and its index name are keyed on the UNQUALIFIED type name, so these two "
-				+ "would read each other's documents and overwrite them on the same id. Give at least one "
-				+ "of them its own index with Index.IndexName, or rename one of the types.");
+				$"Projection options identity '{optionsName}' is claimed by distinct types "
+				+ $"'{owner.AssemblyQualifiedName}' and '{projectionType.AssemblyQualifiedName}'. "
+				+ "Give these types distinct qualified names.");
 		}
 
 		claims.Owners[optionsName] = projectionType;

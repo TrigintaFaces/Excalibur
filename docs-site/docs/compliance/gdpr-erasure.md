@@ -75,13 +75,13 @@ justification and the period.
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using Excalibur.Compliance;
-using Excalibur.Dispatch; // TenantScope
+using Excalibur.Dispatch; // KeyedTenantPartition
 
 services.AddErasureRetention(
     new ErasureRetention
     {
         AggregateType = "SalesRecord",
-        TenantId = TenantScope.UntenantedSentinel, // not multi-tenant; see below
+        Tenant = KeyedTenantPartition.Untenanted, // not multi-tenant; see below
         Basis = LegalHoldBasis.LegalObligation,
         Justification = "Vehicle sales records are kept for six years under the tax code's "
                       + "record-keeping requirement and for product-recall traceability.",
@@ -90,7 +90,7 @@ services.AddErasureRetention(
     new ErasureRetention
     {
         AggregateType = "WarrantyClaim",
-        TenantId = TenantScope.UntenantedSentinel,
+        Tenant = KeyedTenantPartition.Untenanted,
         Basis = LegalHoldBasis.LegalObligation,
         Justification = "Warranty claims are kept for the statutory warranty term plus the "
                       + "limitation period for claims arising from them.",
@@ -103,7 +103,7 @@ Every property is required, and each one is required for a reason:
 | Property | Meaning |
 |---|---|
 | `AggregateType` | The aggregate type **exactly as the event store records it**. Matching is ordinal: a declaration of `salesrecord` against a stored `SalesRecord` is not a retention, and the record is destroyed. |
-| `TenantId` | The tenant whose obligation this is. A deployment that is not multi-tenant names `TenantScope.UntenantedSentinel` — the same value an untenanted erasure request carries, so a declaration and a request spell one tenant the same way. It is non-nullable: an absent tenant was a second spelling of the untenanted one, and two spellings for one thing is what made the match undecidable. Required so the deployment has to say which case it is in — a tenant-blind retention would make one tenant inherit another's statute. A retention declared for the wrong tenant does not match, so the record is erased; that is visible on the erasure record, where the opposite default would silently withhold erasure from every other tenant's data subjects. |
+| `Tenant` | The tenant **partition** whose obligation this is, as a `KeyedTenantPartition`. A deployment that is not multi-tenant writes `KeyedTenantPartition.Untenanted`; a multi-tenant one writes `KeyedTenantPartition.Scoped("<tenant>")`. **It is a partition rather than a string because there is exactly one way to write each partition** — a retention is joined against the partition an erasure request carries, and when both sides were strings a single-tenant deployment declared the untenanted sentinel while its own requests were stamped with the ambient single-tenant identity, which is a different reserved value. The join missed, and a retention miss destroys the key that reads the retained record. Required so the deployment has to say which case it is in — a tenant-blind retention would make one tenant inherit another's statute. A retention declared for the wrong partition does not match, so the record is erased; that is visible on the erasure record, where the opposite default would silently withhold erasure from every other tenant's data subjects. |
 | `Basis` | The Article 17(3) ground you are relying on (`LegalHoldBasis`). |
 | `Justification` | The written obligation, in terms an auditor can evaluate — the statute, the retention schedule, the regulator's requirement. See the warning below on who reads it. |
 | `RetentionPeriod` | How long the obligation lasts. Must be greater than zero. |
@@ -1160,8 +1160,9 @@ Erasure rewrites existing event rows rather than removing them, and that creates
 events. The caller — still holding the aggregate the payloads were built from — retries the save. The store
 recognises its own rows by identity and answers `AppendOutcome.AlreadyCommitted`, which is *correct*: the
 append genuinely did commit. What has stopped being true is that **present implies retrievable.** Continuing
-from there would stage the erased subject's own payloads to the outbox and hand them to inline projections —
-after the erasure certificate was already issued, and with nothing downstream ever learning.
+from there would stage the erased subject's own payloads to the outbox and hand them to the post-commit
+notification handlers — after the erasure certificate was already issued, and with nothing downstream ever
+learning.
 
 So the repository refuses instead:
 

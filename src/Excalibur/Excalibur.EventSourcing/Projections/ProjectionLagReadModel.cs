@@ -18,6 +18,7 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 {
 	private readonly ISubscriptionCheckpointStore _checkpointStore;
 	private readonly IGlobalStreamQuery? _globalStream;
+	private readonly string? _expectedSubscription;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionLagReadModel"/> class.
@@ -27,14 +28,29 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 	/// The global-stream query providing the head position, or <see langword="null"/> when no
 	/// event-store provider is configured. When absent the read model reports no lag (fail-open).
 	/// </param>
+	/// <param name="expectedSubscription">
+	/// The subscription this host is configured to run, or <see langword="null"/> when nothing in this
+	/// process processes projections.
+	/// </param>
+	/// <remarks>
+	/// <b>The expected subscription is required to report the never-started case at all.</b>
+	/// Enumerating the checkpoint store finds only subscriptions that have ALREADY recorded progress,
+	/// so a configured projection with a large backlog and no first run contributed no entry — and an
+	/// empty entry list is what a health check reads as "nothing is behind". Knowing the name that is
+	/// supposed to be there turns a missing row from an absence into a finding.
+	/// </remarks>
 	public ProjectionLagReadModel(
 		ISubscriptionCheckpointStore checkpointStore,
-		IGlobalStreamQuery? globalStream)
+		IGlobalStreamQuery? globalStream,
+		string? expectedSubscription = null)
 	{
 		ArgumentNullException.ThrowIfNull(checkpointStore);
 
 		_checkpointStore = checkpointStore;
 		_globalStream = globalStream;
+		_expectedSubscription = string.IsNullOrWhiteSpace(expectedSubscription)
+			? null
+			: expectedSubscription;
 	}
 
 	/// <inheritdoc />
@@ -55,14 +71,29 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 			.EnumerateCheckpointsAsync(cancellationToken)
 			.ConfigureAwait(false);
 
-		// Measured, and nothing to report: the head WAS read, there are simply no subscriptions. This is
-		// the good-news empty, and it is now distinguishable from the one above.
-		if (checkpoints.Count == 0)
+		var result = new List<ProjectionLag>(checkpoints.Count + 1);
+
+		// THE CONFIGURED SUBSCRIPTION THAT HAS NEVER RUN. Enumeration finds only subscriptions that
+		// have already recorded progress, so this one contributed nothing -- and "no entries" is what a
+		// health check reads as "nothing is behind". It is the opposite: it has applied nothing at all,
+		// and its true lag is the whole stream, because it must process from the beginning.
+		//
+		// Reported with a null checkpoint rather than zero, because zero is a legitimate recorded
+		// position and would make this indistinguishable from a subscription that has genuinely applied
+		// through the first event.
+		if (_expectedSubscription is { } expected
+			&& !checkpoints.Any(c => string.Equals(c.SubscriptionName, expected, StringComparison.Ordinal)))
 		{
-			return new ProjectionLagReport(ProjectionLagAvailability.Measured, []);
+			result.Add(new ProjectionLag(expected, CheckpointPosition: null, head, head));
 		}
 
-		var result = new List<ProjectionLag>(checkpoints.Count);
+		// Nothing recorded and nothing expected: the head WAS read and there is genuinely nothing to
+		// report. This is the good-news empty, and it is distinguishable both from the no-head-source
+		// case above and from the never-started case immediately above.
+		if (checkpoints.Count == 0)
+		{
+			return new ProjectionLagReport(ProjectionLagAvailability.Measured, result);
+		}
 
 		// A checkpoint ABOVE the head is impossible while the head source and the event store describe the
 		// same stream, because the head is at least every delivered position. The clamp below keeps lag

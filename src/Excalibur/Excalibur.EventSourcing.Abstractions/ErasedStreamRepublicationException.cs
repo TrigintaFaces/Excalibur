@@ -14,7 +14,8 @@ namespace Excalibur.EventSourcing;
 /// recognises its own rows by identity and answers
 /// <see cref="AppendOutcome.AlreadyCommitted"/>, because the append genuinely did commit. What has stopped
 /// being true is that present implies retrievable. Continuing from there would stage those payloads to the
-/// outbox and hand them to inline projections, publishing data that was destroyed on purpose — after the
+/// outbox and hand them to its post-commit notification handlers, publishing data that was destroyed
+/// on purpose — after the
 /// destruction had already been certified, and with nothing downstream ever learning.
 /// </para>
 /// <para>

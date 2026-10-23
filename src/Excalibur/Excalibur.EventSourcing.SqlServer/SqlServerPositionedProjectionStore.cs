@@ -56,12 +56,15 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _tableName;
 
+	// Takes the ALREADY-QUALIFIED "[schema].[table]" rather than a bare name, so there is exactly one
+	// place that decides how the table is addressed and this store cannot drift from the one that
+	// created it.
 	internal SqlServerPositionedProjectionStore(
 		Func<SqlConnection> connectionFactory,
-		string tableName)
+		string qualifiedTable)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-		_tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
+		_tableName = qualifiedTable ?? throw new ArgumentNullException(nameof(qualifiedTable));
 	}
 
 	/// <summary>Reads the state and the position in one statement.</summary>
@@ -79,7 +82,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		// then ACCEPTS, losing every event in the gap.
 #pragma warning disable CA2100 // Table name is a validated configured identifier, bracketed below
 		var sql =
-			$"SELECT Data, LastAppliedPosition FROM [{_tableName}] WHERE Id = @Id AND TenantId = @TenantId;";
+			$"SELECT Data, LastAppliedPosition FROM {_tableName} WHERE Id = @Id AND TenantId = @TenantId;";
 #pragma warning restore CA2100
 
 		await using var connection = _connectionFactory();
@@ -147,7 +150,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		var sql = $"""
 			DECLARE @Result TABLE (Act NVARCHAR(10));
 
-			MERGE [{_tableName}] WITH (UPDLOCK, HOLDLOCK) AS target
+			MERGE {_tableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @Id AS Id, @TenantId AS TenantId) AS source
 			ON target.Id = source.Id AND target.TenantId = source.TenantId
 			WHEN MATCHED
@@ -162,7 +165,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 
 			SELECT
 				(SELECT TOP 1 Act FROM @Result) AS Act,
-				(SELECT LastAppliedPosition FROM [{_tableName}]
+				(SELECT LastAppliedPosition FROM {_tableName}
 				 WHERE Id = @Id AND TenantId = @TenantId) AS CurrentPosition;
 			""";
 #pragma warning restore CA2100
@@ -236,7 +239,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 
 #pragma warning disable CA2100 // Table name is a validated configured identifier, bracketed below
 		var sql = $"""
-			MERGE [{_tableName}] WITH (UPDLOCK, HOLDLOCK) AS target
+			MERGE {_tableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @Id AS Id, @TenantId AS TenantId) AS source
 			ON target.Id = source.Id AND target.TenantId = source.TenantId
 			WHEN MATCHED THEN
@@ -289,7 +292,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 
 #pragma warning disable CA2100 // Table name is a validated configured identifier, bracketed below
 		var sql = $"""
-			UPDATE [{_tableName}] WITH (UPDLOCK, HOLDLOCK)
+			UPDATE {_tableName} WITH (UPDLOCK, HOLDLOCK)
 			SET Data = @Data, UpdatedAt = @UpdatedAt, LastAppliedPosition = @NewPosition
 			WHERE Id = @Id AND TenantId = @TenantId;
 			""";
@@ -354,13 +357,13 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 
 #pragma warning disable CA2100 // Table name is a validated configured identifier, bracketed below
 		var sql = $"""
-			UPDATE [{_tableName}] WITH (UPDLOCK, HOLDLOCK)
+			UPDATE {_tableName} WITH (UPDLOCK, HOLDLOCK)
 			SET Data = @Data, UpdatedAt = @UpdatedAt
 			WHERE Id = @Id AND TenantId = @TenantId AND LastAppliedPosition = @AtPosition;
 
 			SELECT
 				@@ROWCOUNT AS Affected,
-				(SELECT LastAppliedPosition FROM [{_tableName}]
+				(SELECT LastAppliedPosition FROM {_tableName}
 				 WHERE Id = @Id AND TenantId = @TenantId) AS CurrentPosition;
 			""";
 #pragma warning restore CA2100

@@ -11,6 +11,8 @@ using Shouldly;
 
 using Xunit;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.EventSourcing.Tests.Core.Erasure;
 
 /// <summary>
@@ -42,7 +44,7 @@ public sealed class ProjectionErasureGapContributorShould
 	[Fact]
 	public async Task Report_the_gap_when_projections_are_registered()
 	{
-		var registry = new StubRegistry(ProjectionMode.Inline);
+		var registry = new StubRegistry(ProjectionMode.Async);
 		var sut = new ProjectionErasureGapContributor(Provider(registry));
 
 		var result = await sut.EraseAsync(Context(), TestContext.Current.CancellationToken);
@@ -65,7 +67,7 @@ public sealed class ProjectionErasureGapContributorShould
 	[Fact]
 	public void Declare_coverage_of_nothing()
 	{
-		var sut = new ProjectionErasureGapContributor(Provider(new StubRegistry(ProjectionMode.Inline)));
+		var sut = new ProjectionErasureGapContributor(Provider(new StubRegistry(ProjectionMode.Async)));
 
 		sut.CoveredStoreKinds.ShouldBeEmpty();
 		sut.CoveredStoreKinds.Contains(DataStoreKind.Projection).ShouldBeFalse(
@@ -98,7 +100,7 @@ public sealed class ProjectionErasureGapContributorShould
 	[Fact]
 	public async Task Stand_down_when_another_contributor_covers_projections()
 	{
-		var registry = new StubRegistry(ProjectionMode.Inline);
+		var registry = new StubRegistry(ProjectionMode.Async);
 		var services = new ServiceCollection();
 		_ = services.AddSingleton<IProjectionRegistry>(registry);
 		_ = services.AddSingleton<IErasureContributor>(new ConsumerProjectionContributor());
@@ -156,7 +158,7 @@ public sealed class ProjectionErasureGapContributorShould
 	[Fact]
 	public async Task Stand_down_for_a_persisted_projection_the_erasure_clears()
 	{
-		var sut = new ProjectionErasureGapContributor(Provider(StubRegistry.Clearable(ProjectionMode.Inline)));
+		var sut = new ProjectionErasureGapContributor(Provider(StubRegistry.Clearable(ProjectionMode.Async)));
 
 		var result = await sut.EraseAsync(Context(), TestContext.Current.CancellationToken);
 
@@ -175,7 +177,7 @@ public sealed class ProjectionErasureGapContributorShould
 	[Fact]
 	public async Task Report_a_clearable_projection_when_the_erasure_is_selective()
 	{
-		var sut = new ProjectionErasureGapContributor(Provider(StubRegistry.Clearable(ProjectionMode.Inline)));
+		var sut = new ProjectionErasureGapContributor(Provider(StubRegistry.Clearable(ProjectionMode.Async)));
 
 		var result = await sut.EraseAsync(
 			Context() with { Scope = ErasureScope.Selective }, TestContext.Current.CancellationToken);
@@ -196,6 +198,7 @@ public sealed class ProjectionErasureGapContributorShould
 	private static ErasureContributorContext Context() =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = "hash",
 			IdType = DataSubjectIdType.Hash,

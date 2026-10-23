@@ -20,12 +20,13 @@ namespace Excalibur.EventSourcing.Decorators;
 /// Resolving capabilities through <see cref="IServiceProvider.GetService(Type)"/> removes the guess.
 /// </para>
 /// <para>
-/// Every projection capability interface derives from <see cref="IProjectionStore{TProjection}"/>. Handing a
+/// State-bearing projection capability interfaces derive from <see cref="IProjectionStore{TProjection}"/>. Handing a
 /// caller the decorated store's capability object would therefore hand them a fully functional, undecorated
 /// projection store -- the plaintext, or the unscoped rows, that this decorator exists to prevent -- and hand
 /// it to them through the very object that promised to prevent it. No projection capability is forwardable;
-/// a capability is reachable through this decorator only when the decorator says how, by returning a
-/// mediating view from <see cref="WrapCapability"/>.
+/// a state-bearing capability is reachable through this decorator only when the decorator says how,
+/// by returning a mediating view from <see cref="WrapCapability"/>. The search visibility barrier carries
+/// no projection access and is mediated by a narrow view that cannot expose the undecorated store.
 /// </para>
 /// <para>
 /// Resolution is therefore <strong>deny-by-default</strong>, and the failure mode is a missing optimisation
@@ -72,7 +73,31 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			return Inner.GetService(serviceType) is IProjectionDestinationIdentity identity
+				? new DestinationIdentityView(identity)
+				: null;
+		}
+
+		if (serviceType == typeof(IProjectionVisibilityBarrier))
+		{
+			return Inner.GetService(serviceType) is IProjectionVisibilityBarrier barrier
+				? new VisibilityBarrierView(barrier)
+				: null;
+		}
+
 		return serviceType.IsInstanceOfType(this) ? this : WrapCapability(serviceType);
+	}
+
+	private sealed class DestinationIdentityView(IProjectionDestinationIdentity inner) : IProjectionDestinationIdentity
+	{
+		public string Identity => inner.Identity;
+	}
+
+	private sealed class VisibilityBarrierView(IProjectionVisibilityBarrier inner) : IProjectionVisibilityBarrier
+	{
+		public Task EnsureVisibleAsync(CancellationToken cancellationToken) => inner.EnsureVisibleAsync(cancellationToken);
 	}
 
 	/// <summary>

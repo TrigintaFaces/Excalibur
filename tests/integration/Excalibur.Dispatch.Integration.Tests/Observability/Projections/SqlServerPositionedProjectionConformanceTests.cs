@@ -187,23 +187,13 @@ public sealed class SqlServerPositionedProjectionConformanceTests : PositionedPr
 		await using var connection = new SqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync($"""
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '{_tableName}')
-			BEGIN
-				CREATE TABLE [{_tableName}] (
-					TenantId NVARCHAR(200) NOT NULL,
-					Id NVARCHAR(450) NOT NULL,
-					Data NVARCHAR(MAX) NOT NULL,
-					CreatedAt DATETIMEOFFSET NOT NULL,
-					UpdatedAt DATETIMEOFFSET NOT NULL,
-					LastAppliedPosition BIGINT NOT NULL CONSTRAINT [DF_{_tableName}_Pos] DEFAULT (-2),
-					-- Composite (TenantId, Id), never Id alone: two tenants may legitimately hold the
-					-- same projection id, and keying on id alone lets one tenant's upsert overwrite
-					-- another's row.
-					CONSTRAINT [PK_{_tableName}] PRIMARY KEY (TenantId, Id)
-				)
-			END
-			""").ConfigureAwait(false);
+		// THE SHIPPED SCRIPT, not a local copy. This used to be a hand-written CREATE TABLE, and three
+		// test files each carried their own. A store whose columns changed without every copy changing
+		// would still pass here and fail on a consumer's database, which is the one place no gate of
+		// ours can see. Emitting it from the store's own schema makes these arms the binding: the DDL
+		// and the queries cannot drift apart without this going red.
+		_ = await connection.ExecuteAsync(
+			SqlServerProjectionSchema.CreateTableScript(_tableName)).ConfigureAwait(false);
 	}
 
 	/// <summary>

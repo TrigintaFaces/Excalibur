@@ -175,6 +175,7 @@ public sealed partial class PostgresCdcProcessor : IPostgresCdcProcessor
 		_backoff = new CdcTransientFailureBackoff(
 			_options.PollingInterval,
 			_fatalErrorOptions.MaxReconnectDelay,
+			_fatalErrorOptions.AttemptStabilityThreshold,
 			_fatalErrorOptions.MaxConsecutiveTransientFailures,
 			_timeProvider,
 			_healthState);

@@ -1,16 +1,17 @@
 # OutOfBandProjections
 
-Materialized views that update asynchronously, instead of inline during `SaveAsync()`.
+Materialized views that update on their own refresh schedule, with position tracking you own.
 
 ## Purpose
 
-An inline projection updates while the aggregate is being saved, so the save pays for the
-projection and the view is consistent the instant the save returns. That is the right trade for a
-view that belongs to one aggregate and must be read back immediately.
+A builder-API projection (`AddProjection<T>().Async()`) is applied by the projection host, which
+reads the global event stream in order and keeps one subscription checkpoint across every
+projection it applies. That is the right trade for a per-aggregate read model.
 
-It is the wrong trade for a view that spans aggregates or costs real work to compute. This sample
-shows the other option: events are processed into views out of band, by a background service or by
-an explicit call, and the view is eventually consistent.
+It is the wrong trade for a view that spans aggregates, costs real work to compute, or needs its
+own resumable position independent of every other projection. This sample shows the other option:
+events are processed into views by a dedicated refresh service or by an explicit call, and each
+view tracks where it stopped under its own `ViewName`.
 
 ## What This Sample Demonstrates
 
@@ -23,11 +24,12 @@ an explicit call, and the view is eventually consistent.
 - **`CatchUpAsync()` and `RebuildAsync()`** — resuming from a position, and discarding a view to
   rebuild it from the beginning
 
-## When to Use This Over an Inline Projection
+## When to Use This Over a Builder-API Projection
 
 - The view crosses aggregates — regional sales computed across every order, as here
-- The computation is expensive enough that it should not sit inside `SaveAsync()`
-- The reader tolerates eventual consistency — dashboards and reports usually do
+- The computation is expensive enough to want its own schedule rather than the stream's pace
+- You want the view's position tracked separately, under its own `ViewName`, so it can be caught
+  up or rebuilt without touching any other projection
 
 ## Prerequisites
 

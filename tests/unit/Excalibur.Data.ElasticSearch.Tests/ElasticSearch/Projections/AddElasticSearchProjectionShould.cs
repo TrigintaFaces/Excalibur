@@ -52,7 +52,7 @@ public sealed class AddElasticSearchProjectionShould
 
 		// The store options the call configured, in this projection's own named instance.
 		var options = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>()
-			.Get(nameof(CombinedProjection));
+			.Get(typeof(CombinedProjection).FullName!);
 		options.Index.IndexName.ShouldBe("combined");
 	}
 
@@ -81,7 +81,7 @@ public sealed class AddElasticSearchProjectionShould
 	{
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = new ExcaliburEventSourcingBuilder(services).AddProjection<CombinedProjection>(p => p.Inline());
+		_ = new ExcaliburEventSourcingBuilder(services).AddProjection<CombinedProjection>(p => p.Async());
 
 		using var provider = services.BuildServiceProvider();
 
@@ -101,7 +101,7 @@ public sealed class AddElasticSearchProjectionShould
 
 		_ = new ExcaliburEventSourcingBuilder(services)
 			.AddElasticSearchProjection<CombinedProjection>(
-				p => p.Inline(),
+				p => p.Async(),
 				o =>
 				{
 					o.NodeUri = "http://localhost:9200";

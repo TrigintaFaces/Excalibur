@@ -24,6 +24,11 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Component", "Core")]
 public sealed class EphemeralProjectionEngineExtendedShould
 {
+	// A SCOPE FACTORY, because the engine is a singleton whose handlers may take scoped dependencies
+	// and must therefore resolve them inside a scope per build rather than from the root container.
+	private static readonly IServiceScopeFactory EngineServices =
+		new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
 	private readonly InMemoryProjectionRegistry _registry = new();
 	private readonly IEventStore _eventStore = A.Fake<IEventStore>();
 	private readonly IEventSerializer _serializer = A.Fake<IEventSerializer>();
@@ -58,7 +63,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 
 		// Act — construction should succeed with custom options
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger,
+			_eventStore, _serializer, _registry, _logger, EngineServices,
 			cache: null, jsonOptions: customOptions);
 
 		// Assert — engine created successfully
@@ -70,7 +75,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 	{
 		// Act — no jsonOptions parameter
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger);
+			_eventStore, _serializer, _registry, _logger, EngineServices);
 
 		// Assert — should not throw
 		engine.ShouldNotBeNull();
@@ -93,7 +98,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 			.Returns(cachedBytes);
 
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger, cache);
+			_eventStore, _serializer, _registry, _logger, EngineServices, cache);
 
 		// Act
 		var result = await engine.BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None)
@@ -145,7 +150,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 				capturedBytes = bytes);
 
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger, cache, customOptions);
+			_eventStore, _serializer, _registry, _logger, EngineServices, cache, customOptions);
 
 		// Act
 		await engine.BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None).ConfigureAwait(false);
@@ -182,7 +187,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 		var cache = A.Fake<IDistributedCache>();
 		A.CallTo(() => cache.GetAsync(A<string>._, A<CancellationToken>._)).Returns((byte[]?)null);
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger, cache);
+			_eventStore, _serializer, _registry, _logger, EngineServices, cache);
 
 		await Should.ThrowAsync<InvalidOperationException>(() =>
 			engine.BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None));
@@ -207,7 +212,7 @@ public sealed class EphemeralProjectionEngineExtendedShould
 			});
 
 		var engine = new EphemeralProjectionEngine(
-			_eventStore, _serializer, _registry, _logger, cache: null);
+			_eventStore, _serializer, _registry, _logger, EngineServices, cache: null);
 
 		// Act — should work fine without cache
 		var result = await engine.BuildAsync<OrderSummary>("order-1", "Order", CancellationToken.None)

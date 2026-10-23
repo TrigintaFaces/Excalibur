@@ -8,7 +8,7 @@ Production-grade persistence for event-sourced systems. Shows event store provid
 
 | Sample | What You Learn | Infrastructure |
 |--------|----------------|----------------|
-| [ProjectionsSample](ProjectionsSample/) | In-memory event store, inline projections, multi-stream projections, checkpoint tracking, rebuild patterns | None |
+| [ProjectionsSample](ProjectionsSample/) | In-memory event store, stored projections, session-consistent reads, multi-stream projections, checkpoint tracking, rebuild patterns | None |
 | [SqlServerEventStore](SqlServerEventStore/) | SQL Server persistence, aggregate rehydration, direct event store access, configuration via `BindConfiguration` | Docker (SQL Server) |
 | [CosmosDbEventStore](CosmosDbEventStore/) | Cosmos DB partitioning, change feed, global distribution, consistency levels | Cosmos DB Emulator or Azure |
 
@@ -45,7 +45,7 @@ Production-grade persistence for event-sourced systems. Shows event store provid
 
 ## Learning Path
 
-1. **[ProjectionsSample](ProjectionsSample/)** — grasp inline/async projections with no infra
+1. **[ProjectionsSample](ProjectionsSample/)** — grasp stored projections and session-consistent reads with no infra
 2. **[SqlServerEventStore](SqlServerEventStore/)** — persist real events + rehydrate aggregates
 3. **[SnapshotStrategies](SnapshotStrategies/)** — tune performance for heavily-loaded aggregates
 4. **[InboxIdempotency](InboxIdempotency/)** + **[TransactionalHandlers](TransactionalHandlers/)** — exactly-once handler semantics

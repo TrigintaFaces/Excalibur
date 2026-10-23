@@ -148,15 +148,23 @@ public sealed partial class SqlServerErasureStore
 		ArgumentNullException.ThrowIfNull(request);
 		var tenant = AmbientScope;
 		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
+
+		// THE PARTITION IS THE SECOND FACT, decided here and persisted, from whether multi-tenancy is
+		// configured rather than from the shape of the tenant term -- so a tenant named like the
+		// single-tenant default is harmless. Deciding it at filing time keeps a certificate reproducible
+		// if the deployment is reconfigured before the request executes.
+		var partition = _requireTenant
+			? KeyedTenantPartition.FromContext(_tenantContext)
+			: KeyedTenantPartition.Untenanted;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
 			INSERT INTO {_options.FullRequestsTableName}
-				(RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
+				(RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
 				 ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				 Status, DataCategories, CreatedAt, UpdatedAt)
 			VALUES
-				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @Scope, @LegalBasisV2,
+				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @TenantPartition, @Scope, @LegalBasisV2,
 				 @ExternalReference, @RequestedBy, @RequestedAt, @ScheduledExecutionAt,
 				 @Status, @DataCategories, @CreatedAt, @UpdatedAt)";
 
@@ -177,6 +185,7 @@ public sealed partial class SqlServerErasureStore
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
 			TenantId = owner,
+			TenantPartition = partition.TenantId,
 			Scope = (int)request.Scope,
 			LegalBasisV2 = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -223,7 +232,7 @@ public sealed partial class SqlServerErasureStore
 		var tenantPredicate = _requireTenant ? " AND TenantId = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
-			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -738,7 +747,7 @@ public sealed partial class SqlServerErasureStore
 
 		var sql = $@"
 			SELECT TOP (@MaxResults)
-				   RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
+				   RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -766,7 +775,7 @@ public sealed partial class SqlServerErasureStore
 		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 		var sql = $@"
-			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -846,7 +855,7 @@ public sealed partial class SqlServerErasureStore
 		parameters.Add("PageSize", pageSize);
 
 		var sql = $@"
-			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, Scope, LegalBasisV2,
+			SELECT RequestId, DataSubjectIdHash, IdType, TenantId, TenantPartition, Scope, LegalBasisV2,
 				   ExternalReference, RequestedBy, RequestedAt, ScheduledExecutionAt,
 				   ExecutedAt, CompletedAt, CancelledAt, CancellationReason, CancelledBy,
 				   Status, KeysDeleted, RecordsAffected, CertificateId, ErrorMessage, UpdatedAt
@@ -1166,11 +1175,10 @@ public sealed partial class SqlServerErasureStore
 		{
 			await CreateSchemaIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
 		}
-		else
-		{
-			await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
-		}
 
+		// Existing tables survive conditional creation unchanged. Verify their columns on both paths
+		// so an older schema fails before any request is accepted.
+		await VerifySchemaExistsAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -1263,7 +1271,7 @@ public sealed partial class SqlServerErasureStore
 	[
 		(_options.FullRequestsTableName,
 		[
-			"RequestId", "DataSubjectIdHash", "IdType", "TenantId", "Scope", "LegalBasisV2",
+			"RequestId", "DataSubjectIdHash", "IdType", "TenantId", "TenantPartition", "Scope", "LegalBasisV2",
 			"ExternalReference", "RequestedBy", "RequestedAt", "ScheduledExecutionAt",
 			"ExecutedAt", "CompletedAt", "CancelledAt", "CancellationReason", "CancelledBy",
 			"Status", "KeysDeleted", "RecordsAffected", "CertificateId", "ErrorMessage",
@@ -1345,6 +1353,7 @@ public sealed partial class SqlServerErasureStore
 					IdType INT NOT NULL,
 					TenantId NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
 						CONSTRAINT DF_{_options.RequestsTableName}_TenantId DEFAULT '{TenantScope.UntenantedSentinel}',
+					TenantPartition NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
 					Scope INT NOT NULL,
 					LegalBasisV2 INT NOT NULL,
 					ExternalReference NVARCHAR(256) NULL,
@@ -1506,6 +1515,14 @@ public sealed partial class SqlServerErasureStore
 	[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Dapper materializes this type.")]
 	private sealed class ErasureRequestRow
 	{
+
+		/// <summary>The stored partition term, read back from its own column.</summary>
+		/// <remarks>
+		/// Nullable and checked in <c>ToStatus</c> rather than defaulted. A missing column would otherwise
+		/// surface as the untenanted partition, which is a WRONG ANSWER that looks like a valid one -- the
+		/// same silence this pair of fields exists to remove.
+		/// </remarks>
+		public string? TenantPartition { get; init; }
 		public Guid RequestId { get; init; }
 		public string DataSubjectIdHash { get; init; } = string.Empty;
 		public int IdType { get; init; }
@@ -1534,6 +1551,13 @@ public sealed partial class SqlServerErasureStore
 			DataSubjectIdHash = DataSubjectIdHash,
 			IdType = (DataSubjectIdType)IdType,
 			TenantId = TenantId,
+			TenantPartition = TenantPartition is { Length: > 0 } storedPartition
+				? KeyedTenantPartition.FromStoredValue(storedPartition)
+				: throw new InvalidOperationException(
+					"The erasure request row carries no TenantPartition. The column exists in the shipped "
+					+ "schema and every query selects it, so an absent value means this row predates it or "
+					+ "the query was narrowed. Refusing rather than assuming a partition: the wrong answer "
+					+ "here either destroys a legally retained key or withholds an erasure."),
 			Scope = (ErasureScope)Scope,
 			LegalBasis = (ErasureLegalBasis)LegalBasisV2,
 			ExternalReference = ExternalReference,

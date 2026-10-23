@@ -22,12 +22,6 @@ public sealed class ProjectionHealthStateShould
 	}
 
 	[Fact]
-	public void DefaultToZeroLag()
-	{
-		_state.AsyncLag.ShouldBe(0);
-	}
-
-	[Fact]
 	public void RecordInlineErrorWithTimestamp()
 	{
 		// Act
@@ -55,29 +49,6 @@ public sealed class ProjectionHealthStateShould
 	}
 
 	[Fact]
-	public void TrackAsyncLag()
-	{
-		// Act
-		_state.AsyncLag = 500;
-
-		// Assert
-		_state.AsyncLag.ShouldBe(500);
-	}
-
-	[Fact]
-	public void HandleConcurrentAsyncLagUpdates()
-	{
-		// Act -- concurrent writers
-		Parallel.For(0, 100, i =>
-		{
-			_state.AsyncLag = i;
-		});
-
-		// Assert -- value is one of the written values (no corruption)
-		_state.AsyncLag.ShouldBeInRange(0, 99);
-	}
-
-	[Fact]
 	public void HandleConcurrentErrorRecording()
 	{
 		// Act -- concurrent error recording
@@ -90,5 +61,45 @@ public sealed class ProjectionHealthStateShould
 		_state.LastInlineError.ShouldNotBeNull();
 		_state.LastErrorProjectionType.ShouldNotBeNull();
 		_state.LastErrorProjectionType.ShouldStartWith("Projection-");
+	}
+
+	[Fact]
+	public void ReportNoAppliedPosition_BeforeAnythingIsApplied()
+	{
+		// Null means "this process has applied nothing for that subscription", which a consistent read
+		// must be able to tell apart from "applied through position 0".
+		_state.AppliedPosition("orders").ShouldBeNull();
+	}
+
+	[Fact]
+	public void ReportTheAppliedPosition_PerSubscription()
+	{
+		_state.RecordApplied("orders", 42);
+		_state.RecordApplied("invoices", 7);
+
+		_state.AppliedPosition("orders").ShouldBe(42);
+		_state.AppliedPosition("invoices").ShouldBe(7, "subscriptions advance independently");
+	}
+
+	[Fact]
+	public void NeverLetTheAppliedMarkMoveBackwards()
+	{
+		// A reader that resumes from a winner's checkpoint legitimately re-reads a LOWER position. If the
+		// published mark followed it down, a consistent read that had already been satisfied would start
+		// failing -- the wait would un-succeed.
+		_state.RecordApplied("orders", 100);
+		_state.RecordApplied("orders", 40);
+
+		_state.AppliedPosition("orders").ShouldBe(100);
+	}
+
+	[Fact]
+	public void RaiseTheAppliedMarkUnderConcurrentAdvances()
+	{
+		// The mark is written from a polling loop and read from request threads, so the raise must be
+		// atomic rather than read-then-write.
+		Parallel.For(0, 500, i => _state.RecordApplied("orders", i));
+
+		_state.AppliedPosition("orders").ShouldBe(499);
 	}
 }

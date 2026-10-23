@@ -17,10 +17,10 @@ namespace Excalibur.EventSourcing;
 /// This handler is distinct from <c>IEventHandler&lt;T&gt;</c> in the Dispatch layer.
 /// Dispatch handlers are transport-aware and participate in the messaging pipeline.
 /// This handler is EventSourcing-level, in-process only, and invoked during <c>SaveAsync</c>
-/// after inline projections have completed.
+/// once the events are durable.
 /// </para>
 /// <para>
-/// Notification handlers run sequentially after ALL inline projections have finished.
+/// Notification handlers run sequentially, one event at a time in commit order.
 /// They are resolved from DI and invoked in registration order.
 /// </para>
 /// </remarks>

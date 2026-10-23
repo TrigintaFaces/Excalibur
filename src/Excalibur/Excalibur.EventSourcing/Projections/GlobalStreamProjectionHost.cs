@@ -371,7 +371,6 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				// Report lag as current position (consumers compute actual lag externally)
 				try
 				{
-					_healthState?.AsyncLag = _currentPosition.Position;
 				}
 				catch
 				{

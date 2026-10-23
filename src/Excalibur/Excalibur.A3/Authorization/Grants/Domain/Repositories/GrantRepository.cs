@@ -68,11 +68,11 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
-	public Task SaveAsync(Grant aggregate, CancellationToken cancellationToken) =>
+	public Task<SaveResult> SaveAsync(Grant aggregate, CancellationToken cancellationToken) =>
 		SaveAsync(aggregate, expectedETag: null, cancellationToken);
 
 	/// <inheritdoc />
-	public async Task SaveAsync(Grant aggregate, string? expectedETag, CancellationToken cancellationToken)
+	public async Task<SaveResult> SaveAsync(Grant aggregate, string? expectedETag, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
 		DomainException.ThrowIf(!aggregate.IsActive(), "Only active grants can be saved.");
@@ -114,6 +114,11 @@ public partial class GrantRepository : IGrantRepository
 
 			throw;
 		}
+
+		// No session token: this repository persists grants through a grant store, not an event store, so
+		// there is no global position for a reader to wait on. Null says that, rather than implying the
+		// save produced an ordering it did not.
+		return new SaveResult(aggregate.Version, SessionToken: null);
 	}
 
 	/// <inheritdoc />

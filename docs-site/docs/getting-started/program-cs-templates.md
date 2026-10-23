@@ -330,9 +330,9 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
     es.UseSqlServer(opts => opts.ConnectionString(connectionString));
     es.AddRepository<TodoAggregate, Guid>(id => new TodoAggregate(id));
 
-    // Inline projection: updated synchronously during SaveAsync()
+    // Stored projection: applied by the projection host, not by SaveAsync()
     es.AddProjection<TodoView>(p => p
-        .Inline()
+        .Async()
         .When<TodoCreated>((view, e) =>
         {
             view.Id = e.TodoId;
@@ -340,6 +340,9 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
             view.IsComplete = false;
         })
         .When<TodoCompleted>((view, _) => { view.IsComplete = true; }));
+
+    // Without this, the projection above is registered and nothing ever writes it.
+    es.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models");
 }));
 
 builder.Services.AddSqlServerProjectionStore<TodoView>(opts =>

@@ -143,15 +143,23 @@ public sealed partial class PostgresErasureStore
 		ArgumentNullException.ThrowIfNull(request);
 		var tenant = AmbientScope;
 		var owner = new TenantId((_requireTenant ? tenant.TenantId : request.TenantId ?? _tenantContext.TenantId)!).Value;
+
+		// THE PARTITION IS THE SECOND FACT, decided here and persisted, from whether multi-tenancy is
+		// configured rather than from the shape of the tenant term -- so a tenant named like the
+		// single-tenant default is harmless. Deciding it at filing time keeps a certificate reproducible
+		// if the deployment is reconfigured before the request executes.
+		var partition = _requireTenant
+			? KeyedTenantPartition.FromContext(_tenantContext)
+			: KeyedTenantPartition.Untenanted;
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
 			INSERT INTO {_options.FullRequestsTableName}
-				(request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
+				(request_id, data_subject_id_hash, id_type, tenant_id, tenant_partition, scope, legal_basis_v2,
 				 external_reference, requested_by, requested_at, scheduled_execution_at,
 				 status, data_categories, created_at, updated_at)
 			VALUES
-				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @Scope, @LegalBasisV2,
+				(@RequestId, @DataSubjectIdHash, @IdType, @TenantId, @TenantPartition, @Scope, @LegalBasisV2,
 				 @ExternalReference, @RequestedBy, @RequestedAt, @ScheduledExecutionAt,
 				 @Status, @DataCategories::jsonb, @CreatedAt, @UpdatedAt)";
 
@@ -172,6 +180,7 @@ public sealed partial class PostgresErasureStore
 			DataSubjectIdHash = HashDataSubjectId(request.DataSubjectId),
 			IdType = (int)request.IdType,
 			TenantId = owner,
+			TenantPartition = partition.TenantId,
 			Scope = (int)request.Scope,
 			LegalBasisV2 = (int)request.LegalBasis,
 			request.ExternalReference,
@@ -218,7 +227,7 @@ public sealed partial class PostgresErasureStore
 		var tenantPredicate = _requireTenant ? " AND tenant_id = @AmbientTenantId" : string.Empty;
 
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, tenant_partition, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -699,7 +708,7 @@ public sealed partial class PostgresErasureStore
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, tenant_partition, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -728,7 +737,7 @@ public sealed partial class PostgresErasureStore
 		ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 1000);
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, tenant_partition, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -808,7 +817,7 @@ public sealed partial class PostgresErasureStore
 		parameters.Add("PageSize", pageSize);
 
 		var sql = $@"
-			SELECT request_id, data_subject_id_hash, id_type, tenant_id, scope, legal_basis_v2,
+			SELECT request_id, data_subject_id_hash, id_type, tenant_id, tenant_partition, scope, legal_basis_v2,
 				   external_reference, requested_by, requested_at, scheduled_execution_at,
 				   executed_at, completed_at, cancelled_at, cancellation_reason, cancelled_by,
 				   status, keys_deleted, records_affected, certificate_id, error_message, updated_at
@@ -1232,7 +1241,7 @@ public sealed partial class PostgresErasureStore
 	[
 		(_options.FullRequestsTableName,
 		[
-			"request_id", "data_subject_id_hash", "id_type", "tenant_id", "scope", "legal_basis_v2",
+			"request_id", "data_subject_id_hash", "id_type", "tenant_id", "tenant_partition", "scope", "legal_basis_v2",
 			"external_reference", "requested_by", "requested_at", "scheduled_execution_at",
 			"executed_at", "completed_at", "cancelled_at", "cancellation_reason", "cancelled_by",
 			"status", "keys_deleted", "records_affected", "certificate_id", "error_message",
@@ -1305,6 +1314,7 @@ public sealed partial class PostgresErasureStore
 				data_subject_id_hash VARCHAR(128) NOT NULL,
 				id_type INT NOT NULL,
 				tenant_id VARCHAR(64) NOT NULL DEFAULT '{TenantScope.UntenantedSentinel}',
+				tenant_partition VARCHAR(64) NOT NULL,
 				scope INT NOT NULL,
 				legal_basis_v2 INT NOT NULL,
 				external_reference VARCHAR(256) NULL,
@@ -1473,6 +1483,14 @@ public sealed partial class PostgresErasureStore
 		public string data_subject_id_hash { get; init; } = string.Empty;
 		public int id_type { get; init; }
 		public string? tenant_id { get; init; }
+
+		/// <summary>The stored partition term, read back from its own column.</summary>
+		/// <remarks>
+		/// Nullable and checked in <c>ToStatus</c> rather than defaulted. A missing column would otherwise
+		/// surface as the untenanted partition, which is a WRONG ANSWER that looks like a valid one -- the
+		/// same silence this pair of fields exists to remove.
+		/// </remarks>
+		public string? tenant_partition { get; init; }
 		public int scope { get; init; }
 		public int legal_basis_v2 { get; init; }
 		public string? external_reference { get; init; }
@@ -1498,6 +1516,13 @@ public sealed partial class PostgresErasureStore
 			DataSubjectIdHash = data_subject_id_hash,
 			IdType = (DataSubjectIdType)id_type,
 			TenantId = tenant_id,
+			TenantPartition = tenant_partition is { Length: > 0 } storedPartition
+				? KeyedTenantPartition.FromStoredValue(storedPartition)
+				: throw new InvalidOperationException(
+					"The erasure request row carries no TenantPartition. The column exists in the shipped "
+					+ "schema and every query selects it, so an absent value means this row predates it or "
+					+ "the query was narrowed. Refusing rather than assuming a partition: the wrong answer "
+					+ "here either destroys a legally retained key or withholds an erasure."),
 			Scope = (ErasureScope)scope,
 			LegalBasis = (ErasureLegalBasis)legal_basis_v2,
 			ExternalReference = external_reference,

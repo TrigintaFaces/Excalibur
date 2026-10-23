@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Excalibur.Compliance.Erasure;
 
-using Excalibur.Compliance;namespace Excalibur.Compliance.Tests.Erasure;
+using Excalibur.Compliance;using Excalibur.Dispatch;
+
+namespace Excalibur.Compliance.Tests.Erasure;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Compliance")]
@@ -837,6 +839,7 @@ public sealed class ErasureServiceShould
 	private static ErasureStatus CreateStatus(Guid requestId, ErasureRequestStatus status) =>
 		new()
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			RequestId = requestId,
 			DataSubjectIdHash = "abc123hash",

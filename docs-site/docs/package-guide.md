@@ -64,7 +64,7 @@ need onto the packages that supply it.
 - **Event stores** across relational, document, and cloud providers, with optimistic concurrency.
 - **Snapshots** — time-based, count-based, and hybrid policies with version upgrading.
 - **Event upcasting** — schema evolution through type-safe transformers.
-- **Projections** — inline and asynchronous, with checkpointing, rebuilds, and server-side query filters.
+- **Projections** — stored and ephemeral, with checkpointing, rebuilds, session-consistent reads, and server-side query filters.
 
 ### Security and compliance
 

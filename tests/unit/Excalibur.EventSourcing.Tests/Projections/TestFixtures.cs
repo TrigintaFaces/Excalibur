@@ -54,52 +54,39 @@ public sealed class TestOrderShipped : IDomainEvent
 }
 
 
-/// <summary>
-/// A projection-store TEST DOUBLE with a synchronous accessor.
-/// </summary>
-/// <remarks>
-/// Deliberately NOT the shipped <see cref="Excalibur.EventSourcing.Projections.InMemoryProjectionStore{TProjection}"/>,
-/// and named so the two cannot be confused. This one exists for the synchronous <see cref="Get"/> helper
-/// that dozens of arms assert through, and it IGNORES filters entirely in <see cref="QueryAsync"/> --
-/// which means any arm asserting a filtered query through it is vacuous. The shipped store honours the
-/// shared filter grammar; prefer it for anything that queries.
-/// </remarks>
+/// <summary>A synchronous test accessor over the production positioned in-memory store.</summary>
 internal sealed class TestProjectionStore<T> : IProjectionStore<T>
 	where T : class
 {
-	private readonly Dictionary<string, T> _store = [];
+	private readonly Excalibur.EventSourcing.Projections.InMemoryProjectionStore<T> _store = new();
 
-	public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken)
+	public object? GetService(Type serviceType) => ((IServiceProvider)_store).GetService(serviceType);
+
+	public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
+		_store.GetByIdAsync(id, cancellationToken);
+
+	// Test seeds represent an initial state before the numbered events, rather than an
+	// unpositioned production write that a persisted async fold must refuse.
+	public async Task UpsertAsync(string id, T projection, CancellationToken cancellationToken)
 	{
-		_ = _store.TryGetValue(id, out var result);
-		return Task.FromResult(result);
+		await _store.UpsertAsync(id, projection, cancellationToken);
+		var rebuilt = await _store.RebuildAtPositionAsync(id, projection, 0, cancellationToken);
+		rebuilt.Outcome.ShouldBe(ProjectionRebuildOutcome.Applied);
 	}
 
-	public Task UpsertAsync(string id, T projection, CancellationToken cancellationToken)
-	{
-		_store[id] = projection;
-		return Task.CompletedTask;
-	}
+	public Task DeleteAsync(string id, CancellationToken cancellationToken) =>
+		_store.DeleteAsync(id, cancellationToken);
 
-	public Task DeleteAsync(string id, CancellationToken cancellationToken)
-	{
-		_ = _store.Remove(id);
-		return Task.CompletedTask;
-	}
+	public Task<IReadOnlyList<T>> QueryAsync(IDictionary<string, object>? filters,
+		QueryOptions? options, CancellationToken cancellationToken) =>
+		_store.QueryAsync(filters, options, cancellationToken);
 
-	public Task<IReadOnlyList<T>> QueryAsync(
-		IDictionary<string, object>? filters,
-		QueryOptions? options,
-		CancellationToken cancellationToken) =>
-		Task.FromResult<IReadOnlyList<T>>([.. _store.Values]);
+	public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken) =>
+		_store.CountAsync(filters, cancellationToken);
 
-	public Task<long> CountAsync(
-		IDictionary<string, object>? filters,
-		CancellationToken cancellationToken) =>
-		Task.FromResult((long)_store.Count);
-
-	/// <summary>Test helper: read a stored projection without awaiting.</summary>
-	internal T? Get(string id) => _store.TryGetValue(id, out var v) ? v : null;
+#pragma warning disable RS0030 // Production in-memory store completes synchronously; legacy test assertions use a synchronous accessor.
+	internal T? Get(string id) => _store.GetByIdAsync(id, CancellationToken.None).GetAwaiter().GetResult();
+#pragma warning restore RS0030
 }
 
 /// <summary>

@@ -158,7 +158,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 	[Fact]
 	public async Task Widen_the_handle_for_a_type_another_tenant_declared()
 	{
-		await using var provider = BuildStack(Retention() with { TenantId = "another-tenant" });
+		await using var provider = BuildStack(Retention() with { Tenant = KeyedTenantPartition.Scoped("another-tenant")});
 		await StartAsync(provider);
 
 		using var scope = provider.CreateScope();
@@ -337,7 +337,7 @@ public sealed class ARetainedAggregateTypeKeepsItsOwnKeyShould
 	private static ErasureRetention Retention() => new()
 	{
 		AggregateType = SalesRecord,
-		TenantId = TenantScope.UntenantedSentinel,
+		Tenant = KeyedTenantPartition.Untenanted,
 		Basis = LegalHoldBasis.LegalObligation,
 		Justification = Justification,
 		RetentionPeriod = TimeSpan.FromDays(365 * 6),

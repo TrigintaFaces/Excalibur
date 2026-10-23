@@ -4,12 +4,20 @@
 namespace Excalibur.EventSourcing;
 
 /// <summary>
-/// Provides recovery for inline projections that failed after events were committed.
+/// Re-folds one aggregate's projection row from its event stream, on demand.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This service is optional in DI. Register it only if you use inline projections
-/// and want programmatic recovery instead of relying solely on async catch-up.
+/// <c>UseEventNotification</c> registers this service, so a host that registers projections at
+/// all has it; call <c>UseProjectionRecovery</c> directly only to get recovery without the
+/// notification pipeline. It is not merely a convenience: erasing an aggregate re-folds the
+/// affected projection rows through this service, so a container without it fails that path.
+/// </para>
+/// <para>
+/// A row that is simply behind needs nothing from this: the projection host applies committed
+/// events in global-stream order and does not advance past a batch whose apply faulted, so it
+/// retries that batch itself. Reach for recovery to repair one aggregate's row on demand
+/// instead of rebuilding the whole projection.
 /// </para>
 /// <para>
 /// <see cref="ReapplyAsync{TProjection}"/> loads all events from the event store

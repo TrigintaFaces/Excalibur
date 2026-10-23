@@ -191,7 +191,7 @@ builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 // All Excalibur subsystems are composed under a single AddExcalibur root:
 // - Dispatch messaging (handler discovery via ScanAssemblies)
 // - Quartz.NET job scheduling (CdcJob)
-// - Event sourcing (SQL Server + inline projections)
+// - Event sourcing (SQL Server + host-applied projections)
 // Canonical composition path for a Quartz-hosted CDC job.
 
 builder.Services.AddSingleton<IEventSerializer, JsonEventSerializer>();
@@ -218,7 +218,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
 		},
 		typeof(Program).Assembly)
 
-	// Event sourcing: SQL Server store + inline projection handlers
+	// Event sourcing: SQL Server store + projection handlers applied by the projection host
 	.AddEventSourcing(es =>
 	{
 		// SQL Server event store, snapshot store, outbox store + health checks
@@ -235,7 +235,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
 
 		// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
 		es.AddProjection<CustomerSearchProjection>(p => p
-			.Inline()
+			.Async()
 			.WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
 			.WhenHandledBy<CustomerInfoUpdated, CustomerInfoUpdatedHandler>()
 			.WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
@@ -250,7 +250,7 @@ builder.Services.AddExcalibur(excalibur => excalibur
 
 		// CustomerTierSummaryProjection: uses OverrideProjectionId for per-tier routing
 		es.AddProjection<CustomerTierSummaryProjection>(p => p
-			.Inline()
+			.Async()
 			.WhenHandledBy<CustomerCreated, CustomerTierSummaryCreatedHandler>());
 	}));
 

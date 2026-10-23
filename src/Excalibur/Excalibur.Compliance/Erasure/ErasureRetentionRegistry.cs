@@ -76,8 +76,14 @@ internal sealed class ErasureRetentionRegistry : IErasureRetentionRegistry
 		// spelling: a declaration naming the sentinel, an empty string or whitespace all key the same way,
 		// which is the same way an erasure request naming no tenant is keyed on the read below.
 		_byType = options.Value.Aggregates
-			.Where(static r => r is not null && !string.IsNullOrWhiteSpace(r.AggregateType))
-			.GroupBy(static r => new RetentionKey(NormaliseTenant(r.TenantId), r.AggregateType))
+			// Tenant is checked alongside AggregateType because CONSTRUCTION IS TOTAL BY CONTRACT and
+			// r.Tenant.TenantId below would throw on a hand-built options instance whose partition is
+			// absent. The startup validator refuses such a declaration; this keeps the registry from
+			// throwing before the validator can report it, which would turn a clear startup failure into
+			// a container-build stack trace.
+			.Where(static r => r is not null && r.Tenant is not null
+				&& !string.IsNullOrWhiteSpace(r.AggregateType))
+			.GroupBy(static r => new RetentionKey(r.Tenant.TenantId, r.AggregateType))
 			.ToFrozenDictionary(static g => g.Key, static g => g.First());
 
 		_declared = [.. _byType.Values];
@@ -95,10 +101,12 @@ internal sealed class ErasureRetentionRegistry : IErasureRetentionRegistry
 
 	/// <inheritdoc/>
 	public bool TryGetRetention(
-		string? tenantId,
+		KeyedTenantPartition tenant,
 		string? aggregateType,
 		[NotNullWhen(true)] out ErasureRetention? retention)
 	{
+		ArgumentNullException.ThrowIfNull(tenant);
+
 		// TOTAL, and deliberately so. This is consulted on the path that decides whether to destroy a
 		// record; throwing here would convert an unknown type into a failed erasure rather than an erased
 		// one, and a Try that throws is not the contract its name advertises.
@@ -109,33 +117,32 @@ internal sealed class ErasureRetentionRegistry : IErasureRetentionRegistry
 			return false;
 		}
 
-		return _byType.TryGetValue(new RetentionKey(NormaliseTenant(tenantId), aggregateType), out retention);
+		return _byType.TryGetValue(new RetentionKey(tenant.TenantId, aggregateType), out retention);
 	}
 
 	/// <summary>
-	/// The tenant term a declaration is keyed on, and the ONLY derivation of it.
+	/// The key a declaration and a request are joined on: one aggregate type, in one tenant partition.
 	/// </summary>
-	/// <param name="tenantId">The tenant as declared or as an erasure recorded it.</param>
-	/// <returns>The normalised term: every spelling of <em>untenanted</em> collapses onto the sentinel.</returns>
 	/// <remarks>
 	/// <para>
-	/// The spelling rule is the framework's own rather than a local one. <c>FromStoredValue</c> collapses
-	/// absent, empty, whitespace and the sentinel itself onto the sentinel, so a declaration and an erasure
-	/// request meaning the same tenant compare equal however each was written. A local "== sentinel" test
-	/// would be a second predicate that silently disagrees about empty and whitespace.
+	/// <b>There is no normaliser here any more, and its absence is the fix.</b> Both operands are now
+	/// partitions — a declaration states <see cref="ErasureRetention.Tenant"/> and a request carries
+	/// <see cref="ErasureStatus.TenantPartition"/> — and <see cref="KeyedTenantPartition"/> has exactly one
+	/// inhabitant per partition, so there is no second spelling for a normaliser to reconcile.
 	/// </para>
 	/// <para>
-	/// <b>Internal, and shared with the startup validator on purpose.</b> The validator's duplicate-scope
-	/// check and this lookup are two predicates over one concept, and they MUST derive the key the same
-	/// way. While the validator keyed on the tenant as written, two declarations whose tenants normalised
-	/// together passed its duplicate rule and then collapsed here — first-declared wins, the second
-	/// silently discarded, so the basis and period on a signed erasure record were decided by the order two
-	/// lines appear in a registration call. Sharing the derivation makes that disagreement inexpressible
-	/// rather than merely caught by whatever the validator happens to reject today.
+	/// <b>What stood here, and why it had to go rather than be kept as defence in depth.</b> The tenant was
+	/// a <see langword="string"/> on both sides, and a single-tenant deployment declared the untenanted
+	/// sentinel while its requests were stamped with the ambient single-tenant identity — a different
+	/// reserved term. The join missed, and a miss on this path destroys the key protecting a legally
+	/// retained record while the signed certificate reports it as kept. The repair was a derivation that
+	/// mapped one term onto the other, which worked and left two problems: it depended on the ambient
+	/// default being unnameable by a real tenant, which <see cref="TenantDefaults.DefaultTenantId"/>
+	/// explicitly denies, and it kept a conflation alive behind a function that made it look settled.
+	/// Deciding the partition where the request is FILED, from whether multi-tenancy is configured rather
+	/// than from the shape of a string, removes both.
 	/// </para>
 	/// </remarks>
-	internal static string NormaliseTenant(string? tenantId) =>
-		KeyedTenantPartition.FromStoredValue(tenantId).TenantId;
 
 	/// <summary>The lookup key: one aggregate type, in one tenant.</summary>
 	/// <param name="TenantId">The normalised tenant term, never null.</param>

@@ -24,7 +24,11 @@ public sealed class ProjectionOptions
 }
 
 // NOTE: ProjectionBackgroundService has been removed.
-// Projection processing is now handled by the framework's inline projection pipeline
-// registered via services.AddExcalibur(x => x.AddEventSourcing(es => es.AddProjection<T>().Inline().WhenHandledBy<>()))
+// Projection processing is now handled by the framework's own projection host, registered via
+//   services.AddExcalibur(x => x.AddEventSourcing(es =>
+//   {
+//       es.AddProjection<T>(p => p.Async().WhenHandledBy<TEvent, THandler>());
+//       es.EnableProjectionProcessing();   // this is what applies them
+//   }))
 // (the canonical builder path).
 // See Program.cs for the registration.

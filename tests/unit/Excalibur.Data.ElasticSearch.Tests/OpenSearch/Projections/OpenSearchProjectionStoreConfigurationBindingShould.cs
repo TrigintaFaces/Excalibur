@@ -88,10 +88,10 @@ public sealed class OpenSearchProjectionStoreConfigurationBindingShould
 
 		var monitor = Monitor(services);
 
-		monitor.Get(nameof(OpenSearchConfigBoundProjection)).NodeUris.ShouldNotBeNull();
-		monitor.Get(nameof(SecondOpenSearchConfigBoundProjection)).NodeUris.ShouldNotBeNull();
-		monitor.Get(nameof(OpenSearchConfigBoundProjection)).IndexName.ShouldBe("first");
-		monitor.Get(nameof(SecondOpenSearchConfigBoundProjection)).IndexName.ShouldBe("second");
+		monitor.Get(typeof(OpenSearchConfigBoundProjection).FullName!).NodeUris.ShouldNotBeNull();
+		monitor.Get(typeof(SecondOpenSearchConfigBoundProjection).FullName!).NodeUris.ShouldNotBeNull();
+		monitor.Get(typeof(OpenSearchConfigBoundProjection).FullName!).IndexName.ShouldBe("first");
+		monitor.Get(typeof(SecondOpenSearchConfigBoundProjection).FullName!).IndexName.ShouldBe("second");
 	}
 
 	/// <summary>
@@ -228,5 +228,5 @@ public sealed class OpenSearchProjectionStoreConfigurationBindingShould
 		services.BuildServiceProvider().GetRequiredService<IOptionsMonitor<OpenSearchProjectionStoreOptions>>();
 
 	private static OpenSearchProjectionStoreOptions Options(IServiceCollection services) =>
-		Monitor(services).Get(nameof(OpenSearchConfigBoundProjection));
+		Monitor(services).Get(typeof(OpenSearchConfigBoundProjection).FullName!);
 }

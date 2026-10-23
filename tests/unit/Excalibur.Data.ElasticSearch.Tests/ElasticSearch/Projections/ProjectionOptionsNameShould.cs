@@ -1,100 +1,133 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Reflection;
+
 using Excalibur.Data.ElasticSearch.Projections;
+using Excalibur.Data.OpenSearch.Projections;
+using Excalibur.EventSourcing;
 
-using Microsoft.Extensions.DependencyInjection;
-
-namespace Excalibur.Data.Tests.ElasticSearch.Projections;
-
-/// <summary>Two projection types whose UNQUALIFIED names are identical.</summary>
-internal static class Sales
+namespace Excalibur.Data.ElasticSearch.Tests.OptionsIdentity.Sales
 {
-	internal sealed class Summary
+	internal sealed class EmployeeProjection
 	{
 		public string Id { get; set; } = string.Empty;
 	}
 }
 
-/// <summary>The same unqualified name, a different type. This is the collision.</summary>
-internal static class Support
+namespace Excalibur.Data.ElasticSearch.Tests.OptionsIdentity.Support
 {
-	internal sealed class Summary
+	internal sealed class EmployeeProjection
 	{
 		public string Id { get; set; } = string.Empty;
 	}
 }
 
-/// <summary>
-/// A projection's options — and therefore its index — are keyed on its unqualified type name.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <c>Sales.Summary</c> and <c>Support.Summary</c> are different read models that would share one named
-/// options instance and one index, so each would read the other's documents and overwrite them on the
-/// same id. Nothing reported it: the registrations look correct, the types are plainly distinct, and the
-/// collision lives in a string neither of them mentions.
-/// </para>
-/// <para>
-/// A consumer in this very repository has two <c>EmployeeProjection</c> types, one registered and one
-/// not, and had to write the hazard into their own source as a comment to protect the next reader.
-/// </para>
-/// </remarks>
-[Trait(TraitNames.Category, TestCategories.Unit)]
-[Trait(TraitNames.Component, TestComponents.Data)]
-public sealed class ProjectionOptionsNameShould
+namespace Excalibur.Data.ElasticSearch.Tests.ElasticSearch.Projections
 {
-	[Fact]
-	public void RefuseTwoProjectionTypesThatWouldShareOneIndex()
+	using SalesProjection = global::Excalibur.Data.ElasticSearch.Tests.OptionsIdentity.Sales.EmployeeProjection;
+	using SupportProjection = global::Excalibur.Data.ElasticSearch.Tests.OptionsIdentity.Support.EmployeeProjection;
+
+	[Trait("Category", "Unit")]
+	[Trait("Component", "Projections")]
+	public sealed class ProjectionOptionsNameShould
 	{
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
+		[Fact]
+		public async Task IsolateElasticOptionsIndexesAndClientsForTypesWithTheSameSimpleName()
+		{
+			var services = new ServiceCollection();
+			services.AddLogging();
+			services.AddElasticSearchProjectionStore<SalesProjection>(o =>
+			{
+				o.NodeUri = "http://localhost:9200";
+				o.Index.IndexName = "sales-employees";
+			});
+			services.AddElasticSearchProjectionStore<SupportProjection>(o =>
+			{
+				o.NodeUri = "http://localhost:9201";
+				o.Index.IndexName = "support-employees";
+			});
+			await using var provider = services.BuildServiceProvider();
+			var monitor = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
+			monitor.Get(ElasticSearchProjectionIndexConvention.GetOptionsName<SalesProjection>()).NodeUri
+				.ShouldBe("http://localhost:9200");
+			monitor.Get(ElasticSearchProjectionIndexConvention.GetOptionsName<SupportProjection>()).NodeUri
+				.ShouldBe("http://localhost:9201");
+			await using var first = provider.CreateAsyncScope();
+			await using var second = provider.CreateAsyncScope();
+			var sales = first.ServiceProvider.GetRequiredService<IProjectionStore<SalesProjection>>();
+			var support = first.ServiceProvider.GetRequiredService<IProjectionStore<SupportProjection>>();
+			AssertStoresAndClients(sales, support,
+				second.ServiceProvider.GetRequiredService<IProjectionStore<SalesProjection>>(),
+				second.ServiceProvider.GetRequiredService<IProjectionStore<SupportProjection>>());
+			Field<string>(sales, "_indexName").ShouldBe("projections-sales-employees");
+			Field<string>(support, "_indexName").ShouldBe("projections-support-employees");
+		}
 
-		_ = services.AddElasticSearchProjectionStore<Sales.Summary>(o => o.NodeUri = "http://localhost:9200");
+		[Fact]
+		public async Task IsolateOpenSearchOptionsIndexesAndClientsForTypesWithTheSameSimpleName()
+		{
+			var services = new ServiceCollection();
+			services.AddLogging();
+			services.AddOpenSearchProjectionStore<SalesProjection>(o =>
+			{
+				o.NodeUri = "http://localhost:9200";
+				o.IndexName = "sales-employees";
+			});
+			services.AddOpenSearchProjectionStore<SupportProjection>(o =>
+			{
+				o.NodeUri = "http://localhost:9201";
+				o.IndexName = "support-employees";
+			});
+			await using var provider = services.BuildServiceProvider();
+			var monitor = provider.GetRequiredService<IOptionsMonitor<OpenSearchProjectionStoreOptions>>();
+			monitor.Get(typeof(SalesProjection).FullName!).NodeUri.ShouldBe("http://localhost:9200");
+			monitor.Get(typeof(SupportProjection).FullName!).NodeUri.ShouldBe("http://localhost:9201");
+			await using var first = provider.CreateAsyncScope();
+			await using var second = provider.CreateAsyncScope();
+			var sales = first.ServiceProvider.GetRequiredService<IProjectionStore<SalesProjection>>();
+			var support = first.ServiceProvider.GetRequiredService<IProjectionStore<SupportProjection>>();
+			AssertStoresAndClients(sales, support,
+				second.ServiceProvider.GetRequiredService<IProjectionStore<SalesProjection>>(),
+				second.ServiceProvider.GetRequiredService<IProjectionStore<SupportProjection>>());
+			Field<string>(sales, "_indexName").ShouldBe("projections-sales-employees");
+			Field<string>(support, "_indexName").ShouldBe("projections-support-employees");
+		}
 
-		var error = Should.Throw<InvalidOperationException>(
-			() => services.AddElasticSearchProjectionStore<Support.Summary>(
-				o => o.NodeUri = "http://localhost:9200"));
+		[Fact]
+		public void KeepIndexNamingIndependentFromTheOptionsBucket()
+		{
+			ElasticSearchProjectionIndexConvention.GetOptionsName<SalesProjection>()
+				.ShouldBe(typeof(SalesProjection).FullName);
+			ElasticSearchProjectionIndexConvention.GetOptionsName<SalesProjection>()
+				.ShouldNotBe(ElasticSearchProjectionIndexConvention.GetOptionsName<SupportProjection>());
+			ElasticSearchProjectionIndexConvention.GetIndexName<SalesProjection>(new ElasticSearchProjectionStoreOptions())
+				.ShouldBe("projections-employeeprojection");
+		}
 
-		// Both full names, because the unqualified one is the same for both and so identifies neither.
-		error.Message.ShouldContain(typeof(Sales.Summary).FullName!, Case.Sensitive);
-		error.Message.ShouldContain(typeof(Support.Summary).FullName!, Case.Sensitive);
+		[Fact]
+		public void AllowTheSameProjectionToBeRegisteredTwice()
+		{
+			var services = new ServiceCollection();
+			services.AddLogging();
+			services.AddElasticSearchProjectionStore<SalesProjection>(o => o.NodeUri = "http://localhost:9200");
+			services.AddElasticSearchProjectionStore<SalesProjection>(o => o.NodeUri = "http://localhost:9201");
+		}
+
+		private static void AssertStoresAndClients(object sales, object support, object laterSales, object laterSupport)
+		{
+			ReferenceEquals(sales, laterSales).ShouldBeFalse();
+			ReferenceEquals(support, laterSupport).ShouldBeFalse();
+			var salesClient = Field<object>(sales, "_client");
+			var supportClient = Field<object>(support, "_client");
+			salesClient.ShouldNotBeNull();
+			supportClient.ShouldNotBeNull();
+			ReferenceEquals(salesClient, supportClient).ShouldBeFalse();
+			ReferenceEquals(salesClient, Field<object>(laterSales, "_client")).ShouldBeTrue();
+			ReferenceEquals(supportClient, Field<object>(laterSupport, "_client")).ShouldBeTrue();
+		}
+
+		private static T Field<T>(object store, string name) =>
+			(T)store.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(store)!;
 	}
-
-	/// <summary>
-	/// LIVENESS. Without this the refusal above is satisfied by a check that rejects the second
-	/// registration of anything.
-	/// </summary>
-	[Fact]
-	public void RegisterTwoProjectionsWithDifferentNames()
-	{
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-
-		_ = services.AddElasticSearchProjectionStore<Sales.Summary>(o => o.NodeUri = "http://localhost:9200");
-		_ = services.AddElasticSearchProjectionStore<CombinedProjection>(o => o.NodeUri = "http://localhost:9200");
-	}
-
-	/// <summary>
-	/// Registering the SAME projection twice is not a collision — the second call replaces the first, as
-	/// every other registration in the framework does.
-	/// </summary>
-	[Fact]
-	public void AllowTheSameProjectionToBeRegisteredTwice()
-	{
-		var services = new ServiceCollection();
-		_ = services.AddLogging();
-
-		_ = services.AddElasticSearchProjectionStore<Sales.Summary>(o => o.NodeUri = "http://localhost:9200");
-		_ = services.AddElasticSearchProjectionStore<Sales.Summary>(o => o.NodeUri = "http://localhost:9201");
-	}
-
-	/// <summary>
-	/// The options name is produced by ONE function, which the store, the registration and a consumer's
-	/// own repository all call — it was derived independently in three places.
-	/// </summary>
-	[Fact]
-	public void BeProducedByOneSharedFunction() =>
-		ElasticSearchProjectionIndexConvention.GetOptionsName<Sales.Summary>()
-			.ShouldBe(nameof(Sales.Summary));
 }

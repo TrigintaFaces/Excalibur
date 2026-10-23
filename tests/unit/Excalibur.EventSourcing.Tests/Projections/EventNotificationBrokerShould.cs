@@ -6,6 +6,7 @@ using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Projections;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Excalibur.EventSourcing.Tests.Projections;
 
@@ -18,7 +19,7 @@ public sealed class EventNotificationBrokerShould
 	private readonly ServiceCollection _services = new();
 	private readonly EventNotificationOptions _options = new();
 
-	private EventNotificationBroker CreateBroker(IServiceProvider? sp = null)
+	private EventNotificationBroker CreateBroker(IServiceProvider? sp = null, TimeProvider? timeProvider = null)
 	{
 		if (sp == null)
 		{
@@ -28,17 +29,12 @@ public sealed class EventNotificationBrokerShould
 
 		var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
-		var processor = new InlineProjectionProcessor(
-			_registry,
-			scopeFactory,
-			NullLogger<InlineProjectionProcessor>.Instance);
 
 		return new EventNotificationBroker(
-			processor,
 			scopeFactory,
 			Options.Create(_options),
 			NullLogger<EventNotificationBroker>.Instance,
-			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>());
+			Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>(), timeProvider);
 	}
 
 	private static EventNotificationContext CreateContext() =>
@@ -53,8 +49,7 @@ public sealed class EventNotificationBrokerShould
 		// Act -- should complete without any work
 		await broker.NotifyAsync(
 			new List<IDomainEvent>(),
-			CreateContext(),
-			CancellationToken.None);
+			CreateContext());
 	}
 
 	[Fact]
@@ -62,7 +57,7 @@ public sealed class EventNotificationBrokerShould
 	{
 		var broker = CreateBroker();
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			broker.NotifyAsync(null!, CreateContext(), CancellationToken.None));
+			broker.NotifyAsync(null!, CreateContext()));
 	}
 
 	[Fact]
@@ -70,19 +65,20 @@ public sealed class EventNotificationBrokerShould
 	{
 		var broker = CreateBroker();
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			broker.NotifyAsync(new List<IDomainEvent> { new TestOrderPlaced() }, null!, CancellationToken.None));
+			broker.NotifyAsync(new List<IDomainEvent> { new TestOrderPlaced() }, null!));
 	}
 
 	[Fact]
-	public async Task RunInlineProjectionsBeforeHandlers()
+	public async Task NotifyHandlersWithoutApplyingAnyProjection()
 	{
 		// Arrange -- track execution order
 		var executionOrder = new List<string>();
 
-		// Register inline projection
+		// A registered projection whose apply delegate records if it is ever invoked. It must NOT be:
+		// the broker no longer writes projections at all. That is the whole point of the removal.
 		_registry.Register(new ProjectionRegistration(
 			typeof(OrderSummary),
-			ProjectionMode.Inline,
+			ProjectionMode.Async,
 			new MultiStreamProjection<OrderSummary>(),
 			inlineApply: (_, _, _, _) =>
 			{
@@ -102,13 +98,16 @@ public sealed class EventNotificationBrokerShould
 		// Act
 		await broker.NotifyAsync(
 			new List<IDomainEvent> { new TestOrderPlaced() },
-			CreateContext(),
-			CancellationToken.None);
+			CreateContext());
 
-		// Assert -- projections BEFORE handlers (R27.8)
-		executionOrder.Count.ShouldBe(2);
-		executionOrder[0].ShouldBe("projection");
-		executionOrder[1].ShouldBe("handler");
+		// SAFETY -- the broker applied no projection. It used to fold them here, after the events were
+		// durable, as a second uncoordinated writer; two concurrent saves could both fold a row and the
+		// last write won. The projection host applies in position order instead.
+		executionOrder.ShouldNotContain("projection");
+
+		// LIVENESS -- and the notification handler still ran. Without this arm a broker that did nothing
+		// at all would satisfy the assertion above, and inaction is the cheapest way to look safe.
+		executionOrder.ShouldBe(["handler"]);
 	}
 
 	[Fact]
@@ -131,8 +130,7 @@ public sealed class EventNotificationBrokerShould
 		// Act
 		await broker.NotifyAsync(
 			new List<IDomainEvent> { new TestOrderPlaced() },
-			CreateContext(),
-			CancellationToken.None);
+			CreateContext());
 
 		// Assert
 		handlerInvoked.ShouldBeTrue();
@@ -156,8 +154,7 @@ public sealed class EventNotificationBrokerShould
 		// Act -- should not throw (handler errors are caught and logged)
 		await broker.NotifyAsync(
 			new List<IDomainEvent> { new TestOrderPlaced() },
-			CreateContext(),
-			CancellationToken.None);
+			CreateContext());
 	}
 
 	[Fact]
@@ -177,8 +174,7 @@ public sealed class EventNotificationBrokerShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
 			broker.NotifyAsync(
 				new List<IDomainEvent> { new TestOrderPlaced() },
-				CreateContext(),
-				CancellationToken.None));
+				CreateContext()));
 
 		ex.Message.ShouldBe("handler boom");
 	}
@@ -206,8 +202,7 @@ public sealed class EventNotificationBrokerShould
 		// Act
 		await broker.NotifyAsync(
 			new List<IDomainEvent> { event1, event2 },
-			CreateContext(),
-			CancellationToken.None);
+			CreateContext());
 
 		// Assert -- handlers invoked in event order
 		receivedEvents.Count.ShouldBe(2);
@@ -224,33 +219,99 @@ public sealed class EventNotificationBrokerShould
 		// Act -- should complete without error
 		await broker.NotifyAsync(
 			new List<IDomainEvent> { new TestOrderPlaced() },
-			CreateContext(),
-			CancellationToken.None);
+			CreateContext());
 	}
 
 	[Fact]
 	public void ThrowOnNullConstructorArguments()
 	{
-		var processor = new InlineProjectionProcessor(
-			_registry, A.Fake<IServiceScopeFactory>(),
-			NullLogger<InlineProjectionProcessor>.Instance);
 		var sp = A.Fake<IServiceScopeFactory>();
 		var opts = Options.Create(new EventNotificationOptions());
 		var logger = NullLogger<EventNotificationBroker>.Instance;
 
 		var configs = Array.Empty<EventNotificationServiceCollectionExtensions.IConfigureProjection>();
 
+		// One arm per constructor parameter. The inline projection processor used to be the first of
+		// them; it is gone with the dual write, so the guard it had is gone with it rather than being
+		// quietly re-pointed at a surviving parameter, which would leave the count looking unchanged.
 		Should.Throw<ArgumentNullException>(() =>
-			new EventNotificationBroker(null!, sp, opts, logger, configs));
+			new EventNotificationBroker(null!, opts, logger, configs));
 		Should.Throw<ArgumentNullException>(() =>
-			new EventNotificationBroker(processor, null!, opts, logger, configs));
+			new EventNotificationBroker(sp, null!, logger, configs));
 		Should.Throw<ArgumentNullException>(() =>
-			new EventNotificationBroker(processor, sp, null!, logger, configs));
-		Should.Throw<ArgumentNullException>(() =>
-			new EventNotificationBroker(processor, sp, opts, null!, configs));
+			new EventNotificationBroker(sp, opts, null!, configs));
+	}
+
+	[Theory]
+	[InlineData(NotificationFailurePolicy.Propagate)]
+	[InlineData(NotificationFailurePolicy.LogAndContinue)]
+	public async Task BoundTheWaitWithoutDisposingAnUnfinishedHandler(NotificationFailurePolicy policy)
+	{
+		var clock = new FakeTimeProvider();
+		_options.PostCommitTimeout = TimeSpan.FromSeconds(1);
+		_options.FailurePolicy = policy;
+		var handler = new UncooperativeNotificationHandler();
+		var laterCalls = 0;
+		var services = new ServiceCollection();
+		services.AddScoped<IEventNotificationHandler<TestOrderPlaced>>(_ => handler);
+		services.AddSingleton<IEventNotificationHandler<TestOrderPlaced>>(
+			new DelegatingNotificationHandler<TestOrderPlaced>((_, _, _) =>
+			{
+				laterCalls++;
+				return Task.CompletedTask;
+			}));
+		await using var provider = services.BuildServiceProvider();
+		var broker = CreateBroker(provider, clock);
+		var notification = broker.NotifyAsync([new TestOrderPlaced()], CreateContext());
+		try
+		{
+			await handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+			clock.Advance(TimeSpan.FromSeconds(1));
+			if (policy == NotificationFailurePolicy.Propagate)
+			{
+				var error = await Should.ThrowAsync<TimeoutException>(() => notification.WaitAsync(TimeSpan.FromSeconds(5)));
+				error.Message.ShouldContain("post-commit notification deadline");
+			}
+			else
+			{
+				await notification.WaitAsync(TimeSpan.FromSeconds(5));
+			}
+
+			handler.Token.IsCancellationRequested.ShouldBeTrue();
+			handler.Disposed.Task.IsCompleted.ShouldBeFalse("the callback still owns its scoped dependencies");
+			laterCalls.ShouldBe(0);
+		}
+		finally
+		{
+			handler.Release.TrySetResult();
+		}
+
+		await handler.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		laterCalls.ShouldBe(0, "expiry must not start another callback after the first finishes");
 	}
 
 	// -- Test helpers --
+
+	private sealed class UncooperativeNotificationHandler : IEventNotificationHandler<TestOrderPlaced>, IAsyncDisposable
+	{
+		public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		public CancellationToken Token { get; private set; }
+
+		public Task HandleAsync(TestOrderPlaced @event, EventNotificationContext context, CancellationToken cancellationToken)
+		{
+			Token = cancellationToken;
+			Started.TrySetResult();
+			return Release.Task;
+		}
+
+		public ValueTask DisposeAsync()
+		{
+			Disposed.TrySetResult();
+			return ValueTask.CompletedTask;
+		}
+	}
 
 	private sealed class TrackingNotificationHandler : IEventNotificationHandler<TestOrderPlaced>
 	{

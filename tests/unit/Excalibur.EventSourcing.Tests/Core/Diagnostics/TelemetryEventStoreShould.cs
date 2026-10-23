@@ -89,7 +89,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	{
 		// Arrange
 		var events = Array.Empty<IDomainEvent>();
-		var expected = AppendResult.CreateSuccess(1, 0);
+		var expected = AppendResult.CreateSuccess(1, 0, 0);
 #pragma warning disable CA2012
 		A.CallTo(() => _inner.AppendAsync("agg-1", "Order", events, 0L, A<CancellationToken>._))
 			.Returns(new ValueTask<AppendResult>(expected));

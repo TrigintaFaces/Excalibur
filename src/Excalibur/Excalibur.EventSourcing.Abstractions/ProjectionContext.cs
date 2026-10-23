@@ -9,21 +9,29 @@ namespace Excalibur.EventSourcing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Use this context to distinguish between live event processing and replay/rebuild
-/// scenarios. For example, skip sending notifications during replay:
+/// Use this context to tell a deliberate re-fold of history (a rebuild, a recovery, an on-demand
+/// build) from ordinary delivery, so that effects which are certainly wrong to repeat across the
+/// whole event log can be skipped:
 /// </para>
 /// <code>
 /// builder.AddProjection&lt;OrderSummary&gt;(p => p
-///     .Inline()
+///     .Async()
 ///     .When&lt;OrderPlaced&gt;((proj, e, ctx) =>
 ///     {
-///         proj.Total = e.Amount;
+///         proj.Total = e.Amount;          // always correct, needs no guard
 ///         if (!ctx.IsReplay)
 ///         {
-///             // Only send notifications for live events
+///             // Not a re-fold of history. Still potentially a REPEAT: delivery is
+///             // at-least-once, so this must be idempotent on e.EventId regardless.
 ///         }
 ///     }));
 /// </code>
+/// <para>
+/// <b><see cref="IsReplay"/> is not a duplicate-suppression mechanism and must not be used as one.</b>
+/// It is <see langword="false"/> on a redelivery after a crash or a reader overlap, because such a
+/// delivery is not a re-fold of history. A handler with effects outside the projection state is
+/// idempotent or it is wrong.
+/// </para>
 /// </remarks>
 public sealed class ProjectionContext
 {
@@ -67,8 +75,8 @@ public sealed class ProjectionContext
 	/// </summary>
 	/// <value>
 	/// The global position in the all-events stream, or <see langword="null"/>
-	/// if the position is not available (e.g., during inline projection processing
-	/// where global position has not yet been assigned).
+	/// if the apply carried no position (e.g., an ephemeral projection replay, which
+	/// reads one aggregate's stream rather than the global one).
 	/// </value>
 	public long? GlobalPosition { get; }
 

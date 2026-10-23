@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.RateLimiting;
 
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Diagnostics;
-using Excalibur.Dispatch.LeaderElection;
 using Excalibur.EventSourcing.Queries;
 using Excalibur.EventSourcing.Subscriptions;
 
@@ -22,16 +26,18 @@ namespace Excalibur.EventSourcing.Projections;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This host is the async counterpart to <see cref="InlineProjectionProcessor"/>. While inline
-/// projections run synchronously during <c>SaveAsync</c>, this host polls the global stream
-/// independently, enabling eventual consistency for read models.
+/// Cooperating instances of this host write persisted projections using positioned compare-and-set writes. It polls the global stream and applies
+/// events in position order, which is what lets a projection row's position mean what it claims.
+/// Projections were once also folded during <c>SaveAsync</c>; that second, uncoordinated writer could
+/// lose a fold and is removed. A caller needing read-after-write passes the session token
+/// <c>SaveAsync</c> returns to <c>IProjectionSessionReader</c>.
 /// </para>
 /// <para>
 /// Register via <c>es.EnableProjectionProcessing()</c> on <see cref="DependencyInjection.IEventSourcingBuilder"/>.
 /// Requires an <see cref="IGlobalStreamQuery"/> implementation (e.g., from <c>UseSqlServer()</c>).
 /// </para>
 /// </remarks>
-internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
+internal sealed partial class AsyncProjectionProcessingHost : BackgroundService, IProjectionProcessor
 {
 	private readonly IProjectionRegistry _registry;
 	private readonly IEventSerializer _eventSerializer;
@@ -41,15 +47,17 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 	private readonly ILogger<AsyncProjectionProcessingHost> _logger;
 	private readonly ProjectionObservability? _observability;
 	private readonly ProjectionHealthState? _healthState;
+	private readonly EventNotificationOptions _notificationOptions;
+	private readonly TimeProvider _timeProvider;
 
-	// Optional single-active-processor coordination, resolved the same way the CDC processor resolves it.
-	// Null in a single-instance deployment, where the host runs unconditionally. When present, only the
-	// leader applies events -- two live readers of one subscription would otherwise each apply a whole
-	// batch before either contested the checkpoint, and the checkpoint guards the mark, not the work.
-	private readonly ILeaderElection? _leaderElection;
-
-	private GlobalStreamPosition _currentPosition = GlobalStreamPosition.Start;
-	private long _eventsSinceCheckpoint;
+	// One finite page per lease. FIFO acquisition lets request-driven work make progress
+	// while the background reader remains live; the lease is never held during idle polling.
+	private readonly ConcurrencyLimiter _pageGate = new(new ConcurrencyLimiterOptions
+	{
+		PermitLimit = 1,
+		QueueLimit = int.MaxValue,
+		QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+	});
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AsyncProjectionProcessingHost"/> class.
@@ -60,7 +68,9 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		ISubscriptionCheckpointStore checkpointStore,
 		IOptions<GlobalStreamProjectionOptions> options,
 		IServiceProvider serviceProvider,
-		ILogger<AsyncProjectionProcessingHost> logger)
+		ILogger<AsyncProjectionProcessingHost> logger,
+		IOptions<EventNotificationOptions>? notificationOptions = null,
+		TimeProvider? timeProvider = null)
 	{
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -68,312 +78,256 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_notificationOptions = notificationOptions?.Value ?? new EventNotificationOptions();
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		_observability = serviceProvider.GetService(typeof(ProjectionObservability)) as ProjectionObservability;
 		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState)) as ProjectionHealthState;
-		_leaderElection = serviceProvider.GetService(typeof(ILeaderElection)) as ILeaderElection;
 	}
 
 	/// <inheritdoc />
-	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+	public override async Task StartAsync(CancellationToken cancellationToken)
 	{
-		// Resolve IGlobalStreamQuery from DI — it's provider-specific (e.g., SqlServer).
-		if (_serviceProvider.GetService(typeof(IGlobalStreamQuery)) is not IGlobalStreamQuery globalStreamQuery)
-		{
-			LogNoGlobalStreamQuery();
-			return;
-		}
-
-		var asyncRegistrations = _registry.GetByMode(ProjectionMode.Async);
-		if (asyncRegistrations.Count == 0)
-		{
-			return;
-		}
-
-		var opts = _options.Value;
-		var checkpointName = opts.ProjectionName;
-
-		// Restore checkpoint from last run
-		var lastCheckpoint = await _checkpointStore.GetCheckpointAsync(checkpointName, stoppingToken)
+		// .NET 10 runs all ExecuteAsync code in the background. Definition mismatches
+		// must prevent the application from serving traffic, so validate here explicitly.
+		_ = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
+		ValidateSubscriptionOptions(_options.Value);
+		_ = await BindDefinitionAsync(_registry.GetByMode(ProjectionMode.Async), _options.Value, cancellationToken)
 			.ConfigureAwait(false);
-		if (lastCheckpoint.HasValue)
-		{
-			_currentPosition = new GlobalStreamPosition(lastCheckpoint.Value, DateTimeOffset.MinValue);
-		}
+		await base.StartAsync(cancellationToken).ConfigureAwait(false);
+	}
 
-		// The last position seen DURABLY, tracked separately from _currentPosition because the
-		// compare-and-set has to distinguish "no checkpoint yet" (null) from "a checkpoint of 0".
-		var durableCheckpoint = lastCheckpoint;
-
-		// The stream head AT START. Every event at or below it was committed before this host began
-		// tailing, so delivering it is a catch-up over history, not live delivery. Handlers that suppress
-		// side effects on replay rely on being told which one they are seeing, and hard-coding the answer
-		// defeats exactly the guard that exists for this case.
-		long headAtStart;
+	/// <inheritdoc />
+	public async Task<ProjectionProcessingResult> ProcessPendingAsync(CancellationToken cancellationToken)
+	{
+		long applied = 0;
 		try
 		{
-			headAtStart = await globalStreamQuery.GetHeadPositionAsync(stoppingToken).ConfigureAwait(false);
+			var query = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
+			// A finite target: concurrent producers cannot keep a request draining forever.
+			var target = await query.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+			while (true)
+			{
+				var page = await ProcessPageAsync(query, cancellationToken).ConfigureAwait(false);
+				applied += page.Applied;
+				cancellationToken.ThrowIfCancellationRequested();
+				if (page.Outcome == ProjectionProcessingOutcome.Halted)
+				{
+					return new ProjectionProcessingResult(applied, page.Outcome);
+				}
+				if (page.Position >= target)
+				{
+					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.CaughtUp);
+				}
+				if (page.Applied == 0 && page.Outcome != ProjectionProcessingOutcome.Contested)
+				{
+					// A temporarily unreadable prefix is pending, never falsely caught up.
+					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Halted);
+				}
+			}
 		}
-		catch (Exception ex) when (ex is not OperationCanceledException)
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// The head is an optimisation for honesty, never a precondition for processing. If it cannot
-			// be read, report every event as a replay: that is the conservative answer, because a handler
-			// guarding on replay will then suppress rather than double-apply.
-			LogAsyncProjectionHeadUnavailable(ex);
-			headAtStart = long.MaxValue;
+			return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Cancelled);
 		}
+	}
 
-		LogAsyncProjectionHostStarted(asyncRegistrations.Count);
-
+	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+	{
+		var query = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
 		while (!stoppingToken.IsCancellationRequested)
 		{
 			try
 			{
-				// STANDBY, not exit. A host that is not the leader must keep running and keep asking:
-				// leadership moves on a deploy, and a process that stopped asking would never take over.
-				if (_leaderElection is not null && _leaderElection.CurrentLeadership is null)
+				var page = await ProcessPageAsync(query, stoppingToken).ConfigureAwait(false);
+				if (page.Applied == 0 || page.Outcome == ProjectionProcessingOutcome.Halted)
 				{
-					LogAsyncProjectionStandby();
-					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
-					continue;
-				}
-
-				var events = await globalStreamQuery.ReadAllAsync(
-					_currentPosition,
-					opts.BatchSize,
-					stoppingToken).ConfigureAwait(false);
-
-				if (events.Count == 0)
-				{
-					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
-					continue;
-				}
-
-				// Deserialize the batch in GLOBAL order, HALTING at the first poison event (a deserialize
-				// failure or a null deserialization). A poison event is recorded and marks the host
-				// unhealthy; it is NEVER skipped or checkpointed past — it is left for the next read so the
-				// read model can never silently drift from the event log. A transient failure self-heals on
-				// the next poll; a permanent one keeps the host unhealthy until an operator acts. This
-				// mirrors GlobalStreamProjectionHost.
-				var deserialized = new List<DeserializedEvent>(events.Count);
-				var poisonEncountered = false;
-
-				// The last event this batch made progress past, and how many events it accounted for. Tracked
-				// separately from the deserialized list because an erased (tombstoned) event is progress
-				// without being a deliverable event: a batch made entirely of tombstones deserializes to
-				// nothing and must still advance, or the checkpoint sticks and the batch is re-read forever.
-				StoredEvent? lastProcessed = null;
-				var processedCount = 0;
-
-				foreach (var storedEvent in events)
-				{
-					stoppingToken.ThrowIfCancellationRequested();
-
-					// An erased (GDPR-tombstoned) event carries the reserved marker in place of its type and a
-					// nulled payload, so no serializer can resolve it. Recognize it STRUCTURALLY, before any
-					// deserialization attempt, and advance past it: it is a permanent, legitimate part of the
-					// stream, not a poison event. Halting here would let an erasure request stop the projection
-					// host permanently. It is never handed to a projection handler, so it cannot populate state.
-					// Only the reserved marker is skipped: any other unresolvable event is still poison below.
-					if (ErasedEventMarker.IsErased(storedEvent.EventType))
-					{
-						LogErasedEventSkipped(storedEvent.EventId, storedEvent.GlobalPosition);
-						lastProcessed = storedEvent;
-						processedCount++;
-						continue;
-					}
-
-					IDomainEvent domainEvent;
-					try
-					{
-						domainEvent = DeserializeOrThrow(storedEvent);
-					}
-					catch (Exception ex) when (ex is not OperationCanceledException)
-					{
-						// Poison event: record + mark unhealthy, then HALT this batch at the failed event.
-						LogAsyncProjectionEventError(storedEvent.EventId, ex);
-						RecordPoison(checkpointName, ex);
-						poisonEncountered = true;
-						break;
-					}
-
-					deserialized.Add(new DeserializedEvent(storedEvent, domainEvent));
-					lastProcessed = storedEvent;
-					processedCount++;
-				}
-
-				// Dispatch the good prefix in GLOBAL ORDER, splitting only at replay/live boundaries.
-				//
-				// It used to be grouped by aggregate, which was wrong for any projection not keyed by the
-				// aggregate. A keyed projection maps events from many aggregates onto one projection id,
-				// so grouping wrote that id once per group -- and group order is first-seen order, not
-				// stream order. One batch could therefore write a projection at position 7 and then at
-				// position 6, with one reader, no concurrency and no crash. A store that refuses a
-				// non-advancing write would then reject the second and drop the event entirely, which is
-				// the worse failure: grouping had to go before the position could be enforced.
-				//
-				// Delivering each run whole is correct because the apply path derives the
-				// projection id and the handler context PER EVENT rather than per call.
-				var applyFaultEncountered = false;
-				for (var runStart = 0; runStart < deserialized.Count && !applyFaultEncountered;)
-				{
-					stoppingToken.ThrowIfCancellationRequested();
-					var isReplay = deserialized[runStart].Stored.GlobalPosition <= headAtStart;
-					var runEnd = runStart + 1;
-					while (runEnd < deserialized.Count
-						&& (deserialized[runEnd].Stored.GlobalPosition <= headAtStart) == isReplay)
-					{
-						runEnd++;
-					}
-
-					// A batch spanning the startup head needs two contexts. Using its final event's
-					// replay flag for the whole batch would label pre-start events as live.
-					var batch = new List<ProjectionEvent>(runEnd - runStart);
-					for (var index = runStart; index < runEnd; index++)
-					{
-						var item = deserialized[index];
-						batch.Add(new ProjectionEvent(
-							item.Domain, item.Stored.AggregateId, item.Stored.GlobalPosition));
-					}
-
-					var last = deserialized[runEnd - 1].Stored;
-
-					// The batch-level context describes the LAST event in the batch. Its aggregate-scoped
-					// members are no longer used for identity -- every apply reads those off the event --
-					// so they are carried for handlers that still want the batch's high-water mark.
-					var context = new EventNotificationContext(
-						last.AggregateId,
-						last.AggregateType,
-						last.Version,
-						last.Timestamp,
-						IsReplay: isReplay,
-						GlobalPosition: last.GlobalPosition);
-
-					applyFaultEncountered = await DispatchToProjectionsAsync(
-						asyncRegistrations, batch, context, stoppingToken).ConfigureAwait(false);
-					runStart = runEnd;
-				}
-
-				// HALT-at-failure: when any projection's apply faulted, DO NOT advance the checkpoint past
-				// this batch. Leaving the position unadvanced means the batch is reprocessed on the next
-				// read (at-least-once; applies are idempotent) rather than silently skipped — the read
-				// model can never drift from the event log. Mirrors the deserialize-poison halt above and
-				// GlobalStreamProjectionHost. A clean batch advances normally.
-				//
-				// The advance is gated on lastProcessed rather than on the deserialized list, so a batch whose
-				// events were ALL erased tombstones still advances. A batch that made no progress at all (its
-				// first event was poison) leaves lastProcessed null and the position untouched.
-				if (lastProcessed is not null && !applyFaultEncountered)
-				{
-					// Advance ONLY to the last processed event's GLOBAL ordinal (GlobalPosition), never the
-					// per-aggregate Version. The poison event (and everything after it) stays unread/unskipped.
-					_currentPosition = new GlobalStreamPosition(lastProcessed.GlobalPosition, lastProcessed.Timestamp);
-					_eventsSinceCheckpoint += processedCount;
-
-					// Checkpoint when threshold reached (only ever the last-good position; never past a poison event).
-					if (_eventsSinceCheckpoint >= opts.CheckpointInterval)
-					{
-						// Compare-and-set, not a blind write: if another reader of this subscription has
-						// moved the checkpoint since we last saw it, writing ours would drag the mark
-						// BACKWARDS and redeliver everything between the two positions.
-						var outcome = await _checkpointStore.AdvanceCheckpointAsync(
-							checkpointName, durableCheckpoint, _currentPosition.Position, stoppingToken)
-							.ConfigureAwait(false);
-
-						if (outcome == CheckpointAdvanceOutcome.Superseded)
-						{
-							// RESUME FROM THE WINNER'S MARK. Do not exit.
-							//
-							// Exiting is only safe if the winner is guaranteed to keep running, and nothing
-							// guarantees that: after a rolling deploy the surviving process would be the one
-							// that stood down, no reader would be processing, and the application would still
-							// report healthy. A permanent exit converts a transient overlap into a permanent
-							// stall, which is the worse failure because nothing downstream can detect it.
-							//
-							// Adopting the winner's mark also stops this reader re-reading the span the
-							// winner already covered.
-							LogAsyncProjectionCheckpointSuperseded(_currentPosition.Position);
-
-							var winnersMark = await _checkpointStore
-								.GetCheckpointAsync(checkpointName, stoppingToken).ConfigureAwait(false);
-
-							durableCheckpoint = winnersMark;
-							if (winnersMark is { } mark)
-							{
-								_currentPosition = new GlobalStreamPosition(mark, DateTimeOffset.MinValue);
-							}
-
-							_eventsSinceCheckpoint = 0;
-
-							// Mark the host unhealthy. A contested subscription means two readers applied
-							// the same span, and that is a condition an operator must see rather than a
-							// line in a log nobody is tailing at the time.
-							_healthState?.RecordInlineError(nameof(AsyncProjectionProcessingHost));
-							LogAsyncProjectionContested();
-
-							await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
-							continue;
-						}
-
-						durableCheckpoint = _currentPosition.Position;
-						LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
-						_eventsSinceCheckpoint = 0;
-					}
-
-					LogAsyncProjectionBatchProcessed(processedCount, _currentPosition.Position);
-				}
-
-				// On a poison event OR an apply fault, back off before re-reading so we don't tight-loop on a
-				// permanent failure; the next read resumes from the unadvanced checkpoint (reprocess, not skip).
-				if (poisonEncountered || applyFaultEncountered)
-				{
-					await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+					await Task.Delay(_options.Value.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
 				}
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
 				break;
 			}
-#pragma warning disable CA1031 // Catch general exceptions -- resilient polling loop
 			catch (Exception ex)
-#pragma warning restore CA1031
 			{
 				LogAsyncProjectionHostError(ex);
-				await Task.Delay(opts.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
+				_healthState?.RecordHalt(_options.Value.ProjectionName);
+				await Task.Delay(_options.Value.IdlePollingInterval, stoppingToken).ConfigureAwait(false);
 			}
 		}
+	}
 
-		// Persist final checkpoint on graceful shutdown
-		if (_eventsSinceCheckpoint > 0)
+	private async Task<PageResult> ProcessPageAsync(IGlobalStreamQuery query, CancellationToken cancellationToken)
+	{
+		using var lease = await _pageGate.AcquireAsync(1, cancellationToken).ConfigureAwait(false);
+		if (!lease.IsAcquired)
+		{
+			throw new InvalidOperationException("The projection page queue is full or disposed.");
+		}
+
+		var registrations = _registry.GetByMode(ProjectionMode.Async);
+		var options = _options.Value;
+		var name = options.ProjectionName;
+		ValidateSubscriptionOptions(options);
+
+		var destinations = await BindDefinitionAsync(registrations, options, cancellationToken).ConfigureAwait(false);
+
+		var expected = await _checkpointStore.GetCheckpointAsync(name, cancellationToken).ConfigureAwait(false);
+		var position = expected ?? 0;
+		if (registrations.Count == 0)
+		{
+			return new PageResult(0, position, ProjectionProcessingOutcome.CaughtUp);
+		}
+		var events = await query.ReadAllAsync(
+			new GlobalStreamPosition(position, DateTimeOffset.MinValue), options.BatchSize, cancellationToken)
+			.ConfigureAwait(false);
+		var batch = new List<ProjectionEvent>(events.Count);
+		StoredEvent? last = null;
+		var processed = 0;
+		var poison = false;
+		foreach (var stored in events)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (stored.GlobalPosition <= (last?.GlobalPosition ?? position))
+			{
+				throw new InvalidOperationException("The global stream returned an unordered or non-advancing page.");
+			}
+			if (!ErasedEventMarker.IsErased(stored.EventType))
+			{
+				try
+				{
+					batch.Add(new ProjectionEvent(DeserializeOrThrow(stored), stored.AggregateId, stored.GlobalPosition));
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					LogAsyncProjectionEventError(stored.EventId, ex);
+					RecordPoison(name, ex);
+					poison = true;
+					break;
+				}
+			}
+			last = stored;
+			processed++;
+		}
+		if (batch.Count > 0)
+		{
+			var context = new EventNotificationContext(last!.AggregateId, last.AggregateType,
+				last.Version, last.Timestamp, IsReplay: false, GlobalPosition: last.GlobalPosition);
+			var faulted = await DispatchToProjectionsAsync(registrations, batch, context, destinations, cancellationToken).ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
+			if (faulted)
+			{
+				_healthState?.RecordHalt(name);
+				return new PageResult(0, position, ProjectionProcessingOutcome.Halted);
+			}
+		}
+		// A handler that returns after catching cancellation cannot acknowledge the page.
+		// Every page starts from durable state; a crash or failed CAS simply redelivers it.
+		cancellationToken.ThrowIfCancellationRequested();
+		if (last is not null)
 		{
 			try
 			{
-				var shutdownOutcome = await _checkpointStore.AdvanceCheckpointAsync(
-					checkpointName, durableCheckpoint, _currentPosition.Position, CancellationToken.None)
-					.ConfigureAwait(false);
-
-				if (shutdownOutcome == CheckpointAdvanceOutcome.Superseded)
+				var result = await _checkpointStore.AdvanceCheckpointAsync(
+					name, expected, last.GlobalPosition, cancellationToken).ConfigureAwait(false);
+				if (result == CheckpointAdvanceOutcome.Superseded)
 				{
-					// Nothing to stop -- we are already shutting down. Recorded because a superseded
-					// shutdown write means another reader took the subscription over while we ran.
-					LogAsyncProjectionCheckpointSuperseded(_currentPosition.Position);
+					var winner = await _checkpointStore.GetCheckpointAsync(name, cancellationToken).ConfigureAwait(false);
+					return new PageResult(processed, winner ?? position, ProjectionProcessingOutcome.Contested);
 				}
-				else
-				{
-					durableCheckpoint = _currentPosition.Position;
-					LogAsyncProjectionCheckpointSaved(_currentPosition.Position);
-				}
+				position = last.GlobalPosition;
+				_healthState?.RecordApplied(name, position);
 			}
-#pragma warning disable CA1031 // Catch general exceptions -- shutdown must not throw
-			catch (Exception ex)
-#pragma warning restore CA1031
+			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
-				LogAsyncProjectionHostError(ex);
+				LogAsyncProjectionCheckpointWriteFailed(ex);
+				_healthState?.RecordHalt(name);
+				return new PageResult(0, position, ProjectionProcessingOutcome.Halted);
+			}
+		}
+		if (poison)
+		{
+			_healthState?.RecordHalt(name);
+		}
+		return new PageResult(processed, position,
+			poison ? ProjectionProcessingOutcome.Halted : ProjectionProcessingOutcome.CaughtUp);
+	}
+
+	private static void ValidateSubscriptionOptions(GlobalStreamProjectionOptions options)
+	{
+		// SECOND LINE, NOT THE FIRST. GlobalStreamProjectionOptionsValidator refuses these at startup
+		// through ValidateOnStart, which is where a consumer can act on them. This check remains for
+		// options constructed directly rather than resolved from the container -- a test, or a host
+		// driving IProjectionProcessor by hand -- and it names WHICH option is blank, because naming
+		// both sends the reader to check one that was never wrong.
+		if (string.IsNullOrWhiteSpace(options.SubscriptionScope))
+		{
+			throw new InvalidOperationException(
+				$"Projection processing requires {nameof(GlobalStreamProjectionOptions.SubscriptionScope)}, "
+				+ "which has no default. Set it to a stable name identifying this event source and "
+				+ "projection destination together; every cooperating process must use the same value.");
+		}
+
+		if (string.IsNullOrWhiteSpace(options.SubscriptionRevision))
+		{
+			throw new InvalidOperationException(
+				$"Projection processing requires a non-blank "
+				+ $"{nameof(GlobalStreamProjectionOptions.SubscriptionRevision)}. It defaults to \"1\", so a "
+				+ "blank value means something explicitly set it.");
+		}
+
+	}
+
+	private async Task<IReadOnlyDictionary<Type, string?>> BindDefinitionAsync(
+		IReadOnlyList<ProjectionRegistration> registrations,
+		GlobalStreamProjectionOptions options, CancellationToken cancellationToken)
+	{
+		if (registrations.Any(r => r.InlineApply is null))
+		{
+			throw new InvalidOperationException("Every asynchronous projection must have a bound apply delegate.");
+		}
+		var destinations = new Dictionary<Type, string?>();
+		await using (var scope = _serviceProvider.CreateAsyncScope())
+		{
+			var types = registrations.Select(r => r.ProjectionType).ToHashSet();
+			foreach (var probe in scope.ServiceProvider.GetServices<IPositionedProjectionProbe>())
+			{
+				if (!types.Contains(probe.ProjectionType))
+				{
+					continue;
+				}
+				if (!probe.IsPositioned(scope.ServiceProvider))
+				{
+					throw new InvalidOperationException($"Asynchronous projection '{probe.ProjectionTypeName}' requires positioned writes.");
+				}
+				destinations[probe.ProjectionType] = probe.GetDestinationIdentity(scope.ServiceProvider);
 			}
 		}
 
-		LogAsyncProjectionHostStopped();
+		// Immutable first-writer binding. A rolling deployment with a different workset must
+		// fail BEFORE effects, rather than acknowledge work the other deployment never performed.
+		var descriptor = new StringBuilder();
+		AppendDescriptorPart(descriptor, options.SubscriptionScope);
+		AppendDescriptorPart(descriptor, options.SubscriptionRevision);
+		foreach (var registration in registrations.OrderBy(
+			r => r.ProjectionType.Assembly.GetName().Name, StringComparer.Ordinal)
+			.ThenBy(r => r.ProjectionType.FullName, StringComparer.Ordinal))
+		{
+			AppendDescriptorPart(descriptor, registration.ProjectionType.Assembly.GetName().Name ?? string.Empty);
+			AppendDescriptorPart(descriptor, registration.ProjectionType.FullName ?? registration.ProjectionType.Name);
+			AppendDescriptorPart(descriptor, destinations.GetValueOrDefault(registration.ProjectionType) ?? string.Empty);
+		}
+
+		var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(descriptor.ToString())));
+		await _checkpointStore.BindSubscriptionAsync(options.ProjectionName, hash, cancellationToken).ConfigureAwait(false);
+		return destinations;
 	}
+
+	private static void AppendDescriptorPart(StringBuilder builder, string part) =>
+		builder.Append(part.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(part);
+
+	private readonly record struct PageResult(long Applied, long Position, ProjectionProcessingOutcome Outcome);
 
 	/// <summary>
 	/// Resolves and deserializes a stored event to a domain event, throwing on a null result rather
@@ -429,6 +383,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		IReadOnlyList<ProjectionRegistration> registrations,
 		List<ProjectionEvent> domainEvents,
 		EventNotificationContext context,
+		IReadOnlyDictionary<Type, string?> destinations,
 		CancellationToken cancellationToken)
 	{
 		var tasks = new Task[registrations.Count];
@@ -443,7 +398,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 				// apply delegate must receive a provider from a created scope, not the captured root
 				// provider (which throws under DI scope validation). A scope per projection also
 				// isolates scoped state across the concurrently-applied projections.
-				tasks[i] = ApplyInScopeAsync(registration, domainEvents, context, cancellationToken);
+				tasks[i] = ApplyInScopeAsync(registration, domainEvents, context, destinations.GetValueOrDefault(registration.ProjectionType), cancellationToken);
 			}
 			else
 			{
@@ -484,21 +439,65 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		return anyFaulted;
 	}
 
+	/// <remarks>
+	/// Timed because a slow apply is the earliest observable cause of a degraded read: a
+	/// session-consistent read waits on this projection reaching the caller's token, so an apply that
+	/// is merely slow surfaces to the consumer as a read whose bound expired. The per-projection
+	/// threshold wins over the global one when both are set.
+	/// </remarks>
 	private async Task ApplyInScopeAsync(
 		ProjectionRegistration registration,
 		List<ProjectionEvent> domainEvents,
 		EventNotificationContext context,
+		string? expectedDestination,
 		CancellationToken cancellationToken)
 	{
-		await using var scope = _serviceProvider.CreateAsyncScope();
-		await registration.InlineApply!(domainEvents, context, scope.ServiceProvider, cancellationToken)
-			.ConfigureAwait(false);
+		var started = _timeProvider.GetTimestamp();
+
+		await using (var scope = _serviceProvider.CreateAsyncScope())
+		{
+			foreach (var probe in scope.ServiceProvider.GetServices<IPositionedProjectionProbe>())
+			{
+				if (probe.ProjectionType == registration.ProjectionType
+					&& !string.Equals(expectedDestination, probe.GetDestinationIdentity(scope.ServiceProvider), StringComparison.Ordinal))
+				{
+					throw new InvalidOperationException($"Projection '{probe.ProjectionTypeName}' changed destination between binding and applying the page.");
+				}
+			}
+			await registration.InlineApply!(domainEvents, context, scope.ServiceProvider, cancellationToken)
+				.ConfigureAwait(false);
+			// Even a fold skipped because another process already wrote must establish
+			// SEARCH visibility before this process acknowledges the page.
+			foreach (var probe in scope.ServiceProvider.GetServices<IPositionedProjectionProbe>())
+			{
+				if (probe.ProjectionType == registration.ProjectionType)
+				{
+					await probe.EnsureVisibleAsync(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
+				}
+			}
+
+		}
+
+		var elapsed = _timeProvider.GetElapsedTime(started);
+		var threshold = registration.Options?.WarningThreshold
+			?? _notificationOptions.ProjectionApplyWarningThreshold;
+
+		if (elapsed > threshold)
+		{
+			LogProjectionApplySlow(
+				registration.ProjectionType.Name,
+				domainEvents.Count,
+				elapsed.TotalMilliseconds,
+				threshold.TotalMilliseconds);
+		}
 	}
 
-	/// <summary>
-	/// A stored event paired with its successfully-deserialized domain event.
-	/// </summary>
-	private readonly record struct DeserializedEvent(StoredEvent Stored, IDomainEvent Domain);
+	/// <inheritdoc />
+	public override void Dispose()
+	{
+		_pageGate.Dispose();
+		base.Dispose();
+	}
 
 	#region Logging
 
@@ -522,14 +521,15 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		"Async projection checkpoint saved at position {Position}.")]
 	private partial void LogAsyncProjectionCheckpointSaved(long position);
 
-	[LoggerMessage(EventSourcingEventId.ProjectionCheckpointSuperseded, LogLevel.Warning,
-		"Async projection host could not advance its checkpoint to {Position}: another reader has moved "
-		+ "it. This host is standing down; the other reader owns the subscription.")]
-	private partial void LogAsyncProjectionCheckpointSuperseded(long position);
-
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionEventError, LogLevel.Error,
 		"Poison event {EventId} halted the async projection host; checkpoint not advanced past it.")]
 	private partial void LogAsyncProjectionEventError(string eventId, Exception ex);
+
+	[LoggerMessage(EventSourcingEventId.AsyncProjectionApplySlow, LogLevel.Warning,
+		"Applying {EventCount} event(s) to projection {ProjectionName} took {ElapsedMs}ms, " +
+		"over the {ThresholdMs}ms warning threshold; session-consistent reads of it may time out.")]
+	private partial void LogProjectionApplySlow(
+		string projectionName, int eventCount, double elapsedMs, double thresholdMs);
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionDispatchError, LogLevel.Error,
 		"Error dispatching events to async projection {ProjectionName}.")]
@@ -539,20 +539,11 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService
 		"Async projection processing host encountered an error.")]
 	private partial void LogAsyncProjectionHostError(Exception ex);
 
-	[LoggerMessage(EventSourcingEventId.AsyncProjectionHeadUnavailable, LogLevel.Warning,
-		"Could not read the global stream head at startup, so every event this host delivers is reported "
-		+ "as a replay. Handlers that suppress side effects on replay will suppress them.")]
-	private partial void LogAsyncProjectionHeadUnavailable(Exception ex);
-
-	[LoggerMessage(EventSourcingEventId.AsyncProjectionContested, LogLevel.Error,
-		"Another reader advanced this subscription's checkpoint, so two readers are processing one "
-		+ "subscription and events in the contested span may have been applied twice. Register leader "
-		+ "election, or run a single instance of this host.")]
-	private partial void LogAsyncProjectionContested();
-
-	[LoggerMessage(EventSourcingEventId.AsyncProjectionStandby, LogLevel.Debug,
-		"Async projection processing is on standby: another instance holds leadership for this subscription.")]
-	private partial void LogAsyncProjectionStandby();
+	[LoggerMessage(EventSourcingEventId.AsyncProjectionCheckpointWriteFailed, LogLevel.Error,
+		"The projection checkpoint write failed. The host rewound to its last durable mark rather than "
+		+ "continuing to apply events whose progress nothing durable records; the span since that mark "
+		+ "will be re-applied once the checkpoint store accepts writes again.")]
+	private partial void LogAsyncProjectionCheckpointWriteFailed(Exception ex);
 
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionNoGlobalStreamQuery, LogLevel.Warning,
 		"No IGlobalStreamQuery registered. Async projection processing cannot start. " +

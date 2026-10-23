@@ -83,6 +83,20 @@ One change fails start-up until you answer it, and it touches no stored data:
   payload revoke rather than be refused, and carries two provider fixes that made grant operations fail
   outright on SQL Server and grant inserts fail on PostgreSQL.
 
+One change is a compile-level break in every projection registration that asked for immediate
+consistency, and it touches no stored data — but it changes what a read returns:
+
+- **[Projections are applied by the projection host, not by `SaveAsync`](projections-are-applied-by-the-host.md)**
+  -- `.Inline()` and `ProjectionMode.Inline` are **removed**, with no obsolete stub: a registration that
+  calls `.Inline()` no longer compiles. Read models are written by the projection host, so you also need
+  `EnableProjectionProcessing()` — **and nothing tells you if you forget it.** A projection registered
+  with no host starts up healthy and stays empty indefinitely. Read-after-write did not go away: the save
+  returns a `SaveResult` whose token a read carries into `IProjectionSessionReader.ReadAsync`, which
+  either observes that write or reports `BoundExpired`. **The old model advertised immediate consistency
+  over a silent lost fold** — two concurrent saves keyed to one projection row both folded it, the last
+  write won, both reported success, and the losing fold's events stayed durable and permanently absent
+  from the read model. **Hosts already using `.Async()` with the host registered are unaffected.**
+
 One change is a compile-level break in code that reads an append's returned version, and it touches no
 stored data:
 

@@ -35,14 +35,14 @@ public sealed class ProjectionBuilderShould
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
 		// Assert
 		var registration = _registry.GetRegistration(typeof(OrderSummary));
 		registration.ShouldNotBeNull();
-		registration.Mode.ShouldBe(ProjectionMode.Inline);
+		registration.Mode.ShouldBe(ProjectionMode.Async);
 		registration.InlineApply.ShouldNotBeNull(); // inline delegate captured
 	}
 
@@ -70,7 +70,7 @@ public sealed class ProjectionBuilderShould
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.When<TestOrderShipped>((proj, e) => proj.ShippedAt = e.ShippedAt);
 		builder.Build();
@@ -92,7 +92,7 @@ public sealed class ProjectionBuilderShould
 
 		// Act -- all methods return the builder for fluent chaining
 		var result = builder
-			.Inline()
+			.Async()
 			.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount)
 			.WithCacheTtl(TimeSpan.FromMinutes(5));
 
@@ -119,7 +119,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange -- first registration as Inline
 		var builder1 = new ProjectionBuilder<OrderSummary>(_registry);
-		builder1.Inline();
+		builder1.Async();
 		builder1.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder1.Build();
 
@@ -176,7 +176,7 @@ public sealed class ProjectionBuilderShould
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
-		builder.Inline();
+		builder.Async();
 		builder.Ephemeral();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
@@ -212,7 +212,7 @@ public sealed class ProjectionBuilderShould
 			.BuildServiceProvider();
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
 			proj.Total = e.Amount;
@@ -234,7 +234,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert
 		var projected = store.Get("order-1");
@@ -253,7 +253,7 @@ public sealed class ProjectionBuilderShould
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 		// Act
 		builder.WhenDeleted((id, ct) => Task.CompletedTask);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -279,7 +279,7 @@ public sealed class ProjectionBuilderShould
 			capturedCt = ct;
 			return Task.CompletedTask;
 		});
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -346,7 +346,7 @@ public sealed class ProjectionBuilderShould
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
-		builder.Inline();
+		builder.Async();
 		builder.KeyedBy<TestOrderPlaced>(e => $"custom-{e.AggregateId}");
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
@@ -367,7 +367,7 @@ public sealed class ProjectionBuilderShould
 			.BuildServiceProvider();
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.KeyedBy<TestOrderPlaced>(e => $"order-{e.Amount}");
 		builder.When<TestOrderPlaced>((proj, e) =>
 		{
@@ -384,7 +384,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("agg-1", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- stored under key-resolved ID, not aggregate ID
 		store.Get("order-42").ShouldNotBeNull();
@@ -424,7 +424,7 @@ public sealed class ProjectionBuilderShould
 
 		// Act
 		builder.WithOptions(o => o.WarningThreshold = threshold);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -477,7 +477,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -497,7 +497,7 @@ public sealed class ProjectionBuilderShould
 
 		// Act -- every fluent method in a single chain
 		var result = builder
-			.Inline()
+			.Async()
 			.KeyedBy<TestOrderPlaced>(e => e.AggregateId)
 			.WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(50))
 			.WhenDeleted((id, ct) => Task.CompletedTask)
@@ -518,7 +518,7 @@ public sealed class ProjectionBuilderShould
 			.BuildServiceProvider();
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -532,7 +532,7 @@ public sealed class ProjectionBuilderShould
 		};
 		var context = new EventNotificationContext("order-ghost", "Order", 2, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(unrelatedEvents.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(unrelatedEvents.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- no ghost projection created in the store
 		store.Get("order-ghost").ShouldBeNull();
@@ -548,7 +548,7 @@ public sealed class ProjectionBuilderShould
 			.BuildServiceProvider();
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -563,7 +563,7 @@ public sealed class ProjectionBuilderShould
 		};
 		var context = new EventNotificationContext("order-mix", "Order", 3, DateTimeOffset.UtcNow);
 
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- projection created with only the matched event applied
 		var projected = store.Get("order-mix");
@@ -586,7 +586,7 @@ public sealed class ProjectionBuilderShould
 			.BuildServiceProvider();
 
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderShipped>((proj, e) =>
 		{
 			proj.ShippedAt = e.ShippedAt;
@@ -602,7 +602,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("order-1", "Order", 2, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- existing Total preserved, new fields updated
 		var projected = store.Get("order-1");
@@ -621,7 +621,7 @@ public sealed class ProjectionBuilderShould
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
 
 		// Act
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e, ctx) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -662,7 +662,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e, ctx) =>
 		{
 			proj.Total = ctx.IsReplay ? 0m : e.Amount;
@@ -687,7 +687,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e, ctx) =>
 		{
 			proj.Total = ctx.IsReplay ? -1m : e.Amount;
@@ -714,7 +714,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange -- use context-aware handler but call Apply without explicit context
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		ProjectionContext? capturedContext = null;
 		builder.When<TestOrderPlaced>((proj, e, ctx) =>
 		{
@@ -743,7 +743,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e, ctx) => proj.Total = e.Amount);
 		builder.Build();
 
@@ -771,7 +771,7 @@ public sealed class ProjectionBuilderShould
 
 		ProjectionContext? capturedContext = null;
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e, ctx) =>
 		{
 			capturedContext = ctx;
@@ -787,7 +787,7 @@ public sealed class ProjectionBuilderShould
 		var context = new EventNotificationContext("order-ctx", "Order", 1, DateTimeOffset.UtcNow);
 
 		// Act
-		await registration.InlineApply!(events.AsProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
+		await registration.InlineApply!(events.AsPositionedProjectionEvents(context.AggregateId), context, services, CancellationToken.None);
 
 		// Assert -- inline apply passes Live context for sync context handlers
 		capturedContext.ShouldNotBeNull();
@@ -800,7 +800,7 @@ public sealed class ProjectionBuilderShould
 	{
 		// Arrange -- sync handler for one event type, context handler for another
 		var builder = new ProjectionBuilder<OrderSummary>(_registry);
-		builder.Inline();
+		builder.Async();
 		builder.When<TestOrderPlaced>((proj, e) => proj.Total = e.Amount); // sync
 		builder.When<TestOrderShipped>((proj, e, ctx) =>                  // context-aware
 		{

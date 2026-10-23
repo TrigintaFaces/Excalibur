@@ -94,7 +94,7 @@ public sealed class EventuallyConsistentStagingRecoveryShould
 		var eventStore = A.Fake<IEventStore>();
 		_ = A.CallTo(() => eventStore.AppendAsync(
 				A<string>._, A<string>._, A<IEnumerable<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0)).Once()
+			.Returns(AppendResult.CreateSuccess(1, 0, 0)).Once()
 			.Then.Returns(AppendResult.CreateConcurrencyConflict(0, 1));
 
 		// Outbox store: first stage throws (post-append staging failure); subsequent stages succeed

@@ -19,6 +19,39 @@ namespace Excalibur.EventSourcing.Subscriptions;
 public interface ISubscriptionCheckpointStore
 {
 	/// <summary>
+	/// Atomically binds a stable subscription name to one immutable processing definition.
+	/// </summary>
+	/// <param name="subscriptionName">The nonblank stable subscription name, at most 255 characters.</param>
+	/// <param name="definitionHash">
+	/// The uppercase 64-character hexadecimal SHA-256 fingerprint of the complete processing definition:
+	/// source, scope, filters, projection work set, destination and consumer semantic revision.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task that completes when the definition is established or already matches.</returns>
+	/// <remarks>
+	/// The first writer establishes the definition atomically. Concurrent writers with the identical hash
+	/// may join; any different hash is refused without changing the original definition or checkpoint.
+	/// Binding never creates a checkpoint: an absent checkpoint must remain distinguishable from zero.
+	/// Call this before reading or applying subscription work. The binding is immutable for the lifetime
+	/// of the subscription; it is not a lease, ownership claim, or fence on external handler effects.
+	/// The checkpoint store compares fingerprints only; it does not discover or verify their contents.
+	/// The built-in processor incorporates a configured destination index/table identity when the resolved
+	/// store advertises the optional IProjectionDestinationIdentity capability. SubscriptionScope must
+	/// still identify the logical source, destination cluster and any filtering/routing semantics. If the
+	/// capability is absent, the consumer must also identify the destination index/table in that scope.
+	/// Configured names are not physical resource UUIDs or lifecycle fences: alias repointing, resource
+	/// replacement or recreation under the same name is not detected. Such changes require deliberate
+	/// subscription/revision and destination rebuild or cutover handling. External edits, deletion or
+	/// restoration of definition/checkpoint storage are outside this contract's lifetime guarantee.
+	/// </remarks>
+	/// <exception cref="ArgumentException">The name or fingerprint does not satisfy the stated format.</exception>
+	/// <exception cref="InvalidOperationException">
+	/// The subscription is already bound to another definition. Use a new subscription name and rebuild
+	/// deliberately, or restore the original registration, scope and revision.
+	/// </exception>
+	Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken);
+
+	/// <summary>
 	/// Gets the last checkpointed position for a named subscription.
 	/// </summary>
 	/// <param name="subscriptionName">The unique subscription identifier.</param>

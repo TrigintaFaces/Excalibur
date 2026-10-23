@@ -43,7 +43,7 @@ public sealed class ElasticSearchProjectionRegistrarShould : UnitTestBase
 		// ES uses named options keyed by projection type name
 		using var provider = services.BuildServiceProvider();
 		var monitor = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
-		var options = monitor.Get(nameof(ProjectionA));
+		var options = monitor.Get(typeof(ProjectionA).FullName!);
 		options.NodeUri.ShouldBe(SharedNodeUri);
 	}
 
@@ -58,7 +58,7 @@ public sealed class ElasticSearchProjectionRegistrarShould : UnitTestBase
 
 		using var provider = services.BuildServiceProvider();
 		var monitor = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
-		var options = monitor.Get(nameof(ProjectionA));
+		var options = monitor.Get(typeof(ProjectionA).FullName!);
 		options.Index.IndexPrefix.ShouldBe("custom-prefix");
 	}
 
@@ -93,8 +93,9 @@ public sealed class ElasticSearchProjectionRegistrarShould : UnitTestBase
 
 		using var provider = services.BuildServiceProvider();
 		var monitor = provider.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
-		var options = monitor.Get(nameof(ProjectionA));
+		var options = monitor.Get(typeof(ProjectionA).FullName!);
 		options.Index.IndexPrefix.ShouldBe("override");
+        ElasticSearchProjectionIndexConvention.GetIndexName<ProjectionA>(options).ShouldBe("override-projectiona");
 	}
 
 	[Fact]

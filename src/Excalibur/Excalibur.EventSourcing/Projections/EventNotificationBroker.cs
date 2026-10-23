@@ -14,19 +14,15 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.EventSourcing.Projections;
 
 /// <summary>
-/// Default implementation of <see cref="IEventNotificationBroker"/> that orchestrates
-/// inline projections and notification handlers after events are committed.
+/// Default implementation of <see cref="IEventNotificationBroker"/> that invokes the notification
+/// handlers after events are committed.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Execution order:
-/// <list type="number">
-/// <item>Phase 1: ALL inline projections via <c>Task.WhenAll</c> (concurrent across types,
-/// sequential events within each type).</item>
-/// <item>Phase 2: ALL notification handlers sequentially (after ALL projections complete).</item>
-/// </list>
+/// Handlers run sequentially, one event at a time in commit order, resolved from a fresh DI scope,
+/// under a bound this broker mints rather than the caller's cancellation token.
 /// </para>
-/// <para>Projections and handlers NEVER overlap.</para>
+/// <para>No projection is written here — see the note in <c>NotifyAsync</c> for why.</para>
 /// </remarks>
 internal sealed class EventNotificationBroker : IEventNotificationBroker
 {
@@ -35,29 +31,28 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 	private static readonly ConcurrentDictionary<Type, (Type InterfaceType, System.Reflection.MethodInfo Method)> HandlerMethodCache = new();
 	private const int MaxCacheSize = 1024;
 
-	private readonly InlineProjectionProcessor _processor;
 	private readonly IServiceScopeFactory _scopeFactory;
 	private readonly IOptions<EventNotificationOptions> _options;
 	private readonly ILogger<EventNotificationBroker> _logger;
+	private readonly TimeProvider _timeProvider;
 
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public EventNotificationBroker(
-		InlineProjectionProcessor processor,
 		IServiceScopeFactory scopeFactory,
 		IOptions<EventNotificationOptions> options,
 		ILogger<EventNotificationBroker> logger,
-		IEnumerable<EventNotificationServiceCollectionExtensions.IConfigureProjection> projectionConfigurations)
+		IEnumerable<EventNotificationServiceCollectionExtensions.IConfigureProjection> projectionConfigurations,
+		TimeProvider? timeProvider = null)
 	{
-		ArgumentNullException.ThrowIfNull(processor);
 		ArgumentNullException.ThrowIfNull(scopeFactory);
 		ArgumentNullException.ThrowIfNull(options);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_processor = processor;
 		_scopeFactory = scopeFactory;
 		_options = options;
 		_logger = logger;
+		_timeProvider = timeProvider ?? TimeProvider.System;
 
 		// Eagerly invoke all deferred projection configurations (B2 fix).
 		// IConfigureProjection instances are registered by AddProjection<T>() but
@@ -75,8 +70,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		Justification = "Handler types are preserved through DI registration.")]
 	public async Task NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
-		EventNotificationContext context,
-		CancellationToken cancellationToken)
+		EventNotificationContext context)
 	{
 		ArgumentNullException.ThrowIfNull(events);
 		ArgumentNullException.ThrowIfNull(context);
@@ -88,15 +82,76 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 
 		var opts = _options.Value;
 
-		// Phase 1: Inline projections (concurrent across projection types)
-		await _processor.ProcessAsync(
-				events, context, opts.FailurePolicy, cancellationToken)
-			.ConfigureAwait(false);
+		// THE TOKEN IS MINTED HERE, AND IT IS NOT THE CALLER'S. Every consumer of this phase -- inline
+		// projections and notification handlers alike -- routes through this one method, so the detach
+		// lives here and no call site gets to decide. The caller's token was threaded straight through
+		// until now, which meant a shut-down host or an abandoned request could cancel work whose
+		// subject was already durable: the save succeeded, the read model did not get it, and the
+		// caller was told the save failed.
+		//
+		// A bound rather than CancellationToken.None, because an unresponsive store must not be able to
+		// hold a save open forever. It is a backstop; see PostCommitTimeout for why it is not a budget.
+		using var bound = new CancellationTokenSource(opts.PostCommitTimeout, _timeProvider);
 
-		// Notification handlers run sequentially, after ALL projections complete.
-		// Respects the same FailurePolicy as projections for consistency.
-		await InvokeNotificationHandlersAsync(events, context, opts.FailurePolicy, cancellationToken)
-			.ConfigureAwait(false);
+		// PROJECTIONS ARE NO LONGER WRITTEN HERE, and that is the point.
+		//
+		// This phase used to fold "inline" projections in-process, after the events were durable, as a
+		// SECOND uncoordinated writer. Two concurrent saves then read the same row, both folded, and the
+		// last write won -- a lost fold that returned success to both callers. The write carried no
+		// global position either, so the row could not be advanced by anything afterwards and only a
+		// full rebuild could repair it.
+		//
+		// A read model is a replica, and replicas are updated by replication rather than by the writer
+		// dual-writing into them. Read-your-writes did not go away with the removal: SaveAsync returns a
+		// session token and IProjectionSessionReader honours it.
+		//
+		// WHAT REMOVING THIS DOES **NOT** BUY -- stated because the obvious claim is wrong, and was
+		// written here before it was checked. The projection host is NOT the only writer afterwards.
+		// ProjectionRebuildService (via ProjectionReplayFold), ProjectionRecoveryService, a second
+		// GlobalStreamProjectionHost (which performs no leader election at all) and any consumer holding
+		// the public IProjectionStore<T> can all write a row the host writes.
+		//
+		// What actually closes the race is the POSITION, not the writer count. On a store implementing
+		// IPositionedProjectionStore<T> the conditional write refuses the loser and the refusal is
+		// visible -- ProjectionReplayFold.cs:276 calls that CAS "the only thing that surfaces a live
+		// writer racing the rebuild". On a store WITHOUT that capability, ProjectionReplayFold.cs:243
+		// and :252 upsert unconditionally, and a rebuild can still silently regress a row the host has
+		// advanced past. So the honest guarantee is: exactly-once fold holds where the store is
+		// positioned, and nowhere else. Closing that is tracked separately; it predates this change and
+		// is not introduced by it.
+		//
+		// Notification handlers remain: they are consumer callbacks, not a second writer of our state.
+		var notifications = InvokeNotificationHandlersAsync(events, context, opts.FailurePolicy, bound.Token);
+		try
+		{
+			await notifications.WaitAsync(bound.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) when (bound.IsCancellationRequested)
+		{
+			// Stop waiting even if an asynchronous handler ignores cancellation. The invocation owns its
+			// scope until it really finishes; disposing it here would invalidate a running handler's
+			// dependencies. Observe any eventual failure, and do not retry an effect already in flight.
+			_ = ObserveTimedOutNotificationAsync(notifications);
+			var timeout = new TimeoutException("The post-commit notification deadline expired. Events remain committed; a running handler may still complete.");
+			_logger.LogError(timeout, "Post-commit notification timed out for aggregate {AggregateType}/{AggregateId}.",
+				context.AggregateType, context.AggregateId);
+			if (opts.FailurePolicy == NotificationFailurePolicy.Propagate)
+			{
+				throw timeout;
+			}
+		}
+	}
+
+	private async Task ObserveTimedOutNotificationAsync(Task notifications)
+	{
+		try
+		{
+			await notifications.ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "A post-commit notification failed after its caller stopped waiting.");
+		}
 	}
 
 	[RequiresDynamicCode("Uses Type.MakeGenericType to construct IEventNotificationHandler<TEvent> at runtime.")]
@@ -114,6 +169,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 
 		foreach (var @event in events)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			var eventType = @event.GetType();
 			var (handlerInterfaceType, method) = ResolveHandlerMethod(eventType);
 
@@ -121,6 +177,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 			var handlers = scope.ServiceProvider.GetServices(handlerInterfaceType);
 			foreach (var handler in handlers)
 			{
+				cancellationToken.ThrowIfCancellationRequested();
 				if (handler is null)
 				{
 					continue;

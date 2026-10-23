@@ -27,7 +27,7 @@ namespace Excalibur.Data.OpenSearch.Projections;
 /// </para>
 /// <para>
 /// Each projection type resolves its own named options instance keyed by
-/// <c>typeof(TProjection).Name</c>, allowing multiple projection stores to
+/// <c>typeof(TProjection).FullName</c>, allowing multiple projection stores to
 /// coexist with independent configurations.
 /// </para>
 /// </remarks>
@@ -57,7 +57,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 	/// <summary>
 	/// The named options key used for this projection type.
 	/// </summary>
-	internal static readonly string OptionsName = typeof(TProjection).Name;
+	internal static readonly string OptionsName = typeof(TProjection).FullName ?? typeof(TProjection).Name;
 
 	private readonly OpenSearchProjectionStoreOptions _options;
 	private readonly IOpenSearchClient _client;

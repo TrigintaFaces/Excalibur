@@ -60,6 +60,22 @@ public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 	}
 
 	[Fact]
+	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+
+	[Fact]
+	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
+		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+
+	[Fact]
+	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctNames_ShouldRemainIndependent();
+
+	[Fact]
 	public Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing_Test() =>
 		Advance_WithInvalidPositions_ShouldThrowAndChangeNothing();
 

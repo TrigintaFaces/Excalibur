@@ -96,8 +96,8 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	{
 		var returned = outcome switch
 		{
-			AppendOutcome.Committed => AppendResult.CreateSuccess(0, 1),
-			AppendOutcome.AlreadyCommitted => AppendResult.CreateAlreadyCommitted(0, 1),
+			AppendOutcome.Committed => AppendResult.CreateSuccess(0, 1, 1),
+			AppendOutcome.AlreadyCommitted => AppendResult.CreateAlreadyCommitted(0, 1, 1),
 			AppendOutcome.ConcurrencyConflict => AppendResult.CreateConcurrencyConflict(-1, 0),
 			AppendOutcome.Failed => AppendResult.CreateFailure("definite rejection"),
 			_ => AppendResult.CreateUnknown("unconfirmed commit"),
@@ -307,7 +307,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	public async Task DelegateAppendAsyncToInnerStore()
 	{
 		var events = new List<IDomainEvent> { A.Fake<IDomainEvent>() };
-		var expectedResult = AppendResult.CreateSuccess(2, 100);
+		var expectedResult = AppendResult.CreateSuccess(2, 100, 100);
 		A.CallTo(() => _innerStore.AppendAsync("agg-3", "Order", events, 1L, A<CancellationToken>._))
 			.Returns(new ValueTask<AppendResult>(expectedResult));
 
@@ -323,7 +323,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	{
 		var events = new List<IDomainEvent> { A.Fake<IDomainEvent>() };
 		A.CallTo(() => _innerStore.AppendAsync("agg-3", "Order", events, 1L, A<CancellationToken>._))
-			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(2, 100)));
+			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(2, 100, 100)));
 
 		await _sut.AppendAsync("agg-3", "Order", events, 1L, CancellationToken.None);
 		_meterListener.RecordObservableInstruments();
@@ -345,7 +345,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 	{
 		var events = new List<IDomainEvent> { A.Fake<IDomainEvent>() };
 		A.CallTo(() => _innerStore.AppendAsync("agg-3", "Order", events, 5L, A<CancellationToken>._))
-			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(6, 200)));
+			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(6, 200, 200)));
 
 		await _sut.AppendAsync("agg-3", "Order", events, 5L, CancellationToken.None);
 
@@ -400,7 +400,7 @@ public sealed class TelemetryEventStoreShould : IDisposable
 		A.CallTo(() => _innerStore.LoadAsync("agg-1", "Order", A<CancellationToken>._))
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(CreateStoredEvents(0)));
 		A.CallTo(() => _innerStore.AppendAsync("agg-1", "Order", A<IEnumerable<IDomainEvent>>._, 0L, A<CancellationToken>._))
-			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(1, 1)));
+			.Returns(new ValueTask<AppendResult>(AppendResult.CreateSuccess(1, 1, 1)));
 
 		await _sut.LoadAsync("agg-1", "Order", CancellationToken.None);
 		await _sut.AppendAsync("agg-1", "Order", Array.Empty<IDomainEvent>(), 0L, CancellationToken.None);

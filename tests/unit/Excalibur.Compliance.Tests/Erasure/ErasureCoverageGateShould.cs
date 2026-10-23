@@ -7,6 +7,8 @@ using Excalibur.Compliance.Erasure;
 
 using Excalibur.Compliance;
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance.Tests.Erasure;
 
 /// <summary>
@@ -495,6 +497,7 @@ public sealed class ErasureCoverageGateShould
     {
         var status = new ErasureStatus
         {
+        	TenantPartition = KeyedTenantPartition.Untenanted,
             TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
             RequestId = requestId,
             DataSubjectIdHash = "abc123hash",

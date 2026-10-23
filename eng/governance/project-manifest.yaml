@@ -415,6 +415,10 @@ projects:
   - path: samples/11-real-world/FullStackAddExcalibur/FullStackAddExcalibur.csproj
     classification: Sample
     in_solution: true
+
+  - path: samples/11-real-world/TwoProcessProjections/TwoProcessProjections.csproj
+    classification: Sample
+    in_solution: true
     framework_owner: Excalibur
 
   - path: samples/11-real-world/HealthcareApi/HealthcareApi.csproj

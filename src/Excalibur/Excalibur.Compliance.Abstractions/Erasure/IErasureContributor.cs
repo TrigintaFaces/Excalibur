@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using Excalibur.Dispatch;
+
 namespace Excalibur.Compliance;
 
 /// <summary>
@@ -73,9 +75,23 @@ public sealed record ErasureContributorContext
 	public required DataSubjectIdType IdType { get; init; }
 
 	/// <summary>
-	/// Gets the tenant context for multi-tenant scenarios.
+	/// Gets the tenant identity whose data is being erased — the OWNER, and what key handles derive from.
 	/// </summary>
+	/// <remarks>
+	/// Not a partition, and never to be compared against one. See <see cref="TenantPartition"/>.
+	/// </remarks>
 	public string? TenantId { get; init; }
+
+	/// <summary>
+	/// Gets the tenant partition whose legal obligations apply to this erasure.
+	/// </summary>
+	/// <remarks>
+	/// The fact a retention declaration is joined against. It is carried beside <see cref="TenantId"/>
+	/// rather than derived from it because the two are different: the owner is the exact term the data was
+	/// encrypted under, the partition is what a declaration names, and a single-tenant deployment's owner
+	/// is not its partition. A contributor deciding whether an obligation applies MUST read this one.
+	/// </remarks>
+	public required KeyedTenantPartition TenantPartition { get; init; }
 
 	/// <summary>
 	/// Gets the scope of the erasure operation.

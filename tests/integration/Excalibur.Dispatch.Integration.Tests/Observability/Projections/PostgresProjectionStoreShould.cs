@@ -63,31 +63,13 @@ public sealed class PostgresProjectionStoreShould : IClassFixture<PostgresFixtur
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync();
 
-		_ = await connection.ExecuteAsync($"""
-			CREATE TABLE IF NOT EXISTS "{TableName}" (
-				id VARCHAR(450) NOT NULL,
-				tenant_id VARCHAR(255) NOT NULL,
-				data JSONB NOT NULL,
-				created_at TIMESTAMPTZ NOT NULL,
-				updated_at TIMESTAMPTZ NOT NULL,
-				-- The store's unconditional write now INVALIDATES the position rather than leaving it
-				-- stale, so this column is part of the contract the store writes against, not an
-				-- optional extra.
-				--
-				-- -2 IS THE DOCUMENTED DEFAULT AND THE VALUE MATTERS. It is the sentinel meaning "this
-				-- row's position was never established", which is what a defaulted column records:
-				-- nobody said anything about this row. Not 0, because zero is a legitimate stream
-				-- position and a zero default would make a brand-new row claim it had already folded the
-				-- first event. And NOT -1, which is the sentinel meaning "a caller asserted this state is
-				-- a complete fold" -- putting that assertion on every row a consumer inserted without the
-				-- column, and on every row of a table altered to add it.
-				last_applied_position BIGINT NOT NULL DEFAULT -2,
-				-- Composite (id, tenant_id), NOT id alone. Two tenants may legitimately hold the same
-				-- projection id; keying on id alone would let one tenant's upsert overwrite another's row.
-				-- PostgresProjectionStore states this requirement directly at PostgresProjectionStore.cs:177.
-				PRIMARY KEY (id, tenant_id)
-			)
-			""");
+				// THE SHIPPED SCRIPT, not a local copy. Three test files each carried their own hand-written
+		// CREATE TABLE and they had already drifted -- one declared tenant_id as VARCHAR(450) where its
+		// siblings declared VARCHAR(255). A store whose columns changed without every copy changing
+		// would still pass here and fail on a consumer's database, which is the one place no gate of
+		// ours can see. Emitting it from the provider's own schema makes this arm the binding.
+		_ = await connection.ExecuteAsync(
+			PostgresProjectionSchema.CreateTableScript(TableName));
 
 		// A tenant context is REQUIRED, not optional decoration. RequireTenant is enabled, so a store
 		// built without one resolves no tenant and every call fails closed with TenantRequiredException

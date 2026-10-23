@@ -15,8 +15,14 @@ namespace Excalibur.EventSourcing.Postgres.Requests;
 /// </summary>
 /// <param name="CommittedCount">How many of the queried event identifiers are durably present.</param>
 /// <param name="FirstPosition">The global position of the earliest of them, if any.</param>
+/// <param name="LastPosition">
+/// The global position of the LATEST of them, if any -- the value a reader waits for to observe the
+/// whole recognised append. Measured as MAX(position) rather than derived from FirstPosition and a
+/// count, because a probe answers about rows that are already durable and must report what is there.
+/// </param>
 /// <param name="LastVersion">The stream version of the latest of them, if any.</param>
-internal readonly record struct CommittedAppendOutcome(int CommittedCount, long? FirstPosition, long? LastVersion);
+internal readonly record struct CommittedAppendOutcome(
+	int CommittedCount, long? FirstPosition, long? LastPosition, long? LastVersion);
 
 /// <summary>
 /// Asks whether the rows carrying a specific set of event identifiers are already committed.
@@ -63,7 +69,7 @@ internal sealed class GetCommittedAppendOutcomeRequest : DataRequestBase<IDbConn
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
 		var sql = $"""
-			SELECT COUNT(*) AS "CommittedCount", MIN(position) AS "FirstPosition", MAX(version) AS "LastVersion"
+			SELECT COUNT(*) AS "CommittedCount", MIN(position) AS "FirstPosition", MAX(position) AS "LastPosition", MAX(version) AS "LastVersion"
 			FROM {qualifiedTable}
 			WHERE event_id = ANY(@EventIds){tenantPredicate}
 			""";

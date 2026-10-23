@@ -43,7 +43,7 @@ public sealed class AppendResultShould
 		const long firstEventPosition = 100;
 
 		// Act
-		var result = AppendResult.CreateSuccess(nextExpectedVersion, firstEventPosition);
+		var result = AppendResult.CreateSuccess(nextExpectedVersion, firstEventPosition, firstEventPosition);
 
 		// Assert
 		result.Success.ShouldBeTrue();
@@ -98,7 +98,7 @@ public sealed class AppendResultShould
 	public void IsConcurrencyConflict_ReturnsFalse_WhenSuccessful()
 	{
 		// Arrange & Act
-		var result = AppendResult.CreateSuccess(1, 1);
+		var result = AppendResult.CreateSuccess(1, 1, 1);
 
 		// Assert
 		result.IsConcurrencyConflict.ShouldBeFalse();
@@ -173,7 +173,7 @@ public sealed class AppendResultShould
 	public void CreateSuccess_WithZeroPosition_IsValid()
 	{
 		// Arrange & Act
-		var result = AppendResult.CreateSuccess(0, 0);
+		var result = AppendResult.CreateSuccess(0, 0, 0);
 
 		// Assert
 		result.Success.ShouldBeTrue();

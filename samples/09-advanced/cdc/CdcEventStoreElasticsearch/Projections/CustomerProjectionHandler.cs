@@ -15,12 +15,15 @@ namespace CdcEventStoreElasticsearch.Projections;
 //
 // Registration in Program.cs:
 //   builder.AddProjection<CustomerSearchProjection>(p => p
-//       .Inline()
+//       .Async()
 //       .WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
 //       .WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
 //       .When<CustomerDeactivated>((proj, e) => { proj.IsActive = false; }));
 //
-// The framework manages projection load/upsert. Handlers just mutate state.
+// ...plus builder.EnableProjectionProcessing(), which registers the host that applies them.
+// Without it these handlers are registered and never invoked.
+//
+// The host manages projection load/upsert. Handlers just mutate state.
 
 /// <summary>
 /// Handles <see cref="CustomerCreated"/> events by initializing a new customer

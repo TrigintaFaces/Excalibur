@@ -18,12 +18,12 @@ namespace Excalibur.EventSourcing.Projections;
 /// </para>
 /// <code>
 /// builder.AddProjection&lt;OrderSummary&gt;(p => p
-///     .Inline()
+///     .Async()
 ///     .When&lt;OrderPlaced&gt;((proj, e) => { proj.Total = e.Amount; })
 ///     .When&lt;OrderShipped&gt;((proj, e) => { proj.ShippedAt = e.ShippedAt; }));
 /// </code>
 /// <para>
-/// If neither <see cref="Inline"/> nor <see cref="Async"/> is called, the projection
+/// If <see cref="Async"/> is not called, the projection
 /// defaults to <see cref="ProjectionMode.Async"/>.
 /// </para>
 /// <para>
@@ -45,8 +45,6 @@ public interface IProjectionBuilder<TProjection>
 	/// providing immediate read-after-write consistency.
 	/// </summary>
 	/// <returns>This builder for fluent chaining.</returns>
-	IProjectionBuilder<TProjection> Inline();
-
 	/// <summary>
 	/// Configures the projection to run asynchronously via the
 	/// <c>GlobalStreamProjectionHost</c>. This is the default mode.
@@ -164,7 +162,7 @@ public interface IProjectionBuilder<TProjection>
 
 	/// <summary>
 	/// Registers a key derivation function for the specified event type.
-	/// When an inline projection processes an event of this type, the projection
+	/// When a projection processes an event of this type, the projection
 	/// instance is loaded and stored using the derived key instead of the aggregate ID.
 	/// This enables multi-stream projections keyed by event data (e.g., category, tenant, date).
 	/// </summary>
@@ -203,7 +201,7 @@ public interface IProjectionBuilder<TProjection>
 	/// </para>
 	/// <code>
 	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
-	///     .Inline()
+	///     .Async()
 	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ })
 	///     .WhenDeleted((projectionId, ct) => store.DeleteAsync(projectionId, ct)));
 	/// </code>
@@ -218,7 +216,7 @@ public interface IProjectionBuilder<TProjection>
 	/// <remarks>
 	/// <code>
 	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
-	///     .Inline()
+	///     .Async()
 	///     .WithOptions(o => o.WarningThreshold = TimeSpan.FromMilliseconds(200))
 	///     .When&lt;OrderPlaced&gt;((proj, e) => { /* ... */ }));
 	/// </code>
@@ -247,7 +245,7 @@ public interface IProjectionBuilder<TProjection>
 	/// </para>
 	/// <code>
 	/// builder.AddProjection&lt;OrderSummary&gt;(p => p
-	///     .Inline()
+	///     .Async()
 	///     .WithSearchText(
 	///         proj => $"{proj.CustomerName} {proj.OrderNumber} {proj.Status}",
 	///         (proj, text) => proj.SearchText = text)

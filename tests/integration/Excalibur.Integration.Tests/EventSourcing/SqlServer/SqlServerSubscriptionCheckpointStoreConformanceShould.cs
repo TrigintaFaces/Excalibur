@@ -71,6 +71,22 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 	}
 
 	[Fact]
+	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+
+	[Fact]
+	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
+		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+
+	[Fact]
+	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctNames_ShouldRemainIndependent();
+
+	[Fact]
 	public Task Advance_WithInvalidPositions_ShouldThrowAndChangeNothing_Test() =>
 		Advance_WithInvalidPositions_ShouldThrowAndChangeNothing();
 
@@ -129,6 +145,12 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 				[Position]         BIGINT NOT NULL,
 				[UpdatedAt]        DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
 				CONSTRAINT [PK_{CheckpointTable}] PRIMARY KEY CLUSTERED ([SubscriptionName])
+			);
+			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{CheckpointTable}Definitions'
+				AND schema_id = SCHEMA_ID('{_fixture.SchemaName}'))
+			CREATE TABLE [{_fixture.SchemaName}].[{CheckpointTable}Definitions] (
+				SubscriptionName NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
+				DefinitionHash VARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
 			);
 			""";
 

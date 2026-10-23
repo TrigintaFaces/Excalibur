@@ -158,7 +158,7 @@ public sealed class ProjectionProcessingPrerequisiteShould
 
 		var builder = A.Fake<IEventSourcingBuilder>();
 		A.CallTo(() => builder.Services).Returns(services);
-		_ = builder.EnableProjectionProcessing();
+		_ = builder.EnableProjectionProcessing(opts => opts.SubscriptionScope = "unit-test-subscription");
 
 		return services.BuildServiceProvider();
 	}

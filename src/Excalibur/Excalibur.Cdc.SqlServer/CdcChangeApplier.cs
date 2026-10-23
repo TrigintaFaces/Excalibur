@@ -210,6 +210,16 @@ internal sealed partial class CdcChangeApplier
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			// A deferred change bars ALL later effects on this table for the rest of the run,
+			// not only checkpoint writes. Otherwise a newer update can apply and be marked done,
+			// then replay of the older deferred update overwrites it while dedupe skips the newer
+			// one permanently. Leave later changes entirely untouched for ordered replay; other
+			// tables remain free to make a missing dependency durable.
+			if (failedTables.Contains(changeEvent.TableName))
+			{
+				continue;
+			}
+
 			// Idempotency check: skip events already processed in a prior cycle.
 			if (_idempotencyFilter is not null
 				&& await _idempotencyFilter.IsProcessedAsync(

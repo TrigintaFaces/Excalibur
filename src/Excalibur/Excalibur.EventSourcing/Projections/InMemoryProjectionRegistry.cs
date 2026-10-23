@@ -37,7 +37,7 @@ internal sealed class InMemoryProjectionRegistry : IProjectionRegistry
 	/// <inheritdoc />
 	public IReadOnlyList<ProjectionRegistration> GetByMode(ProjectionMode mode)
 	{
-		// Avoid LINQ allocation on hot path — called every SaveAsync for inline projections
+		// Avoid LINQ allocation on hot path — called on every projection-host poll
 		var result = new List<ProjectionRegistration>();
 		foreach (var registration in _registrations.Values)
 		{

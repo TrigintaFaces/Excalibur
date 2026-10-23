@@ -137,16 +137,16 @@ public sealed class ElasticSearchProjectionStoreShould
 	[Fact]
 	public void UseProjectionTypeNameAsOptionsKey()
 	{
-		// The store resolves named options by typeof(TProjection).Name
+		// The store resolves named options by the full projection type identity
 		ElasticSearchProjectionStore<TestProjection>.OptionsName
-			.ShouldBe(nameof(TestProjection));
+			.ShouldBe(typeof(TestProjection).FullName);
 	}
 
 	[Fact]
 	public void UseCorrectOptionsKeyForDifferentProjectionTypes()
 	{
 		ElasticSearchProjectionStore<OrderSummaryProjection>.OptionsName
-			.ShouldBe(nameof(OrderSummaryProjection));
+			.ShouldBe(typeof(OrderSummaryProjection).FullName);
 	}
 
 	#endregion

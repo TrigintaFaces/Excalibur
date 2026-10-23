@@ -254,6 +254,14 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 			[(SnapshotProbePath, "Excalibur.Tests.Testing.Conformance::SnapshotKitSuiteIntegrityShould+ThrowingCleanupProbe")] = "SnapshotStoreConformanceTestKit",
 			[(SnapshotProbePath, "Excalibur.Tests.Testing.Conformance::SnapshotKitSuiteIntegrityShould+FullyWiredProbe")] = "SnapshotStoreConformanceTestKit",
 			[(SnapshotProbePath, "Excalibur.Tests.Testing.Conformance::SnapshotKitSuiteIntegrityShould+PartiallyWiredProbe")] = "SnapshotStoreConformanceTestKit",
+
+			// Drives ONE append-position arm against a controlled store to prove that arm can
+			// distinguish a truthful endpoint from an interior one. Its two externally attributed
+			// facts are a safety/liveness pair: one asserts a truthful endpoint with position gaps
+			// is ACCEPTED, the other that an interior position satisfying both allocation
+			// inequalities is still REFUSED. It cannot wire every arm because its store implements
+			// only enough surface for that one, which is what makes it a probe rather than a suite.
+			[(AppendPositionProbePath, "Excalibur.Tests.Testing.Conformance::EventStoreAppendPositionArmShould+Probe")] = "EventStoreConformanceTestKit",
 		};
 
 	private static bool IsVerifiedMutationProbe(SourceFile file, ClassDeclarationSyntax declaration)
@@ -785,11 +793,14 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/ScheduleRenewalConformanceWiringShould.cs";
 	private const string SnapshotProbePath =
 		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/SnapshotKitSuiteIntegrityShould.cs";
+	private const string AppendPositionProbePath =
+		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreAppendPositionArmShould.cs";
 
 	[Theory]
 	[InlineData(ExecutionProbePath, "ScheduleExecutionConformanceWiringShould", "FullyWiredProbe", "ScheduleExecutionStoreConformanceTestKit")]
 	[InlineData(RenewalProbePath, "ScheduleRenewalConformanceWiringShould", "MissingRenewalArmProbe", "ScheduleExecutionLeaseRenewalConformanceTestKit")]
 	[InlineData(SnapshotProbePath, "SnapshotKitSuiteIntegrityShould", "CountingProbe", "SnapshotStoreConformanceTestKit")]
+	[InlineData(AppendPositionProbePath, "EventStoreAppendPositionArmShould", "Probe", "EventStoreConformanceTestKit")]
 	public void Exempt_exact_verified_execution_renewal_and_snapshot_mutation_probes(string path, string outer, string name, string kit)
 	{
 		SurveyUnwiredPaths([AdditionalProbeSource(path, outer, name, kit, "")]).ShouldBeEmpty();

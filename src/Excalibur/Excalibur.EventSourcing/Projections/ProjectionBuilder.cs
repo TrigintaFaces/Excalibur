@@ -50,12 +50,6 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <inheritdoc />
-	public IProjectionBuilder<TProjection> Inline()
-	{
-		_mode = ProjectionMode.Inline;
-		return this;
-	}
-
 	/// <inheritdoc />
 	public IProjectionBuilder<TProjection> Async()
 	{
@@ -237,7 +231,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <summary>
-	/// Gets the mode configured via <see cref="Inline"/>, <see cref="Async"/> or <see cref="Ephemeral"/>.
+	/// Gets the mode configured via <see cref="Async"/> or <see cref="Ephemeral"/>.
 	/// </summary>
 	/// <remarks>
 	/// Read at registration time by the store requirement, which must know whether this projection owes
@@ -299,9 +293,9 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		ArgumentNullException.ThrowIfNull(registry);
 
 		// Capture the generic type in a delegate at registration time (AOT-safe, no MakeGenericMethod).
-		// Both Inline and Async modes need apply delegates: Inline runs during SaveAsync,
-		// Async runs via the background AsyncProjectionProcessingHost.
-		var inlineApply = _mode is ProjectionMode.Inline or ProjectionMode.Async
+		// Named "inlineApply" for historical reasons only: the one caller is now the async host. It used
+		// to be invoked during SaveAsync as well, which is the dual write that was removed.
+		var inlineApply = _mode is ProjectionMode.Async
 			? CreateInlineApplyDelegate()
 			: null;
 
@@ -318,7 +312,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		// design; a null delegate is the same refusal, stated where erasure can act on it instead of
 		// discovered from a thrown exception.
 		var clearForAggregate =
-			_mode is ProjectionMode.Inline or ProjectionMode.Async && !_projection.HasKeySelectors
+			_mode is ProjectionMode.Async && !_projection.HasKeySelectors
 				? CreateClearForAggregateDelegate()
 				: null;
 
@@ -362,8 +356,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			// NO ROW MEANS NOTHING TO CLEAR, and this read is what stops a compliance operation WRITING to
 			// a read model it was only asked to clear.
 			//
-			// Recovery CREATES a row when none exists — that is its primary documented job, repairing an
-			// inline projection that failed after its events were committed — so invoking it unconditionally
+			// Recovery CREATES a row when none exists — that is its primary documented job, repairing a
+			// projection row that was never folded from its events — so invoking it unconditionally
 			// would materialize an empty row in every persisted projection that never held this aggregate.
 			// A consumer's GetByIdAsync would then return a default-valued projection where it returned
 			// null, which is a read-model change caused by erasing an unrelated subject.
@@ -403,7 +397,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+			var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
 
 			// The handler context is built PER EVENT inside the loop below, not once here: a batch can
 			// span aggregates, so there is no single aggregate id that describes the whole call.
@@ -595,7 +589,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				// An EMPTY fold is not the same as an UNPOSITIONED one. This skip is for the first case;
 				// the second -- the save path, where events are being committed now and carry no global
 				// position yet -- still has to be written, and the writer does it unconditionally. An
-				// earlier shape conflated them and silently discarded every inline projection.
+				// earlier shape conflated them and silently discarded every unpositioned fold.
 				if (!folded.TryGetValue(id, out var applied) || applied.Count == 0)
 				{
 					continue;
@@ -682,7 +676,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			return async (events, context, serviceProvider, cancellationToken) =>
 			{
 				var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-				var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+				var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
 
 				var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
 				var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
@@ -792,7 +786,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+			var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
 
 			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
 			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);

@@ -398,6 +398,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'migration/activity-group-grant-sync-atomicity' },
             { type: 'doc', id: 'migration/conformance-kit-arms-added' },
             { type: 'doc', id: 'migration/append-result-outcome' },
+            { type: 'doc', id: 'migration/projections-are-applied-by-the-host' },
             { type: 'doc', id: 'migration/legal-hold-concurrency-token' },
             { type: 'doc', id: 'migration/crypto-shredding-retention-scope' },
             { type: 'doc', id: 'migration/key-destruction-is-stated-not-inferred' },

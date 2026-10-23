@@ -4,28 +4,26 @@
 namespace Excalibur.EventSourcing;
 
 /// <summary>
-/// Defines the failure handling policy for inline projections during event notification.
+/// Defines the failure handling policy for post-commit event notification handlers.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This policy controls what happens when an inline projection fails to persist
-/// after events have already been committed to the event store. Since events are
-/// already committed, retrying <c>SaveAsync</c> is NOT appropriate.
+/// This policy controls what happens when a notification handler throws after the
+/// events have already been committed to the event store. Since events are already
+/// committed, retrying <c>SaveAsync</c> is NOT appropriate.
 /// </para>
 /// </remarks>
 public enum NotificationFailurePolicy
 {
 	/// <summary>
-	/// Propagates the projection failure to the caller as an
-	/// <see cref="System.Exception"/>. Events remain committed.
-	/// The caller should use <c>IProjectionRecovery.ReapplyAsync</c>
-	/// to recover the failed projection.
+	/// Rethrows the handler's own exception to the caller, with its stack
+	/// trace preserved. Events remain committed, so the save itself succeeded.
 	/// </summary>
 	Propagate = 0,
 
 	/// <summary>
-	/// Logs the failure at Error level and continues. The projection
-	/// is expected to catch up via an async projection path.
+	/// Logs the failure at Error level and continues with the remaining
+	/// handlers. <c>SaveAsync</c> reports success.
 	/// </summary>
 	LogAndContinue = 1
 }

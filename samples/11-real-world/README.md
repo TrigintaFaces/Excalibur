@@ -12,6 +12,7 @@ End-to-end samples that compose multiple Dispatch and Excalibur patterns into re
 | [FullStackAddExcalibur](FullStackAddExcalibur/) 🧩 *infra-gated flow* | Single-builder composition — OrderManagement domain | ES + CDC + projections + ElasticSearch + IdentityMap + DataProcessing, all composed through `AddExcalibur`. added the operational `POST /orders` command → handler → outbox → projection → `GET /orders/{id}` flow ; the full E2E path requires SQL Server + ElasticSearch. Host boot + `GET /health` work without external infra.
 | [MultiTenantEventSourcing](MultiTenantEventSourcing/) 🧩 *infra-gated flow* | Multi-tenant SaaS composition | Tenant context resolution, API routing, per-tenant projections, query scoping, sharding. added the operational `POST /orders` command with `ITenantContext` resolution that exercises the `TenantRoutingEventStore` decorator ; full decorator path requires SQL Server per shard. `GET /shards` + `ValidateOnStart` work without external infra.
 | [HealthcareApi](HealthcareApi/) | Vertical-slice architecture | Per-feature slicing, healthcare domain |
+| [TwoProcessProjections](TwoProcessProjections/) 🧩 *infra-gated flow* | A web API and a jobs service against ONE database | Which read models need a projection host and which do not: `Ephemeral` for read-by-id (no store, no checkpoint, never stale) and stored `Async` for the queryable list. The API registers `AddProjectionProcessor()` and drives projections after each write for read-your-writes without a session token; the jobs service owns the background host. Records every handler side effect to a table, so a skipped or repeated notification is countable. Requires SQL Server + the provider migrations. |
 | [IdentityMapSample](IdentityMapSample/) | Identity map pattern documentation | See README for usage (no runnable project) |
 
 ## OrderProcessing — Flagship
@@ -70,7 +71,7 @@ dotnet run
 
 - **Event Sourcing** (write side)
 - **CDC** (change feed out of the event store)
-- **Projections** (inline + async)
+- **Projections** (stored, applied by the projection host)
 - **ElasticSearch** (read side)
 - **IdentityMap** (unit-of-work caching)
 - **DataProcessing** (CDC/outbox/job workers)

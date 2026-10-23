@@ -40,6 +40,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
+[SuppressMessage("Maintainability", "CA1506", Justification = "The SQL provider integrates its single-append operation context at both atomic commit paths; splitting the commit boundary would obscure the invariant.")]
 public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore, IEventStoreArchive, IEventStoreVersionProbe
 {
 	// Format markers for envelope detection
@@ -386,8 +387,10 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		if (eventList.Count == 0)
 		{
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
+
+		SqlServerOperationContext.Current?.EnterAppend();
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventList.Count, expectedVersion);
@@ -447,8 +450,10 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		{
 			// No events means no integration messages to stage; nothing to do atomically.
 			RecordAppendTelemetry(result, stopwatch.Elapsed);
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
+
+		SqlServerOperationContext.Current?.EnterAppend();
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventList.Count, expectedVersion);
@@ -497,6 +502,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		// two-transaction split (the atomicity bug this seam closes) is structurally impossible.
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		SqlServerOperationContext.Current?.ValidateDestination(connection, _schema, _table, CurrentTenantScope.TenantId);
 
 		// READ COMMITTED, deliberately. The UNIQUE constraint is the concurrency control.
 		//
@@ -580,7 +586,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 					// RECOGNISED, not written by this call. Reporting plain success here would be true about
 					// the append and silently false about the call: these rows are durable, but they are a
 					// prior attempt's, and anything may have happened to them since — an erasure included.
-					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
+					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition, retryLanded.LastPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
@@ -607,19 +613,24 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			// above returns before reaching this line.
 			await stageOutbox(transaction, cancellationToken).ConfigureAwait(false);
 
-			var (version, firstPosition) = await InsertEventsAsync(
+			var appended = await InsertEventsAsync(
 					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 				.ConfigureAwait(false);
 
+			if (SqlServerOperationContext.Current is { } operation)
+			{
+				await operation.WriteReceiptAsync(connection, transaction, _schema, _table, CurrentTenantScope.TenantId,
+					aggregateId, aggregateType, appended, cancellationToken).ConfigureAwait(false);
+			}
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
 			_logger.LogDebug(
 				"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
-				eventList.Count, aggregateType, aggregateId, version);
+				eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
-			_ = (activity?.SetTag(EventSourcingTags.Version, version));
+			_ = (activity?.SetTag(EventSourcingTags.Version, appended.NextExpectedVersion));
 			activity.SetOperationResult(EventSourcingTagValues.Success);
-			return AppendResult.CreateSuccess(version, firstPosition);
+			return appended;
 		}
 		catch (Exception ex) when (ex is SqlException or OperationFailedException)
 		{
@@ -651,7 +662,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 
 				// RECOGNISED, not written by this call — see the pre-check branch above.
-				return AppendResult.CreateAlreadyCommitted(committedVersion, landed.FirstPosition);
+				return AppendResult.CreateAlreadyCommitted(committedVersion, landed.FirstPosition, landed.LastPosition);
 			}
 
 			var currentVersion = await ReadCurrentVersionAfterConflictAsync(
@@ -891,6 +902,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	{
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		SqlServerOperationContext.Current?.ValidateDestination(connection, _schema, _table, CurrentTenantScope.TenantId);
 
 		// READ COMMITTED for the same reason as the outbox-staging path above: the unique constraint on
 		// (AggregateId, AggregateType, Version, TenantId) already makes a duplicate unwritable, so
@@ -933,25 +945,30 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 					// RECOGNISED, not written by this call. Reporting plain success here would be true about
 					// the append and silently false about the call: these rows are durable, but they are a
 					// prior attempt's, and anything may have happened to them since — an erasure included.
-					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition);
+					return AppendResult.CreateAlreadyCommitted(retryVersion, retryLanded.FirstPosition, retryLanded.LastPosition);
 				}
 
 				activity.SetOperationResult(EventSourcingTagValues.ConcurrencyConflict);
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
 
-			var (version, firstPosition) = await InsertEventsAsync(
+			var appended = await InsertEventsAsync(
 					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 				.ConfigureAwait(false);
 
+			if (SqlServerOperationContext.Current is { } operation)
+			{
+				await operation.WriteReceiptAsync(connection, transaction, _schema, _table, CurrentTenantScope.TenantId,
+					aggregateId, aggregateType, appended, cancellationToken).ConfigureAwait(false);
+			}
 			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
 			_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
-				eventList.Count, aggregateType, aggregateId, version);
+				eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
-			_ = (activity?.SetTag(EventSourcingTags.Version, version));
+			_ = (activity?.SetTag(EventSourcingTags.Version, appended.NextExpectedVersion));
 			activity.SetOperationResult(EventSourcingTagValues.Success);
-			return AppendResult.CreateSuccess(version, firstPosition);
+			return appended;
 		}
 		catch (Exception ex) when (ex is SqlException or OperationFailedException)
 		{
@@ -983,7 +1000,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				activity.SetOperationResult(EventSourcingTagValues.Success);
 
 				// RECOGNISED, not written by this call — see the pre-check branch above.
-				return AppendResult.CreateAlreadyCommitted(committedVersion, landed.FirstPosition);
+				return AppendResult.CreateAlreadyCommitted(committedVersion, landed.FirstPosition, landed.LastPosition);
 			}
 
 			var currentVersion = await ReadCurrentVersionAfterConflictAsync(
@@ -1006,7 +1023,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		}
 	}
 
-	private async ValueTask<(long Version, long FirstPosition)> InsertEventsAsync(
+	private async ValueTask<AppendResult> InsertEventsAsync(
 		SqlConnection connection,
 		SqlTransaction transaction,
 		string aggregateId,
@@ -1095,7 +1112,11 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				.ConfigureAwait(false);
 		}
 
-		return (version, firstPosition);
+		// The block reserved above is contiguous and ordered by version -- this method assigns every
+		// position from it directly -- so the last event sits at firstPosition + rows.Count - 1. Reported
+		// from HERE, where the range is assigned, rather than derived by a caller who would have to
+		// assume the contiguity this method guarantees.
+		return AppendResult.CreateSuccess(version, firstPosition, firstPosition + rows.Count - 1);
 	}
 
 	private static void RecordAppendTelemetry(string result, TimeSpan elapsed)

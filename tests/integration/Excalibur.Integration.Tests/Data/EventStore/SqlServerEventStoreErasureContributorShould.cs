@@ -143,6 +143,7 @@ private sealed record OrderPlaced(string AggregateId, long Version) : IDomainEve
 
 	private static ErasureContributorContext ContextFor(string aggregateIdAsHash, string? tenantId) => new()
 	{
+		TenantPartition = KeyedTenantPartition.Untenanted,
 		RequestId = Guid.NewGuid(),
 		DataSubjectIdHash = aggregateIdAsHash,
 		IdType = default,

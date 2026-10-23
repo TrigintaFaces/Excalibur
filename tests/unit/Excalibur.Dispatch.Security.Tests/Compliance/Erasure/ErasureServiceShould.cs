@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -547,6 +549,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
@@ -613,6 +616,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
@@ -640,6 +644,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
@@ -676,6 +681,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
@@ -734,6 +740,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
@@ -762,6 +769,7 @@ public sealed class ErasureServiceShould
 		var certificateId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
@@ -818,6 +826,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
@@ -860,6 +869,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
@@ -977,6 +987,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Completed,
@@ -1007,6 +1018,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
@@ -1041,6 +1053,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,
@@ -1084,6 +1097,7 @@ public sealed class ErasureServiceShould
 		var requestId = Guid.NewGuid();
 		var status = new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = requestId,
 			TenantId = global::Excalibur.Dispatch.TenantDefaults.DefaultTenantId,
 			Status = ErasureRequestStatus.Scheduled,

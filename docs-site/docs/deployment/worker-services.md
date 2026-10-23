@@ -101,31 +101,21 @@ The built-in `OutboxBackgroundService` provides:
 
 ## Projection Worker
 
-Excalibur supports two projection processing modes. Choose based on your consistency requirements:
+A stored projection is written by the projection host, never by `SaveAsync`. A worker service is the
+natural place to run that host.
 
-### Inline Projections (Immediate Consistency)
+### Reading your own write
 
-Inline projections run during `SaveAsync()` and guarantee read-after-write consistency without a background worker:
+A caller that must observe its own write carries the token `SaveAsync` returned into
+`IProjectionSessionReader.ReadAsync`; the read waits, bounded, rather than the save doing so. See
+[Reading Your Own Writes](../event-sourcing/projections.md#reading-your-own-writes-session-consistency).
 
-```csharp
-builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
-{
-    es.UseSqlServer(sql => sql.ConnectionString(connectionString))
-      .AddRepository<OrderAggregate, Guid>();
+A worker that only ingests and never reads its own writes needs none of that — it registers the host and
+nothing else.
 
-    // Inline: updated synchronously during SaveAsync()
-    es.AddProjection<OrderProjection>(p => p
-        .Inline()
-        .When<OrderCreated>((proj, e) => { proj.Status = "Created"; proj.CustomerId = e.CustomerId; })
-        .When<OrderShipped>((proj, e) => { proj.Status = "Shipped"; }));
-}));
-```
+### Projections (Background Processing)
 
-See [Projections -- Failure Handling](../event-sourcing/projections.md#failure-handling) for failure handling and recovery.
-
-### Async Projections (Background Processing)
-
-For eventually-consistent projections, use `GlobalStreamProjectionHost` which processes events via checkpoint-based background polling:
+Register the projections, a store for each, and the host that applies them:
 
 ```csharp
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
@@ -133,7 +123,7 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
     es.UseSqlServer(sql => sql.ConnectionString(connectionString))
       .AddRepository<OrderAggregate, Guid>();
 
-    // Async: updated by background host
+    // Applied by the projection host, in global-stream order
     es.AddProjection<OrderProjection>(p => p
         .Async()
         .When<OrderCreated>((proj, e) => { proj.Status = "Created"; })

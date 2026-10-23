@@ -40,8 +40,23 @@ public sealed class OpenSearchProjectionStoreOptions
 	public int NumberOfReplicas { get; set; }
 
 	/// <summary>
-	/// Gets or sets whether to create the index on initialization. Default: true.
+	/// Gets or sets a value indicating whether the store creates its index on initialization.
 	/// </summary>
+	/// <value>Defaults to <see langword="true"/>.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>What it creates, so the alternative is a real choice.</b> The index is created with a DECLARED
+	/// mapping -- your projection's public properties, plus the reserved position field as a
+	/// <c>long</c> -- honouring the configured shard count, replica count and refresh interval.
+	/// </para>
+	/// <para>
+	/// <b>Set it to <see langword="false"/> only when you provision the index yourself.</b> With it off
+	/// and the index absent, the first write makes the cluster auto-create it with a dynamically inferred
+	/// mapping, discarding those settings -- or fails outright on a cluster configured with
+	/// <c>action.auto_create_index: false</c>. The position field is the one a dynamic mapping is most
+	/// likely to get wrong, because the projection type does not declare it.
+	/// </para>
+	/// </remarks>
 	public bool CreateIndexOnInitialize { get; set; } = true;
 
 	/// <summary>

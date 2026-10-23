@@ -15,7 +15,7 @@ namespace CdcEventStoreElasticsearch.Projections;
 // ============================================================================
 //
 // This file demonstrates the materialized-view pattern introduced for CDC
-// projections. Compared to inline projections (CustomerProjectionHandler,
+// projections. Compared to the builder-API projections (CustomerProjectionHandler,
 // OrderProjectionHandler), materialized-view builders:
 //
 //   * Own a stable ViewName used for position-tracking in the store

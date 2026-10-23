@@ -227,8 +227,16 @@ public sealed class ARetainedAggregateSurvivesErasureShould
 	[Fact]
 	public async Task Erase_an_aggregate_whose_retention_belongs_to_another_tenant()
 	{
+		// THE PARTITION carries "another tenant" now, not the owner field. The retention is declared for
+		// the untenanted partition, so an erasure whose partition is tenant-b must NOT match it and the
+		// aggregate must be erased. Setting only TenantId left the partition untenanted, which matched
+		// the declaration and spared the aggregate -- the arm failed for the right reason.
 		var context = Resolve(new AggregateReference(SalesRecordId, SalesRecordType))
-			with { TenantId = "tenant-b" };
+			with
+			{
+				TenantId = "tenant-b",
+				TenantPartition = KeyedTenantPartition.Scoped("tenant-b"),
+			};
 
 		_ = await CreateSut(RetainingSalesRecords()).EraseAsync(
 			context, TestContext.Current.CancellationToken);
@@ -361,7 +369,7 @@ public sealed class ARetainedAggregateSurvivesErasureShould
 		_ = services.AddErasureRetention(new ErasureRetention
 		{
 			AggregateType = SalesRecordType,
-			TenantId = TenantScope.UntenantedSentinel,
+			Tenant = KeyedTenantPartition.Untenanted,
 			Basis = LegalHoldBasis.LegalObligation,
 			Justification = Justification,
 			RetentionPeriod = SixYears,
@@ -386,6 +394,7 @@ public sealed class ARetainedAggregateSurvivesErasureShould
 	{
 		var context = new ErasureContributorContext
 		{
+			TenantPartition = KeyedTenantPartition.Untenanted,
 			RequestId = Guid.NewGuid(),
 			DataSubjectIdHash = SubjectHash,
 			IdType = DataSubjectIdType.Hash,
@@ -457,7 +466,7 @@ public sealed class ARetainedAggregateSurvivesErasureShould
 			Provider = services.BuildServiceProvider();
 
 			var builder = new ProjectionBuilder<SubjectView>(registry);
-			_ = builder.Inline().When<SubjectNamed>(static (p, e) => p.Name = e.Name);
+			_ = builder.Async().When<SubjectNamed>(static (p, e) => p.Name = e.Name);
 			builder.Build(registry);
 
 			var erasure = A.Fake<IEventStoreErasure>();
@@ -505,6 +514,7 @@ public sealed class ARetainedAggregateSurvivesErasureShould
 		public ErasureContributorContext Context() =>
 			new()
 			{
+				TenantPartition = KeyedTenantPartition.Untenanted,
 				RequestId = Guid.NewGuid(),
 				DataSubjectIdHash = SubjectHash,
 				IdType = DataSubjectIdType.Hash,

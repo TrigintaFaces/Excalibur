@@ -191,7 +191,7 @@ public sealed class SqliteEventStore : IEventStore
 		{
 			// No events appended, so there is no first-event position. Report null — the canonical
 			// "no position" sentinel shared by InMemory/SqlServer/Postgres — never a real position like 0.
-			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null);
+			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
 		var tenantId = KeyedTenantPartition.FromScope(CurrentTenantScope).TenantId;
@@ -235,17 +235,25 @@ public sealed class SqliteEventStore : IEventStore
 				// so a stale read can only MISS the row, which yields the conflict reported anyway. ONE
 				// identifier settles the batch because this append commits in a single transaction -- that
 				// atomicity is load-bearing here, not incidental.
-				var firstEventId = eventList
+				// EVERY identity in the batch, not just the first. Atomicity settles EXISTENCE -- if one
+				// row is there they all are -- but it says nothing about the MAXIMUM, and the aggregate
+				// below is a maximum. Restricting the predicate to the first event made MAX(...) run over
+				// a single row, so a recognised retry of a three-event batch at positions 10,11,12
+				// reported LastEventPosition = 10. A session read then reports Fresh once the projection
+				// reaches 10 while 11 and 12 are still unfolded -- the token names a prefix that is not
+				// the one the caller committed.
+				var landedEventIds = eventList
 					.Select(static e => e.EventId)
-					.FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+					.Where(static id => !string.IsNullOrWhiteSpace(id))
+					.ToArray();
 
-				if (!string.IsNullOrWhiteSpace(firstEventId))
+				if (landedEventIds.Length > 0)
 				{
-					var landed = await connection.QuerySingleOrDefaultAsync<(long? LastVersion, long? FirstPosition)>(
+					var landed = await connection.QuerySingleOrDefaultAsync<(long? LastVersion, long? LastPosition)>(
 						new CommandDefinition(
-							$"SELECT MAX(Version) AS LastVersion, MIN(GlobalPosition) AS FirstPosition FROM [{_table}] "
-								+ "WHERE EventId = @EventId AND TenantId = @TenantId",
-							new { EventId = firstEventId, TenantId = tenantId },
+							$"SELECT MAX(Version) AS LastVersion, MAX(GlobalPosition) AS LastPosition FROM [{_table}] "
+								+ "WHERE EventId IN @EventIds AND TenantId = @TenantId",
+							new { EventIds = landedEventIds, TenantId = tenantId },
 							transaction,
 							cancellationToken: cancellationToken)).ConfigureAwait(false);
 
@@ -254,7 +262,11 @@ public sealed class SqliteEventStore : IEventStore
 						// RECOGNISED, not written by this call: the rows carrying our identities were already
 						// there. Reporting plain success here would tell the caller it had just written them,
 						// and the caller republishes from its live payloads on that basis.
-						return AppendResult.CreateAlreadyCommitted(landedVersion, landed.FirstPosition);
+						//
+						// firstEventPosition stays null deliberately -- the first position of an append that
+						// already landed has no consumer, and the value a reader waits for is the last.
+						return AppendResult.CreateAlreadyCommitted(
+							landedVersion, firstEventPosition: null, landed.LastPosition);
 					}
 				}
 
@@ -342,7 +354,9 @@ public sealed class SqliteEventStore : IEventStore
 				"Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
 				eventList.Count, aggregateType, aggregateId, version);
 
-			return AppendResult.CreateSuccess(version, firstPosition);
+			// The counter hands out one contiguous run per append -- nextPosition walks it above -- so the
+			// last event sits at firstPosition + eventList.Count - 1.
+			return AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1);
 		}
 		catch (SqliteException ex) when (ex.SqliteErrorCode == SqliteConstraintErrorCode)
 		{

@@ -44,6 +44,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _tableName;
+	private readonly string _qualifiedTable;
 	private readonly ILogger<SqlServerProjectionStore<TProjection>> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
 	private readonly ITenantContext _tenantContext;
@@ -59,6 +60,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="tableName">Optional table name. Defaults to projection type name.</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="schemaName">
+	/// The schema holding the table. Defaults to <c>dbo</c>. Honoured by every statement this store
+	/// runs: a schema setting the data access does not use reads as supported and does nothing.
+	/// </param>
 	/// <param name="tenantContext">
 	/// The ambient tenant context. Required: this store partitions rows by tenant, and it resolves that
 	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
@@ -72,8 +77,9 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		ILogger<SqlServerProjectionStore<TProjection>> logger,
 		ITenantContext tenantContext,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null)
-		: this(CreateConnectionFactory(connectionString), logger, tenantContext, tableName, jsonOptions)
+		JsonSerializerOptions? jsonOptions = null,
+		string schemaName = "dbo")
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext, tableName, jsonOptions, schemaName)
 	{
 	}
 
@@ -91,6 +97,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
 	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
+	/// <param name="schemaName">
+	/// The schema holding the table. Defaults to <c>dbo</c>. Honoured by every statement this store
+	/// runs: a schema setting the data access does not use reads as supported and does nothing.
+	/// </param>
 	/// <remarks>
 	/// This is the advanced constructor for scenarios requiring custom connection management.
 	/// </remarks>
@@ -99,7 +109,8 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		ILogger<SqlServerProjectionStore<TProjection>> logger,
 		ITenantContext tenantContext,
 		string? tableName = null,
-		JsonSerializerOptions? jsonOptions = null)
+		JsonSerializerOptions? jsonOptions = null,
+		string schemaName = "dbo")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -111,7 +122,17 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			throw new ArgumentException($"Table name '{resolvedName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.", nameof(tableName));
 		}
 
+		if (!ValidTableNameRegex().IsMatch(schemaName))
+		{
+			throw new ArgumentException($"Schema name '{schemaName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.", nameof(schemaName));
+		}
+
 		_tableName = resolvedName;
+
+		// QUALIFIED ONCE, and used by every statement. Addressing the table unqualified made it resolve
+		// through the connection's default schema, so a consumer who set a schema got a table the store
+		// could not find -- the setting read as supported and did nothing.
+		_qualifiedTable = $"[{schemaName}].[{resolvedName}]";
 
 		// Converged on the single ProjectionSerializationDefaults read-model factory (camelCase +
 		// null-omission) so every projection store's wire shape stays byte-compatible on the read path.
@@ -132,7 +153,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
 		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 		var tenantPredicate = " AND " + TenantColumnPredicate;
-		var sql = $"SELECT Data FROM [{_tableName}] WHERE Id = @Id{tenantPredicate}";
+		var sql = $"SELECT Data FROM {_qualifiedTable} WHERE Id = @Id{tenantPredicate}";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", id);
@@ -200,7 +221,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		var insertTenantValue = ", source.TenantId";
 
 		var sql = $"""
-			MERGE [{_tableName}] WITH (UPDLOCK, HOLDLOCK) AS target
+			MERGE {_qualifiedTable} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @Id AS Id, @Data AS Data, @UpdatedAt AS UpdatedAt{sourceTenantSelect}) AS source
 			ON target.Id = source.Id{onTenantPredicate}
 			WHEN MATCHED THEN
@@ -254,7 +275,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
 		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 		var tenantPredicate = " AND " + TenantColumnPredicate;
-		var sql = $"DELETE FROM [{_tableName}] WHERE Id = @Id{tenantPredicate}";
+		var sql = $"DELETE FROM {_qualifiedTable} WHERE Id = @Id{tenantPredicate}";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", id);
@@ -283,7 +304,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		var paginationClause = BuildPaginationClause(options, parameters);
 
 		var sql = $"""
-		           SELECT Data FROM [{_tableName}]
+		           SELECT Data FROM {_qualifiedTable}
 		           {whereClause}
 		           {orderByClause}
 		           {paginationClause}
@@ -308,7 +329,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 
 		var sql = $"""
-		           SELECT COUNT(*) FROM [{_tableName}]
+		           SELECT COUNT(*) FROM {_qualifiedTable}
 		           {whereClause}
 		           """;
 
@@ -349,7 +370,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// When no rows match, we still need the count, so use a CTE approach.
 		var sql = $"""
 			SELECT Data, COUNT(*) OVER() AS TotalCount
-			FROM [{_tableName}]
+			FROM {_qualifiedTable}
 			{whereClause}
 			{orderByClause}
 			OFFSET @PageOffset ROWS FETCH NEXT @PageSize ROWS ONLY
@@ -367,7 +388,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		if (rowList.Count == 0)
 		{
 			// No rows on this page — get the total count separately to report it
-			var countSql = $"SELECT COUNT(*) FROM [{_tableName}] {whereClause}";
+			var countSql = $"SELECT COUNT(*) FROM {_qualifiedTable} {whereClause}";
 			var totalCount = await connection.ExecuteScalarAsync<long>(
 					new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
@@ -634,7 +655,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			cancellationToken);
 
 	private SqlServerPositionedProjectionStore<TProjection> Positioned() =>
-		new(_connectionFactory, _tableName);
+		new(_connectionFactory, _qualifiedTable);
 
 	/// <summary>
 	/// The tenant term every statement in this store is partitioned by.

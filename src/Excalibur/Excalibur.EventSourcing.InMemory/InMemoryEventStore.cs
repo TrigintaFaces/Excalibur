@@ -323,7 +323,7 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
  if (eventList.Count == 0)
  {
  // Performance optimization: - ValueTask avoids heap allocation for sync completions
- return new ValueTask<AppendResult>(AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null));
+ return new ValueTask<AppendResult>(AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null));
  }
 
  using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -390,7 +390,7 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
    // append and silently false about the call: these rows are durable, but they are a prior
    // attempt's, and anything may have happened to them since -- an erasure included.
    return new ValueTask<AppendResult>(
-    AppendResult.CreateAlreadyCommitted(aggregateEvents[i].Version, firstEventPosition: null));
+    AppendResult.CreateAlreadyCommitted(aggregateEvents[i].Version, firstEventPosition: null, lastEventPosition: null));
   }
  }
 
@@ -449,7 +449,10 @@ internal sealed class InMemoryEventStore: IEventStore, IEventStoreErasure, IEven
 
  _ = (activity?.SetTag(EventSourcingTags.Version, version));
  activity.SetOperationResult(EventSourcingTagValues.Success);
- return new ValueTask<AppendResult>(AppendResult.CreateSuccess(version, firstPosition));
+ // Interlocked.Add above reserved exactly eventList.Count consecutive positions, so the last
+ // event sits at firstPosition + eventList.Count - 1.
+ return new ValueTask<AppendResult>(
+  AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1));
  }
  }
  }

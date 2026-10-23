@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Excalibur.Compliance.Erasure;
+using Excalibur.Dispatch;
+
 namespace Excalibur.Dispatch.Security.Tests.Compliance.Erasure;
 
 /// <summary>
@@ -835,6 +837,7 @@ public sealed class ErasureVerificationServiceShould
 	{
 		return new ErasureStatus
 		{
+			TenantPartition = KeyedTenantPartition.Scoped("tenant-1"),
 			RequestId = requestId,
 			DataSubjectIdHash = "hash-abc123",
 			IdType = DataSubjectIdType.UserId,

@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS "compliance"."erasure_requests" (
     -- TOTAL, not nullable: an untenanted request holds the reserved sentinel rather than the
     -- absence of a value, so there is exactly one way to say "no tenant".
     tenant_id               VARCHAR(64)   NOT NULL DEFAULT '__untenanted__',
+    -- NO DEFAULT, deliberately. tenant_id above is the OWNER the data was encrypted under; this is the
+    -- PARTITION a retention declaration names, and the two differ in a single-tenant deployment. There
+    -- is no value safe to guess: guessing untenanted makes a multi-tenant row inherit another
+    -- partition's legal obligations, and guessing the owner is what destroyed retained keys. An INSERT
+    -- that omits it must fail, loudly.
+    tenant_partition        VARCHAR(64)   NOT NULL,
     scope                   INT            NOT NULL,
     legal_basis_v2          INT            NOT NULL,
     external_reference      VARCHAR(256)   NULL,

@@ -13,7 +13,7 @@ public sealed class InMemoryProjectionRegistryShould
 
 	private static ProjectionRegistration CreateRegistration(
 		Type projectionType,
-		ProjectionMode mode = ProjectionMode.Inline)
+		ProjectionMode mode = ProjectionMode.Async)
 	{
 		return new ProjectionRegistration(
 			projectionType,
@@ -45,14 +45,14 @@ public sealed class InMemoryProjectionRegistryShould
 		// Assert
 		result.ShouldNotBeNull();
 		result.ProjectionType.ShouldBe(typeof(OrderSummary));
-		result.Mode.ShouldBe(ProjectionMode.Inline);
+		result.Mode.ShouldBe(ProjectionMode.Async);
 	}
 
 	[Fact]
 	public void ReplaceExistingRegistrationForSameType()
 	{
 		// Arrange
-		var first = CreateRegistration(typeof(OrderSummary), ProjectionMode.Inline);
+		var first = CreateRegistration(typeof(OrderSummary), ProjectionMode.Ephemeral);
 		var second = CreateRegistration(typeof(OrderSummary), ProjectionMode.Async);
 
 		// Act
@@ -83,16 +83,16 @@ public sealed class InMemoryProjectionRegistryShould
 	public void FilterByMode()
 	{
 		// Arrange
-		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Inline));
+		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Ephemeral));
 		_registry.Register(CreateRegistration(typeof(InventoryView), ProjectionMode.Async));
 
 		// Act
-		var inlineOnly = _registry.GetByMode(ProjectionMode.Inline);
+		var ephemeralOnly = _registry.GetByMode(ProjectionMode.Ephemeral);
 		var asyncOnly = _registry.GetByMode(ProjectionMode.Async);
 
 		// Assert
-		inlineOnly.Count.ShouldBe(1);
-		inlineOnly[0].ProjectionType.ShouldBe(typeof(OrderSummary));
+		ephemeralOnly.Count.ShouldBe(1);
+		ephemeralOnly[0].ProjectionType.ShouldBe(typeof(OrderSummary));
 		asyncOnly.Count.ShouldBe(1);
 		asyncOnly[0].ProjectionType.ShouldBe(typeof(InventoryView));
 	}
@@ -101,7 +101,7 @@ public sealed class InMemoryProjectionRegistryShould
 	public void ReturnEmptyListWhenNoMatchingMode()
 	{
 		// Arrange
-		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Inline));
+		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Async));
 
 		// Act
 		var ephemeral = _registry.GetByMode(ProjectionMode.Ephemeral);

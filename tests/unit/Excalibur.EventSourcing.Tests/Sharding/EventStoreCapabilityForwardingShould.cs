@@ -319,7 +319,7 @@ public sealed class EventStoreCapabilityForwardingShould
 			IEnumerable<IDomainEvent> events,
 			long expectedVersion,
 			CancellationToken cancellationToken) =>
-			ValueTask.FromResult(AppendResult.CreateSuccess(0, 0));
+			ValueTask.FromResult(AppendResult.CreateSuccess(0, 0, 0));
 	}
 
 	private sealed class TransactionalStore : PlainStore, ITransactionalEventStore
@@ -339,7 +339,7 @@ public sealed class EventStoreCapabilityForwardingShould
 		{
 			TransactionalAppends++;
 			Staged.AddRange(events);
-			return ValueTask.FromResult(AppendResult.CreateSuccess(0, 0));
+			return ValueTask.FromResult(AppendResult.CreateSuccess(0, 0, 0));
 		}
 	}
 

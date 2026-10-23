@@ -362,7 +362,7 @@ builder.Services.AddScoped<OrderFullTextSearchRepository>();
 // ============================================================================
 // Materialized Views
 // ============================================================================
-// In addition to the inline projection handlers below, we wire up an
+// In addition to the projection handlers below, we wire up an
 // IMaterializedViewBuilder<CustomerOrderCountView> to demonstrate the
 // view-id + position-tracking pattern. The framework catches-up each
 // view builder independently from the last saved position.
@@ -377,10 +377,10 @@ builder.Services.AddMaterializedViews(views =>
 });
 
 // ============================================================================
-// Inline Projection Handlers (Framework-managed)
+// Projection Handlers (Framework-managed)
 // ============================================================================
 // Register projection handlers through the framework pipeline.
-// The framework manages load, handler invocation, and upsert automatically.
+// The projection host manages load, handler invocation, and upsert automatically.
 
 builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 {
@@ -394,19 +394,41 @@ builder.Services.AddExcalibur(excalibur => excalibur.AddEventSourcing(es =>
 	es.AddRepository<CustomerAggregate, Guid>(id => new CustomerAggregate(id));
 	es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
 
+	// WITHOUT THIS THE PROJECTIONS BELOW NEVER ADVANCE. Async projections are applied by the projection
+	// host, which polls the global event stream; registering a projection does not start one. This is
+	// the obligation that replaced the old inline mode: the save no longer writes read models, so
+	// something has to. A host that cannot run a BackgroundService -- a Function, a Lambda -- calls
+	// IProjectionProcessor.ProcessPendingAsync on its trigger instead.
+	es.EnableProjectionProcessing(options => options.SubscriptionScope = "customer-cdc/sql-events/elasticsearch-customers");
+
 	// Snapshot every 100 events to keep aggregate rehydration fast
 	es.UseIntervalSnapshots(100);
 
+	// ASYNC, NOT INLINE -- and this sample is where the difference bit a real consumer.
+	//
+	// These projections live in Elasticsearch while the events live in SQL Server. No transaction spans
+	// those two systems, so folding the projection during SaveAsync was a second, uncoordinated write:
+	// two concurrent saves could both read a row, both fold it, and the last write won, with both
+	// callers told the save succeeded. The projection host applies events in position order instead, so
+	// that cannot happen.
+	//
+	// A request that must see its own write does not poll and does not sleep. It carries the token:
+	//
+	//     var saved = await repository.SaveAsync(order, ct);
+	//     var read  = await sessionReader.ReadAsync<OrderSearchProjection>(id, saved, ct);
+	//     // read.Freshness is Fresh when the projection observed THIS write,
+	//     // BoundExpired when it could not be confirmed within the configured bound.
+	//
 	// CustomerSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
 	es.AddProjection<CustomerSearchProjection>(p => p
-		.Inline()
+		.Async()
 		.WhenHandledBy<CustomerCreated, CustomerCreatedHandler>()
 		.WhenHandledBy<CustomerOrderPlaced, CustomerOrderPlacedHandler>()
 		.When<CustomerDeactivated>((proj, _) => { proj.IsActive = false; }));
 
 	// OrderSearchProjection: uses IProjectionEventHandler<T, TEvent> classes
 	es.AddProjection<OrderSearchProjection>(p => p
-		.Inline()
+		.Async()
 		.WhenHandledBy<OrderCreated, OrderCreatedProjectionHandler>()
 		.WhenHandledBy<OrderLineItemAdded, OrderLineItemAddedProjectionHandler>()
 		.WhenHandledBy<OrderLineItemUpdated, OrderLineItemUpdatedProjectionHandler>()

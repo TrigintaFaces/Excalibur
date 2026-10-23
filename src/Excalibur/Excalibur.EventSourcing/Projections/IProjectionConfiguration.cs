@@ -23,7 +23,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// {
 ///     public void Configure(IProjectionBuilder&lt;OrderSummary&gt; builder)
 ///     {
-///         builder.Inline()
+///         builder.Async()
 ///             .When&lt;OrderPlaced&gt;((proj, e) =&gt; { proj.Total = e.Amount; })
 ///             .When&lt;OrderShipped&gt;((proj, e) =&gt; { proj.ShippedAt = e.ShippedAt; });
 ///     }

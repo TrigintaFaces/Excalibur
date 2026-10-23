@@ -49,6 +49,7 @@ internal static class DeclaredObligations
 			DataSubjectIdHash = status.DataSubjectIdHash,
 			IdType = status.IdType,
 			TenantId = status.TenantId,
+			TenantPartition = status.TenantPartition,
 			Scope = status.Scope,
 			DeclaredLocations = declared
 		};

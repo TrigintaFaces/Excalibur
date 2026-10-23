@@ -135,7 +135,7 @@ public sealed class EventSourcedRepositoryDepthShould
 		aggregate.Create("agg-1");
 
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IReadOnlyList<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repo = CreateRepository();
 
@@ -204,7 +204,7 @@ public sealed class EventSourcedRepositoryDepthShould
 		aggregate.Create("agg-1");
 
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IReadOnlyList<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repo = CreateRepository();
 
@@ -224,7 +224,7 @@ public sealed class EventSourcedRepositoryDepthShould
 		aggregate.Create("agg-1");
 
 		A.CallTo(() => _eventStore.AppendAsync(A<string>._, A<string>._, A<IReadOnlyList<IDomainEvent>>._, A<long>._, A<CancellationToken>._))
-			.Returns(AppendResult.CreateSuccess(1, 0));
+			.Returns(AppendResult.CreateSuccess(1, 0, 0));
 
 		var repo = CreateRepository();
 

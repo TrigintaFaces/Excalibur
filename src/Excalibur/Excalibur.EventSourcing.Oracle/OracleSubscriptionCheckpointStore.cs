@@ -45,6 +45,7 @@ internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpoin
 
 	private readonly Func<OracleConnection> _connectionFactory;
 	private readonly string _table;
+	private readonly string _definitionsTable;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="OracleSubscriptionCheckpointStore"/> class.
@@ -61,6 +62,46 @@ internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpoin
 
 		_connectionFactory = connectionFactory;
 		_table = OracleTableName.Format(schema, table);
+		var definitionsTable = table + "DEFINITIONS";
+		if (definitionsTable.Length > 128)
+		{
+			throw new ArgumentException("The derived subscription definitions table name exceeds the provider identifier limit.", nameof(table));
+		}
+
+		_definitionsTable = OracleTableName.Format(schema, definitionsTable);
+	}
+
+	/// <inheritdoc />
+	public async Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+		cancellationToken.ThrowIfCancellationRequested();
+		await using var connection = _connectionFactory();
+		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+#pragma warning disable CA2100 // Identifiers validated in the constructor
+			_ = await connection.ExecuteAsync(new CommandDefinition(
+				$"INSERT INTO {_definitionsTable} (SUBSCRIPTIONNAME, DEFINITIONHASH) VALUES (:Name, :Hash)",
+				new { Name = subscriptionName, Hash = definitionHash },
+				cancellationToken: cancellationToken)).ConfigureAwait(false);
+#pragma warning restore CA2100
+		}
+		catch (Exception ex) when (IsUniqueViolation(ex))
+		{
+			// The immutable primary-key winner is compared below. A collision never overwrites it.
+		}
+
+		// No operation in this contract changes or deletes a definition. A separate read after the
+		// insert therefore observes the same immutable winner even when another instance won first.
+#pragma warning disable CA2100 // Identifiers validated in the constructor
+		var actual = await connection.ExecuteScalarAsync<string>(new CommandDefinition(
+			$"SELECT DEFINITIONHASH FROM {_definitionsTable} WHERE SUBSCRIPTIONNAME = :Name",
+			new { Name = subscriptionName },
+			cancellationToken: cancellationToken)).ConfigureAwait(false);
+#pragma warning restore CA2100
+		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
 	}
 
 	/// <inheritdoc />

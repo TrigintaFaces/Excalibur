@@ -35,7 +35,11 @@ public sealed class MongoDbCdcReconnectBoundShould
 		var processor = CreateProcessor(stream, new CdcFatalErrorOptions<MongoDbDataChangeEvent>
 		{
 			MaxConsecutiveTransientFailures = 3,
-			MaxReconnectDelay = TimeSpan.FromMilliseconds(20),
+MaxReconnectDelay = TimeSpan.FromMilliseconds(20),
+			// The stability threshold is now ITS OWN option, so a 20ms delay cap keeps these arms
+			// fast without also declaring that an attempt surviving 20ms of wall clock was healthy.
+			// It was the latter that reset the failure counter under load and bought a fourth retry.
+			AttemptStabilityThreshold = TimeSpan.FromMinutes(1),
 		});
 		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
@@ -59,6 +63,10 @@ public sealed class MongoDbCdcReconnectBoundShould
 		{
 			MaxConsecutiveTransientFailures = 2,
 			MaxReconnectDelay = TimeSpan.FromMilliseconds(20),
+			// The stability threshold is now ITS OWN option, so a 20ms delay cap keeps these arms
+			// fast without also declaring that an attempt surviving 20ms of wall clock was healthy.
+			// It was the latter that reset the failure counter under load and bought a fourth retry.
+			AttemptStabilityThreshold = TimeSpan.FromMinutes(1),
 			OnFatalError = (ex, _) =>
 			{
 				handled = ex;
@@ -123,7 +131,11 @@ public sealed class MongoDbCdcReconnectBoundShould
 			Options.Create(new CdcFatalErrorOptions<MongoDbDataChangeEvent>
 			{
 				MaxConsecutiveTransientFailures = 2,
-				MaxReconnectDelay = TimeSpan.FromMilliseconds(20),
+					MaxReconnectDelay = TimeSpan.FromMilliseconds(20),
+			// The stability threshold is now ITS OWN option, so a 20ms delay cap keeps these arms
+			// fast without also declaring that an attempt surviving 20ms of wall clock was healthy.
+			// It was the latter that reset the failure counter under load and bought a fourth retry.
+			AttemptStabilityThreshold = TimeSpan.FromMinutes(1),
 				OnFatalError = (_, change) =>
 				{
 					handedOver = change;
