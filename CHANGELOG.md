@@ -69,6 +69,16 @@ success. Every persistent store shipped here records positions, so this affects 
 you have stopped every other writer for the duration, `services.AllowUnpositionedProjectionRebuild()`
 records that — it attests exclusivity, not safety.
 
+### Changed (breaking) — the slow-apply warning option was renamed
+
+`EventNotificationOptions.InlineProjectionWarningThreshold` is now
+`EventNotificationOptions.ProjectionApplyWarningThreshold`. It was named for a processing mode that no
+longer exists (see the inline-projection removal above). A slow apply is also the earliest signal that
+session-consistent reads are about to report an expired bound, which is what the warning is for.
+
+## [10.0.0-alpha.16] - 2026-10-21
+
+
 ### Security (breaking) — field decryption now establishes who is asking
 
 `IFieldEncryptor.DecryptAsync` and `SubjectFieldCryptor.DecryptFieldsAsync` each gained an
@@ -309,22 +319,18 @@ sealed`, which removes seven entries from the public API surface.
 from the container instead.
 
 
-### Fixed — the slow-projection-apply warning is now emitted, with a per-projection threshold
+### Fixed — the slow-inline-projection warning is now emitted, with a per-projection threshold
 
-Two public settings promised a warning when a projection ran long, and **neither was read by any
-production code**: the global threshold on `EventNotificationOptions` and the per-projection
-`ProjectionOptions.WarningThreshold` reached through `WithOptions`. The global one was even validated at
-startup, so a host was told its value was in range and then nothing used it. An event ID for the warning
-was reserved and never emitted.
+Two public settings promised a warning when an inline projection ran long, and **neither was read by any
+production code**: the global `EventNotificationOptions.InlineProjectionWarningThreshold` and the
+per-projection `ProjectionOptions.WarningThreshold` reached through `WithOptions`. The global one was
+even validated at startup, so a host was told its value was in range and then nothing used it. An event
+ID for the warning was reserved and never emitted.
 
-The projection host now times each projection's apply and warns when it exceeds its threshold,
+`InlineProjectionProcessor` now times each projection's apply and warns when it exceeds its threshold,
 preferring the per-projection value and falling back to the global one — so one slow projection no longer
 forces every other projection's threshold up. The message names the projection, both durations, and the
-batch size. Timing goes through `TimeProvider`, so it is deterministic under test.
-
-The global setting is now `EventNotificationOptions.ProjectionApplyWarningThreshold`; it was named for a
-processing mode that no longer exists (see below). A slow apply is also the earliest signal that
-session-consistent reads are about to report an expired bound, which is what the warning is for.
+two ways to act on it. Timing goes through `TimeProvider`, so it is deterministic under test.
 
 ### Removed — `IProjectionBuilder<T>.WithStore<TStore>()`
 
