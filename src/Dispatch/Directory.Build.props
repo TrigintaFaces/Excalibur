@@ -13,7 +13,16 @@
   <Target Name="ValidateDependencyDirection" BeforeTargets="Build" Condition="'$(SkipDependencyValidation)' != 'true'">
     <ItemGroup>
       <!-- Flag references to Excalibur packages that are NOT Excalibur.Dispatch (self-references are allowed) -->
-      <_ExcaliburReference Include="@(ProjectReference)" Condition="$([System.String]::new('%(Identity)').Contains('Excalibur')) AND !$([System.String]::new('%(Identity)').Contains('Excalibur.Dispatch'))" />
+      <!--
+        Match the referenced PROJECT NAME, never %(Identity). %(Identity) is the item spec AS
+        AUTHORED, after property expansion: a hand-written relative Include yields a relative path,
+        but an Include built from $(MSBuildThisFileDirectory) yields an absolute one that carries
+        the checkout directory name. A path-based match therefore gives one answer in a clone named
+        Excalibur.Dispatch and the opposite in a clone named Excalibur, for the same tree, depending
+        only on how each Include happened to be written. %(Filename) is the referenced project's
+        name, which is what this rule is actually about and is independent of both.
+      -->
+      <_ExcaliburReference Include="@(ProjectReference)" Condition="$([System.String]::new('%(Filename)').Contains('Excalibur')) AND !$([System.String]::new('%(Filename)').Contains('Excalibur.Dispatch'))" />
     </ItemGroup>
     <Error Condition="'@(_ExcaliburReference)' != ''"
            Text="FORBIDDEN: Dispatch projects cannot reference Excalibur packages. Dependency direction must be Excalibur → Excalibur.Dispatch. Found: @(_ExcaliburReference)" />
