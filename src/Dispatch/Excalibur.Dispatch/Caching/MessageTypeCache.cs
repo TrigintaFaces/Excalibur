@@ -21,20 +21,19 @@ internal static class MessageTypeCache
 	private static readonly Lock _initLock = new();
 
 
-	/// <summary>
-	/// Pre-computed type metadata using frozen collections for O(1) lookup performance.
-	/// </summary>
-	private static FrozenDictionary<Type, MessageTypeMetadata> _typeCache =
-		FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+	private sealed record CacheSnapshot(
+		FrozenDictionary<Type, MessageTypeMetadata> Types,
+		IReadOnlyDictionary<string, Type> Names,
+		bool Initialized)
+	{
+		internal static CacheSnapshot Empty { get; } = new(
+			FrozenDictionary<Type, MessageTypeMetadata>.Empty,
+			FrozenDictionary<string, Type>.Empty,
+			false);
+	}
 
+	private static CacheSnapshot _snapshot = CacheSnapshot.Empty;
 	private static readonly ConcurrentDictionary<Type, MessageTypeMetadata> _fallbackTypeCache = new();
-
-	// Keep name lookups on an ordinal Dictionary to avoid runtime instability in FrozenDictionary<string, T>
-	// for some nested-type key layouts on current .NET 10 builds. The field remains interface-typed so
-	// tests can safely reset it via reflection to FrozenDictionary.Empty.
-	private static IReadOnlyDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
-
-	private static volatile bool _initialized;
 
 	/// <summary>
 	/// Initializes the cache with the specified message types. This should be called once during application startup with all known message types.
@@ -52,7 +51,7 @@ internal static class MessageTypeCache
 
 		lock (_initLock)
 		{
-			if (_initialized)
+			if (Volatile.Read(ref _snapshot).Initialized)
 			{
 				return;
 			}
@@ -71,10 +70,11 @@ internal static class MessageTypeCache
 
 				var metadata = new MessageTypeMetadata(type);
 				typeDict[type] = metadata;
-				nameDict[metadata.FullName] = type;
-
-				// Also cache by simple name for flexibility
-				_ = nameDict.TryAdd(metadata.SimpleName, type);
+				ClaimName(MessageNameHelper.GetDeclaredName(type), type, nameDict);
+				foreach (var alias in MessageNameHelper.GetDeclaredAliases(type))
+				{
+					ClaimName(alias, type, nameDict);
+				}
 			}
 
 			if (nullCount > 0)
@@ -86,10 +86,9 @@ internal static class MessageTypeCache
 					nullCount);
 			}
 
-			_typeCache = typeDict.ToFrozenDictionary();
-			_nameToTypeCache = new Dictionary<string, Type>(nameDict, StringComparer.Ordinal);
+			var snapshot = new CacheSnapshot(typeDict.ToFrozenDictionary(), nameDict, true);
 			_fallbackTypeCache.Clear();
-			_initialized = true;
+			Volatile.Write(ref _snapshot, snapshot);
 		}
 	}
 
@@ -100,7 +99,7 @@ internal static class MessageTypeCache
 	/// <returns> Cached metadata or null if not found. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static MessageTypeMetadata? GetMetadata(Type messageType) =>
-		_typeCache.GetValueOrDefault(messageType);
+		Volatile.Read(ref _snapshot).Types.GetValueOrDefault(messageType);
 
 	/// <summary>
 	/// Gets cached metadata for the specified message type, computing it if not found.
@@ -112,7 +111,7 @@ internal static class MessageTypeCache
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
 		Type messageType)
 	{
-		if (_typeCache.TryGetValue(messageType, out var metadata))
+		if (Volatile.Read(ref _snapshot).Types.TryGetValue(messageType, out var metadata))
 		{
 			return metadata;
 		}
@@ -135,9 +134,9 @@ internal static class MessageTypeCache
 	}
 
 	/// <summary>
-	/// Resolves a message type from its name. Returns null if the type name is not in the cache.
+	/// Resolves a registered message type from its declared name or alias. Returns null if the type name is not in the cache.
 	/// </summary>
-	/// <param name="typeName"> The full or simple name of the type. </param>
+	/// <param name="typeName"> The declared name or alias of the type. </param>
 	/// <returns> The resolved type or null if not found. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public static Type? ResolveType(string typeName)
@@ -147,26 +146,18 @@ internal static class MessageTypeCache
 			return null;
 		}
 
-		return _nameToTypeCache.TryGetValue(typeName, out var type)
+		return Volatile.Read(ref _snapshot).Names.TryGetValue(typeName, out var type)
 			? type
 			: null;
 	}
 
 	/// <summary>
-	/// Gets the type name for routing purposes without allocation.
+	/// Gets the declared message name for routing, or null for an unnamed local message.
 	/// </summary>
 	/// <param name="messageType"> The message type. </param>
-	/// <returns> The cached type name. </returns>
+	/// <returns> The declared name, or null. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static string GetTypeName(Type messageType)
-	{
-		ArgumentNullException.ThrowIfNull(messageType);
-		return _typeCache.TryGetValue(messageType, out var metadata)
-			? metadata.FullName
-			: _fallbackTypeCache.TryGetValue(messageType, out var fallbackMetadata)
-				? fallbackMetadata.FullName
-				: messageType.FullName ?? messageType.Name;
-	}
+	public static string? GetTypeName(Type messageType) => MessageNameHelper.GetDeclaredName(messageType);
 
 	/// <summary>
 	/// Checks if a type is in the cache.
@@ -174,13 +165,13 @@ internal static class MessageTypeCache
 	/// <param name="messageType"> The type to check. </param>
 	/// <returns> True if the type is cached, false otherwise. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool IsCached(Type messageType) => _typeCache.ContainsKey(messageType);
+	public static bool IsCached(Type messageType) => Volatile.Read(ref _snapshot).Types.ContainsKey(messageType);
 
 	/// <summary>
 	/// Gets all cached message types.
 	/// </summary>
 	/// <returns> Collection of all cached types. </returns>
-	public static IReadOnlyCollection<Type> GetCachedTypes() => _typeCache.Keys;
+	public static IReadOnlyCollection<Type> GetCachedTypes() => Volatile.Read(ref _snapshot).Types.Keys;
 
 	/// <summary>
 	/// Resets the cache to its initial empty state. Intended for testing only
@@ -190,10 +181,25 @@ internal static class MessageTypeCache
 	{
 		lock (_initLock)
 		{
-			_typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
-			_nameToTypeCache = FrozenDictionary<string, Type>.Empty;
 			_fallbackTypeCache.Clear();
-			_initialized = false;
+			Volatile.Write(ref _snapshot, CacheSnapshot.Empty);
 		}
 	}
+	/// <summary>Claims a declared name before publishing a complete snapshot.</summary>
+	/// <exception cref="InvalidOperationException">Two types claim the same declared name.</exception>
+	private static void ClaimName(string? name, Type type, Dictionary<string, Type> names)
+	{
+		if (name is null)
+		{
+			return;
+		}
+
+		if (names.TryGetValue(name, out var existing) && existing != type)
+		{
+			throw new InvalidOperationException($"Message identity '{name}' is declared by both '{existing}' and '{type}'.");
+		}
+
+		names[name] = type;
+	}
+
 }

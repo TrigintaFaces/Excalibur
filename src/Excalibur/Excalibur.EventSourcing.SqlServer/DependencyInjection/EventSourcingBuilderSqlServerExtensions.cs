@@ -228,6 +228,22 @@ public static class EventSourcingBuilderSqlServerExtensions
 		RegisterSnapshotStore(builder.Services);
 		RegisterGlobalStreamQuery(builder.Services);
 
+		// The automatic Inline checkpoint belongs to the same provider binding as the global reader.
+		// Keep this pair separate from consumer-supplied Async checkpoint registrations.
+		if (ownsPrimaryConnections)
+		{
+			builder.Services.TryAddSingleton(sp =>
+			{
+				var binding = sp.GetRequiredService<ProviderBinding>();
+				using var connection = binding.ConnectionFactory();
+				var identity = string.Join("|", new[] { "sqlserver", connection.DataSource, connection.Database,
+					binding.EventStoreSchema, binding.EventStoreTable }.Select(static value => value.Replace("%", "%25", StringComparison.Ordinal).Replace("|", "%7C", StringComparison.Ordinal)));
+				return new Excalibur.EventSourcing.Projections.InlineProjectionSource(identity,
+					new SqlServerSubscriptionCheckpointStore(binding.ConnectionFactory, binding.EventStoreSchema),
+					sp.GetRequiredService<GlobalReaderBinding>().Query);
+			});
+		}
+
 		// Register materialized view store if enabled via UseMaterializedViewStore()
 		if (sqlBuilder.EnableMaterializedViewStore)
 		{
@@ -301,7 +317,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>(),
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				schema: binding.SnapshotStoreSchema,
-				table: binding.SnapshotStoreTable);
+				table: binding.SnapshotStoreTable, metadataResolver: binding.EventTypeInfoResolver);
 		});
 
 		SqlServerEventSourcingServiceCollectionExtensions.RegisterSnapshotStoreTelemetryWrapper(services);
@@ -310,7 +326,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 	private static void RegisterGlobalStreamQuery(
 		IServiceCollection services)
 	{
-		services.TryAddSingleton<IGlobalStreamQuery>(sp =>
+		services.TryAddSingleton<GlobalReaderBinding>(sp =>
 		{
 			var binding = sp.GetRequiredService<ProviderBinding>();
 			// The provider is wrapped in ContiguousGlobalStreamQuery HERE rather than left to the
@@ -331,16 +347,19 @@ public static class EventSourcingBuilderSqlServerExtensions
 			var cold = TieredStorageServiceCollectionExtensions.ResolveGlobalColdStore(sp, binding.SourceIdentity);
 			if (cold is null)
 			{
-				return global;
+				return new GlobalReaderBinding(global);
 			}
 			if (!binding.OwnsPrimaryConnections)
 			{
 				throw new InvalidOperationException("Global archive hydration requires an owned primary SQL Server connection factory.");
 			}
-			return new TieredGlobalStreamQuery(global, cold, new SqlServerAuthoritativeEventReader(
-				binding.ConnectionFactory, binding.EventStoreSchema, binding.EventStoreTable, authorizedTenant: null));
+			return new GlobalReaderBinding(new TieredGlobalStreamQuery(global, cold, new SqlServerAuthoritativeEventReader(
+				binding.ConnectionFactory, binding.EventStoreSchema, binding.EventStoreTable, authorizedTenant: null)));
 		});
+		services.TryAddSingleton<IGlobalStreamQuery>(sp => sp.GetRequiredService<GlobalReaderBinding>().Query);
 	}
+
+	private sealed record GlobalReaderBinding(IGlobalStreamQuery Query);
 
 	private static void RegisterMaterializedViewStore(
 		IServiceCollection services,

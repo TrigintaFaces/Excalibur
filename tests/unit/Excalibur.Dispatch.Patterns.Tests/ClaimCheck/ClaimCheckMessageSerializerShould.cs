@@ -231,7 +231,7 @@ public sealed class ClaimCheckMessageSerializerShould
 		result[0].ShouldBe((byte)0x01);
 		result.AsSpan(1).ToArray().ShouldBe(envelopePayload);
 		A.CallTo(() => _fakeProvider.StoreAsync(largePayload, A<CancellationToken>._, A<ClaimCheckMetadata>.That.Matches(m =>
-			m.MessageType == "TestMessage" &&
+			m.MessageType == null &&
 			m.ContentType == "application/json")))
 			.MustHaveHappenedOnceExactly();
 	}
@@ -246,6 +246,41 @@ public sealed class ClaimCheckMessageSerializerShould
 		await Should.ThrowAsync<ArgumentNullException>(() =>
 			serializer.SerializeAsync<TestMessage>(null!, CancellationToken.None).AsTask());
 	}
+
+	[Fact]
+	public async Task StoreTheRuntimeDeclaredIdentityWhenSerializedAsObject()
+	{
+		var stub = new StubSerializer();
+		stub.SetupSerialize<object>(_ => new byte[2000]);
+		ClaimCheckEnvelope? envelope = null;
+		stub.SetupSerialize<ClaimCheckEnvelope>(value => { envelope = value; return new byte[50]; });
+		A.CallTo(() => _fakeProvider.StoreAsync(A<byte[]>._, A<CancellationToken>._, A<ClaimCheckMetadata>._))
+			.Returns(new ClaimCheckReference { Id = "named", Location = "blob://test" });
+		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
+		_ = await serializer.SerializeAsync<object>(new NamedDispatchMessage(), CancellationToken.None);
+		envelope.ShouldNotBeNull();
+		envelope.MessageType.ShouldBe("claim-check.named");
+		A.CallTo(() => _fakeProvider.StoreAsync(A<byte[]>._, A<CancellationToken>._,
+			A<ClaimCheckMetadata>.That.Matches(value => value.MessageType == "claim-check.named")))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task RefuseAnUnnamedDispatchMessageBeforeStoringItsBlob()
+	{
+		var stub = new StubSerializer();
+		stub.SetupSerialize<UnnamedDispatchMessage>(_ => new byte[2000]);
+		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			serializer.SerializeAsync(new UnnamedDispatchMessage(), CancellationToken.None).AsTask());
+		A.CallTo(() => _fakeProvider.StoreAsync(A<byte[]>._, A<CancellationToken>._, A<ClaimCheckMetadata>._))
+			.MustNotHaveHappened();
+	}
+
+	[MessageName("claim-check.named")]
+	private sealed class NamedDispatchMessage : IDispatchMessage;
+
+	private sealed class UnnamedDispatchMessage : IDispatchMessage;
 
 	#endregion
 

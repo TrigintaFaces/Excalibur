@@ -39,7 +39,7 @@ internal static class TransportContextFactory
 		// command received over this transport isn't silently untenanted when a tenant is ambiently
 		// established for the receiving async flow.
 		context.ApplyAmbientTenantFallback();
-		context.SetMessageType(message.GetType().FullName);
+		context.SetMessageType(MessageNameHelper.GetDeclaredName(message.GetType()));
 		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 		return context;

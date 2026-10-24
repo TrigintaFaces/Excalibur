@@ -268,7 +268,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task StageMessageAsync_WithScheduledAt_ShouldStoreCorrectly()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(StageMessageAsync_WithScheduledAt_ShouldStoreCorrectly), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -462,7 +462,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task MarkFailedAsync_ShouldSetErrorMessage()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(MarkFailedAsync_ShouldSetErrorMessage), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -497,7 +497,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task MarkFailedAsync_ShouldSetRetryCount()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(MarkFailedAsync_ShouldSetRetryCount), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -558,7 +558,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(
 				nameof(MarkFailedAsync_AfterMarkSent_MustNotResurrectTheSentMessage),
@@ -676,7 +676,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(
 				nameof(MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage),
@@ -685,7 +685,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 			return;
 		}
 
-		if (store.GetService(typeof(IDeadLetterableOutboxStore)) is not IDeadLetterableOutboxStore deadLetterable)
+		if (ValidateCapability<IDeadLetterableOutboxStore>(store, store.GetService(typeof(IDeadLetterableOutboxStore))) is not IDeadLetterableOutboxStore deadLetterable)
 		{
 			SkipArm(
 				nameof(MarkFailedAsync_AfterMarkDeadLettered_MustNotResurrectTheDeadLetteredMessage),
@@ -795,13 +795,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim));
 			return;
 		}
 
-		if (store.GetService(typeof(IFencedDeadLetterableOutboxStore)) is not IFencedDeadLetterableOutboxStore fencedDeadLetter)
+		if (ValidateCapability<IFencedDeadLetterableOutboxStore>(store, store.GetService(typeof(IFencedDeadLetterableOutboxStore))) is not IFencedDeadLetterableOutboxStore fencedDeadLetter)
 		{
 			SkipArm(
 				nameof(MarkDeadLetteredAsync_OnAStaleToken_MustNotBuryALiveClaim),
@@ -936,13 +936,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied));
 			return;
 		}
 
-		if (store.GetService(typeof(IFencedClaimScopedOutboxStore)) is not IFencedClaimScopedOutboxStore claimScoped)
+		if (ValidateCapability<IFencedClaimScopedOutboxStore>(store, store.GetService(typeof(IFencedClaimScopedOutboxStore))) is not IFencedClaimScopedOutboxStore claimScoped)
 		{
 			SkipArm(
 				nameof(MarkFailedAsync_ForATerminalMessage_MustReportAlreadyTerminal_NotApplied),
@@ -1045,7 +1045,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsFailedMessagesAsync_ShouldRespectMaxRetries()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsFailedMessagesAsync_ShouldRespectMaxRetries), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1080,7 +1080,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsFailedMessagesAsync_ShouldRespectOlderThan()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsFailedMessagesAsync_ShouldRespectOlderThan), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1114,7 +1114,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsScheduledMessagesAsync_ShouldReturnScheduledBeforeThreshold()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsScheduledMessagesAsync_ShouldReturnScheduledBeforeThreshold), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1147,7 +1147,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsScheduledMessagesAsync_ShouldNotReturnImmediateMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsScheduledMessagesAsync_ShouldNotReturnImmediateMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1182,7 +1182,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldRemoveOldMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(CleanupAllTenantsSentMessagesAsync_ShouldRemoveOldMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1227,7 +1227,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldRespectBatchSize()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(CleanupAllTenantsSentMessagesAsync_ShouldRespectBatchSize), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1264,7 +1264,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_ShouldReflectMessageCounts()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_ShouldReflectMessageCounts), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1330,7 +1330,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_AfterOperations_ShouldUpdateAccurately()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_AfterOperations_ShouldUpdateAccurately), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -1525,7 +1525,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetStatistics_MustCountTenantedMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetStatistics_MustCountTenantedMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported by this store.");
 			return;
@@ -1629,7 +1629,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	{
 		ArgumentNullException.ThrowIfNull(store);
 
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			throw new TestFixtureAssertionException(
 				"This arm needs IOutboxStoreAdmin to tell a surviving row from a deleted one. Refusing rather "
@@ -1685,7 +1685,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	/// </remarks>
 	private async Task PrepareFencingAsync(IOutboxStore store)
 	{
-		_fencingDiagnostics = store.GetService(typeof(IFencedOutboxStoreDiagnostics)) as IFencedOutboxStoreDiagnostics;
+		_fencingDiagnostics = ValidateCapability<IFencedOutboxStoreDiagnostics>(store, store.GetService(typeof(IFencedOutboxStoreDiagnostics)));
 
 		if (_fencingDiagnostics is null)
 		{
@@ -1767,7 +1767,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	{
 		ArgumentNullException.ThrowIfNull(store);
 
-		return store.GetService(typeof(IOutboxStoreCapabilities)) is not IOutboxStoreCapabilities capabilities
+		return ValidateCapability<IOutboxStoreCapabilities>(store, store.GetService(typeof(IOutboxStoreCapabilities))) is not IOutboxStoreCapabilities capabilities
 			|| capabilities.SupportsSentTracking;
 	}
 
@@ -2324,7 +2324,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsFailedMessagesAsync_ShouldReturnOnlyFailedMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsFailedMessagesAsync_ShouldReturnOnlyFailedMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2372,7 +2372,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsFailedMessagesAsync_ShouldRespectBatchSize()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsFailedMessagesAsync_ShouldRespectBatchSize), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2405,7 +2405,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsScheduledMessagesAsync_ShouldRespectBatchSize()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsScheduledMessagesAsync_ShouldRespectBatchSize), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2575,7 +2575,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldPreserveRecentlySentMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(CleanupAllTenantsSentMessagesAsync_ShouldPreserveRecentlySentMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2624,7 +2624,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldPreservePendingMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(CleanupAllTenantsSentMessagesAsync_ShouldPreservePendingMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2655,7 +2655,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task CleanupAllTenantsSentMessagesAsync_ShouldPreserveFailedMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(CleanupAllTenantsSentMessagesAsync_ShouldPreserveFailedMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2696,7 +2696,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_EmptyStore_ShouldReportZeroCounts()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_EmptyStore_ShouldReportZeroCounts), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2731,7 +2731,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_ShouldTrackStagedMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_ShouldTrackStagedMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2773,7 +2773,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_ShouldTrackSentMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_ShouldTrackSentMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2820,7 +2820,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_ShouldTrackFailedMessages()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_ShouldTrackFailedMessages), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -2860,7 +2860,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task GetAllTenantsStatisticsAsync_ShouldTrackAllStatesTogether()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(GetAllTenantsStatisticsAsync_ShouldTrackAllStatesTogether), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -3011,7 +3011,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task ConcurrentMixedOperations_ShouldLeaveStatisticsConsistent()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(ConcurrentMixedOperations_ShouldLeaveStatisticsConsistent), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -3151,7 +3151,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_StaleToken_ShouldBeRefusedWithoutApplyingTheMutation));
 			return;
@@ -3223,7 +3223,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_Refusal_ShouldReportTheHighWaterMark()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_Refusal_ShouldReportTheHighWaterMark));
 			return;
@@ -3278,7 +3278,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_CurrentLeaderToken_ShouldClaimAndComplete()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_CurrentLeaderToken_ShouldClaimAndComplete));
 			return;
@@ -3334,13 +3334,13 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_HighWaterMark_ShouldSurviveCleanup()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_HighWaterMark_ShouldSurviveCleanup));
 			return;
 		}
 
-		if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+		if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 		{
 			SkipArm(nameof(Fencing_HighWaterMark_ShouldSurviveCleanup), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 			return;
@@ -3411,7 +3411,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_SupersededLeader_ShouldNeitherMutateNorLoseTheMessage));
 			return;
@@ -3514,7 +3514,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_SupersededAfterItsOwnClaim_ShouldRefuseTheMarkSent));
 			return;
@@ -3631,7 +3631,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced)
 		{
 			SkipOrFailUnfencedArm(nameof(Fencing_ReclaimedMessage_ShouldRefuseTheSupersededMarkSent));
 			return;
@@ -3716,8 +3716,8 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced
-			|| store.GetService(typeof(IFencedOutboxStoreDiagnostics)) is not IFencedOutboxStoreDiagnostics diagnostics)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced
+			|| ValidateCapability<IFencedOutboxStoreDiagnostics>(store, store.GetService(typeof(IFencedOutboxStoreDiagnostics))) is not IFencedOutboxStoreDiagnostics diagnostics)
 		{
 			SkipArm(nameof(FencingDiagnostics_GetHighWater_ShouldReportTheRecordedValue), typeof(IFencedOutboxStoreDiagnostics),
 				"This store does not expose the fencing diagnostics capability.");
@@ -3756,8 +3756,8 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 	public virtual async Task FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
-		if (store.GetService(typeof(IFencedOutboxStore)) is not IFencedOutboxStore fenced
-			|| store.GetService(typeof(IFencedOutboxStoreDiagnostics)) is not IFencedOutboxStoreDiagnostics diagnostics)
+		if (ValidateCapability<IFencedOutboxStore>(store, store.GetService(typeof(IFencedOutboxStore))) is not IFencedOutboxStore fenced
+			|| ValidateCapability<IFencedOutboxStoreDiagnostics>(store, store.GetService(typeof(IFencedOutboxStoreDiagnostics))) is not IFencedOutboxStoreDiagnostics diagnostics)
 		{
 			SkipArm(nameof(FencingDiagnostics_Reset_ShouldRefuseLoweringWithoutForceAndSucceedWithForce), typeof(IFencedOutboxStoreDiagnostics),
 				"This store does not expose the fencing diagnostics capability.");
@@ -3984,7 +3984,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 			await store.MarkFailedAsync(message.Id, "owner-boom", 2, CancellationToken.None).ConfigureAwait(false);
 
-			if (store.GetService(typeof(IOutboxStoreAdmin)) is IOutboxStoreAdmin admin)
+			if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is IOutboxStoreAdmin admin)
 			{
 				var failed = await admin.GetAllTenantsFailedMessagesAsync(100, null, 100, CancellationToken.None)
 					.ConfigureAwait(false);
@@ -4040,7 +4040,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 		try
 		{
-			if (store.GetService(typeof(IOutboxStoreAdmin)) is not IOutboxStoreAdmin admin)
+			if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is not IOutboxStoreAdmin admin)
 			{
 				SkipArm(nameof(MarkFailed_StaleLateReport_ShouldNotLowerTheAttemptCount), typeof(IOutboxStoreAdmin), "Admin interface not supported");
 				return;
@@ -4095,7 +4095,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 
 		try
 		{
-			if (store.GetService(typeof(IDeadLetterableOutboxStore)) is not IDeadLetterableOutboxStore deadLetterable)
+			if (ValidateCapability<IDeadLetterableOutboxStore>(store, store.GetService(typeof(IDeadLetterableOutboxStore))) is not IDeadLetterableOutboxStore deadLetterable)
 			{
 				SkipArm(nameof(DeadLettered_ShouldBeTerminalOnBothRetrievalPaths), typeof(IDeadLetterableOutboxStore), "This store does not implement terminal dead-lettering.");
 				return;
@@ -4185,7 +4185,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 					+ "delivered, fail, and be dead-lettered again without end.");
 			}
 
-			if (store.GetService(typeof(IOutboxStoreAdmin)) is IOutboxStoreAdmin admin)
+			if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is IOutboxStoreAdmin admin)
 			{
 				var failed = await admin.GetAllTenantsFailedMessagesAsync(100, null, 100, CancellationToken.None)
 					.ConfigureAwait(false);
@@ -4271,7 +4271,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 			// PRIMARY DISCRIMINATOR: did the foreign report land at all? This does not depend on the
 			// re-claim window, so it sees a store that releases the claim and stamps the floor in one write —
 			// the shape the re-claim check below is blind to.
-			if (store.GetService(typeof(IOutboxStoreAdmin)) is IOutboxStoreAdmin ownershipAdmin)
+			if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is IOutboxStoreAdmin ownershipAdmin)
 			{
 				var recorded = await ownershipAdmin
 					.GetAllTenantsFailedMessagesAsync(100, null, 100, CancellationToken.None)
@@ -4298,7 +4298,7 @@ public abstract class OutboxStoreConformanceTestKit : ConformanceTestKit
 			}
 
 			// LIVENESS: the guard blocks non-owners only. The owner's own report still lands.
-			if (store.GetService(typeof(IOutboxStoreAdmin)) is IOutboxStoreAdmin admin)
+			if (ValidateCapability<IOutboxStoreAdmin>(store, store.GetService(typeof(IOutboxStoreAdmin))) is IOutboxStoreAdmin admin)
 			{
 				var owned = CreateTestMessage();
 				await store.StageMessageAsync(owned, CancellationToken.None).ConfigureAwait(false);

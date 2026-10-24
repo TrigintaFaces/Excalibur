@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!-- Code-fix assemblies keep Roslyn dependencies private; complete type inspection needs them here. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NetArchTest.Rules" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -30,8 +32,8 @@
     never masks a boundary violation — a forbidden reference is visible in GetReferencedAssemblies metadata)
     and self-maintaining (a new project or dependency flows in without editing this file).
 
-    Source-generator / analyzer projects are excluded — they are Roslyn analyzers, not runtime assemblies
-    under boundary test, and must never be referenced as normal runtime dependencies.
+    Source-generator projects are excluded. Analyzer/code-fix projects present in the closure are also
+    inspected; the explicit Roslyn workspace dependency above closes their private runtime dependencies.
 
     The Microsoft.AspNetCore.App FrameworkReference supplies the ASP.NET Core / shared-framework assemblies
     (e.g. Mvc.Core, ObjectPool) that are not copied into a library project's output.
@@ -51,4 +53,8 @@
     <Using Include="Shouldly" />
   </ItemGroup>
   <Import Project="PristineOptionLivenessInputs.targets" />
+  <ItemGroup>
+    <ProjectReference Include="../../../eng/tools/RepositoryChecks/RepositoryChecks.csproj" />
+    <ProjectReference Include="../../../eng/tools/RepositoryAnalyzers/RepositoryAnalyzers.csproj" />
+  </ItemGroup>
 </Project>

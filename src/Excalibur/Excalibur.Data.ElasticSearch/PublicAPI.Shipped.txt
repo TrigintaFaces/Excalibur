@@ -997,6 +997,8 @@ Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Nod
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.NodeUris.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.RequestTimeoutSeconds.get -> int
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.RequestTimeoutSeconds.set -> void
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.SourceTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.SourceTypeInfoResolver.set -> void
 Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions.Validate() -> void
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker
 Excalibur.Data.ElasticSearch.Projections.EventualConsistencyTracker.Dispose() -> void

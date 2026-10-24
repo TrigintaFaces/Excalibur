@@ -21,6 +21,21 @@ public sealed class TransportContextFactoryShould
 {
 	private readonly IServiceProvider _fakeServiceProvider = A.Fake<IServiceProvider>();
 
+	[Theory]
+	[InlineData(false, null)]
+	[InlineData(true, "context.named")]
+	public void ReceiveUsesDeclaredIdentityWithoutManufacturingAClrName(bool named, string? expected)
+	{
+		IDispatchMessage message = named ? new NamedMessage() : new UnnamedMessage();
+		var context = TransportContextFactory.CreateForReceive(message, _fakeServiceProvider, "identity");
+		context.GetMessageType().ShouldBe(expected);
+	}
+
+	[MessageName("context.named")]
+	private sealed class NamedMessage : IDispatchMessage;
+
+	private sealed class UnnamedMessage : IDispatchMessage;
+
 	#region CreateForReceive -- CorrelationId (T.1)
 
 	[Fact]
@@ -211,7 +226,7 @@ public sealed class TransportContextFactoryShould
 	#region CreateForReceive -- General Context Properties
 
 	[Fact]
-	public void CreateForReceive_SetMessageType_FromMessageRuntimeType()
+	public void CreateForReceive_LeaveUnnamedRuntimeTypeWithoutIdentity()
 	{
 		// Arrange
 		var domainEvent = A.Fake<IDomainEvent>();
@@ -222,7 +237,7 @@ public sealed class TransportContextFactoryShould
 		var context = TransportContextFactory.CreateForReceive(domainEvent, _fakeServiceProvider, messageId);
 
 		// Assert
-		context.GetMessageType().ShouldNotBeNullOrEmpty();
+		context.GetMessageType().ShouldBeNull();
 	}
 
 	[Fact]

@@ -53,6 +53,8 @@ public sealed class ConsulLeaderElectionKitConformanceShould
 {
 	private readonly ConsulContainerFixture _fixture;
 	private readonly List<ServiceProvider> _providers = [];
+	private readonly List<IAsyncDisposable> _factoryElections = [];
+	private bool _useFactory;
 
 	public ConsulLeaderElectionKitConformanceShould(ConsulContainerFixture fixture) => _fixture = fixture;
 
@@ -68,6 +70,12 @@ public sealed class ConsulLeaderElectionKitConformanceShould
 	/// </remarks>
 	public async ValueTask DisposeAsync()
 	{
+		foreach (var election in _factoryElections)
+		{
+			await election.DisposeAsync().ConfigureAwait(false);
+		}
+		_factoryElections.Clear();
+
 		foreach (var provider in _providers)
 		{
 			try
@@ -117,6 +125,16 @@ public sealed class ConsulLeaderElectionKitConformanceShould
 		var provider = services.BuildServiceProvider();
 		_providers.Add(provider);
 
+        if (_useFactory)
+        {
+            // Exercise the public concrete factory as well as the consumer's DI registration path.
+            // The factory receives the same real client, options, and fencing provider as the DI path.
+            var factory = ActivatorUtilities.CreateInstance<ConsulLeaderElectionFactory>(provider);
+            var election = factory.CreateElection(resourceName, instanceId);
+            _factoryElections.Add((IAsyncDisposable)election);
+            return election;
+        }
+
 		return provider.GetRequiredService<ILeaderElection>();
 	}
 
@@ -128,51 +146,147 @@ public sealed class ConsulLeaderElectionKitConformanceShould
 	/// </remarks>
 	protected override Task CleanupAsync() => Task.CompletedTask;
 
-	[Fact]
-	public Task StartAsync_ShouldInitiateParticipation_Test() => StartAsync_ShouldInitiateParticipation();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StartAsync_ShouldInitiateParticipation_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StartAsync_ShouldInitiateParticipation();
+    }
 
-	[Fact]
-	public Task StopAsync_ShouldRelinquishLeadership_Test() => StopAsync_ShouldRelinquishLeadership();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StopAsync_ShouldRelinquishLeadership_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StopAsync_ShouldRelinquishLeadership();
+    }
 
-	[Fact]
-	public Task StartAsync_AfterStop_ShouldRestartElection_Test() => StartAsync_AfterStop_ShouldRestartElection();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StartAsync_AfterStop_ShouldRestartElection_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StartAsync_AfterStop_ShouldRestartElection();
+    }
 
-	[Fact]
-	public Task StartAsync_SingleCandidate_ShouldBecomeLeader_Test() => StartAsync_SingleCandidate_ShouldBecomeLeader();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StartAsync_SingleCandidate_ShouldBecomeLeader_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StartAsync_SingleCandidate_ShouldBecomeLeader();
+    }
 
-	[Fact]
-	public Task StartAsync_SingleCandidate_IsLeaderShouldBeTrue_Test() => StartAsync_SingleCandidate_IsLeaderShouldBeTrue();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StartAsync_SingleCandidate_IsLeaderShouldBeTrue_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StartAsync_SingleCandidate_IsLeaderShouldBeTrue();
+    }
 
-	[Fact]
-	public Task StartAsync_SingleCandidate_CurrentLeaderIdShouldMatchCandidateId_Test() => StartAsync_SingleCandidate_CurrentLeaderIdShouldMatchCandidateId();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task StartAsync_SingleCandidate_CurrentLeaderIdShouldMatchCandidateId_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return StartAsync_SingleCandidate_CurrentLeaderIdShouldMatchCandidateId();
+    }
 
-	[Fact]
-	public Task MultipleCandidate_OnlyOneBecomesLeader_Test() => MultipleCandidate_OnlyOneBecomesLeader();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task MultipleCandidate_OnlyOneBecomesLeader_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return MultipleCandidate_OnlyOneBecomesLeader();
+    }
 
-	[Fact]
-	public Task MultipleCandidate_ReportedLeaderIdShouldNameTheLeader_Test() => MultipleCandidate_ReportedLeaderIdShouldNameTheLeader();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task MultipleCandidate_ReportedLeaderIdShouldNameTheLeader_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return MultipleCandidate_ReportedLeaderIdShouldNameTheLeader();
+    }
 
-	[Fact]
-	public Task MultipleCandidate_IncumbentShouldExcludeLaterCandidate_Test() => MultipleCandidate_IncumbentShouldExcludeLaterCandidate();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task MultipleCandidate_IncumbentShouldExcludeLaterCandidate_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return MultipleCandidate_IncumbentShouldExcludeLaterCandidate();
+    }
 
-	[Fact]
-	public Task ConcurrentContention_ExactlyOneLeader_Test() => ConcurrentContention_ExactlyOneLeader();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task ConcurrentContention_ExactlyOneLeader_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return ConcurrentContention_ExactlyOneLeader();
+    }
 
-	[Fact]
-	public Task BecameLeader_ShouldFireWhenElected_Test() => BecameLeader_ShouldFireWhenElected();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task BecameLeader_ShouldFireWhenElected_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return BecameLeader_ShouldFireWhenElected();
+    }
 
-	[Fact]
-	public Task LostLeadership_ShouldFireWhenStopped_Test() => LostLeadership_ShouldFireWhenStopped();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task LostLeadership_ShouldFireWhenStopped_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return LostLeadership_ShouldFireWhenStopped();
+    }
 
-	[Fact]
-	public Task LeaderChanged_ShouldFireOnLeadershipChange_Test() => LeaderChanged_ShouldFireOnLeadershipChange();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task LeaderChanged_ShouldFireOnLeadershipChange_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return LeaderChanged_ShouldFireOnLeadershipChange();
+    }
 
-	[Fact]
-	public Task CandidateId_ShouldBeUniquePerInstance_Test() => CandidateId_ShouldBeUniquePerInstance();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task CandidateId_ShouldBeUniquePerInstance_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return CandidateId_ShouldBeUniquePerInstance();
+    }
 
-	[Fact]
-	public Task CurrentLeadership_AfterStop_ShouldBeNull_Test() => CurrentLeadership_AfterStop_ShouldBeNull();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task CurrentLeadership_AfterStop_ShouldBeNull_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return CurrentLeadership_AfterStop_ShouldBeNull();
+    }
 
-	[Fact]
-	public Task ConformanceSuite_ShouldWireEveryArm_Test() => ConformanceSuite_ShouldWireEveryArm();
+	[Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task ConformanceSuite_ShouldWireEveryArm_Test(bool useFactory)
+    {
+        _useFactory = useFactory;
+        return ConformanceSuite_ShouldWireEveryArm();
+    }
 }

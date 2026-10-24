@@ -150,6 +150,20 @@ class VerdictTests(unittest.TestCase):
         self.assertTrue(any("/attempts/1/jobs?" in call[-1] for call in api.calls))
         self.assertGreater(len(report["api_evidence"]), 2)
 
+    def test_upstream_exception_refuses_stable_rc_and_missing_release_scope(self):
+        policy = 'eng/ci/inline-native-aot-known-diagnostics.json'
+        self.commit(policy)
+        try:
+            sha, run, jobs, api = self.full()
+            for version in (None, '10.0.0', '10.0.0-rc.1', '11.0.0-alpha.1'):
+                with self.subTest(version=version):
+                    args = {} if version is None else {'release_version': version}
+                    self.check(sha, api, 2, **args)
+            self.check(sha, api, release_version='10.0.0-alpha.17')
+        finally:
+            GATE.git('rm', policy)
+            GATE.git('commit', '-qm', 'retire fixture exception')
+
     def test_missing_renamed_duplicate_and_partial_jobs_refuse(self):
         sha, run, jobs, api = self.full()
         for mutation in ("missing", "renamed", "duplicate", "skipped", "incomplete", "old-attempt", "wrong-sha"):
@@ -183,6 +197,23 @@ class VerdictTests(unittest.TestCase):
                 job = next(job for job in changed if job['name'] == name)
                 job['steps'][0]['conclusion'] = 'skipped'
                 api.jobs[(10,1)] = changed
+                self.check(sha, api, 2)
+
+    def test_inline_native_publish_is_required_even_when_job_claims_success(self):
+        sha, run, jobs, api = self.full()
+        name = 'SQL Elasticsearch Inline Native AOT (Windows)'
+        required = 'Strict publish SQL Elasticsearch Inline native probe'
+        self.check(sha, api)
+        for state in ('missing', 'skipped', 'failure'):
+            with self.subTest(state=state):
+                changed = deepcopy(jobs)
+                job = next(job for job in changed if job['name'] == name)
+                step = next(step for step in job['steps'] if step['name'] == required)
+                if state == 'missing':
+                    job['steps'].remove(step)
+                else:
+                    step['conclusion'] = state
+                api.jobs[(10, 1)] = changed
                 self.check(sha, api, 2)
 
     def test_failed_cancelled_timed_out_unknown_jobs_fail(self):
@@ -385,18 +416,29 @@ class VerdictTests(unittest.TestCase):
         # nothing, and this arm reported "Refuse not raised" -- a mutation that no longer mutates.
         # Both halves of the split are listed so the pin is proven to cover each line, not just one.
         for command in ('docs_only="$(python3 eng/ci/release-test-verdict-gate.py --classify-base "$base" --sha "$head")"',
-                        'DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"',
+                        'DOCS_GATE_BASE_REF="${PR_BASE_SHA:-${MERGE_BASE_SHA:-$(git rev-parse HEAD^1)}}"',
                         'export DOCS_GATE_BASE_REF'):
             self.assertIn(command, WORKFLOW, 'mutation target absent: the arm would pass vacuously')
             with self.subTest(command=command), self.assertRaises(GATE.Refuse):
                 GATE.verify_docs_policy(WORKFLOW.replace(command, '# ' + command))
         for altered in (
-            WORKFLOW.replace('EVENT_NAME: ${{ github.event_name }}', 'EVENT_NAME: pull_request'),
+            WORKFLOW.replace('MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}', 'MERGE_BASE_SHA: ${{ github.sha }}'),
             WORKFLOW.replace('PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}', 'PR_BASE_SHA: ${{ github.sha }}'),
             WORKFLOW.replace('  changes:\n', '  other-classification:\n'),
         ):
+            self.assertNotEqual(WORKFLOW, altered, "Mutation must change the workflow")
             with self.assertRaises((GATE.Refuse, KeyError)):
                 GATE.verify_docs_policy(altered)
+
+    def test_docs_compiler_cannot_be_skipped_or_use_shallow_history(self):
+        for original, replacement in (
+            ("fetch-depth: 0", "fetch-depth: 1"),
+            ("needs.unit-tests.result == 'skipped'", "false"),
+            ('documentation-validation architecture-tests"', 'documentation-validation"'),
+        ):
+            self.assertIn(original, WORKFLOW)
+            with self.subTest(original=original), self.assertRaises(GATE.Refuse):
+                GATE.verify_docs_policy(WORKFLOW.replace(original, replacement))
 
     def test_preflight_candidate_and_required_wiring(self):
         preflight = GATE.job_sections(WORKFLOW)['preflight']

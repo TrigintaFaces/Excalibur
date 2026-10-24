@@ -262,6 +262,12 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 			// inequalities is still REFUSED. It cannot wire every arm because its store implements
 			// only enough surface for that one, which is what makes it a probe rather than a suite.
 			[(AppendPositionProbePath, "Excalibur.Tests.Testing.Conformance::EventStoreAppendPositionArmShould+Probe")] = "EventStoreConformanceTestKit",
+
+			// CapabilityResolutionShould externally drives these helpers through seven regressions:
+			// hidden direct facets and invalid raw results fail; adapters and intentional declines pass.
+			// They are mutation instruments and cannot exercise a complete provider contract.
+			[(CapabilityProbePath, "Excalibur.Tests.Testing.Conformance::CapabilityResolutionShould+Probe")] = "ConformanceTestKit",
+			[(CapabilityProbePath, "Excalibur.Tests.Testing.Conformance::CapabilityResolutionShould+DeadLetterProbe")] = "DeadLetterStoreConformanceTestKit",
 		};
 
 	private static bool IsVerifiedMutationProbe(SourceFile file, ClassDeclarationSyntax declaration)
@@ -795,12 +801,16 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/SnapshotKitSuiteIntegrityShould.cs";
 	private const string AppendPositionProbePath =
 		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/EventStoreAppendPositionArmShould.cs";
+	private const string CapabilityProbePath =
+		"tests/unit/Excalibur.Testing.Conformance.Tests/Testing/Conformance/CapabilityResolutionShould.cs";
 
 	[Theory]
 	[InlineData(ExecutionProbePath, "ScheduleExecutionConformanceWiringShould", "FullyWiredProbe", "ScheduleExecutionStoreConformanceTestKit")]
 	[InlineData(RenewalProbePath, "ScheduleRenewalConformanceWiringShould", "MissingRenewalArmProbe", "ScheduleExecutionLeaseRenewalConformanceTestKit")]
 	[InlineData(SnapshotProbePath, "SnapshotKitSuiteIntegrityShould", "CountingProbe", "SnapshotStoreConformanceTestKit")]
 	[InlineData(AppendPositionProbePath, "EventStoreAppendPositionArmShould", "Probe", "EventStoreConformanceTestKit")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "Probe", "ConformanceTestKit")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit")]
 	public void Exempt_exact_verified_execution_renewal_and_snapshot_mutation_probes(string path, string outer, string name, string kit)
 	{
 		SurveyUnwiredPaths([AdditionalProbeSource(path, outer, name, kit, "")]).ShouldBeEmpty();
@@ -811,6 +821,10 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 	[InlineData(RenewalProbePath, "ScheduleRenewalConformanceWiringShould", "MissingRenewalArmProbe", "ScheduleStoreConformanceTestKit", "")]
 	[InlineData(SnapshotProbePath, "SnapshotKitSuiteIntegrityShould", "CountingProbe", "SnapshotStoreConformanceTestKit", "[Fact] public void Arm() { }")]
 	[InlineData("tests/unit/Probe/Provider.cs", "SnapshotKitSuiteIntegrityShould", "CountingProbe", "SnapshotStoreConformanceTestKit", "")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "[Fact] public void Arm() { }")]
+	[InlineData(CapabilityProbePath, "AnotherContainer", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "")]
+	[InlineData(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "OutboxStoreConformanceTestKit", "")]
+	[InlineData("tests/unit/Probe/Provider.cs", "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "")]
 	public void Refuse_an_unverified_execution_renewal_or_snapshot_probe(string path, string outer, string name, string kit, string member)
 	{
 		SurveyUnwiredPaths([AdditionalProbeSource(path, outer, name, kit, member)]).ShouldBe([path]);
@@ -821,6 +835,15 @@ public sealed class ConformanceSuiteWiresEveryArmShould
 		namespace Excalibur.Tests.Testing.Conformance;
 		public class {{outer}} { private sealed class {{name}} : {{kit}} { {{member}} } }
 		""");
+
+	[Theory]
+	[InlineData("public sealed")]
+	[InlineData("private")]
+	public void Refuse_capability_probe_when_its_verified_visibility_changes(string modifiers)
+	{
+		var source = AdditionalProbeSource(CapabilityProbePath, "CapabilityResolutionShould", "DeadLetterProbe", "DeadLetterStoreConformanceTestKit", "");
+		SurveyUnwiredPaths([source with { Text = source.Text.Replace("private sealed", modifiers, StringComparison.Ordinal) }]).ShouldBe([CapabilityProbePath]);
+	}
 
 	[Fact]
 	public void Exempt_an_exact_existing_externally_exercised_wiring_probe()

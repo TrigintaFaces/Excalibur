@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks />
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <Compile Include="../RepositoryChecks/CosmosFixtureRule.cs" Link="CosmosFixtureRule.cs" />
+    <Compile Include="../RepositoryChecks/CosmosFixtureResult.cs" Link="CosmosFixtureResult.cs" />
+    <Compile Include="../RepositoryChecks/CosmosFixtureViolation.cs" Link="CosmosFixtureViolation.cs" />
+  </ItemGroup>
+</Project>

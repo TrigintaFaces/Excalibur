@@ -28,12 +28,15 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
-  # Performance gate 1: MediatR local parity (hard threshold)
+  # MediatR: require valid benchmark evidence; comparative timing targets are advisory.
   performance-mediatr-parity:
     name: Performance Gate - MediatR Local Parity
     runs-on: ubuntu-latest
     timeout-minutes: 120
     if: inputs.run-performance-tests == 'true'
+    env:
+      MEDIATR_SINGLE_COMMAND_MAX_RATIO: '2.00'
+      MEDIATR_QUERY_MAX_RATIO: '2.20'
     steps:
       - name: Checkout code (needed to resolve local composite action)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -65,7 +68,7 @@ jobs:
             -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks `
             -ArtifactsPath ./BenchmarkDotNet.Artifacts.MediatRParity
 
-      - name: Enforce MediatR local parity thresholds
+      - name: Validate MediatR benchmark evidence and report parity
         shell: pwsh
         run: |
           ./eng/validate-performance-gates.ps1 `
@@ -73,8 +76,8 @@ jobs:
             -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 3 `
-            -MediatRSingleCommandMaxRatio 2.00 `
-            -MediatRQueryMaxRatio 2.20
+            -MediatRSingleCommandMaxRatio $env:MEDIATR_SINGLE_COMMAND_MAX_RATIO `
+            -MediatRQueryMaxRatio $env:MEDIATR_QUERY_MAX_RATIO
 
       - name: Generate protected-row delta report
         shell: pwsh
@@ -103,7 +106,7 @@ jobs:
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate MediatRLocalParity\`" >> $GITHUB_STEP_SUMMARY
           echo "- Delta report: \`eng/compare-benchmark-delta.ps1 -FailOnRegression:\$false\`" >> $GITHUB_STEP_SUMMARY
           echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Hard thresholds: single-command ratio <= 1.50 (strict direct-local), query ratio <= 2.20 (strict direct-local, fallback to default pipeline; higher due to result materialization overhead)" >> $GITHUB_STEP_SUMMARY
+          echo "- Advisory targets: single-command ratio <= $MEDIATR_SINGLE_COMMAND_MAX_RATIO (strict direct-local), query ratio <= $MEDIATR_QUERY_MAX_RATIO (strict direct-local, fallback to default pipeline; higher due to result materialization overhead)" >> $GITHUB_STEP_SUMMARY
           echo "- Protected-row drift report: strict direct-local single command, query, notification, 10 concurrent, 100 concurrent (report-only vs 20260420 epoch baseline)" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
 

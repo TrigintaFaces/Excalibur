@@ -295,11 +295,13 @@ public sealed class DispatcherShould
 	/// <summary>
 	/// Verifies that Dispatcher sets MessageType on the context from the message type name.
 	/// </summary>
-	[Fact]
-	public async Task Set_MessageType_On_Context()
+	[Theory]
+	[InlineData(false, null)]
+	[InlineData(true, "tests.dispatcher.local")]
+	public async Task Set_OnlyDeclared_MessageType_On_Context(bool named, string? expected)
 	{
 		// Arrange
-		var message = A.Fake<IDispatchMessage>();
+		IDispatchMessage message = named ? new LocalTransportAction() : A.Fake<IDispatchMessage>();
 		var context = new MessageContext();
 
 		_ = A.CallTo(() => _middlewareInvoker.InvokeAsync(
@@ -312,8 +314,7 @@ public sealed class DispatcherShould
 		// Act
 		_ = await _sut.DispatchAsync(message, context, cancellationToken: default);
 
-		// Assert - MessageType should be set to the type name
-		context.GetMessageType().ShouldNotBeNullOrEmpty();
+		context.GetMessageType().ShouldBe(expected);
 	}
 
 	#endregion Sprint 70 - Context Management Tests
@@ -1047,6 +1048,7 @@ public sealed class DispatcherShould
 			.Returns(new HandlerLifetimeRegistry(services));
 	}
 
+	[MessageName("tests.dispatcher.local")]
 	private sealed record LocalTransportAction : IDispatchAction;
 	private sealed record LocalTransportContextAction : IDispatchAction;
 	private sealed record MissingLocalAction : IDispatchAction;

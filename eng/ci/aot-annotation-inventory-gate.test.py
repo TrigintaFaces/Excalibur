@@ -21,7 +21,7 @@ output = Path(args.output).resolve()
 output.mkdir(parents=True, exist_ok=False)
 results = []
 pins = {}
-for path in [candidate / 'Program.cs', candidate / 'AotAnnotationInventory.csproj', dll, Path(__file__)]:
+for path in [*sorted(candidate.glob('*.cs')), candidate / 'AotAnnotationInventory.csproj', dll, Path(__file__)]:
     pins[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
 
 def fixture(name):
@@ -218,7 +218,17 @@ try:
     target.mkdir()
     (target / 'C.cs').write_text(positive, encoding='utf-8')
     link = link_directory / 'link'
-    link.symlink_to(target, target_is_directory=True)
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        if os.name != 'nt':
+            raise
+        # Directory junctions exercise FileAttributes.ReparsePoint without symlink privilege.
+        subprocess.run(['pwsh', '-NoProfile', '-Command',
+                        'New-Item -ItemType Junction -Path $env:AOT_TEST_LINK -Target $env:AOT_TEST_TARGET -ErrorAction Stop | Out-Null'],
+                       env={**os.environ, 'AOT_TEST_LINK': str(link), 'AOT_TEST_TARGET': str(target)},
+                       check=True, capture_output=True)
+
 except (OSError, NotImplementedError) as error:
     results.append({'name':'symlink-source-refusal','status':'unavailable','reason':str(error)})
 else:

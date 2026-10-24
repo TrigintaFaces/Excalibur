@@ -143,7 +143,7 @@ internal sealed class AllocateAndInsertEventsRequest : DataRequestBase<IDbConnec
 		var qualifiedCounter = SqlTableName.Format(schema, positionTable);
 
 		var valuesBuilder = new StringBuilder();
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AllocCount", totalEventCount);
 
 		// The event store is a KEYED tenant table: the tenant column and parameter are ALWAYS emitted, so
@@ -225,7 +225,7 @@ internal sealed class AllocateAndInsertEventsRequest : DataRequestBase<IDbConnec
 
 		ResolveAsync = async connection =>
 		{
-			var first = await connection.ExecuteScalarAsync<long?>(Command).ConfigureAwait(false);
+			var first = await SqlServerParameterSet.ExecuteScalarAsync<long?>(connection, Command).ConfigureAwait(false);
 
 			return first ?? throw new InvalidOperationException(
 				$"The global position counter row is missing from {qualifiedCounter}. The event store " +

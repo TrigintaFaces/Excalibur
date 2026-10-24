@@ -40,6 +40,19 @@ public sealed class GetCurrentVersionRequest : DataRequestBase<IDbConnection, lo
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
+		: this(aggregateId, aggregateType, transaction, scope, schema, table,
+			static request => connection => connection.ExecuteScalarAsync<long>(request.Command), cancellationToken)
+	{
+	}
+
+	internal static GetCurrentVersionRequest CreateTyped(string aggregateId, string aggregateType,
+		IDbTransaction? transaction, TenantScope scope, CancellationToken cancellationToken, string schema = "dbo", string table = "EventStoreEvents") =>
+		new(aggregateId, aggregateType, transaction, scope, schema, table,
+			static request => connection => SqlServerParameterSet.ExecuteScalarAsync<long>(connection, request.Command), cancellationToken);
+
+	private GetCurrentVersionRequest(string aggregateId, string aggregateType, IDbTransaction? transaction,
+		TenantScope scope, string schema, string table,
+		Func<GetCurrentVersionRequest, Func<IDbConnection, Task<long>>> execute, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
@@ -74,7 +87,7 @@ public sealed class GetCurrentVersionRequest : DataRequestBase<IDbConnection, lo
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@TenantId", partition.TenantId);
@@ -82,7 +95,6 @@ public sealed class GetCurrentVersionRequest : DataRequestBase<IDbConnection, lo
 
 		Command = CreateCommand(sql, parameters, transaction, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection =>
-			await connection.ExecuteScalarAsync<long>(Command).ConfigureAwait(false);
+		ResolveAsync = execute(this);
 	}
 }

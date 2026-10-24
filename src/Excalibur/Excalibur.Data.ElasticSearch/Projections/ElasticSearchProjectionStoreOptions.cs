@@ -16,6 +16,10 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </remarks>
 public sealed class ElasticSearchProjectionStoreOptions
 {
+	/// <summary>Gets or sets generated JSON metadata for projection documents. Required for native AOT.</summary>
+	/// <value>The application source-generated resolver, or null for the default serializer.</value>
+	public System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? SourceTypeInfoResolver { get; set; }
+
 	/// <summary>
 	/// Gets or sets the ElasticSearch node URI for single-node configuration.
 	/// </summary>

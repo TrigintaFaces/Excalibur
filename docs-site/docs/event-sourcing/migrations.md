@@ -288,6 +288,7 @@ CREATE TABLE events (
     metadata BYTEA NULL,
     version BIGINT NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
+    archived_at TIMESTAMPTZ NULL,
     -- NOT NULL, and part of the stream key below: an unscoped host stores the reserved
     -- '__untenanted__' sentinel rather than omitting the column.
     tenant_id VARCHAR(64) NOT NULL,

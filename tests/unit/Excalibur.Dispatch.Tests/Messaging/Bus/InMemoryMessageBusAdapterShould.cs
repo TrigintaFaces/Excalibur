@@ -409,7 +409,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		var dispatchedContext = await dispatched.Task;
 		dispatchedContext.Message.ShouldBeSameAs(message);
 		dispatchedContext.MessageId.ShouldNotBeNullOrWhiteSpace();
-		dispatchedContext.GetMessageType().ShouldBe(typeof(TestDispatchMessage).FullName);
+		dispatchedContext.GetMessageType().ShouldBeNull();
 		dispatchedContext.GetReceivedTimestampUtc().ShouldNotBe(default);
 	}
 

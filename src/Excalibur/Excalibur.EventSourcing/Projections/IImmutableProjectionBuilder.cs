@@ -33,6 +33,10 @@ namespace Excalibur.EventSourcing.Projections;
 public interface IImmutableProjectionBuilder<TProjection>
 	where TProjection : class
 {
+	/// <summary>Applies the committed event prefix before the save returns, with automatic durable recovery.</summary>
+	/// <returns>This builder.</returns>
+	IImmutableProjectionBuilder<TProjection> Inline();
+
 	/// <summary>
 	/// Configures the projection to be applied asynchronously by the projection host. This is the
 	/// default and, since inline application was removed, the only mode.

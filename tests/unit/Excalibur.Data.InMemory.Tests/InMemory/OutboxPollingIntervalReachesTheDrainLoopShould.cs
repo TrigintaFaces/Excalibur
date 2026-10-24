@@ -138,7 +138,7 @@ public sealed class OutboxPollingIntervalReachesTheDrainLoopShould
     {
         var delay = TimeSpan.FromMilliseconds(milliseconds);
         Task.Delay(delay, new CancellationToken(true)).IsCanceled.ShouldBeTrue(); // delay-ok: Task.Delay against an already-cancelled token is the BCL oracle for native support -- nothing waits here
-        using var immediateDrain = new CancellationTokenSource(TimeSpan.Zero);
+        using var immediateDrain = new CancellationTokenSource(TimeSpan.Zero); // deadline-ok: zero-time cancellation is the native immediate-drain behavior under test, not a runner deadline
         immediateDrain.IsCancellationRequested.ShouldBeTrue();
         using var provider = BuildFinalOptionsProvider(options =>
         {

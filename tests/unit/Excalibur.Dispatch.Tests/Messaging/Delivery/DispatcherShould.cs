@@ -109,7 +109,7 @@ public sealed class DispatcherShould
     }
 
     [Fact]
-    public async Task SetMessageTypeInContext()
+    public async Task LeaveAnUnnamedLocalMessageWithoutAWireIdentity()
     {
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
@@ -121,7 +121,7 @@ public sealed class DispatcherShould
         var sut = CreateSut();
         await sut.DispatchAsync(message, context, CancellationToken.None);
 
-        context.GetMessageType().ShouldNotBeNullOrWhiteSpace();
+        context.GetMessageType().ShouldBeNull();
     }
 
     [Fact]

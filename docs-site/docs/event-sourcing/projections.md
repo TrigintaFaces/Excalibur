@@ -40,6 +40,88 @@ flowchart LR
     end
 ```
 
+## Quick start: Inline in one application or several
+
+```csharp
+services.AddExcalibur(x => x.AddEventSourcing(es =>
+{
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString));
+    es.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+    es.AddProjection<OrderSummary>(p => p.Inline()
+        .When<OrderPlaced>((view, e) => view.Total += e.Amount));
+}));
+services.AddElasticSearchProjectionStore<OrderSummary>("http://localhost:9200");
+```
+
+Use the same registration in the API, Jobs, or both. `.Inline()` automatically registers recovery in
+each host; it does not require `EnableProjectionProcessing()` or an `IProjectionProcessor` call.
+SQL Server supplies a checkpoint store bound to its event source. Deploy the provider's event-store
+and subscription-checkpoint schema migrations before startup; registration does not create SQL tables.
+
+After the event commit, the processor reads the complete ordered prefix through the returned commit
+position. It folds each affected document once per page and uses conditional positioned writes.
+Cooperating processes can attempt the same page, but a stale writer cannot overwrite the winning fold.
+Successful completion includes the store's configured query-visibility barrier. For immediate
+Elasticsearch **search**, enable `Index.EnsureSearchVisibilityOnProjectionCheckpoint` on the store.
+
+If completion cannot be confirmed, the save still succeeds and reports it: `SaveResult.Projections` is
+`ProjectionFreshness.BoundExpired` and the same `SaveResult` carries the `SessionToken`. The events are
+already durable: retry the read, not the command. Recovery
+resumes automatically while a host is running, including after restart. A poison handler requires a
+handler/data repair; a previously unpositioned row still requires a deliberate rebuild.
+Each projection retains its own durable cursor. A failed projection retries its missing prefix on
+later recovery rounds, even after repeated failures, while healthy projections continue from their
+own cursors. Whole-subscription completion requires every projection to catch up; a session read
+checks only the requested projection's confirmed progress.
+
+The foreground wait uses `EventNotificationOptions.PostCommitTimeout`, independent of request
+cancellation after commit. Provider I/O must eventually finish or honor cancellation; an unfinished
+operation retains its scope and processing lease. Notification-handler failures retain their own policy.
+
+Automatic scope discovery supports the connection-string SQL Server registration and options-based
+Elasticsearch registration. For a custom source, externally supplied client, or tenant router, configure
+a durable checkpoint store and an explicit `GlobalStreamProjectionOptions.SubscriptionScope` shared by
+cooperating hosts. Different configured endpoint sets fail closed; endpoint aliases are not proof that
+two hosts address the same cluster. Separate applications sharing one event database should use
+different `ProjectionName` values. Inline checkpoints use an `Inline:` prefix, separate from Async.
+
+See [Inline migration](../migration/projections-are-applied-by-the-host.md) before switching an existing
+subscription or destination. The examples below also cover the explicitly managed Async option.
+
+## Generated metadata for native AOT
+
+Use the metadata overloads for persisted Inline or Async projections:
+
+```csharp
+services.AddAotEventSerializer(AppJson.Default);
+services.AddElasticSearchProjectionStore<OrderSummary>(options =>
+{
+    options.NodeUri = elasticsearchUri;
+    options.SourceTypeInfoResolver = AppJson.Default;
+});
+// Inside AddEventSourcing:
+es.UseSqlServer(sql => sql.ConnectionString(connectionString)
+    .EventTypeInfoResolver(AppJson.Default));
+es.AddProjection(AppJson.Default.OrderSummary, p => p.Inline()
+    .When<OrderPlaced>((view, e) => view.Total += e.Amount));
+// After saving:
+var read = await sessionReader.ReadAsync(orderId, save, AppJson.Default.OrderSummary, ct);
+```
+
+Include event and projection types in `AppJson`, a source-generated `JsonSerializerContext`.
+Use the same context instance for the store and projection registration. Elasticsearch retains its
+existing source serialization conventions, including camelCase fields and string enums. The outer
+store must expose `IAotProjectionStore<T>` and the positioned-write capability; unsupported decorators
+and unverified injected clients fail before processing. The generated overload requires
+`AddAotEventSerializer` and rejects Ephemeral mode, whose cache does not yet consume this metadata.
+
+These overloads remove the projection API's reflection requirement. They do not certify dependencies:
+the full SQL Server-to-Elasticsearch strict native publish remains blocked by diagnostics in official
+SqlClient 7.1.1 and its configuration paths. Keep AOT/trimming warnings as errors for release builds.
+This dependency limitation is accepted for this alpha, but the complete path is not Native AOT
+certified. Use a JIT deployment for SQL Server-to-Elasticsearch projections until an official SqlClient
+release passes strict publishing and the API-only, Jobs-only, cooperating-host and outage-recovery tests.
+
 ## Choosing the Right Approach
 
 Excalibur offers several projection approaches. Use this decision tree to pick the right one:
@@ -61,11 +143,10 @@ flowchart TD
     Q5 -->|Yes| ASYNC_KEYED["AddProjection&lt;T&gt;<br/>.Async().KeyedBy&lt;TEvent&gt;(selector)"]
 ```
 
-**The mode is not how you choose your consistency.** Every stored projection is `Async`: the save commits
-events, and the projection host applies them afterwards. A caller that must observe its own write asks
-for that at the **read**, by carrying the token the save returned — see
-[Reading Your Own Writes](#reading-your-own-writes-session-consistency). A caller that does not need it
-pays nothing.
+Choose `.Inline()` when a successful save must confirm its read models before returning. It registers
+foreground completion and background recovery automatically in each application. Choose `.Async()` for
+independent background processing, with an explicit host or processor. Both use ordered, positioned
+writes; `.Ephemeral()` folds on demand without persistence.
 
 ### Quick Comparison
 
@@ -82,7 +163,7 @@ folded from the stream on each request and is never stored.
 
 ---
 
-## Quick Start: IProjectionConfiguration&lt;T&gt; (Recommended)
+## Async configuration and explicit processing
 
 The preferred approach for organizing projections. Each projection gets its own configuration class, discovered automatically via assembly scanning:
 
@@ -123,9 +204,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
     builder.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models")));
 ```
 
-:::danger Three registrations, always — and only two of them are checked for you
+:::info Async requires an explicit processor
 
-A stored projection needs all three:
+An `.Async()` projection needs all three:
 
 | registration | says | if you omit it |
 |---|---|---|
@@ -189,7 +270,7 @@ development, tests and samples: it keeps nothing after the process exits and is 
 
 :::
 
-`SaveAsync` does not write the projection, so a read taken straight afterwards may not see it yet. Carry
+For `.Async()`, `SaveAsync` does not wait for the projection, so an immediate read may not see it yet. Carry
 the token the save returned, and the read waits:
 
 ```csharp

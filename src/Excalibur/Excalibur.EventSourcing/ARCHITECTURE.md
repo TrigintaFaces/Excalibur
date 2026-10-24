@@ -1169,6 +1169,75 @@ checkpoint; `e1 -> e2` means `e1` happens-before `e2`.
 | **L2** | delivery liveness | every committed event is eventually delivered to every subscription | requires the contiguous scan to make progress |
 | **E1** | handler effect delivery | **at-least-once.** An effect may be requested more than once for a single event. The duplicate window is bounded by the events applied since the last durable checkpoint: at most `CheckpointInterval + BatchSize - 1` on a process crash -- **599 at the defaults of 100 and 500**, NOT 99. A whole page is applied before the threshold is tested, so the count overshoots by almost a full page. **CORRECTED:** this row previously stated `CheckpointInterval - 1` (99), which was false and was the number a consumer would have sized their idempotency against. An interval of 1 does not yield zero repeats either, because the effect and the record of it are separate commits. A checkpoint store refusing writes would remove any finite bound, so the host rewinds to its last durable mark rather than applying progress it cannot record, which holds the span to one page for the duration of the outage. A second concurrent reader of one subscription widens it to that reader's unchecked span. | **NEWLY STATED**, and previously absent — the obligation existed only in XML remarks, with no guarantee row and no conformance arm. **Handlers with effects outside the projection state MUST be idempotent on the event identifier; the framework cannot make them exactly-once and does not claim to.** The effect is performed by consumer code against a resource the framework cannot name, so the effect and the record of it cannot commit together. Folding into projection state is idempotent by construction and needs no guard. `IsReplay` is NOT the mechanism for this and must not be used as one: it is `false` on a redelivery after a crash, because such a delivery is not a re-fold of history |
 
+### Inline projections: what a returning save promises, and what it does not
+
+**Inline is not a second writer, and the distinction is the whole guarantee.** An earlier design folded
+projections in-process during `SaveAsync` as an uncoordinated writer that wrote with no position, so two
+concurrent saves could each read a row, each fold, and the later write could silently discard the other's
+events. That writer is gone. `.Inline()` now means the save **drives this same ordered processor** and
+waits for it to reach the save's committed position, so there is still exactly one writer per projection
+row and the lost fold is not expressible — the S1-S6 properties above carry Inline unchanged.
+
+| | property | stated in falsifiable terms | status |
+|---|---|---|---|
+| **S7** | inline completion, scoped to what the save FEEDS | if `SaveResult.Projections == Fresh`, then every projection registered `Inline` **that consumes at least one of the committed events' types** has folded the contiguous prefix through `SaveResult.SessionToken`: reading that projection's stored position yields a value `>= SessionToken`. **A projection the save does not feed is OUTSIDE this promise** — the save neither advances nor attests it. A projection the save DOES feed is attested, or the save reports `BoundExpired`; there is no third outcome | the completion predicate is a QUANTIFIER over the required set — every registration consuming one of the committed event types must have its own cursor at or past the token — and the positioned compare-and-set supplies the per-row half. Cursors are per registration, so the mechanism is now exactly as wide as the promise |
+| **S8** | behind is never success, and never a failure either | if the save CANNOT establish S7 it returns `SaveResult.Projections == BoundExpired`, and the events are **already durably committed** — a behind read model is REPORTED, never thrown and never silently passed off as fresh | every non-`CaughtUp` exit returns `BoundExpired` and logs at Warning; the token rides the same `SaveResult`, so the caller can hand it to `IProjectionSessionReader` |
+| **L3** | inline completion liveness, independent of unrelated projections | a save whose REQUIRED projections are healthy observes `CaughtUp` within `PostCommitTimeout` **regardless of any other projection's state** — a projection it does not feed cannot hold it open, however far behind or however badly broken | one cursor PER REGISTRATION, so a faulting projection holds back only its own; and a page read is SHARED ONLY BY REGISTRATIONS SITTING AT THE SAME DURABLE CURSOR (`AsyncProjectionProcessingHost.cs:337`), so a projection that is behind reads its own prefix from its own position — it neither holds a healthy sibling's read start down nor can be handed a page that begins past its own gap. A required registration that is failing reports that fault on the save at once rather than at the deadline. Bound by `RetryATransientlyUnreadablePrefixInsteadOfFailingTheCommittedSave` plus the eight `PerProjectionCursorShould` arms |
+
+**Per-registration cursors buy FAULT ISOLATION, not workset evolution.** The subscription definition
+hash still covers the registration SET, so adding or removing a projection still requires a new
+subscription name and still refuses against an existing binding. What changed is that a projection
+FAILING no longer implicates its siblings; what did not change is which projections a subscription is
+allowed to contain.
+
+**A page read is shared only by registrations sitting at the same durable cursor.** Registrations are
+grouped by their stored cursor and each group reads its own page from its own position
+(`AsyncProjectionProcessingHost.cs:337`). Both halves of L3 fall out of that grouping: a stuck
+projection cannot hold a healthy sibling's read start down, because the healthy ones form their own
+group; and a projection that is behind can never be handed a page beginning after its own cursor,
+because a page is only ever delivered to recipients whose cursor equals its read start.
+
+**The safety half is why a single shared read start with exclusions was rejected.** Excluding a
+persistently failing projection from one shared minimum is sound for liveness and unsound for recovery:
+the shared read then begins PAST the excluded projection's cursor, so when it recovers it is handed a
+page that skips exactly the events it was missing, silently corrupting an accumulating view. Grouping
+removes the choice rather than balancing it. It also needs no in-memory state, no fault-count heuristic
+and no agreement between instances, because the grouping is recomputed from the durable cursors on every
+page — so two instances cannot disagree about it. Failure state is never an input to the required set
+either: if it were, a save could report `Fresh` over a projection known to be stuck, and that
+independence is what makes the freshness report honest.
+
+**S7's scope is the half a reader will otherwise get wrong, so it is stated separately.** A projection fed
+by OTHER aggregates is not covered by any single save. A read of it needs the session token through
+`IProjectionSessionReader`, and that token answers for that projection only — never for the whole process.
+A save says nothing about a projection it does not feed, and that is a property of the design rather than a
+shortcoming: a save that attested every projection would have to wait behind every projection, which is
+precisely the shared fate recorded as broken in L3.
+
+**S8 is the obligation consumers get wrong, so it is stated as a prohibition: do NOT retry the command.**
+`BoundExpired` means *committed, read model behind*. Repeating the command appends the events a second
+time. The remedy is to pass `SessionToken` to `IProjectionSessionReader`, or to answer the caller from the
+stale read model.
+
+**It is REPORTED rather than THROWN, and that choice is deliberate.** An exception on a committed save
+says "your durable write failed" when it did not, and every retry pipeline in the ecosystem — Polly, HTTP
+middleware, a developer's reflex — responds to an exception by repeating the operation, which is the one
+response that causes real harm here. The read side of this same feature already returns a three-valued
+freshness rather than throwing, so the two halves now answer the same question the same way. The cost is
+that a caller CAN ignore the value; that is mitigated by logging every `BoundExpired` at Warning (Error
+for a store that reports no positions at all, which never resolves), not by reintroducing the throw.
+
+**Only ONE halt cause is retried, and the reason is a type.** `ProjectionProcessingOutcome.Halted` is
+produced for causes with opposite correct responses, so the save branches on `ProjectionHaltReason`
+instead of on the outcome: `PrefixUnavailable` means the next contiguous prefix is not readable yet — the
+normal reading of an append still in flight — and it clears by waiting, so it is retried inside the
+caller's existing budget. `ProjectionFaulted`, `EventUndeserializable` and `CheckpointWriteFailed` do not
+clear by waiting and are never retried. **Retrying on the outcome alone was implemented and reverted:
+it converted a document write whose acknowledgement was lost into a reported success**, which is the
+silent class this subsystem exists to prevent. Both halves are bound — `RetryATransientlyUnreadable
+PrefixInsteadOfFailingTheCommittedSave` for the transient arm, `ResumeAfterAnAcknowledgementIsLost
+WithoutRewritingTheDocument` for the terminal one — and neither substitutes for the other.
+
 **S6 is the one to read twice, because the obvious test for it does not work.** A projection need not
 *compare* two positions to be harmed by a delivery order that violates causality — it only has to fold
 events in the order delivered. So an audit that enumerates consumers and finds none of them comparing
@@ -2025,6 +2094,18 @@ it pays nothing.
   `AsyncProjectionProcessingHost` runs or `IProjectionProcessor.ProcessPendingAsync` is called. A host that
   can run a background service should; a serverless host calls the pull API on its trigger. Nothing
   advances between pull invocations, so read models are as current as the trigger schedule.
+  **The pull API drives EVERY registered mode, Inline included.** It used to resolve to the async host
+  alone, so a host that runs no background service had nothing driving Inline at all: the loop that
+  recovers an incomplete fold is an `IHostedService`, which such a host never starts, and the last save
+  before the process went idle was therefore never recovered. One call now advances both.
+- **An Inline composition that cannot complete is refused at STARTUP, not at the first write.** An event
+  store that assigns no global positions, or a missing checkpoint store, means no Inline save can ever
+  report fresh. That refusal is registered as a startup prerequisite validator as well as a hosted
+  service, so it still fires in a container that runs no hosted services — which is precisely the
+  container that would otherwise discover it on its first durable write, when the events are already
+  committed and the only honest answer is that the read model is behind permanently. A provider that
+  registers a global-stream query and then reports no position anyway violates its own contract rather
+  than the consumer's composition, and is still caught per save.
 - **Register leader election when more than one instance can run the host.** Without it, every instance
   polls and applies the same subscription concurrently, and events in the contested span may be applied
   twice.

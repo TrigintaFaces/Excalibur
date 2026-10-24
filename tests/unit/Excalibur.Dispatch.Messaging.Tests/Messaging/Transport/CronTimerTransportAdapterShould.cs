@@ -34,6 +34,7 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	{
 		var serviceProvider = A.Fake<IServiceProvider>();
 		_ = A.CallTo(() => serviceProvider.GetService(typeof(TimeProvider))).Returns(null);
+		_ = A.CallTo(() => serviceProvider.GetService(typeof(IDispatcher))).Returns(A.Fake<IDispatcher>());
 		return serviceProvider;
 	}
 
@@ -154,6 +155,21 @@ public sealed class CronTimerTransportAdapterShould : IAsyncDisposable
 	}
 
 	#region ReceiveAsync
+
+	[Fact]
+	public async Task ReceiveAsync_UsesTheDeclaredTimerIdentity()
+	{
+		await _sut.StartAsync(CancellationToken.None);
+		var dispatcher = A.Fake<IDispatcher>();
+		IMessageContext? received = null;
+		A.CallTo(() => dispatcher.DispatchAsync(A<CronTimerTriggerMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(call => received = call.Arguments.Get<IMessageContext>(1))
+			.Returns(Task.FromResult<IMessageResult>(MessageResult.Success()));
+		var result = await _sut.ReceiveAsync(new CronTimerTriggerMessage { TimerName = "identity" }, dispatcher, CancellationToken.None);
+		result.Succeeded.ShouldBeTrue();
+		received.ShouldNotBeNull();
+		received.GetMessageType().ShouldBe("Excalibur.Dispatch.CronTimerTriggerMessage");
+	}
 
 	[Fact]
 	public async Task ReceiveAsync_ReturnFailedWhenNotRunning()

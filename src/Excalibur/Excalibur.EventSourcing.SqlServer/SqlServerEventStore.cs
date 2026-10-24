@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
+using System.Runtime.CompilerServices;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
@@ -319,7 +320,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-				new GetCurrentVersionRequest(
+				GetCurrentVersionRequest.CreateTyped(
 					aggregateId, aggregateType, transaction: null, CurrentTenantScope, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
@@ -343,7 +344,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var loadedEvents = await connection.ResolveAsync(
-					new LoadEventsRequest(aggregateId, aggregateType, fromVersion, CurrentTenantScope, cancellationToken, _schema, _table))
+					LoadEventsRequest.CreateTyped(aggregateId, aggregateType, fromVersion, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_ = (activity?.SetTag(EventSourcingTags.EventCount, loadedEvents.Count));
@@ -555,7 +556,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			// claim the same version between this SELECT and the INSERT below. That is expected, not a hole
 			// -- the INSERT then violates the unique constraint and is translated to a conflict below.
 			var currentVersion = await connection.ResolveAsync(
-					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
+					GetCurrentVersionRequest.CreateTyped(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (currentVersion != expectedVersion)
@@ -876,7 +877,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		try
 		{
 			return await connection.ResolveAsync(
-					new GetCurrentVersionRequest(
+					GetCurrentVersionRequest.CreateTyped(
 						aggregateId,
 						aggregateType,
 						transaction: null,
@@ -915,7 +916,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		{
 			// Advisory read — see the sibling path. A racing writer is caught by the constraint, not here.
 			var currentVersion = await connection.ResolveAsync(
-					new GetCurrentVersionRequest(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
+					GetCurrentVersionRequest.CreateTyped(aggregateId, aggregateType, transaction, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (currentVersion != expectedVersion)
@@ -1044,9 +1045,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			var (@event, eventTypeName) = named;
 			version++;
 			var eventData = SerializeEventWithEnvelopeSupport(named, aggregateId, aggregateType, version);
-#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			var metadata = @event.Metadata != null ? SerializeMetadata(@event.Metadata) : null;
-#pragma warning restore IL2026, IL3050
 
 			rows.Add(new EventInsertRow(
 				@event.EventId,
@@ -1213,8 +1212,6 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 	/// Uses <see cref="IPayloadSerializer"/> when available,
 	/// otherwise falls back to System.Text.Json.
 	/// </summary>
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(Object, Type, JsonSerializerOptions)")]
 	private byte[] SerializeEvent(IDomainEvent @event, string? aggregateId, string? aggregateType)
 	{
 		if (_payloadSerializer != null)
@@ -1223,17 +1220,27 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		}
 
 		// Fallback to System.Text.Json for backward compatibility
-		return _hasEventTypeInfoResolver
-			? ResolvedEventPayload.Serialize(@event, _jsonOptions, aggregateId, aggregateType)
-			: JsonSerializer.SerializeToUtf8Bytes(@event, @event.GetType(), _jsonOptions);
+		if (_hasEventTypeInfoResolver) { return ResolvedEventPayload.Serialize(@event, _jsonOptions, aggregateId, aggregateType); }
+		if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault)
+		{
+			throw new InvalidOperationException("Reflection-disabled serialization requires SqlServerEventSourcingOptions.EventTypeInfoResolver.");
+		}
+		// The guarded JIT fallback shares the frozen canonical metadata cache. Native callers
+		// must use the host-supplied resolver above; arbitrary reflection is not made AOT-safe here.
+		return JsonSerializer.SerializeToUtf8Bytes(@event,
+			Excalibur.Dispatch.EventSerializationDefaults.Canonical.GetTypeInfo(@event.GetType()));
 	}
 
-	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
-	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.SerializeToUtf8Bytes<TValue>(TValue, JsonSerializerOptions)")]
-	private byte[] SerializeMetadata(IDictionary<string, object> metadata) =>
-		_hasEventTypeInfoResolver
-			? Excalibur.Dispatch.EventSerializationDefaults.SerializeMetadataWithResolver(metadata, _jsonOptions)
-			: JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions);
+	private byte[] SerializeMetadata(IDictionary<string, object> metadata)
+	{
+		if (_hasEventTypeInfoResolver) { return Excalibur.Dispatch.EventSerializationDefaults.SerializeMetadataWithResolver(metadata, _jsonOptions); }
+		if (!RuntimeFeature.IsDynamicCodeSupported || !JsonSerializer.IsReflectionEnabledByDefault)
+		{
+			throw new InvalidOperationException("Reflection-disabled serialization requires SqlServerEventSourcingOptions.EventTypeInfoResolver.");
+		}
+		return JsonSerializer.SerializeToUtf8Bytes(metadata,
+			Excalibur.Dispatch.EventSerializationDefaults.Canonical.GetTypeInfo(typeof(IDictionary<string, object>)));
+	}
 
 	/// <summary>
 	/// Serializes an event with envelope support if internal serializer is available.
@@ -1249,15 +1256,11 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 
 		if (_internalSerializer is null)
 		{
-#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 			return SerializeEvent(@event, aggregateId, aggregateType);
-#pragma warning restore IL2026, IL3050
 		}
 
 		// Create envelope with event data
-#pragma warning disable IL2026, IL3050 // Serialization inherently uses reflection
 		var eventBytes = SerializeEvent(@event, aggregateId, aggregateType);
-#pragma warning restore IL2026, IL3050
 
 		var envelope = new EventEnvelope
 		{
@@ -1331,7 +1334,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.GetArchiveCandidatesRequest(
+			Requests.GetArchiveCandidatesRequest.CreateTyped(
 				policy, batchSize, TimeProvider.GetUtcNow(), cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}
@@ -1355,7 +1358,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 		return await connection.ResolveAsync(
-			new Requests.TombstoneArchivedEventsRequest(
+			Requests.TombstoneArchivedEventsRequest.CreateTyped(
 				tenant, aggregateId, aggregateType, toVersion, cancellationToken, _schema, _table))
 			.ConfigureAwait(false);
 	}

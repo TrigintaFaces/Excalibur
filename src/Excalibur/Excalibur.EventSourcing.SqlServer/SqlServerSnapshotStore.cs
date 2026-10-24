@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Text.Json.Serialization.Metadata;
 using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.Data.Observability;
@@ -41,6 +42,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 	private readonly string _schema;
 	private readonly string _table;
 	private readonly ITenantContext _tenantContext;
+    private readonly IJsonTypeInfoResolver? _metadataResolver;
 	/// <summary>
 	/// Gets the tenant term this store runs under, resolved in one place so every statement it builds binds
 	/// the same value. The context is a required dependency, so the term is decided identically on every
@@ -96,8 +98,15 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 		ILogger<SqlServerSnapshotStore> logger,
 		ITenantContext tenantContext,
 		string schema = "dbo",
-		string table = "EventStoreSnapshots")
-	{
+        string table = "EventStoreSnapshots")
+        : this(connectionFactory, logger, tenantContext, schema, table, null)
+    {
+    }
+
+    internal SqlServerSnapshotStore(Func<SqlConnection> connectionFactory, ILogger<SqlServerSnapshotStore> logger,
+        ITenantContext tenantContext, string schema, string table, IJsonTypeInfoResolver? metadataResolver)
+    {
+        _metadataResolver = metadataResolver;
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_schema = schema;
@@ -121,7 +130,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			var snapshot = await connection.ResolveAsync(
-					new GetLatestSnapshotRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
+					GetLatestSnapshotRequest.CreateTyped(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			if (snapshot == null)
@@ -161,7 +170,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new SaveSnapshotRequest(snapshot, CurrentTenantScope, cancellationToken, _schema, _table))
+					SaveSnapshotRequest.CreateTyped(snapshot, CurrentTenantScope, cancellationToken, _schema, _table, _metadataResolver))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Saved snapshot for {AggregateType}/{AggregateId} at version {Version}",
@@ -198,7 +207,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsRequest(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
+					DeleteSnapshotsRequest.CreateTyped(aggregateId, aggregateType, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots for {AggregateType}/{AggregateId}",
@@ -236,7 +245,7 @@ public sealed class SqlServerSnapshotStore : ISnapshotStore
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 			_ = await connection.ResolveAsync(
-					new DeleteSnapshotsOlderThanRequest(aggregateId, aggregateType, olderThanVersion, CurrentTenantScope, cancellationToken, _schema, _table))
+					DeleteSnapshotsOlderThanRequest.CreateTyped(aggregateId, aggregateType, olderThanVersion, CurrentTenantScope, cancellationToken, _schema, _table))
 				.ConfigureAwait(false);
 
 			_logger.LogDebug("Deleted snapshots older than version {Version} for {AggregateType}/{AggregateId}",

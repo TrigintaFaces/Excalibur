@@ -18,5 +18,11 @@ public enum ProjectionMode
 	/// The projection is built on-demand by replaying events from the event store
 	/// without persisting the result. Suitable for ad-hoc queries and reporting.
 	/// </summary>
-	Ephemeral = 1
+	Ephemeral = 1,
+
+	/// <summary>
+	/// The save drives the ordered durable projection processor through its committed position.
+	/// Background recovery is registered automatically; no separate worker application is required.
+	/// </summary>
+	Inline = 2
 }

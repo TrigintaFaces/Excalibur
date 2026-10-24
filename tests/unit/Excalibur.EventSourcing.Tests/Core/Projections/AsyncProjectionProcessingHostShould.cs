@@ -373,7 +373,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		if (effectedThrough is { } seeded)
 		{
 			_ = await _checkpointStore.AdvanceCheckpointAsync(
-				"AsyncProjectionProcessingHost", null, seeded, TestContext.Current.CancellationToken)
+				AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary)),
+				null, seeded, TestContext.Current.CancellationToken)
 				.ConfigureAwait(false);
 		}
 		var stored = Enumerable.Range(1, 4).Select(i => new StoredEvent(
@@ -434,7 +435,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		batchHighWaterMarks.ShouldAllBe(
 			m => m == 4L,
 			customMessage: "the batch context's position is the page's last event");
-		var checkpoint = await _checkpointStore.GetCheckpointAsync("AsyncProjectionProcessingHost", CancellationToken.None)
+		var checkpoint = await _checkpointStore.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary)), CancellationToken.None)
 			.ConfigureAwait(false);
 		checkpoint.ShouldBe(4L);
 	}
@@ -600,7 +601,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	public async Task RestoreCheckpoint_OnStartup()
 	{
 		// Arrange — store a checkpoint so the host resumes from it
-		await _checkpointStore.AdvanceCheckpointAsync("AsyncProjectionProcessingHost", null, 42, CancellationToken.None)
+		await _checkpointStore.AdvanceCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary)), null, 42, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();

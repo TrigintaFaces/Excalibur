@@ -372,6 +372,7 @@ public sealed class AwsSqsRetryBudgetShould
 		RetryPolicy = new TransportRetryPolicyOptions { BaseDelayMs = 1, MaxDelayMs = 2 },
 	};
 
+	[MessageName("tests.AwsSqsRetryBudgetShould.BudgetEvent")]
 	private sealed record BudgetEvent(string Value) : IDispatchEvent;
 
 	[Theory]

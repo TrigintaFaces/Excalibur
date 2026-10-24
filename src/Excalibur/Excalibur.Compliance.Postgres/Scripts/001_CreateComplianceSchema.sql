@@ -1,4 +1,6 @@
+-- ddl-migration: provisioning-only erasure_destroyed_keys - Earlier alpha ledger identities require a new schema; incompatible tables are rejected without deleting destruction evidence.
 -- PostgreSQL Schema for Excalibur.Compliance.Postgres
+-- ddl-migration: provisioning-only erasure_requests - Fresh current-alpha request schemas only; earlier schemas require fresh provisioning because the retention partition cannot be inferred from the encryption owner.
 -- Version: 1.0
 --
 -- Creates the five tables required by the PostgreSQL erasure, data-inventory and legal-hold

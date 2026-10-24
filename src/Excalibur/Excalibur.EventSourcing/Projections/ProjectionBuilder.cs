@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing.DependencyInjection;
@@ -50,6 +51,12 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	}
 
 	/// <inheritdoc />
+	public IProjectionBuilder<TProjection> Inline()
+	{
+		_mode = ProjectionMode.Inline;
+		return this;
+	}
+
 	/// <inheritdoc />
 	public IProjectionBuilder<TProjection> Async()
 	{
@@ -70,6 +77,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	{
 		ArgumentNullException.ThrowIfNull(handler);
 		_projection.AddHandler(handler);
+		_services?.TryAddEnumerable(ServiceDescriptor.Singleton<IEventNotificationDispatch, EventNotificationDispatch<TEvent>>());
 		return this;
 	}
 
@@ -79,6 +87,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	{
 		ArgumentNullException.ThrowIfNull(handler);
 		_projection.AddContextHandler(handler);
+		_services?.TryAddEnumerable(ServiceDescriptor.Singleton<IEventNotificationDispatch, EventNotificationDispatch<TEvent>>());
 		return this;
 	}
 
@@ -100,6 +109,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 
 		// Register the handler type in DI if IServiceCollection is available (T.6)
 		_services?.TryAddTransient(typeof(THandler));
+		_services?.TryAddEnumerable(ServiceDescriptor.Singleton<IEventNotificationDispatch, EventNotificationDispatch<TEvent>>());
 
 		// Closed over the handler type here, where it is known, so the start-up check that the handler's
 		// own dependencies can be supplied needs no assembly scan. Registering the handler says it can be
@@ -290,13 +300,36 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	internal void Build(IProjectionRegistry registry)
 	{
-		ArgumentNullException.ThrowIfNull(registry);
+        BuildCore(registry, static sp => ProjectionStoreOperations<TProjection>.Legacy(sp.GetRequiredService<IProjectionStore<TProjection>>()),
+            CreateClearForAggregateDelegate());
+    }
+
+    internal void BuildGenerated(IProjectionRegistry registry, JsonTypeInfo<TProjection> typeInfo)
+    {
+        BuildCore(registry, sp =>
+        {
+            GeneratedProjectionValidation.RequireSerializer(sp);
+            return ProjectionStoreOperations<TProjection>.Generated(sp, typeInfo);
+        },
+            async (sp, id, aggregateType, token) =>
+            {
+                var operations = ProjectionStoreOperations<TProjection>.Generated(sp, typeInfo);
+                if (await operations.GetByIdAsync(id, token).ConfigureAwait(false) is null) { return; }
+                await sp.GetRequiredService<ProjectionRecoveryService>().ReapplyGeneratedAsync(id, aggregateType, operations, sp, token).ConfigureAwait(false);
+            });
+    }
+
+    private void BuildCore(IProjectionRegistry registry,
+        Func<IServiceProvider, ProjectionStoreOperations<TProjection>> resolveStore,
+        ProjectionRegistration.ClearForAggregateDelegate clear)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
 
 		// Capture the generic type in a delegate at registration time (AOT-safe, no MakeGenericMethod).
-		// Named "inlineApply" for historical reasons only: the one caller is now the async host. It used
-		// to be invoked during SaveAsync as well, which is the dual write that was removed.
-		var inlineApply = _mode is ProjectionMode.Async
-			? CreateInlineApplyDelegate()
+		// Both persisted modes use the same ordered host and conditional positioned fold. It used
+		// to apply local save payloads without positions; that uncoordinated path is not used.
+		var inlineApply = _mode is ProjectionMode.Async or ProjectionMode.Inline
+			? CreateInlineApplyDelegate(resolveStore)
 			: null;
 
 		// GDPR erasure clears a subject from a read model by replaying the aggregate it just tombstoned,
@@ -312,8 +345,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		// design; a null delegate is the same refusal, stated where erasure can act on it instead of
 		// discovered from a thrown exception.
 		var clearForAggregate =
-			_mode is ProjectionMode.Async && !_projection.HasKeySelectors
-				? CreateClearForAggregateDelegate()
+			(_mode is ProjectionMode.Async or ProjectionMode.Inline) && !_projection.HasKeySelectors
+				? clear
 				: null;
 
 		// Type-erase the search text delegates for storage in the non-generic ProjectionRegistration.
@@ -336,7 +369,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			_options,
 			searchTextComputer,
 			searchTextSetter,
-			clearForAggregate);
+			clearForAggregate) { HandlesEvent = type => _projection.GetHandler(type) is not null };
 
 		registry.Register(registration);
 	}
@@ -377,9 +410,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				.ConfigureAwait(false);
 		};
 
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private ProjectionRegistration.InlineApplyDelegate CreateInlineApplyDelegate()
+	private ProjectionRegistration.InlineApplyDelegate CreateInlineApplyDelegate(Func<IServiceProvider, ProjectionStoreOperations<TProjection>> resolveStore)
 	{
 		var projection = _projection;
 		var searchTextComputer = _searchTextComputer;
@@ -390,14 +421,14 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		// allocation and async overhead.
 		if (!projection.HasAsyncHandlers)
 		{
-			return CreateSyncOnlyApplyDelegate(projection, searchTextComputer, searchTextSetter);
+			return CreateSyncOnlyApplyDelegate(projection, searchTextComputer, searchTextSetter, resolveStore);
 		}
 
 		// Full path: supports both sync and async handlers, multi-ID via KeyedBy and OverrideProjectionId (D1)
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
-			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
+			var store = resolveStore(serviceProvider);
+			var positioned = store.ResolveRequired(events);
 
 			// The handler context is built PER EVENT inside the loop below, not once here: a batch can
 			// span aggregates, so there is no single aggregate id that describes the whole call.
@@ -631,8 +662,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		static async Task<TProjection> GetOrLoadAsync(
 			Dictionary<string, TProjection> cache,
 			Dictionary<string, long?> readPositions,
-			IProjectionStore<TProjection> store,
-			IPositionedProjectionStore<TProjection>? positioned,
+			ProjectionStoreOperations<TProjection> store,
+			ProjectionStoreOperations<TProjection>? positioned,
 			string id,
 			CancellationToken cancellationToken)
 		{
@@ -663,20 +694,20 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	/// Creates a simplified delegate for projections that only have sync handlers.
 	/// Avoids Dictionary allocation and async overhead when no key selectors are present.
 	/// </summary>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+
 	private static ProjectionRegistration.InlineApplyDelegate CreateSyncOnlyApplyDelegate(
 		MultiStreamProjection<TProjection> projection,
 		Func<TProjection, string>? searchTextComputer,
-		Action<TProjection, string>? searchTextSetter)
-	{
-		// When key selectors exist, different events may target different projection IDs
+        Action<TProjection, string>? searchTextSetter,
+        Func<IServiceProvider, ProjectionStoreOperations<TProjection>> resolveStore)
+    {
+        // When key selectors exist, different events may target different projection IDs
 		if (projection.HasKeySelectors)
 		{
 			return async (events, context, serviceProvider, cancellationToken) =>
 			{
-				var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-				var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
+				var store = resolveStore(serviceProvider);
+				var positioned = store.ResolveRequired(events);
 
 				var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
 				var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
@@ -785,8 +816,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		// actually matches a handler, so unrelated events cannot create a ghost projection.
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
-			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-			var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
+			var store = resolveStore(serviceProvider);
+			var positioned = store.ResolveRequired(events);
 
 			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
 			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);

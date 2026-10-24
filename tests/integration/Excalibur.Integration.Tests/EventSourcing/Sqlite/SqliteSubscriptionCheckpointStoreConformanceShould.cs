@@ -60,6 +60,41 @@ public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 	}
 
 	[Fact]
+	public async Task CreateDefinitionCompanionWithoutChangingAnExistingCheckpoint()
+	{
+		// Keep this predecessor schema literal independent of the current DDL generator.
+		// A unique named database prevents initialization caches from making the test vacuous.
+		var connectionString = $"Data Source=checkpoint-upgrade-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
+		await using var keeper = new SqliteConnection(connectionString);
+		await keeper.OpenAsync().ConfigureAwait(false);
+		await using (var create = keeper.CreateCommand())
+		{
+			create.CommandText = """
+				CREATE TABLE SubscriptionCheckpoints (
+				    SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
+				    Position INTEGER NOT NULL,
+				    UpdatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+				INSERT INTO SubscriptionCheckpoints (SubscriptionName, Position)
+				VALUES ('existing-subscription', 42);
+				""";
+			_ = await create.ExecuteNonQueryAsync().ConfigureAwait(false);
+		}
+
+		var services = new ServiceCollection();
+		_ = services.AddSqliteSubscriptionCheckpointStore(connectionString, CheckpointTable);
+		await using var provider = services.BuildServiceProvider();
+		var store = provider.GetRequiredService<ISubscriptionCheckpointStore>();
+		await store.BindSubscriptionAsync("existing-subscription", new string('A', 64), CancellationToken.None).ConfigureAwait(false);
+		(await store.GetCheckpointAsync("existing-subscription", CancellationToken.None).ConfigureAwait(false)).ShouldBe(42);
+		await store.BindSubscriptionAsync("existing-subscription", new string('A', 64), CancellationToken.None).ConfigureAwait(false);
+
+		await using var read = keeper.CreateCommand();
+		read.CommandText = "SELECT DefinitionHash FROM SubscriptionCheckpointsDefinitions WHERE SubscriptionName = 'existing-subscription';";
+		(await read.ExecuteScalarAsync().ConfigureAwait(false)).ShouldBe(new string('A', 64));
+		(await store.GetCheckpointAsync("existing-subscription", CancellationToken.None).ConfigureAwait(false)).ShouldBe(42);
+	}
+
+	[Fact]
 	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
 		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
 

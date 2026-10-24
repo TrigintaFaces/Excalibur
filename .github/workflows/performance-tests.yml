@@ -99,7 +99,7 @@ jobs:
         run: |
           bash eng/ci/run-filtered-tests.sh --filter "Category=Performance" -- \
             eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build \
-            --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" \
+            --blame-hang-timeout 10m --logger "trx;LogFilePrefix=performance-tests" \
             --logger "console;verbosity=minimal" \
             -- RunConfiguration.TestSessionTimeout=600000
 
@@ -125,7 +125,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: performance-test-results
-          path: "**/performance-tests.trx"
+          path: "**/performance-tests*.trx"
+          if-no-files-found: error
           retention-days: 30
 
   # Platform-specific benchmark builds (hot-path needs pre-built artifacts per OS)

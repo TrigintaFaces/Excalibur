@@ -87,10 +87,35 @@ internal sealed class SqlServerAuthoritativeEventReader : IEventStoreAuthoritati
 #pragma warning restore CA2100
 		// The anchor preserves the endpoint check even for absence. One statement binds the check to
 		// the read; a separately routed probe is not evidence about the endpoint returning the event.
-		var row = await connection.QuerySingleAsync<StateRow>(new CommandDefinition(sql,
-			new { AggregateId = aggregateId, AggregateType = aggregateType, EventId = eventId, Version = version,
-				TenantId = tenant.TenantId, Untenanted = KeyedTenantPartition.Untenanted.TenantId },
-			transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
+        var parameters = new SqlServerParameterSet();
+        parameters.Add("AggregateId", aggregateId);
+        parameters.Add("AggregateType", aggregateType);
+        parameters.Add("EventId", eventId);
+        parameters.Add("Version", version);
+        parameters.Add("TenantId", tenant.TenantId);
+        parameters.Add("Untenanted", KeyedTenantPartition.Untenanted.TenantId);
+        using var command = parameters.CreateCommand(connection,
+            new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The authoritative state query returned no endpoint row.");
+        }
+        var row = new StateRow(
+            await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(0),
+            await reader.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(1),
+            await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(2),
+            await reader.IsDBNullAsync(3, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(3),
+            await reader.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(4),
+            await reader.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : reader.GetInt64(5),
+            await reader.IsDBNullAsync(6, cancellationToken).ConfigureAwait(false) ? null : reader.GetInt64(6),
+            await reader.IsDBNullAsync(7, cancellationToken).ConfigureAwait(false) ? null : (DateTimeOffset)reader.GetValue(7),
+            await reader.IsDBNullAsync(8, cancellationToken).ConfigureAwait(false) ? null : (DateTimeOffset)reader.GetValue(8),
+            await reader.IsDBNullAsync(9, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(9));
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The authoritative state query returned more than one identity row.");
+        }
 		cancellationToken.ThrowIfCancellationRequested();
 		if (!string.Equals(row.Updateability, "READ_WRITE", StringComparison.Ordinal))
 		{

@@ -118,7 +118,7 @@ public partial class GrantRepository : IGrantRepository
 		// No session token: this repository persists grants through a grant store, not an event store, so
 		// there is no global position for a reader to wait on. Null says that, rather than implying the
 		// save produced an ordering it did not.
-		return new SaveResult(aggregate.Version, SessionToken: null);
+		return new SaveResult(aggregate.Version, SessionToken: null, ProjectionFreshness.NotRequested);
 	}
 
 	/// <inheritdoc />

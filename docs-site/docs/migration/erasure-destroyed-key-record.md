@@ -1,15 +1,15 @@
 ---
-title: An interrupted erasure can now be completed, and SQL stores need a schema migration
+title: Erasure recovery and fresh SQL schema provisioning
 sidebar_label: Erasure destroyed-key record
 description: The erasure now records which key generations it destroyed, so a retry can attest what its first pass achieved and a read can report the subject's erasure. SQL Server and PostgreSQL erasure stores need two tables and will refuse to start without them.
 ---
 
-# An interrupted erasure can now be completed, and SQL stores need a schema migration
+# Erasure recovery and fresh SQL schema provisioning
 
-**If you use the SQL Server or PostgreSQL erasure store, your application will refuse to start after this
-upgrade until you apply the shipped schema migration.** It adds one table and **replaces** another, which
-discards every historical destruction record. Read
-[What the migration does to existing rows](#what-the-migration-does-to-existing-rows) before you run it.
+**SQL Server and PostgreSQL erasure stores require the current schema.** Earlier alpha schemas
+are not supported upgrade targets. Provision a new compliance schema with the shipped
+`001_CreateComplianceSchema.sql`, preserving any earlier schema and its destruction evidence.
+The ledger provisioning scripts never delete existing records and refuse incompatible table shapes.
 
 **If you use only the in-memory erasure store, or you implement `IErasureStore` yourself**, read
 [What changed in the contract](#what-changed-in-the-contract) — the interface gained two members, one member
@@ -64,45 +64,28 @@ is the only remaining copy, and it is what leaves the retry something to work fr
 
 Recording a destruction removes its own staged intent, and only its own.
 
-## What you must do: apply the schema migration
+## Provisioning the schema
 
-The store verifies its schema at startup and **fails fast, naming what is missing**, rather than failing
-later inside an erasure. You will see `ErasureStoreNotProvisionedException`.
+For a fresh deployment, run the current `001_CreateComplianceSchema.sql` or enable
+`AutoCreateSchema = true`. Automatic creation only creates absent tables; it does not upgrade
+existing ones. Earlier alpha request schemas changed tenant identity and tenant-partition columns.
+Those identities cannot safely be backfilled with arbitrary defaults or copied from one another.
+This alpha requires a new compliance schema for those deployments.
 
-| Database | State | What to run |
-|---|---|---|
-| Already provisioned by an earlier version | needs migrating | **PostgreSQL:** `004_AddKeyDestructionLedger.sql` · **SQL Server:** `005_AddKeyDestructionLedger.sql` |
-| Fresh | nothing to migrate | `001_CreateComplianceSchema.sql` — it carries the final shape. **Do not run the migration script.** |
+When the request schema is already current but ledger tables are absent, run PostgreSQL
+`004_AddKeyDestructionLedger.sql` or SQL Server `005_AddKeyDestructionLedger.sql`.
+These scripts validate both existing tables before creating either missing table, in one transaction.
+They serialize concurrent executions, require the exact ordered primary keys, and check required
+column types, nullability, and ordinal key collations. Repeating a successful script preserves records.
+They do not certify unrelated schema objects or repair earlier table shapes.
 
-Both scripts ship in the provider package. Each is idempotent: once the generation column exists the block
-is skipped, so re-running cannot drop a populated ledger a second time. If you provision with
-`AutoCreateSchema = true`, the store creates both tables for you on startup and there is nothing to do.
+An incompatible table causes an error and rolls back the script. Existing records remain intact.
+Do not delete destruction evidence to make provisioning succeed. A historical record without a
+generation cannot establish that a particular generation was destroyed; its missing identity cannot
+be reconstructed after the material is gone. Keep that earlier schema separate from a fresh deployment.
 
-### What the migration does to existing rows
-
-Rows written by the earlier schema recorded a destruction by request and handle, and carried **no
-generation**. A generation cannot be back-filled: the value only ever existed inside the key backend, and
-the destruction annihilated it. A row with no generation cannot answer the read predicate, so keeping it
-would force the predicate back onto the handle — the defect this change exists to remove.
-
-**So the destroyed-keys table is dropped and recreated, and that discards every historical destruction
-record, not only in-flight ones.** After the script runs, every past erasure request reports an **empty**
-destroyed-key-handle list, including requests completed months ago.
-
-What survives, and what makes the trade acceptable rather than alarming:
-
-- **The signed completion certificate is untouched** and remains the durable attestation for every completed
-  request. It carries the erasure summary including the count of keys destroyed, and it is stored as the
-  exact signed bytes, so its signature still verifies.
-- **The request row is untouched** and keeps its own keys-destroyed count.
-
-What is lost is the per-handle **breakdown**, which exists to let an interrupted erasure attest what its
-earlier passes achieved — not to serve as the attestation itself.
-
-:::danger Let in-flight erasures finish before applying this
-An erasure that is **mid-retry** when you run the script loses the record of which generations its earlier
-passes destroyed. It can no longer be reported complete and will need re-filing.
-:::
+The store also verifies required columns at startup and raises `ErasureStoreNotProvisionedException`
+when they are absent. This startup check does not replace the provisioning scripts' shape validation.
 
 ### The DDL, if you apply it by hand
 
@@ -194,11 +177,23 @@ a crypto-shredding composition refuses to start. Every shipped erasure store imp
 one type, and its registration publishes the ledger from that same instance.
 
 ```csharp
-ValueTask<bool> IsGenerationDestroyedAsync(string keyGeneration, CancellationToken cancellationToken);
-Task RecordDestroyedGenerationAsync(string keyGeneration, CancellationToken cancellationToken);
+using System.Threading;
+using System.Threading.Tasks;
+using Excalibur.Compliance;
+
+public static class DestructionLedgerUsage
+{
+    public static ValueTask<bool> WasDestroyedAsync(
+        IKeyDestructionLedger ledger, string keyHandle, string keyGeneration, CancellationToken cancellationToken)
+        => ledger.IsGenerationDestroyedAsync(keyHandle, keyGeneration, cancellationToken);
+
+    public static Task RecordAsync(
+        IKeyDestructionLedger ledger, string keyHandle, string keyGeneration, CancellationToken cancellationToken)
+        => ledger.RecordDestroyedGenerationAsync(keyHandle, keyGeneration, cancellationToken);
+}
 ```
 
-`IsGenerationDestroyedAsync` returns `true` **only** when a row exists for that generation. It returns
+`IsGenerationDestroyedAsync` returns `true` **only** when a row exists for that handle and generation. It returns
 `false` when none does — which covers a live generation, one destroyed outside this framework, and one that
 never existed; those three are not distinguished and none of them may produce a tombstone. **Being unable to
 read the ledger throws.** It is never reported as `false`: that value would be indistinguishable, in logs
@@ -232,7 +227,7 @@ What each owes:
 
 - **`RecordKeyDestroyedAsync` appends, never replaces.** A later pass adds to what earlier passes wrote.
   Truncating the set would erase the evidence of every earlier pass — the same defect by another route.
-- **Idempotent on the generation.** Recording a generation already recorded is a no-op. Two **different**
+- **Idempotent on the handle and generation pair.** Recording a pair already recorded is a no-op. Two **different**
   generations destroyed at one handle are two destructions and produce **two** rows with their own instants.
 - **Written per key, as each destruction returns** — not at completion. The pass that needs this record is
   the one that did not reach completion, so a write deferred to the end never happens in the only case it is

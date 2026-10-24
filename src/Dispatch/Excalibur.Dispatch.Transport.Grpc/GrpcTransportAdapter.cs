@@ -120,15 +120,9 @@ internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITranspo
 		ArgumentNullException.ThrowIfNull(destination);
 		ArgumentNullException.ThrowIfNull(context);
 
-		// The declared name, not the CLR FullName. This value leaves the process, and a FullName carries
-		// the namespace and assembly -- so a consumer refactoring their own code changes the string the
-		// subscriber on the far side matches on, with nothing to warn either party. Every other surface
-		// that names a message across a boundary (event store, outbox, CloudEvents, dead-letter queue)
-		// already uses the declared name. GetDeclaredName is used rather than GetName because GetName
-		// THROWS for a type declaring no name, and a send must not start failing for a message that has
-		// always sent. Both forms resolve on receipt: the type registry claims a type under its declared
-		// name AND its CLR forms, so this needs no migration and in-flight messages keep resolving.
+		// Durable sends require an explicit transport identity or the runtime message's declared name.
 		var messageClrType = message.GetType();
+		var messageName = context.GetMessageType() ?? MessageNameHelper.GetName(messageClrType);
 
 		var transportMessage = new TransportMessage
 		{
@@ -142,7 +136,7 @@ internal sealed partial class GrpcTransportAdapter : ITransportAdapter, ITranspo
 			// concrete type and used it for the LABEL while the PAYLOAD was written from the interface.
 			Body = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(message, messageClrType),
 			ContentType = "application/json",
-			MessageType = MessageNameHelper.GetDeclaredName(messageClrType) ?? messageClrType.FullName,
+			MessageType = messageName,
 			Subject = destination,
 
 			// The SENDER reads the outbound request's destination from this property and from nowhere

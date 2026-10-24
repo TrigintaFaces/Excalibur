@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
 
 using Excalibur.Dispatch.Caching;
 
@@ -25,7 +24,7 @@ public sealed class MessageTypeCacheNullFilteringShould : IDisposable
 		_logger = A.Fake<ILogger>();
 		A.CallTo(() => _logger.IsEnabled(A<LogLevel>._)).Returns(true);
 
-		// Reset cache state before each test using reflection
+		// Reset cache state before each test
 		ResetCache();
 	}
 
@@ -35,21 +34,9 @@ public sealed class MessageTypeCacheNullFilteringShould : IDisposable
 	}
 
 	/// <summary>
-	/// Resets the static MessageTypeCache state via reflection so each test starts fresh.
+	/// Resets the static MessageTypeCache state so each test starts fresh.
 	/// </summary>
-	private static void ResetCache()
-	{
-		var flags = BindingFlags.NonPublic | BindingFlags.Static;
-
-		var initializedField = typeof(MessageTypeCache).GetField("_initialized", flags);
-		initializedField?.SetValue(null, false);
-
-		var typeCacheField = typeof(MessageTypeCache).GetField("_typeCache", flags);
-		typeCacheField?.SetValue(null, System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty);
-
-		var nameCacheField = typeof(MessageTypeCache).GetField("_nameToTypeCache", flags);
-		nameCacheField?.SetValue(null, System.Collections.Frozen.FrozenDictionary<string, Type>.Empty);
-	}
+	private static void ResetCache() => MessageTypeCache.Reset();
 
 	[Fact]
 	public void Initialize_WithNullTypes_FiltersThemOut()
@@ -146,14 +133,14 @@ public sealed class MessageTypeCacheNullFilteringShould : IDisposable
 	public void Initialize_WithMixedNulls_PreservesTypeNameResolution()
 	{
 		// Arrange
-		var types = new Type?[] { null, typeof(string), null };
+		var types = new Type?[] { null, typeof(NamedMessage), null };
 
 		// Act
 		MessageTypeCache.Initialize(types!);
 
 		// Assert - type should be resolvable by name
-		var resolved = MessageTypeCache.ResolveType(typeof(string).FullName!);
-		resolved.ShouldBe(typeof(string));
+		var resolved = MessageTypeCache.ResolveType("null-filter.named");
+		resolved.ShouldBe(typeof(NamedMessage));
 	}
 
 	[Fact]
@@ -189,4 +176,7 @@ public sealed class MessageTypeCacheNullFilteringShould : IDisposable
 				(LogLevel)call.Arguments[0]! == LogLevel.Warning)
 			.MustNotHaveHappened();
 	}
+	[MessageName("null-filter.named")]
+	private sealed class NamedMessage;
+
 }

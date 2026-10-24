@@ -1,6 +1,6 @@
 # Clock dependence in test code that exists TODAY -- one entry per distinct violating line.
 #
-# Read eng/ci/task-delay-syncwait-gate.sh for why this file exists. In short: a test that
+# Enforced by RepositoryChecks --test-timing using resolved Roslyn operations: a test that
 # synchronizes on a fixed `await Task.Delay(N)` before asserting a background condition, or gives
 # itself a sub-ten-second CancellationTokenSource deadline to beat, is racing the CI runner. Under
 # thread-pool starvation it loses and reports working code as broken.

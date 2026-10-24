@@ -62,7 +62,7 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 		var qualifiedTable = SqlTableName.Format(schema, table);
 
 		var valuesBuilder = new StringBuilder();
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 
 		// The event store is a KEYED tenant table: every row carries a non-null tenant term, so the
 		// tenant column and parameter are ALWAYS emitted — routing through KeyedTenantPartition makes an
@@ -126,7 +126,7 @@ internal sealed class InsertEventsBatchRequest : DataRequestBase<IDbConnection, 
 		// built, so there is nothing to read back: no OUTPUT clause, and no need to match returned rows to
 		// events by version. The previous implementation recovered IDENTITY values here, which is precisely
 		// the allocation strategy the position counter replaces.
-		ResolveAsync = connection => connection.ExecuteAsync(Command);
+		ResolveAsync = connection => SqlServerParameterSet.ExecuteNonQueryAsync(connection, Command);
 	}
 }
 

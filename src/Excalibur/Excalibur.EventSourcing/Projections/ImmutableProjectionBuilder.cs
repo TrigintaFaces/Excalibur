@@ -29,7 +29,15 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 		_services = services;
 	}
 
+	internal ProjectionMode Mode => _mode;
+
 	/// <inheritdoc />
+	public IImmutableProjectionBuilder<TProjection> Inline()
+	{
+		_mode = ProjectionMode.Inline;
+		return this;
+	}
+
 	/// <inheritdoc />
 	public IImmutableProjectionBuilder<TProjection> Async()
 	{
@@ -43,6 +51,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	{
 		ArgumentNullException.ThrowIfNull(factory);
 		_projection.AddCreatingHandler(factory);
+		_services?.TryAddEnumerable(ServiceDescriptor.Singleton<IEventNotificationDispatch, EventNotificationDispatch<TEvent>>());
 		return this;
 	}
 
@@ -53,6 +62,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 	{
 		ArgumentNullException.ThrowIfNull(transform);
 		_projection.AddTransformingHandler(transform);
+		_services?.TryAddEnumerable(ServiceDescriptor.Singleton<IEventNotificationDispatch, EventNotificationDispatch<TEvent>>());
 		return this;
 	}
 
@@ -72,6 +82,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 			});
 
 		_services?.TryAddTransient(typeof(THandler));
+		_services?.TryAddEnumerable(ServiceDescriptor.Singleton<IEventNotificationDispatch, EventNotificationDispatch<TEvent>>());
 		return this;
 	}
 
@@ -156,7 +167,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 
 		// Only an Async registration folds into a store, and the apply delegate is what the projection
 		// host calls to do it. An Ephemeral projection is replayed on demand and needs none.
-		var inlineApply = _mode is ProjectionMode.Async
+		var inlineApply = _mode is ProjectionMode.Async or ProjectionMode.Inline
 			? CreateImmutableInlineApplyDelegate()
 			: null;
 
@@ -165,7 +176,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 			_mode,
 			_projection,
 			inlineApply,
-			_cacheTtl);
+			_cacheTtl) { HandlesEvent = type => _projection.GetHandler(type) is not null };
 
 		registry.Register(registration);
 	}

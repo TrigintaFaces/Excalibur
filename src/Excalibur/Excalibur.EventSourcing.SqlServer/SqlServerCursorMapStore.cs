@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Dapper;
+using Excalibur.EventSourcing.SqlServer.Requests;
 
 using Excalibur.Dispatch;
 
@@ -110,16 +111,17 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var rows = await connection.QueryAsync<CursorMapRow>(
-			"SELECT StreamId, Position FROM ProjectionCursorMaps "
-			+ "WHERE TenantId = @TenantId AND ProjectionName = @ProjectionName",
-			new { TenantId = ResolveTenantKey(), ProjectionName = projectionName }).ConfigureAwait(false);
-
-		var result = new Dictionary<string, long>(StringComparer.Ordinal);
-		foreach (var row in rows)
-		{
-			result[row.StreamId] = row.Position;
-		}
+        var parameters = Parameters(ResolveTenantKey(), projectionName);
+        using var command = parameters.CreateCommand(connection, new CommandDefinition(
+            "SELECT StreamId, Position FROM ProjectionCursorMaps "
+            + "WHERE TenantId = @TenantId AND ProjectionName = @ProjectionName",
+            parameters, cancellationToken: cancellationToken));
+        await using var rows = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var result = new Dictionary<string, long>(StringComparer.Ordinal);
+        while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            result[rows.GetString(0)] = rows.GetInt64(1);
+        }
 
 		return result;
 	}
@@ -147,7 +149,10 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 
 		foreach (var entry in cursorMap)
 		{
-			await connection.ExecuteAsync(
+            var parameters = Parameters(tenantKey, projectionName);
+            parameters.Add("StreamId", entry.Key);
+            parameters.Add("Position", entry.Value);
+            await SqlServerParameterSet.ExecuteNonQueryAsync(connection, new CommandDefinition(
 				"""
 				MERGE ProjectionCursorMaps WITH (UPDLOCK, HOLDLOCK) AS target
 				USING (SELECT @TenantId AS TenantId, @ProjectionName AS ProjectionName, @StreamId AS StreamId) AS source
@@ -158,14 +163,7 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 				WHEN NOT MATCHED THEN INSERT (TenantId, ProjectionName, StreamId, Position)
 					VALUES (@TenantId, @ProjectionName, @StreamId, @Position);
 				""",
-				new
-				{
-					TenantId = tenantKey,
-					ProjectionName = projectionName,
-					StreamId = entry.Key,
-					Position = entry.Value
-				},
-				transaction).ConfigureAwait(false);
+                parameters, transaction, cancellationToken: cancellationToken)).ConfigureAwait(false);
 		}
 
 		await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -181,13 +179,13 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		await connection.ExecuteAsync(
+		await SqlServerParameterSet.ExecuteNonQueryAsync(connection, new CommandDefinition(
 			// The tenant term is NOT optional here: a reset without it deletes EVERY tenant's cursors for
 			// the projection, and the next run reprojects the whole stream for all of them -- or loses
 			// their positions outright if the source has since been truncated.
 			"DELETE FROM ProjectionCursorMaps "
 			+ "WHERE TenantId = @TenantId AND ProjectionName = @ProjectionName",
-			new { TenantId = ResolveTenantKey(), ProjectionName = projectionName }).ConfigureAwait(false);
+			Parameters(ResolveTenantKey(), projectionName), cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
 	private static Func<SqlConnection> CreateConnectionFactory(string connectionString)
@@ -196,5 +194,12 @@ public sealed class SqlServerCursorMapStore : ICursorMapStore
 		return () => new SqlConnection(connectionString);
 	}
 
-	private sealed record CursorMapRow(string StreamId, long Position);
+    private static SqlServerParameterSet Parameters(string tenantId, string projectionName)
+    {
+        var parameters = new SqlServerParameterSet();
+        parameters.Add("TenantId", tenantId);
+        parameters.Add("ProjectionName", projectionName);
+        return parameters;
+    }
+
 }

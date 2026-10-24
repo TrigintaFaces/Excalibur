@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Require every source-discovered test project to belong to a CI filter by exact path.
+"""Require every MSBuild-classified test project to belong to a CI filter by exact path.
 
 This is assignment coverage, not proof that a workflow executes its selected tests. Discovery
-retains the existing xUnit-source/non-executable rule. Unreadable inputs refuse evaluation.
+uses evaluated IsTestProject, including imported properties. Evaluation errors refuse validation.
 Exit 0: assigned; 1: unassigned; 2: could not evaluate.
 """
 import glob
+from concurrent.futures import ThreadPoolExecutor
 import json
-import os
 from pathlib import Path
 import re
 import sys
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
-TEST_ATTR = re.compile(r'\[\s*(?:Xunit\.)?(?:Fact|Theory)\b')
 EXCLUDED = {'bin', 'obj', 'node_modules', 'BenchmarkDotNet.Artifacts'}
 
 
@@ -30,15 +31,15 @@ def generated(path):
 
 
 def is_test_project(csproj, root):
-    text = Path(csproj).read_text(encoding='utf-8-sig')
-    if re.search(r'<OutputType>\s*Exe\s*</OutputType>', text, re.I):
-        return False
-    for directory, directories, files in os.walk(Path(csproj).parent, onerror=lambda error: (_ for _ in ()).throw(error)):
-        directories[:] = [name for name in directories if name not in EXCLUDED and not name.startswith('.')]
-        for name in files:
-            if name.endswith('.cs') and TEST_ATTR.search(Path(directory, name).read_text(encoding='utf-8-sig')):
-                return True
-    return False
+    result = subprocess.run(['dotnet', 'msbuild', str(Path(csproj).resolve()), '-nologo',
+                             '-property:Configuration=Release', '-property:BuildExamplesAndTests=true',
+                             '-getProperty:IsTestProject'], cwd=root, capture_output=True,
+                            text=True, encoding='utf-8', timeout=120, check=False)
+    value = result.stdout.strip().lower()
+    if result.returncode != 0 or result.stderr.strip() or value not in ('true', 'false'):
+        raise ValueError(f'MSBuild could not classify {csproj}: exit {result.returncode}: '
+                         f'{result.stdout.strip()} {result.stderr.strip()}')
+    return value == 'true'
 
 
 def shard_members(shard_glob, root='.'):
@@ -80,15 +81,18 @@ def run(tests_glob, shard_glob, root='.'):
     if not projects:
         raise ValueError('no test projects found')
     unassigned, considered = [], 0
-    for path in projects:
-        if not is_test_project(path, root):
+    # SDK evaluation is independent per project. Bound concurrency and propagate every failure.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        classifications = list(executor.map(lambda path: is_test_project(path, root), projects))
+    for path, is_test in zip(projects, classifications):
+        if not is_test:
             continue
         considered += 1
         identity = Path(path).resolve().relative_to(root).as_posix()
         if identity not in members:
             unassigned.append(path)
     if not considered:
-        raise ValueError('no test projects could be identified by the source-discovery rule')
+        raise ValueError('no test projects could be identified by MSBuild IsTestProject')
     return considered, len(projects) - considered, unassigned, len(files)
 
 
@@ -98,11 +102,12 @@ class CoverageControls(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.paths = ['tests/Assigned/Suite.csproj', 'tests/Orphan/Suite.csproj', 'tests/Fixture/Fixture.csproj']
+        self.classifications = {}
         for path in self.paths:
             full = self.root / path
             full.parent.mkdir(parents=True)
             full.write_text('<Project/>', encoding='utf-8')
-            full.with_suffix('.cs').write_text('class Test { [Fact] void Check() {} }' if 'Fixture' not in path else 'class Fixture {}', encoding='utf-8')
+            self.classifications[str(full)] = 'Fixture' not in path
         solution = '\n'.join(f'Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "Suite", "{path}", "{{00000000-0000-0000-0000-{index:012}}}"'
                              for index, path in enumerate(self.paths))
         (self.root / 'Excalibur.sln').write_text(solution, encoding='utf-8')
@@ -114,7 +119,8 @@ class CoverageControls(unittest.TestCase):
         self.filter.write_text(json.dumps({'solution': {'path': solution, 'projects': projects}}), encoding='utf-8')
 
     def evaluate(self):
-        return run(str(self.root / 'tests/**/*.csproj'), str(self.root / 'shards/*.slnf'), self.root)
+        with patch(__name__ + '.is_test_project', side_effect=lambda path, root: self.classifications[str(Path(path))]):
+            return run(str(self.root / 'tests/**/*.csproj'), str(self.root / 'shards/*.slnf'), self.root)
 
     def test_same_basename_does_not_cover_orphan(self):
         considered, excluded, missing, _ = self.evaluate()
@@ -143,15 +149,14 @@ class CoverageControls(unittest.TestCase):
             self.evaluate()
 
     def test_empty_population_is_refused(self):
-        for path in self.root.glob('tests/**/*.cs'):
-            path.write_text('class Fixture {}', encoding='utf-8')
+        self.classifications = dict.fromkeys(self.classifications, False)
         with self.assertRaises(ValueError):
             self.evaluate()
 
-    def test_unreadable_source_is_not_a_fixture_exemption(self):
-        (self.root / self.paths[1]).with_suffix('.cs').write_bytes(b'\xff')
-        with self.assertRaises(UnicodeError):
-            self.evaluate()
+    def test_evaluation_failure_is_not_a_fixture_exemption(self):
+        with patch(__name__ + '.is_test_project', side_effect=ValueError('invalid project import')):
+            with self.assertRaises(ValueError):
+                run(str(self.root / 'tests/**/*.csproj'), str(self.root / 'shards/*.slnf'), self.root)
 
     def test_generated_projects_are_not_test_population(self):
         generated_project = self.root / 'tests/Assigned/obj/Generated.csproj'
@@ -160,15 +165,51 @@ class CoverageControls(unittest.TestCase):
         self.assertEqual(self.evaluate()[:2], (2, 1))
 
 
+class MSBuildClassificationControls(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='shard-msbuild-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.project = self.root / 'Tests.csproj'
+        (self.root / 'Imported.props').write_text(
+            '<Project><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>', encoding='utf-8')
+
+    def test_imported_classification_and_executable_tests(self):
+        self.project.write_text('<Project><Import Project="Imported.props"/><PropertyGroup>'
+                                '<OutputType>Exe</OutputType></PropertyGroup></Project>', encoding='utf-8')
+        self.assertTrue(is_test_project(self.project, self.root))
+
+    def test_explicit_helper_overrides_imported_true(self):
+        self.project.write_text('<Project><Import Project="Imported.props"/><PropertyGroup>'
+                                '<IsTestProject>false</IsTestProject></PropertyGroup></Project>', encoding='utf-8')
+        self.assertFalse(is_test_project(self.project, self.root))
+
+    def test_broken_import_is_not_a_non_test_classification(self):
+        self.project.write_text('<Project><Import Project="Absent.props"/></Project>', encoding='utf-8')
+        with self.assertRaises(ValueError):
+            is_test_project(self.project, self.root)
+
+    def test_unset_property_refuses_to_classify(self):
+        self.project.write_text('<Project/>', encoding='utf-8')
+        with self.assertRaises(ValueError):
+            is_test_project(self.project, self.root)
+
+    def test_release_configuration_is_the_authority(self):
+        self.project.write_text('<Project><PropertyGroup><IsTestProject>false</IsTestProject>'
+                                '<IsTestProject Condition="\'$(Configuration)\' == \'Release\'">true</IsTestProject>'
+                                '</PropertyGroup></Project>', encoding='utf-8')
+        self.assertTrue(is_test_project(self.project, self.root))
+
+
 if __name__ == '__main__':
     if '--self-test' in sys.argv:
         unittest.main(argv=[sys.argv[0]], verbosity=2)
     try:
         considered, excluded, unassigned, filters = run('tests/**/*.csproj', 'eng/ci/shards/*.slnf')
-    except (OSError, ValueError, KeyError, TypeError) as error:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         print(f'REFUSE: {error}', file=sys.stderr)
         sys.exit(2)
-    print(f'shard-coverage: {considered} source-discovered test projects; {filters} filters; {excluded} non-test projects.')
+    print(f'shard-coverage: {considered} MSBuild-classified test projects; {filters} filters; {excluded} non-test projects.')
     for project in unassigned:
         print(f'::error::unassigned test project: {project}')
     sys.exit(1 if unassigned else 0)

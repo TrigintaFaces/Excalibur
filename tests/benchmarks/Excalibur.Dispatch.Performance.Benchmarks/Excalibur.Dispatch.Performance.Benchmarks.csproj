@@ -2,6 +2,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <IsTestProject>false</IsTestProject>
+    <IsBenchmarkProject>true</IsBenchmarkProject>
+    <ProjectClassification>Benchmark</ProjectClassification>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

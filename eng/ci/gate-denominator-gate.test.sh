@@ -55,14 +55,16 @@ else
 fi
 rm -f "$sourced_probe"
 
-# LIVENESS on the real tree: the migrated gates must actually be emitting the marker, not merely
-# be absent from the baseline. Without this arm, deleting every gate would also produce a green.
+# Shell callers must remain nonempty. Compiler migrations legitimately reduce this population;
+# replacement-policy coverage is proved by compiled controls and the required compiler census.
+# The manifest checks missing rows/files separately; its unreviewed ratchet is NOT an active-gate floor.
 emitters="$(grep -lE 'gate_denominator(_may_be_empty)?[[:space:]]' "$HERE"/*.sh 2>/dev/null | grep -vcE '(gate-denominator\.sh|\.test\.sh)$')"
-if [ "${emitters:-0}" -ge 8 ]; then
+if [ "${emitters:-0}" -gt 0 ]; then
     printf '  PASS  %s gate script(s) in the real tree call the helper\n' "$emitters"
 else
-    printf '  FAIL  only %s gate script(s) call the helper — the migration regressed\n' "${emitters:-0}" >&2; pass=0
+    printf '  FAIL  no gate script calls the denominator helper\n' >&2; pass=0
 fi
+arm "real gate manifest remains coherent" 0 python3 "$HERE/gate-manifest-gate.py"
 
 printf '\n'
 [ "$pass" -eq 1 ] && { echo "gate-denominator contract: ALL ARMS PASS"; exit 0; }

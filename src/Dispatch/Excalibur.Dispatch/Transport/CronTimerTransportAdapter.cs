@@ -600,7 +600,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			{
 				MessageId = messageId,
 			};
-			context.SetMessageType(typeof(CronTimerTriggerMessage).FullName);
+			context.SetMessageType(MessageNameHelper.GetName(typeof(CronTimerTriggerMessage)));
 			context.SetReceivedTimestampUtc(_timeProvider.GetUtcNow());
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);

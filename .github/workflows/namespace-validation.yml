@@ -8,11 +8,19 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**/*.cs'
+      - 'tests/architecture/Boundary.Tests/**'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.props'
+      - 'global.json'
       - '.github/workflows/namespace-validation.yml'
   pull_request:
     branches: [main, develop]
     paths:
       - 'src/**/*.cs'
+      - 'tests/architecture/Boundary.Tests/**'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.props'
+      - 'global.json'
       - '.github/workflows/namespace-validation.yml'
   workflow_dispatch: # Allow manual triggering
 
@@ -52,151 +60,33 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 0
 
-      - name: 📊 Analyze namespace depth violations
-        id: analyze
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Validate namespace depth with Roslyn
         run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Namespace Depth Validation"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
+          dotnet test tests/architecture/Boundary.Tests/Boundary.Tests.csproj \
+            --configuration Release -m:1 -warnaserror -p:BuildExamplesAndTests=true \
+            -p:SolutionDir="$GITHUB_WORKSPACE/" -p:SolutionName=Excalibur \
+            --filter FullyQualifiedName~NamespaceDepthShould \
+            --logger 'trx;LogFilePrefix=namespace-depth' --results-directory artifacts/namespace-depth \
+            --blame-hang-timeout 2m -- RunConfiguration.TestSessionTimeout=300000
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          results = [node for path in pathlib.Path('artifacts/namespace-depth').glob('*.trx')
+                     for node in ET.parse(path).iter() if node.tag.endswith('}UnitTestResult')]
+          assert results and all(node.attrib['outcome'] == 'Passed' for node in results), 'Namespace tests did not all execute successfully'
+          assert any(node.attrib['testName'].endswith('.KeepProductionNamespacesWithinTheDepthBudget') for node in results), 'Production namespace population was not verified'
+          print(f'Namespace validation: {len(results)} passed; preferred depth <=4, depth 5 requires justification, depth >=6 prohibited.')
+          PY
 
-          # Find all C# files and extract namespaces
-          echo "🔍 Scanning C# files for namespace declarations..."
-
-          # Count depth ≥6 violations (CRITICAL - fail build)
-          DEPTH6_COUNT=$(find src -name "*.cs" -type f -exec grep -H "^namespace " {} \; 2>/dev/null | \
-            awk -F'namespace ' '{print $2}' | \
-            awk -F';' '{print $1}' | \
-            awk -F'.' '{if(NF>=6) print}' | \
-            wc -l)
-
-          # Count depth 5 violations (WARNING - allow but report)
-          DEPTH5_COUNT=$(find src -name "*.cs" -type f -exec grep -H "^namespace " {} \; 2>/dev/null | \
-            awk -F'namespace ' '{print $2}' | \
-            awk -F';' '{print $1}' | \
-            awk -F'.' '{if(NF==5) print}' | \
-            wc -l)
-
-          echo ""
-          echo "📈 Validation Results:"
-          echo "  • Depth ≥6 violations (PROHIBITED): $DEPTH6_COUNT"
-          echo "  • Depth 5 violations (ACCEPTABLE):  $DEPTH5_COUNT"
-          echo ""
-
-          # Set outputs for summary
-          echo "depth6_count=$DEPTH6_COUNT" >> $GITHUB_OUTPUT
-          echo "depth5_count=$DEPTH5_COUNT" >> $GITHUB_OUTPUT
-
-          # If depth ≥6 violations exist, collect details
-          if [ "$DEPTH6_COUNT" -gt 0 ]; then
-            echo "❌ CRITICAL VIOLATIONS DETECTED:"
-            echo ""
-            find src -name "*.cs" -type f -exec grep -H "^namespace " {} \; 2>/dev/null | \
-              awk -F'namespace ' '{print $1 "\t" $2}' | \
-              awk -F';' '{print $1}' | \
-              awk -F':' '{file=$1; namespace=$2; depth=split(namespace, parts, "."); if(depth>=6) print "  • " file "\n    Namespace: " namespace " (depth " depth ")"}' | \
-              head -50
-            echo ""
-          fi
-
-      - name: ⚠️  Report depth 5 warnings
-        if: steps.analyze.outputs.depth5_count > 0
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "⚠️  WARNING: Depth 5 Namespaces (Acceptable Maximum)"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "Found ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5."
-          echo ""
-          echo "Namespace depth limits:"
-          echo "  • Depth 5 is acceptable with architectural justification"
-          echo "  • See: management/reports/2025-11-17_depth5-justification_v1.0.0.md"
-          echo "  • Recommendation: Reduce to depth ≤4 where possible"
-          echo ""
-          echo "Build will continue (depth 5 is within acceptable limits)"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-
-      - name: ❌ Fail build on depth ≥6 violations
-        if: steps.analyze.outputs.depth6_count > 0
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "❌ BUILD FAILED: Namespace Depth Violations"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "Found ${{ steps.analyze.outputs.depth6_count }} namespace(s) with depth ≥6"
-          echo ""
-          echo "Namespace depth limits:"
-          echo "  ✅ Depth ≤4: Preferred"
-          echo "  ⚠️  Depth 5:  Acceptable with justification"
-          echo "  ❌ Depth ≥6: PROHIBITED"
-          echo ""
-          echo "Required Actions:"
-          echo "  1. Reduce namespace depth to ≤5 segments"
-          echo "  2. See the namespace conventions in the contributor guide:"
-          echo "     https://github.com/TrigintaFaces/Excalibur#namespace-conventions"
-          echo "  3. Consider using folders (not namespaces) for architectural layering"
-          echo ""
-          echo "Violations detected above. Please fix and push again."
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          exit 1
-
-      - name: ✅ Validation passed
-        if: steps.analyze.outputs.depth6_count == 0
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Namespace Depth Validation Passed"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          if [ "${{ steps.analyze.outputs.depth5_count }}" -eq 0 ]; then
-            echo "✅ All namespaces comply with preferred depth (≤4)"
-            echo "✅ Zero violations detected"
-          else
-            echo "✅ No critical violations (depth ≥6)"
-            echo "⚠️  ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5 (acceptable)"
-          fi
-          echo ""
-          echo "Namespace depth verified ✓"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-      - name: 📊 Create job summary
+      - name: Preserve namespace validation results
         if: always()
-        run: |
-          echo "# Namespace Validation Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Count | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Depth ≥6 violations (PROHIBITED) | ${{ steps.analyze.outputs.depth6_count }} | ${{ steps.analyze.outputs.depth6_count == 0 && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Depth 5 violations (ACCEPTABLE) | ${{ steps.analyze.outputs.depth5_count }} | ⚠️  Warning |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Namespace Depth Rules" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Namespace depth limits:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Depth ≤4**: Preferred (recommended)" >> $GITHUB_STEP_SUMMARY
-          echo "- ⚠️  **Depth 5**: Acceptable with architectural justification" >> $GITHUB_STEP_SUMMARY
-          echo "- ❌ **Depth ≥6**: PROHIBITED (fails build)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.analyze.outputs.depth6_count }}" -gt 0 ]; then
-            echo "## ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Critical namespace depth violations detected. See log output above for details." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Required Actions:**" >> $GITHUB_STEP_SUMMARY
-            echo "1. Reduce namespace depth to ≤5 segments" >> $GITHUB_STEP_SUMMARY
-            echo "2. See the namespace conventions in the contributor guide" >> $GITHUB_STEP_SUMMARY
-            echo "3. Consider using folders (not namespaces) for architectural layering" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "All namespaces comply with the depth requirements." >> $GITHUB_STEP_SUMMARY
-            if [ "${{ steps.analyze.outputs.depth5_count }}" -gt 0 ]; then
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "**Note**: ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5 (acceptable maximum). See [depth-5 justifications](../blob/main/management/reports/2025-11-17_depth5-justification_v1.0.0.md) for details." >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Automated governance check - enforced at commit (pre-commit hook) and build (CI) layers*" >> $GITHUB_STEP_SUMMARY
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: namespace-depth-results
+          path: artifacts/namespace-depth/*.trx
+          if-no-files-found: error
+          retention-days: 30

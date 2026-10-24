@@ -49,7 +49,6 @@ premise-triage.sh
 run-filtered-tests.sh
 shipped-ddl-sweep.sh
 ci-sli-report.py
-conformance-arm-skip-census.py
 # A module with no __main__ and no exit path: aot-annotation-inventory-gate.py loads it with
 # spec_from_file_location and owns the exit. Verified by reading the file, not inferred from
 # its name.
@@ -72,9 +71,6 @@ assert-compiled-not-skipped.sh
 assert-tests-executed.sh
 committed-sha-build-gate.sh
 config-binder-completeness-gate.sh
-conformance-arm-skip-gate.sh
-conformance-backend-coverage-gate.sh
-conformance-fork-gate.sh
 cosmos-liveness-gate.sh
 cosmos-readiness-gate.sh
 coverage-shard-reports-complete.sh
@@ -105,11 +101,9 @@ aot-promise-coherence-gate.py
 assert-packages-signed.py
 changed-code-coverage.py
 config-binder-completeness-gate.py
-conformance-arm-wiring.py
 container-image-pinning-gate.py
 ddl-migration-completeness.py
 ddl-pack-completeness.py
-docs-csharp-member-gate.py
 policy-consistency-gate.py
 promotion-contract-gate.py
 required-contexts-satisfiable.py

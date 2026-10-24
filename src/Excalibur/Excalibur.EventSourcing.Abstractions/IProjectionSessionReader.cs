@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Excalibur.EventSourcing;
 
@@ -52,4 +53,16 @@ public interface IProjectionSessionReader
 		SaveResult session,
 		CancellationToken cancellationToken)
 		where TProjection : class;
+
+    /// <summary>Reads a projection through generated-metadata persistence after waiting for the session token.</summary>
+    /// <typeparam name="TProjection">Projection state type.</typeparam>
+    /// <param name="projectionId">Projection identifier.</param>
+    /// <param name="session">The write to observe.</param>
+    /// <param name="typeInfo">The same generated metadata instance used by the store.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The projection and its freshness.</returns>
+    /// <remarks>The default implementation refuses this capability. It never calls the reflective overload.</remarks>
+    ValueTask<ProjectionRead<TProjection>> ReadAsync<TProjection>(string projectionId, SaveResult session,
+        JsonTypeInfo<TProjection> typeInfo, CancellationToken cancellationToken) where TProjection : class
+        => throw new NotSupportedException("This session reader does not support generated-metadata reads.");
 }

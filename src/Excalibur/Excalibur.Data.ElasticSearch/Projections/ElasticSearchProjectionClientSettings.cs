@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Elastic.Clients.Elasticsearch;
+using Elastic.Clients.Elasticsearch.Serialization;
 using Elastic.Transport;
 
 namespace Excalibur.Data.ElasticSearch.Projections;
@@ -26,30 +27,48 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// </remarks>
 internal static class ElasticSearchProjectionClientSettings
 {
+	private static string GetScope(IEnumerable<Uri> nodes)
+	{
+		var descriptor = string.Join("\n", nodes.Select(static uri => uri.GetComponents(
+			UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped)).Order(StringComparer.Ordinal));
+		return "elasticsearch/" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+			System.Text.Encoding.UTF8.GetBytes(descriptor)));
+	}
 	/// <summary>
 	/// Builds the client settings described by the supplied store options.
 	/// </summary>
 	/// <param name="options">The projection-store options describing the cluster.</param>
 	/// <returns>Settings addressing that cluster, authenticated as the store authenticates.</returns>
-	internal static ElasticsearchClientSettings Create(ElasticSearchProjectionStoreOptions options)
-	{
+	internal static ElasticsearchClientSettings Create(ElasticSearchProjectionStoreOptions options) => Create(options, out _);
+
+	internal static ElasticsearchClientSettings Create(ElasticSearchProjectionStoreOptions options, out string destinationScope)
+        => Create(options, out destinationScope, out _);
+
+    internal static ElasticsearchClientSettings Create(ElasticSearchProjectionStoreOptions options, out string destinationScope,
+        out System.Text.Json.Serialization.JsonSerializerContext? sourceContext)
+    {
 		ArgumentNullException.ThrowIfNull(options);
+        var resolver = options.SourceTypeInfoResolver;
+        sourceContext = resolver as System.Text.Json.Serialization.JsonSerializerContext;
+		var configuredNodes = options.NodeUris?.ToArray();
+		var nodes = configuredNodes is { Length: > 0 } ? configuredNodes : [new Uri(options.NodeUri)];
+		destinationScope = GetScope(nodes);
 
 		ElasticsearchClientSettings settings;
 
-		if (options.NodeUris is { Count: > 0 } uris)
+		if (configuredNodes is { Length: > 0 })
 		{
 			NodePool pool = options.ConnectionPoolType switch
 			{
-				ConnectionPoolType.Sniffing => new SniffingNodePool(uris),
-				_ => new StaticNodePool(uris),
+				ConnectionPoolType.Sniffing => new SniffingNodePool(nodes),
+				_ => new StaticNodePool(nodes),
 			};
-			settings = new ElasticsearchClientSettings(pool)
+			settings = CreateSettings(pool, resolver)
 				.RequestTimeout(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
 		}
 		else
 		{
-			settings = new ElasticsearchClientSettings(new Uri(options.NodeUri))
+			settings = CreateSettings(new SingleNodePool(nodes[0]), resolver)
 				.RequestTimeout(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
 		}
 
@@ -68,6 +87,13 @@ internal static class ElasticSearchProjectionClientSettings
 		}
 
 		return settings;
+	}
+
+	private static ElasticsearchClientSettings CreateSettings(NodePool pool, System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver? resolver)
+	{
+		return resolver is null ? new ElasticsearchClientSettings(pool)
+			: new ElasticsearchClientSettings(pool, sourceSerializer: (_, settings) => new DefaultSourceSerializer(settings,
+				System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.Combine(resolver, ProjectionDocumentJsonContext.Default)));
 	}
 
 	/// <summary>

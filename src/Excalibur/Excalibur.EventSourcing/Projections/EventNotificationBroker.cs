@@ -22,7 +22,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// Handlers run sequentially, one event at a time in commit order, resolved from a fresh DI scope,
 /// under a bound this broker mints rather than the caller's cancellation token.
 /// </para>
-/// <para>No projection is written here — see the note in <c>NotifyAsync</c> for why.</para>
+/// <para>Inline projections complete through the shared ordered processor after notifications.</para>
 /// </remarks>
 internal sealed class EventNotificationBroker : IEventNotificationBroker
 {
@@ -35,15 +35,17 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 	private readonly IOptions<EventNotificationOptions> _options;
 	private readonly ILogger<EventNotificationBroker> _logger;
 	private readonly TimeProvider _timeProvider;
+	private readonly InlineProjectionCoordinator? _inline;
+	private readonly IReadOnlyDictionary<Type, IEventNotificationDispatch> _dispatchers;
 
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public EventNotificationBroker(
 		IServiceScopeFactory scopeFactory,
 		IOptions<EventNotificationOptions> options,
 		ILogger<EventNotificationBroker> logger,
 		IEnumerable<EventNotificationServiceCollectionExtensions.IConfigureProjection> projectionConfigurations,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		InlineProjectionCoordinator? inline = null,
+		IEnumerable<IEventNotificationDispatch>? dispatchers = null)
 	{
 		ArgumentNullException.ThrowIfNull(scopeFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -53,6 +55,8 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		_options = options;
 		_logger = logger;
 		_timeProvider = timeProvider ?? TimeProvider.System;
+		_inline = inline;
+		_dispatchers = dispatchers?.ToDictionary(d => d.EventType) ?? new Dictionary<Type, IEventNotificationDispatch>();
 
 		// Eagerly invoke all deferred projection configurations (B2 fix).
 		// IConfigureProjection instances are registered by AddProjection<T>() but
@@ -68,7 +72,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		Justification = "MakeGenericType is used to resolve event notification handlers. Register handlers explicitly for AOT scenarios.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
 		Justification = "Handler types are preserved through DI registration.")]
-	public async Task NotifyAsync(
+	public async Task<ProjectionFreshness> NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context)
 	{
@@ -77,7 +81,9 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 
 		if (events.Count == 0)
 		{
-			return;
+			// Nothing was committed, so there is nothing for a projection to catch up to and no wait was
+			// requested. Distinct from a wait that was requested and did not complete.
+			return ProjectionFreshness.NotRequested;
 		}
 
 		var opts = _options.Value;
@@ -93,34 +99,8 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		// hold a save open forever. It is a backstop; see PostCommitTimeout for why it is not a budget.
 		using var bound = new CancellationTokenSource(opts.PostCommitTimeout, _timeProvider);
 
-		// PROJECTIONS ARE NO LONGER WRITTEN HERE, and that is the point.
-		//
-		// This phase used to fold "inline" projections in-process, after the events were durable, as a
-		// SECOND uncoordinated writer. Two concurrent saves then read the same row, both folded, and the
-		// last write won -- a lost fold that returned success to both callers. The write carried no
-		// global position either, so the row could not be advanced by anything afterwards and only a
-		// full rebuild could repair it.
-		//
-		// A read model is a replica, and replicas are updated by replication rather than by the writer
-		// dual-writing into them. Read-your-writes did not go away with the removal: SaveAsync returns a
-		// session token and IProjectionSessionReader honours it.
-		//
-		// WHAT REMOVING THIS DOES **NOT** BUY -- stated because the obvious claim is wrong, and was
-		// written here before it was checked. The projection host is NOT the only writer afterwards.
-		// ProjectionRebuildService (via ProjectionReplayFold), ProjectionRecoveryService, a second
-		// GlobalStreamProjectionHost (which performs no leader election at all) and any consumer holding
-		// the public IProjectionStore<T> can all write a row the host writes.
-		//
-		// What actually closes the race is the POSITION, not the writer count. On a store implementing
-		// IPositionedProjectionStore<T> the conditional write refuses the loser and the refusal is
-		// visible -- ProjectionReplayFold.cs:276 calls that CAS "the only thing that surfaces a live
-		// writer racing the rebuild". On a store WITHOUT that capability, ProjectionReplayFold.cs:243
-		// and :252 upsert unconditionally, and a rebuild can still silently regress a row the host has
-		// advanced past. So the honest guarantee is: exactly-once fold holds where the store is
-		// positioned, and nowhere else. Closing that is tracked separately; it predates this change and
-		// is not introduced by it.
-		//
-		// Notification handlers remain: they are consumer callbacks, not a second writer of our state.
+		// Notifications retain their own failure policy. Inline completion below drives the ordered
+		// durable stream through this commit's position; it never folds the local events a second time.
 		var notifications = InvokeNotificationHandlersAsync(events, context, opts.FailurePolicy, bound.Token);
 		try
 		{
@@ -140,6 +120,15 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 				throw timeout;
 			}
 		}
+		if (_inline is not null)
+		{
+			return await _inline.CompleteAsync(context, events).ConfigureAwait(false);
+		}
+
+		// No Inline projection is registered, so nothing was waited for. This is not a degraded answer:
+		// an Async-only host never asked for read-your-writes at the save, and saying "not requested"
+		// keeps that distinguishable from a wait that was asked for and did not complete.
+		return ProjectionFreshness.NotRequested;
 	}
 
 	private async Task ObserveTimedOutNotificationAsync(Task notifications)
@@ -171,10 +160,10 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			var eventType = @event.GetType();
-			var (handlerInterfaceType, method) = ResolveHandlerMethod(eventType);
-
-			// Resolve all handlers for this event type
-			var handlers = scope.ServiceProvider.GetServices(handlerInterfaceType);
+			_dispatchers.TryGetValue(eventType, out var dispatcher);
+			var fallback = dispatcher is null ? ResolveHandlerMethod(eventType) : default;
+			var handlers = dispatcher is null ? scope.ServiceProvider.GetServices(fallback.InterfaceType!)
+				: dispatcher.GetHandlers(scope.ServiceProvider);
 			foreach (var handler in handlers)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
@@ -185,16 +174,17 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 
 				try
 				{
-					var task = (Task)method.Invoke(handler, [@event, context, cancellationToken])!;
+					var task = dispatcher is null ? (Task)fallback.Method!.Invoke(handler, [@event, context, cancellationToken])!
+						: dispatcher.InvokeAsync(handler, @event, context, cancellationToken);
 					await task.ConfigureAwait(false);
 				}
-				catch (TargetInvocationException tie) when (tie.InnerException is not null)
+				catch (TargetInvocationException tie) when (dispatcher is null && tie.InnerException is not null)
 				{
 					// Unwrap reflection wrapper to surface the real exception
 					HandleNotificationError(tie.InnerException, handler, eventType, context, failurePolicy);
 				}
 #pragma warning disable CA1031 // Catch general exceptions -- handlers should not crash the notification pipeline
-				catch (Exception ex) when (ex is not TargetInvocationException)
+				catch (Exception ex) when (dispatcher is not null || ex is not TargetInvocationException)
 #pragma warning restore CA1031
 				{
 					HandleNotificationError(ex, handler, eventType, context, failurePolicy);

@@ -336,7 +336,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMes
 		}
 
 		context.MessageId ??= Uuid7Extensions.GenerateString();
-		context.SetMessageType(context.GetMessageType() ?? message.GetType().FullName);
+		context.SetMessageType(context.GetMessageType() ?? MessageNameHelper.GetDeclaredName(message.GetType()));
 		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 	}
 

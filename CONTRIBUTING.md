@@ -28,13 +28,13 @@ This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDU
 
 ### Prerequisites
 
-| Requirement | Version | Purpose |
-|-------------|---------|---------|
-| .NET SDK | 10.0+ | Building and running the project |
-| Visual Studio 2022 / Rider | Latest | IDE (optional but recommended) |
-| Docker Desktop | Latest | Running TestContainers for integration tests |
-| Git | 2.x+ | Version control |
-| PowerShell | 7.x+ | Running build scripts |
+| Requirement                | Version | Purpose                                      |
+| -------------------------- | ------- | -------------------------------------------- |
+| .NET SDK                   | 10.0+   | Building and running the project             |
+| Visual Studio 2022 / Rider | Latest  | IDE (optional but recommended)               |
+| Docker Desktop             | Latest  | Running TestContainers for integration tests |
+| Git                        | 2.x+    | Version control                              |
+| PowerShell                 | 7.x+    | Running build scripts                        |
 
 ### Quick Start
 
@@ -56,11 +56,13 @@ dotnet test
 ### IDE Setup
 
 **Visual Studio 2022:**
+
 - Open `Excalibur.sln`
 - Ensure .NET 10 SDK is installed
 - EditorConfig is automatically applied
 
 **JetBrains Rider:**
+
 - Open the solution folder
 - Enable EditorConfig in Settings → Editor → Code Style
 
@@ -83,10 +85,10 @@ dotnet build src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj
 
 The repository supports two build modes:
 
-| Mode | Default | Use Case |
-|------|---------|----------|
-| **ProjectReference** | Yes | Development (fast iteration, debugging) |
-| **PackageReference** | No | CI validation (package composition testing) |
+| Mode                 | Default | Use Case                                    |
+| -------------------- | ------- | ------------------------------------------- |
+| **ProjectReference** | Yes     | Development (fast iteration, debugging)     |
+| **PackageReference** | No      | CI validation (package composition testing) |
 
 **Development Mode (Default):**
 
@@ -107,6 +109,7 @@ dotnet build eng/ci/shards/ShippingOnly.slnf -p:UsePackageReferences=true
 ```
 
 The local feed is created at `artifacts/_packages/`. This validates that:
+
 - Package metadata is correct
 - Dependencies resolve properly
 - No circular package references exist
@@ -142,6 +145,7 @@ pwsh eng/validate-package-composition.ps1 -Version 0.2.0-test
 ```
 
 This script:
+
 1. Builds Dispatch projects
 2. Packs them to `artifacts/_packages/` local feed
 3. Clears NuGet cache to avoid stale packages
@@ -149,6 +153,7 @@ This script:
 5. Optionally validates sample compilation
 
 **CI automatically runs package composition validation** on every PR via the `package-composition` job in `.github/workflows/ci.yml`. This job:
+
 - Packs Dispatch with a CI-specific version (`0.1.0-ci-<run_number>`)
 - Builds Excalibur projects against the packaged dependencies
 - Validates at least one sample compiles against packages
@@ -177,6 +182,7 @@ pwsh eng/audit-warnings.ps1 -ExportCsv warnings.csv
 3. Reference the sprint/task that added the suppression for traceability
 
 Example:
+
 ```csharp
 // CA1031 suppression - Quartz jobs must catch all exceptions
 // to prevent the scheduler from terminating the job thread
@@ -189,10 +195,22 @@ catch (Exception ex)
 ```
 
 **Approved suppression categories:**
+
 - **CA1031** (catch general exceptions): Quartz jobs must not throw
 - **CA1005** (generic type parameters): Required for type-safe builder patterns
 - **CA1863** (CompositeFormat): Exception paths where caching adds no value
 - **IDE0060** (unused parameter): Interface requires parameter but implementation doesn't use it
+
+### Choosing Rule Enforcement
+
+For C# rules, prefer Roslyn symbols, syntax trees, and semantic analysis over hand-written regex parsers. Choose the first suitable mechanism:
+
+1. Existing .NET analyzers and MSBuild validation.
+2. Compiled architecture or behavioral tests.
+3. Custom Roslyn analyzers for repository-specific rules.
+4. Scripts for orchestration, artifacts, and external services.
+
+Preserve the policy when replacing its implementation. Keep namespace depth limits: prefer at most four segments, justify five, and reject six or more. A replacement must exercise the real source or compiled population and include controls that reject violations and accept valid cases. Missing inputs or unexecuted tests must not produce a passing verdict.
 
 ### Sample Validation
 
@@ -212,6 +230,7 @@ pwsh eng/validate-samples.ps1 -Detailed
 ```
 
 **P0/P1 Samples (14):** These are validated and must always build:
+
 - Core: `DispatchOnly`, `InteractiveDemo`, `HelloDispatch`
 - Feature: `MultiBusSample`, `RemoteBusSample`, `EventSourcingIntro`, `SagaOrchestration`
 - BackgroundServices: `AtLeastOnceWithInbox`, `MinimizedWindow`, `PerformanceComparison`, `TransactionalWhenApplicable`
@@ -219,10 +238,12 @@ pwsh eng/validate-samples.ps1 -Detailed
 - Contracts: `WebWorkerSample/Contracts`
 
 **P2 Samples (9):** These are skipped due to known issues and will be fixed in future sprints:
+
 - `ECommerceSample`, `CdcAntiCorruption`, `JobWorkerSample`, `SessionManagement`
 - `Dispatch.Versioning.Examples/*`, `ClaimCheck`, `WebWorkerSample/WebHost`
 
 **If a P0/P1 sample fails:**
+
 1. Fix the sample to build successfully, OR
 2. Move it to P2 with a documented issue for later resolution
 
@@ -239,22 +260,22 @@ pwsh eng/validate-samples.ps1 -Detailed
 **Dispatch** = Minimal hooks, messaging middleware, transport adapters
 **Excalibur** = Full hosting/CQRS, stateful persistence, domain patterns
 
-| Question | If Yes → |
-|----------|----------|
-| Is this about message routing or pipeline? | Dispatch |
-| Is this cross-cutting middleware (compliance, audit)? | Dispatch |
-| Is this a serverless trigger → message flow adapter? | Excalibur.Dispatch.Hosting.* |
-| Is this about storing/loading domain state? | Excalibur |
-| Is this stateful persistence (event store, projections)? | Excalibur.EventSourcing.* |
-| Is this full-stack CQRS/ES infrastructure? | Excalibur.Hosting.* |
+| Question                                                 | If Yes →                      |
+| -------------------------------------------------------- | ----------------------------- |
+| Is this about message routing or pipeline?               | Dispatch                      |
+| Is this cross-cutting middleware (compliance, audit)?    | Dispatch                      |
+| Is this a serverless trigger → message flow adapter?     | Excalibur.Dispatch.Hosting.\* |
+| Is this about storing/loading domain state?              | Excalibur                     |
+| Is this stateful persistence (event store, projections)? | Excalibur.EventSourcing.\*    |
+| Is this full-stack CQRS/ES infrastructure?               | Excalibur.Hosting.\*          |
 
 ### Ownership Quick Reference
 
-| Package Category | Owner | Rationale |
-|-----------------|-------|-----------|
-| **Hosting (13 packages)** | Split | Dispatch = trigger adapters; Excalibur = full infrastructure |
-| **Compliance/Audit (10+1)** | Split | Dispatch = stateless middleware; Excalibur = stateful storage |
-| **Caching** | Split | Excalibur.Dispatch.Caching = generic; Excalibur.Caching.Projections = ES-specific |
+| Package Category            | Owner | Rationale                                                                         |
+| --------------------------- | ----- | --------------------------------------------------------------------------------- |
+| **Hosting (13 packages)**   | Split | Dispatch = trigger adapters; Excalibur = full infrastructure                      |
+| **Compliance/Audit (10+1)** | Split | Dispatch = stateless middleware; Excalibur = stateful storage                     |
+| **Caching**                 | Split | Excalibur.Dispatch.Caching = generic; Excalibur.Caching.Projections = ES-specific |
 
 **Critical Rule:** Dispatch does NOT depend on Excalibur. No exceptions.
 
@@ -265,41 +286,43 @@ All projects in the repository are governed. When adding a new project, follow t
 ### Quick Checklist
 
 1. **Create in correct directory**:
-   - `src/` for shipping NuGet packages
-   - `tests/` for test projects
-   - `samples/` for example applications
-   - `benchmarks/` for performance tests
+    - `src/` for shipping NuGet packages
+    - `tests/` for test projects
+    - `samples/` for example applications
+    - `benchmarks/` for performance tests
 
 2. **Add to solution**:
-   ```bash
-   dotnet sln Excalibur.sln add <path-to-csproj>
-   ```
+
+    ```bash
+    dotnet sln Excalibur.sln add <path-to-csproj>
+    ```
 
 3. **For shipping packages**, add required metadata:
-   ```xml
-   <PropertyGroup>
-     <!-- Required: 1-2 sentence package purpose -->
-     <Description>Brief description of the package</Description>
 
-     <!-- Required: NuGet discoverability tags -->
-     <PackageTags>dispatch;excalibur;messaging;your-domain-tags</PackageTags>
+    ```xml
+    <PropertyGroup>
+      <!-- Required: 1-2 sentence package purpose -->
+      <Description>Brief description of the package</Description>
 
-     <!-- Required: README for NuGet.org display -->
-     <PackageReadmeFile>README.md</PackageReadmeFile>
-   </PropertyGroup>
+      <!-- Required: NuGet discoverability tags -->
+      <PackageTags>dispatch;excalibur;messaging;your-domain-tags</PackageTags>
 
-   <!-- Required: Include README in package -->
-   <ItemGroup>
-     <None Include="README.md" Pack="true" PackagePath="/" />
-   </ItemGroup>
-   ```
+      <!-- Required: README for NuGet.org display -->
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <!-- Required: Include README in package -->
+    <ItemGroup>
+      <None Include="README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
+    ```
 
 4. **Create README.md** for shipping packages (see template below)
 
 5. **Run inventory validation**:
-   ```bash
-   pwsh eng/inventory-projects.ps1 -Strict
-   ```
+    ```bash
+    pwsh eng/inventory-projects.ps1 -Strict
+    ```
 
 ### Package README Template
 
@@ -339,12 +362,12 @@ terms are a choice will assume whichever one they happen to find first.
 
 ### Project Classifications
 
-| Directory | Classification | Packable |
-|-----------|---------------|----------|
-| `src/` | Shipping | Yes |
-| `tests/` | Test | No |
-| `samples/` | Sample | No |
-| `benchmarks/` | Benchmark | No |
+| Directory     | Classification | Packable |
+| ------------- | -------------- | -------- |
+| `src/`        | Shipping       | Yes      |
+| `tests/`      | Test           | No       |
+| `samples/`    | Sample         | No       |
+| `benchmarks/` | Benchmark      | No       |
 
 ---
 
@@ -362,18 +385,19 @@ All tests MUST follow the naming conventions and trait system set out below.
 
 ### Test Naming Conventions
 
-| Test Type | Naming Pattern | Example |
-|-----------|----------------|---------|
-| **Unit** | `{Class}Should.cs` or `{Class}Tests.cs` | `MessageDispatcherShould.cs` |
-| **Integration** | `{Feature}IntegrationShould.cs` | `EventSourcingIntegrationShould.cs` |
-| **Conformance** | `{Pattern}ConformanceTests.cs` | `OutboxStoreConformanceTests.cs` |
-| **Functional** | `{Workflow}FunctionalShould.cs` | `OrderProcessingFunctionalShould.cs` |
+| Test Type       | Naming Pattern                          | Example                              |
+| --------------- | --------------------------------------- | ------------------------------------ |
+| **Unit**        | `{Class}Should.cs` or `{Class}Tests.cs` | `MessageDispatcherShould.cs`         |
+| **Integration** | `{Feature}IntegrationShould.cs`         | `EventSourcingIntegrationShould.cs`  |
+| **Conformance** | `{Pattern}ConformanceTests.cs`          | `OutboxStoreConformanceTests.cs`     |
+| **Functional**  | `{Workflow}FunctionalShould.cs`         | `OrderProcessingFunctionalShould.cs` |
 
 ### Required xUnit Traits
 
 All tests MUST include appropriate xUnit traits for CI filtering:
 
 **Unit Tests**:
+
 ```csharp
 [Trait("Category", "Unit")]
 [Trait("Component", "YourComponent")]
@@ -385,6 +409,7 @@ public class YourClassShould
 ```
 
 **Integration Tests**:
+
 ```csharp
 [Trait("Category", "Integration")]
 [Trait("Component", "YourComponent")]
@@ -396,6 +421,7 @@ public class YourFeatureIntegrationShould
 ```
 
 **Conformance Tests** (verify interface contracts):
+
 ```csharp
 [Trait("Category", "Integration")]
 [Trait("Component", "Core|Compliance|Domain")]
@@ -442,10 +468,10 @@ dotnet test
 - Never commit secrets. The `secret-scan.yml` workflow runs [Gitleaks](https://github.com/gitleaks/gitleaks) on every push and PR.
 - False-positive allowlists are managed in **`.gitleaks.toml`** using path-regex and secret-regex rules (not line numbers). This ensures allowlists survive file moves, line shifts, and refactors.
 - To investigate a new false positive:
-  1. Run locally: `gitleaks detect --source . --no-git --config .gitleaks.toml -v --report-format json --report-path findings.json`
-  2. Inspect the finding in `findings.json` to confirm it is not a real secret.
-  3. Add a path regex or secret-value regex to the `[allowlist]` section in `.gitleaks.toml`.
-  4. Re-run gitleaks to verify the finding is suppressed.
+    1. Run locally: `gitleaks detect --source . --no-git --config .gitleaks.toml -v --report-format json --report-path findings.json`
+    2. Inspect the finding in `findings.json` to confirm it is not a real secret.
+    3. Add a path regex or secret-value regex to the `[allowlist]` section in `.gitleaks.toml`.
+    4. Re-run gitleaks to verify the finding is suppressed.
 - The `.gitleaksignore` file is reserved for emergency overrides only; prefer `.gitleaks.toml` for all allowlist changes.
 
 ---
@@ -470,12 +496,12 @@ All projects in the repository are tracked by a **project manifest** (`eng/gover
 
 ### Governance Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `eng/inventory-projects.ps1` | Scan filesystem and regenerate `project-manifest.yaml` |
-| `eng/validate-solution.ps1` | Validate manifest ↔ filesystem ↔ solution consistency |
-| `eng/add-missing-to-solution.ps1` | Bulk-add missing projects to the solution |
-| `eng/audit-warnings.ps1` | Audit build warnings in shipping code |
+| Script                            | Purpose                                                |
+| --------------------------------- | ------------------------------------------------------ |
+| `eng/inventory-projects.ps1`      | Scan filesystem and regenerate `project-manifest.yaml` |
+| `eng/validate-solution.ps1`       | Validate manifest ↔ filesystem ↔ solution consistency  |
+| `eng/add-missing-to-solution.ps1` | Bulk-add missing projects to the solution              |
+| `eng/audit-warnings.ps1`          | Audit build warnings in shipping code                  |
 
 ### Warning Policy
 
@@ -489,12 +515,12 @@ This project follows strict .NET coding standards.
 
 ### Key Guidelines
 
-| Rule | Correct | Incorrect |
-|------|---------|-----------|
-| No `.Core.` namespace segment | `Dispatch.Messaging` | `Excalibur.Dispatch.Messaging` |
-| DI extensions namespace | `namespace Microsoft.Extensions.DependencyInjection` | `namespace Excalibur.Dispatch.DependencyInjection` |
-| CancellationToken required | `Task FooAsync(CancellationToken ct)` | `CancellationToken ct = default` |
-| ConfigureAwait in libraries | `await task.ConfigureAwait(false)` | `await task` |
+| Rule                          | Correct                                              | Incorrect                                          |
+| ----------------------------- | ---------------------------------------------------- | -------------------------------------------------- |
+| No `.Core.` namespace segment | `Dispatch.Messaging`                                 | `Excalibur.Dispatch.Messaging`                     |
+| DI extensions namespace       | `namespace Microsoft.Extensions.DependencyInjection` | `namespace Excalibur.Dispatch.DependencyInjection` |
+| CancellationToken required    | `Task FooAsync(CancellationToken ct)`                | `CancellationToken ct = default`                   |
+| ConfigureAwait in libraries   | `await task.ConfigureAwait(false)`                   | `await task`                                       |
 
 ### Namespace Conventions
 
@@ -523,15 +549,15 @@ public static class DispatchServiceCollectionExtensions { }
 
 The following namespace patterns are **blocked** and will fail the build:
 
-| Pattern | Reason | Use Instead |
-|---------|--------|-------------|
-| `Excalibur.Dispatch.*` | Eliminated in W6 | Flat `Dispatch.*` namespaces |
-| `Excalibur.Dispatch.Patterns.Sagas.*` | Moved to Excalibur | `Excalibur.Saga` namespace |
-| `Dispatch.*.Abstractions.*.*` | Deep hierarchy | Flat `.Abstractions` namespace |
+| Pattern                               | Reason                                                        | Use Instead                             |
+| ------------------------------------- | ------------------------------------------------------------- | --------------------------------------- |
+| `.Core.`                              | Meaningless implementation-layer segment                      | The owning package or feature namespace |
+| `Excalibur.Dispatch.Patterns.Sagas.*` | Moved to Excalibur                                            | `Excalibur.Saga` namespace              |
+| Redundant `.Abstractions` segments    | Exposes package organization rather than the consumer concept | The owning feature namespace            |
 
 #### Provider Package Pattern
 
-Provider packages follow the convention `Dispatch.{Feature}.{Provider}`:
+Provider packages follow `Excalibur.Dispatch.{Feature}.{Provider}` or `Excalibur.{Feature}.{Provider}`:
 
 ```csharp
 // CORRECT
@@ -539,23 +565,16 @@ namespace Excalibur.Dispatch.Transport.Azure;
 namespace Excalibur.Compliance.Aws;
 namespace Excalibur.Dispatch.LeaderElection;
 
-// INCORRECT - too deep
-namespace Excalibur.Dispatch.Transport.Azure.ServiceBus.Configuration;
 ```
 
 #### Namespace Depth
 
-Maximum namespace depth is 4 segments:
+Organize namespaces by stable product and related feature groups and avoid redundant segments.
+For production code, prefer at most four segments; five requires architectural justification;
+six or more fails the namespace-validation workflow. This repository's depth budget keeps the public
+surface discoverable. Preserve published namespaces and review any necessary API migration explicitly.
 
-```csharp
-// CORRECT (3-4 segments)
-namespace Excalibur.Dispatch.Messaging;
-namespace Excalibur.Dispatch.Transport.Azure;
-namespace Excalibur.Dispatch.Hosting.AspNetCore;
-
-// INCORRECT (5+ segments)
-namespace Excalibur.Dispatch.Messaging.Delivery.Scheduling.Internal;
-```
+See [Microsoft's namespace design guidance](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/names-of-namespaces).
 
 #### Verification
 
@@ -586,6 +605,7 @@ type(scope): description
 **Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 **Examples:**
+
 ```
 feat(outbox): add batch processing support
 fix(dispatcher): resolve race condition in pipeline
@@ -598,7 +618,7 @@ docs(contributing): add code style guidelines
 
 **Read this before opening a pull request — submitting one is how you agree to it.**
 
-By submitting a contribution to this project you agree that, unless you state otherwise:
+By submitting a contribution to this project you agree that:
 
 - your contribution is licensed to the Excalibur Project under the **Excalibur License 1.1**; and
 - you grant the Excalibur Project a perpetual, irrevocable right to distribute your contribution under
@@ -647,9 +667,9 @@ package itself rather than the vendor's usual one — they differ more often tha
 3. **Follow naming**: `feature/description` or `fix/description`
 4. **Write tests** for new functionality
 5. **Run all tests locally**:
-   ```bash
-   dotnet test
-   ```
+    ```bash
+    dotnet test
+    ```
 6. **Update documentation** if applicable
 
 ### PR Checklist
@@ -676,33 +696,33 @@ package itself rather than the vendor's usual one — they differ more often tha
 
 ### Priority Labels
 
-| Label | Description |
-|-------|-------------|
-| `P0-critical` | Showstopper, blocks release |
-| `P1-high` | Important, should be in next sprint |
-| `P2-medium` | Normal priority |
-| `P3-low` | Nice to have |
+| Label         | Description                         |
+| ------------- | ----------------------------------- |
+| `P0-critical` | Showstopper, blocks release         |
+| `P1-high`     | Important, should be in next sprint |
+| `P2-medium`   | Normal priority                     |
+| `P3-low`      | Nice to have                        |
 
 ### Type Labels
 
-| Label | Description |
-|-------|-------------|
-| `bug` | Something isn't working |
-| `enhancement` | New feature request |
-| `documentation` | Documentation improvement |
-| `question` | Further information requested |
-| `performance` | Performance improvement |
-| `security` | Security-related issue |
+| Label           | Description                   |
+| --------------- | ----------------------------- |
+| `bug`           | Something isn't working       |
+| `enhancement`   | New feature request           |
+| `documentation` | Documentation improvement     |
+| `question`      | Further information requested |
+| `performance`   | Performance improvement       |
+| `security`      | Security-related issue        |
 
 ### Status Labels
 
-| Label | Description |
-|-------|-------------|
-| `needs-triage` | Needs initial review |
+| Label          | Description                    |
+| -------------- | ------------------------------ |
+| `needs-triage` | Needs initial review           |
 | `needs-design` | Requires architecture decision |
-| `ready` | Ready for implementation |
-| `in-progress` | Being worked on |
-| `blocked` | Blocked by external factor |
+| `ready`        | Ready for implementation       |
+| `in-progress`  | Being worked on                |
+| `blocked`      | Blocked by external factor     |
 
 ---
 
@@ -723,10 +743,10 @@ The release process is documented in [RELEASE.md](RELEASE.md).
 
 ### Who Can Release
 
-| Role | Authority |
-|------|-----------|
-| **Maintainers** | Full release authority (create tags, trigger pipeline) |
-| **Contributors** | Can request releases via issues |
+| Role             | Authority                                              |
+| ---------------- | ------------------------------------------------------ |
+| **Maintainers**  | Full release authority (create tags, trigger pipeline) |
+| **Contributors** | Can request releases via issues                        |
 
 ### Requesting a Release
 
@@ -734,17 +754,17 @@ Contributors can request a release by:
 
 1. Open an issue with the `release-request` label
 2. Include:
-   - **Proposed version**: Following SemVer (e.g., `1.1.0`)
-   - **Changes to include**: List of PRs/commits
-   - **Urgency**: Normal, high (security fix), critical (production issue)
+    - **Proposed version**: Following SemVer (e.g., `1.1.0`)
+    - **Changes to include**: List of PRs/commits
+    - **Urgency**: Normal, high (security fix), critical (production issue)
 
 ### Release Cadence
 
-| Type | Frequency | Trigger |
-|------|-----------|---------|
+| Type      | Frequency | Trigger                     |
+| --------- | --------- | --------------------------- |
 | **Patch** | As needed | Bug fixes, security patches |
-| **Minor** | ~Monthly | Feature batches |
-| **Major** | Rare | Breaking API changes |
+| **Minor** | ~Monthly  | Feature batches             |
+| **Major** | Rare      | Breaking API changes        |
 
 ### Quick Reference
 

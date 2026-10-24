@@ -161,6 +161,13 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 		ArgumentNullException.ThrowIfNull(message);
 
 		var id = Guid.NewGuid();
+		// Failure capture must also accept unnamed payloads. An empty identity is unknown,
+		// never a CLR name that a consumer might mistake for a durable routing contract.
+		var messageName = metadata is not null
+			&& metadata.TryGetValue("MessageType", out var explicitName)
+			&& !string.IsNullOrWhiteSpace(explicitName)
+				? explicitName
+				: MessageNameHelper.GetDeclaredName(message.GetType()) ?? string.Empty;
 
 		// Stamp the originating tenant as provenance so a replay re-enters the SAME tenant. Routing through
 		// the keyed partition always yields a concrete, non-null term: the ambient tenant when one is in
@@ -194,7 +201,7 @@ public sealed class SqlServerDeadLetterQueue : IDeadLetterQueue, IDeadLetterQueu
 			{
 				Id = id,
 				TenantId = tenantId,
-				MessageType = typeof(T).FullName ?? typeof(T).Name,
+				MessageType = messageName,
 				Payload = payload,
 				Reason = (int)reason,
 				ExceptionMessage = exception?.Message,

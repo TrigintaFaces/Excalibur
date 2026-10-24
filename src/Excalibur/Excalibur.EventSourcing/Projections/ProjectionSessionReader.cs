@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.EventSourcing.Subscriptions;
 
@@ -19,6 +20,8 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 	private readonly IOptions<GlobalStreamProjectionOptions> _projectionOptions;
 	private readonly ProjectionHealthState? _healthState;
 	private readonly TimeProvider _timeProvider;
+	private readonly IProjectionRegistry? _registry;
+	private readonly InlineProjectionCoordinator? _inline;
 
 	public ProjectionSessionReader(
 		IServiceScopeFactory scopeFactory,
@@ -26,7 +29,9 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		IOptions<GlobalStreamProjectionOptions> projectionOptions,
 		ISubscriptionCheckpointStore? checkpointStore = null,
 		ProjectionHealthState? healthState = null,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		IProjectionRegistry? registry = null,
+		InlineProjectionCoordinator? inline = null)
 	{
 		ArgumentNullException.ThrowIfNull(scopeFactory);
 		ArgumentNullException.ThrowIfNull(options);
@@ -38,6 +43,8 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		_projectionOptions = projectionOptions;
 		_healthState = healthState;
 		_timeProvider = timeProvider ?? TimeProvider.System;
+		_registry = registry;
+		_inline = inline;
 	}
 
 	/// <inheritdoc />
@@ -52,7 +59,8 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		ArgumentException.ThrowIfNullOrWhiteSpace(projectionId);
 
 		var freshness = session.SessionToken is { } token
-			? await AwaitTokenAsync(token, cancellationToken).ConfigureAwait(false)
+			? await AwaitTokenAsync(token, _registry?.GetRegistration(typeof(TProjection))?.Mode == ProjectionMode.Inline,
+				typeof(TProjection), cancellationToken).ConfigureAwait(false)
 			: ProjectionFreshness.NotRequested;
 
 		// READ AFTER THE WAIT, ALWAYS -- including when the bound expired. Returning early on expiry
@@ -65,7 +73,27 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		return new ProjectionRead<TProjection>(projection, freshness);
 	}
 
-	private async ValueTask<ProjectionFreshness> AwaitTokenAsync(long token, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public async ValueTask<ProjectionRead<TProjection>> ReadAsync<TProjection>(string projectionId, SaveResult session,
+        JsonTypeInfo<TProjection> typeInfo, CancellationToken cancellationToken) where TProjection : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectionId);
+        ArgumentNullException.ThrowIfNull(typeInfo);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var store = ProjectionStoreOperations<TProjection>.Generated(scope.ServiceProvider, typeInfo);
+        var freshness = session.SessionToken is { } token
+            ? await AwaitTokenAsync(token, _registry?.GetRegistration(typeof(TProjection))?.Mode == ProjectionMode.Inline,
+                typeof(TProjection), cancellationToken).ConfigureAwait(false)
+            : ProjectionFreshness.NotRequested;
+        var projection = await store.GetByIdAsync(projectionId, cancellationToken).ConfigureAwait(false);
+        return new ProjectionRead<TProjection>(projection, freshness);
+    }
+
+	private async ValueTask<ProjectionFreshness> AwaitTokenAsync(
+		long token,
+		bool inline,
+		Type projectionType,
+		CancellationToken cancellationToken)
 	{
 		var opts = _options.Value;
 		var subscription = _projectionOptions.Value.ProjectionName;
@@ -89,7 +117,10 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		{
 			try
 			{
-				if (await HasAppliedAsync(subscription, token, linked.Token).ConfigureAwait(false))
+				if (inline && _inline is not null
+					? await _inline.HasAppliedAsync(projectionType, token, linked.Token).ConfigureAwait(false)
+					: await HasAppliedAsync(CursorNameFor(subscription, projectionType), token, linked.Token)
+						.ConfigureAwait(false))
 				{
 					return ProjectionFreshness.Fresh;
 				}
@@ -125,17 +156,22 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		}
 	}
 
+	/// <summary>
+	/// The cursor key for one projection under a subscription, matching what the processing host writes.
+	/// </summary>
+	/// <remarks>
+	/// Cursors are PER REGISTRATION. Reading the bare subscription name finds nothing, so a reader that
+	/// used it would wait out its whole bound and report every read as <c>BoundExpired</c> while the
+	/// projection was in fact caught up. The key must be derived the same way on both sides.
+	/// </remarks>
+	private static string CursorNameFor(string subscription, Type projectionType) =>
+		AsyncProjectionProcessingHost.CheckpointNameFor(subscription, projectionType);
+
 	private async ValueTask<bool> HasAppliedAsync(
-		string subscription, long token, CancellationToken cancellationToken)
+		string cursorName, long token, CancellationToken cancellationToken)
 	{
-		// THE MAXIMUM OF TWO MARKS, AND NEITHER ALONE IS SUFFICIENT.
-		//
-		// The in-process mark moves the instant a batch applies cleanly, but it only knows what THIS
-		// process did. The durable checkpoint is shared across processes, but it is written only once
-		// CheckpointInterval events have accumulated -- so on a quiet host it lags a projection that is
-		// fully caught up, and a read trusting it alone would wait out its whole bound against a system
-		// that had already applied the write.
-		if (_healthState?.AppliedPosition(subscription) is { } applied && applied >= token)
+		// Both marks certify this registration only; a sibling cannot attest its progress.
+		if (_healthState?.AppliedPosition(cursorName) is { } applied && applied >= token)
 		{
 			return true;
 		}
@@ -156,7 +192,7 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
 		}
 
 		var checkpoint = await _checkpointStore
-			.GetCheckpointAsync(subscription, cancellationToken)
+			.GetCheckpointAsync(cursorName, cancellationToken)
 			.ConfigureAwait(false);
 
 		return checkpoint is { } durable && durable >= token;

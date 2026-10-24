@@ -452,7 +452,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		{
 			// Nothing was written, so there is no position for a reader to wait on. Null here says exactly
 			// that -- it does not say the save failed.
-			return new SaveResult(aggregate.Version, SessionToken: null);
+			return new SaveResult(aggregate.Version, SessionToken: null, ProjectionFreshness.NotRequested);
 		}
 
 		// Snapshot the events before MarkEventsAsCommitted clears the aggregate's internal list.
@@ -574,18 +574,21 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Notify the registered event notification handlers.
 		// Events are already committed -- the broker handles failure per the configured policy.
 		// When no broker is registered in DI, this is a no-op (zero behavioral change).
+		// NotRequested until a broker says otherwise: no broker, or no Inline projection, means no wait was
+		// ever asked for -- which is a different answer from a wait that was asked for and did not finish.
+		var projections = ProjectionFreshness.NotRequested;
 		if (_eventNotificationBroker is not null)
 		{
 			var context = new EventNotificationContext(
 				stringId,
 				aggregate.AggregateType,
 				aggregate.Version,
-				_timeProvider.GetUtcNow());
+				_timeProvider.GetUtcNow(), GlobalPosition: sessionToken);
 
 			// No token passed, and none accepted: the events above are already durable, so the caller's
 			// cancellation can no longer undo anything here -- it can only leave the read model behind
 			// while reporting the durable save as failed. The broker bounds this phase on its own clock.
-			await _eventNotificationBroker.NotifyAsync(uncommittedEvents, context)
+			projections = await _eventNotificationBroker.NotifyAsync(uncommittedEvents, context)
 				.ConfigureAwait(false);
 		}
 
@@ -676,7 +679,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		// Snapshots above are best-effort and deliberately cannot fail the save, so the token is reported
 		// regardless of how they went: it describes the durable events, not the derived copies.
-		return new SaveResult(aggregate.Version, sessionToken);
+		return new SaveResult(aggregate.Version, sessionToken, projections);
 	}
 
 	/// <inheritdoc />

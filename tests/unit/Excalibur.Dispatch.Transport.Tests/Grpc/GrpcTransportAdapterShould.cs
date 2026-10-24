@@ -330,6 +330,7 @@ public sealed class GrpcTransportAdapterShould : IAsyncDisposable
 	/// A concrete message rather than a fake: the adapter serializes what it is handed with
 	/// <c>JsonSerializer.SerializeToUtf8Bytes</c>, and a dynamic proxy is not a faithful subject for that.
 	/// </summary>
+	[MessageName("tests.GrpcTransportAdapterShould.AdapterProbeMessage")]
 	private sealed record AdapterProbeMessage : IDispatchMessage;
 
 	#endregion
@@ -493,6 +494,7 @@ public sealed class GrpcTransportAdapterShould : IAsyncDisposable
 	}
 
 	/// <summary>A message with real properties, so an empty body is detectable.</summary>
+	[MessageName("tests.GrpcTransportAdapterShould.PayloadBearingMessage")]
 	private sealed class PayloadBearingMessage : IDispatchMessage
 	{
 		public int Amount { get; init; }

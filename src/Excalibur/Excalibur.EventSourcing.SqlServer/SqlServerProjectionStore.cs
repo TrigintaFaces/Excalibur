@@ -43,7 +43,6 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	private static partial Regex ValidTableNameRegex();
 
 	private readonly Func<SqlConnection> _connectionFactory;
-	private readonly string _tableName;
 	private readonly string _qualifiedTable;
 	private readonly ILogger<SqlServerProjectionStore<TProjection>> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
@@ -127,7 +126,6 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			throw new ArgumentException($"Schema name '{schemaName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.", nameof(schemaName));
 		}
 
-		_tableName = resolvedName;
 
 		// QUALIFIED ONCE, and used by every statement. Addressing the table unqualified made it resolve
 		// through the connection's default schema, so a consumer who set a schema got a table the store

@@ -5,4 +5,4 @@
 #
 # Scoped to published entries when the gate was bounded to the mirrored surface: the 18
 # UNREVIEWED entries for unpublished gates are not visible to CI and are no longer counted here.
-86
+66

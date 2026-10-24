@@ -55,7 +55,7 @@ Multiple storage backends are available:
 
 ### 1. Stored Projections (Builder API)
 
-Declarative folds registered through `AddProjection<T>().Async()`, applied by the projection host:
+The sample uses `.Inline()` for the product catalog and `.Async()` for the category summary. Inline completes during save and registers recovery automatically; Async remains independently driven. Both use ordered positioned folds. The explicit Async pattern is:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur

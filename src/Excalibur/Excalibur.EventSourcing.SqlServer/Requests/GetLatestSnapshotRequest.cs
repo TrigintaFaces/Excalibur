@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Data.Common;
 using System.Text.Json;
 
 using Dapper;
@@ -39,8 +40,20 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 		TenantScope scope,
 		CancellationToken cancellationToken,
 		string schema = "dbo",
-		string table = "EventStoreSnapshots")
-	{
+        string table = "EventStoreSnapshots")
+        : this(aggregateId, aggregateType, scope, schema, table,
+            static request => connection => connection.QuerySingleOrDefaultAsync<SnapshotData>(request.Command), cancellationToken)
+    {
+    }
+
+    internal static GetLatestSnapshotRequest CreateTyped(string aggregateId, string aggregateType, TenantScope scope,
+        CancellationToken cancellationToken, string schema = "dbo", string table = "EventStoreSnapshots") =>
+        new(aggregateId, aggregateType, scope, schema, table,
+            static request => connection => SqlServerParameterSet.ExecuteAsync(connection, request.Command, ReadSnapshotAsync), cancellationToken);
+
+    private GetLatestSnapshotRequest(string aggregateId, string aggregateType, TenantScope scope, string schema, string table,
+        Func<GetLatestSnapshotRequest, Func<IDbConnection, Task<SnapshotData?>>> query, CancellationToken cancellationToken)
+    {
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
@@ -76,15 +89,16 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@TenantId", KeyedTenantPartition.FromScope(scope).TenantId);
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
+		var queryRow = query(this);
 		ResolveAsync = async connection =>
 		{
-			var result = await connection.QuerySingleOrDefaultAsync<SnapshotData>(Command).ConfigureAwait(false);
+			var result = await queryRow(connection).ConfigureAwait(false);
 			if (result == null)
 			{
 				return null;
@@ -172,6 +186,23 @@ public sealed class GetLatestSnapshotRequest : DataRequestBase<IDbConnection, IS
 				return element.Clone();
 		}
 	}
+
+    private static async Task<SnapshotData?> ReadSnapshotAsync(DbCommand command, CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) { return null; }
+        var row = new SnapshotData(
+            await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(0),
+            reader.GetString(1), reader.GetString(2), reader.GetInt64(3), (byte[])reader.GetValue(4),
+            (DateTimeOffset)reader.GetValue(5),
+            await reader.IsDBNullAsync(6, cancellationToken).ConfigureAwait(false) ? null : (byte[])reader.GetValue(6),
+            await reader.IsDBNullAsync(7, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(7));
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("The snapshot query returned more than one row for its identity.");
+        }
+        return row;
+    }
 
 	private sealed record SnapshotData(
 		string? SnapshotId,

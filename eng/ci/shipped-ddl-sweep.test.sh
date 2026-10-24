@@ -388,6 +388,77 @@ else
     fail "Q: missing canonical script did NOT REFUSE (got exit $rc, expected 2)"
 fi
 
+# A CTE may write the fence and then the outbox in the same interpolated SQL string.
+# Preserve table attribution on both LF and CRLF checkouts.
+printf 'outbox_messages|%s/**|fence|CTE fence fixture\n' "$FX/src" > "$FX/map"
+cat > "$FX/src/w.cs" <<'EOF'
+var sql = $"""
+    WITH fence AS (
+        UPDATE {fence} SET high_water_token = @Token
+        WHERE scope_key = @Scope
+        RETURNING high_water_token
+    ),
+    claimed AS (
+        UPDATE {outbox} SET dispatcher_id = @Dispatcher
+        WHERE message_id = @MessageId
+        RETURNING message_id
+    )
+    SELECT * FROM claimed;
+    """;
+EOF
+cat > "$FX/docs/schema.md" <<'EOF'
+CREATE TABLE outbox_messages (
+    scope_key TEXT NOT NULL,
+    high_water_token BIGINT NOT NULL
+);
+EOF
+rc="$(run_gate "$FX/docs")"
+[ "$rc" -eq 0 ] && pass "R: LF CTE attributes only fence columns to fence DDL" || fail "R: LF CTE returned $rc"
+sed 's/$/\r/' "$FX/src/w.cs" > "$WORK/cte-crlf"
+cp "$WORK/cte-crlf" "$FX/src/w.cs"
+rc="$(run_gate "$FX/docs")"
+[ "$rc" -eq 0 ] && pass "S: CRLF CTE attributes only fence columns to fence DDL" || fail "S: CRLF CTE returned $rc"
+sed '/high_water_token BIGINT/d' "$FX/docs/schema.md" > "$WORK/missing-fence-column"
+cp "$WORK/missing-fence-column" "$FX/docs/schema.md"
+rc="$(run_gate "$FX/docs")"
+[ "$rc" -eq 1 ] && pass "T: CRLF CTE still rejects an omitted fence column" || fail "T: missing fence column returned $rc"
+
+# Match the aliased INSERT used by the actual fenced Postgres request, without another
+# statement supplying these columns and concealing a missed INSERT column list.
+cat > "$FX/src/w.cs" <<'EOF'
+var sql = $"""
+    WITH fence AS (
+        INSERT INTO {fence} AS f (scope_key, high_water_token)
+        VALUES (@Scope, @Token)
+        ON CONFLICT (scope_key) DO UPDATE
+        SET high_water_token = GREATEST(f.high_water_token, @Token)
+        RETURNING high_water_token
+    ),
+    claimed AS (
+        UPDATE {outbox} SET dispatcher_id = @Dispatcher
+        WHERE message_id = @MessageId
+        RETURNING message_id
+    )
+    SELECT * FROM claimed;
+    """;
+EOF
+cat > "$FX/docs/schema.md" <<'EOF'
+CREATE TABLE outbox_messages (
+    scope_key TEXT NOT NULL,
+    high_water_token BIGINT NOT NULL
+);
+EOF
+rc="$(run_gate "$FX/docs")"
+[ "$rc" -eq 0 ] && pass "U: aliased fence INSERT supplies its own column population" || fail "U: aliased INSERT returned $rc"
+sed 's/$/\r/' "$FX/src/w.cs" > "$WORK/aliased-cte-crlf"
+cp "$WORK/aliased-cte-crlf" "$FX/src/w.cs"
+rc="$(run_gate "$FX/docs")"
+[ "$rc" -eq 0 ] && pass "V: aliased fence INSERT is identical under CRLF" || fail "V: CRLF aliased INSERT returned $rc"
+sed '/high_water_token BIGINT/d' "$FX/docs/schema.md" > "$WORK/missing-alias-column"
+cp "$WORK/missing-alias-column" "$FX/docs/schema.md"
+rc="$(run_gate "$FX/docs")"
+[ "$rc" -eq 1 ] && pass "W: aliased INSERT rejects a genuinely missing fence column" || fail "W: missing aliased column returned $rc"
+
 echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo "✅ shipped-ddl-sweep.test.sh: ALL GREEN"

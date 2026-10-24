@@ -64,7 +64,7 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		// DbType.Binary matches InsertEventsBatchRequest's binding for the same column, so an erased row's
@@ -78,6 +78,6 @@ internal sealed class EraseEventsRequest : DataRequestBase<IDbConnection, int>
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+			await SqlServerParameterSet.ExecuteNonQueryAsync(connection, Command).ConfigureAwait(false);
 	}
 }

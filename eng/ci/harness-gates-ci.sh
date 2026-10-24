@@ -145,22 +145,7 @@ run "gate-wiring meta-gate" bash eng/ci/gate-wiring.sh
 #       It is shell plus a YAML read and a directory listing -- no compiler, so it belongs here.
 run "gate-manifest meta-gate" python3 eng/ci/gate-manifest-gate.py
 
-# ── 1b. WALL-CLOCK NESTED DEADLINES. Python, so it cannot live in the bash-only loop below.
-#       Blocks on ONE shape: an inner deadline shorter than a wait in the same method, which cannot
-#       be correct -- the deadline can stop that wait from ever completing, and the test then fails
-#       reporting a stopwatch rather than a defect. Two of those shipped red mains on 2026-08-07.
-#       Short and long deadlines are reported and NOT enforced: they are unreviewed candidates, and
-#       blocking on those would make this a gate people route around.
-run "wallclock-deadline-sweep self-test" python3 eng/ci/wallclock-deadline-sweep.py --self-test
-run "wallclock-deadline-sweep (real tree)" python3 eng/ci/wallclock-deadline-sweep.py --gate
-
-# ── 1c. CONTAINER IMAGE PINNING. A :latest tag, or no tag, means the image can change completely
-#       between two runs of the SAME commit -- and the resulting failure is indistinguishable from a
-#       flake, because nothing in the repository changed. Ratcheted rather than absolute: digests are
-#       the stronger pin but would ROT here, since dependabot's docker ecosystem reads Dockerfiles and
-#       compose files and cannot parse a C# string. The bar is a concrete tag.
-run "container-image-pinning self-test" python3 eng/ci/container-image-pinning-gate.py --self-test
-run "container-image-pinning (real tree)" python3 eng/ci/container-image-pinning-gate.py --gate
+# C# timing, image and skip policies run in RepositoryChecks --release-policies.
 
 # ── 1d. RELEASE RECEIPT non-vacuity. The receipt itself only runs during a release, which is rare
 #       enough that a self-test gated behind one would sit unproven for months. Its arms are
@@ -188,15 +173,7 @@ for t in \
     "eng/ci/shipped-ddl-sweep.test.sh" \
     "eng/ci/shipped-ddl-sweep-gate.sh --self-test" \
     "eng/ci/sqlserver-ddl-hygiene.sh --self-test" \
-    "eng/ci/sql-predicate-gate.test.sh" \
-    "eng/ci/tenant-range-op-coverage-gate.sh --self-test" \
-    "eng/ci/tenant-range-op-coverage-gate.test.sh" \
     "eng/ci/real-infra-tenant-gate.test.sh" \
-    "eng/ci/orphaned-constant-gate.test.sh" \
-    "eng/ci/inbox-decorator-seam-gate.sh --self-test" \
-    "eng/ci/inbox-decorator-seam-gate.test.sh" \
-    "eng/ci/conformance-fork-gate.sh --self-test" \
-    "eng/ci/persistence-health-deriver-gate.sh --self-test" \
     "eng/ci/package-metadata-gate.test.sh" \
     "eng/ci/orphan-test-project-gate.test.sh" \
     "eng/ci/build-entrypoint-compose.test.sh" \
@@ -204,16 +181,11 @@ for t in \
     "eng/ci/release-test-verdict-gate.sh --self-test" \
     "eng/ci/lockfile-drift-gate.test.sh" \
     "eng/ci/perf-regression-check.test.sh" \
-    "eng/ci/task-delay-syncwait-gate.test.sh" \
     "eng/ci/docs-csharp-extract.test.sh" \
     "eng/ci/shard-hang-timeout-gate.test.sh" \
     "eng/ci/full-ci-shard-completeness.sh --self-test" \
-    "eng/ci/cosmos-fixture-pattern-gate.sh --self-test" \
-    "eng/ci/cosmos-fixture-pattern-gate.sh" \
     "eng/ci/integration-serial-runner-gate.sh --self-test" \
     "eng/ci/integration-serial-runner-gate.sh" \
-    "eng/ci/unconditional-skip-ratchet.sh --self-test" \
-    "eng/ci/unconditional-skip-ratchet.sh" \
     "eng/ci/ide0052-ratchet-gate.sh --self-test" \
     "eng/ci/ide0052-ratchet-gate.sh --check-armed" \
     "eng/ci/committed-sha-build-gate.test.sh" \
@@ -263,7 +235,6 @@ done
 # agent-mesh tooling does not belong there. The enumeration was wrong, not the file locations.
 # If you are here because a lock looks "missing", it is not missing; it is out of scope for CI.
 for l in \
-    duplicate-xml-doc-tags \
     staged-secret-scan \
     no-beads-in-workflows ; do
     # Both artifact kinds resolve from eng/ci, the published path. A lock living outside it
@@ -315,12 +286,7 @@ _installer_assert() {
 }
 run "installer-assert (verify-hooks-current non-vacuity)" _installer_assert
 
-# FUNCTIONAL audit: run the tenant-range-op coverage gate against the REAL src/Excalibur tree, not
-# just its hermetic self-test above. Self-test-only wiring validates the gate's detection logic but
-# never casts the regression net over production source (the self-test-only class: a gate wired only by a
-# self-test trigger validates itself and nothing else, forever). This bare run scans src and fails
-# the job if any tenant-partitioned range DELETE/UPDATE is uncurated or flows no TenantScope.
-run "tenant-range-op coverage (real src tree)" bash eng/ci/tenant-range-op-coverage-gate.sh
+# Tenant mutation completeness is enforced by the Roslyn census in ci.yml.
 
 # FUNCTIONAL: run the shipped-DDL sweep against the REAL repo (docs-site + samples), not just its
 # hermetic self-test above. The sweep existed but was invoked by nothing against the tree, so consumer-
@@ -341,22 +307,8 @@ run "shipped-ddl-sweep (real repo, set-baselined)" bash eng/ci/shipped-ddl-sweep
 # 2 REFUSE (scanned nothing, or scanned files and evaluated no property — never a pass).
 run "sqlserver-ddl-hygiene (real repo)" bash eng/ci/sqlserver-ddl-hygiene.sh
 
-# FUNCTIONAL: conformance kits ship WITHOUT a test-framework reference, on purpose, so a consumer is not
-# forced onto our runner. That means an arm carries no discovery attribute and the deriving suite supplies
-# one. An arm the deriver never wraps is not skipped and not reported -- it does not exist, and the suite
-# is green over the arms that remain, so its pass count measures WIRING, not COVERAGE.
-#
-# The kits carry an in-process arm that reflects over the deriver and fails on a gap, which is what
-# reaches a consumer. But that arm is itself unattributed: a suite that forgets IT disables the check
-# silently. A mechanism cannot detect its own absence. Only something outside the test process can, and
-# that is this gate -- it is not a fallback for the in-process guard, it is the half the guard cannot do.
-#
-# Also reds a guard bound to public members alone on a kit that declares its arms protected: such a guard
-# enumerates zero arms and passes over an empty set for every deriver, forever.
-# Three states: 0 every arm wired · 1 an arm is unwired (or a guard is vacuous) · 2 REFUSE (found no kits
-# or no derivers -- nothing measured, which is never a pass).
-run "conformance-arm-wiring self-test" python3 eng/ci/conformance-arm-wiring.py --self-test
-run "conformance-arm-wiring (real repo)" python3 eng/ci/conformance-arm-wiring.py
+# Conformance arm references and guard visibility are checked by the Roslyn census
+# in ci.yml architecture-tests; Boundary.Tests exercises its positive and negative controls.
 
 # FUNCTIONAL: run the shard hang-timeout gate against the REAL tree. Self-test-only wiring would
 # validate the detector and never cast the net over the runners and documented commands that actually

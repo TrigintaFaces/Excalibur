@@ -61,12 +61,15 @@ public interface IDeadLetterQueue
 	/// <param name="message">The message that failed processing.</param>
 	/// <param name="reason">The reason for dead lettering.</param>
 	/// <param name="exception">Optional exception that caused the failure.</param>
-	/// <param name="metadata">Optional additional metadata to store with the entry.</param>
+	/// <param name="metadata">Optional additional metadata. A nonblank <c>MessageType</c> supplies the original
+	/// identity; otherwise the runtime type's declared name is used, or an empty identity when unknown.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>The ID of the created dead letter entry.</returns>
 	/// <remarks>
 	/// Tenant-scoped: the entry is stored under the ambient tenant. When there is no ambient tenant the entry
 	/// is stored untenanted and remains addressable only through <see cref="IDeadLetterQueueAdmin"/>.
+	/// Missing message-name declarations do not prevent failure capture. An unknown identity is not
+	/// reconstructed from a CLR type name; replay remains the configured handler's responsibility.
 	/// </remarks>
 	Task<Guid> EnqueueAsync<T>(
 		T message,

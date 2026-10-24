@@ -135,6 +135,28 @@ runs:
       # it the property above could be dropped again and nothing would go red.
       run: bash eng/ci/assert-compiled-not-skipped.sh build-verbosity-normal.log
 
+    - name: Verify embedded integration routing
+      if: runner.os == 'Linux' && startsWith(inputs.solution-filter, 'eng/ci/shards/UnitTests-')
+      shell: pwsh
+      env:
+        ROUTING_SOURCE: ${{ inputs.solution-filter }}
+        ROUTING_PREFIX: ${{ inputs.results-prefix }}
+      run: |
+        python eng/ci/integration-route-audit.test.py
+        if ($LASTEXITCODE -ne 0) { throw 'Routing mutation controls failed.' }
+        if ($env:ROUTING_PREFIX -eq 'unit-tests-core') {
+          ./eng/ci/integration-route-audit.discovery.test.ps1 -OutputDirectory "TestResults/trait-routing/$env:ROUTING_PREFIX-controls"
+        }
+        ./eng/ci/integration-route-audit.ps1 -Source $env:ROUTING_SOURCE -OutputDirectory "TestResults/trait-routing/$env:ROUTING_PREFIX"
+
+    - name: Preserve embedded integration routing evidence
+      if: always() && runner.os == 'Linux' && startsWith(inputs.solution-filter, 'eng/ci/shards/UnitTests-')
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: trait-routing-${{ inputs.results-prefix }}
+        path: TestResults/trait-routing
+        if-no-files-found: error
+
     - name: Compose test filter
       if: inputs.quarantine-mode != 'None'
       id: filter

@@ -179,6 +179,7 @@ public sealed class AwsSqsMessageBusShould : IAsyncDisposable
 		captured.MessageAttributes["ce-type"].StringValue.ShouldContain(nameof(TestCloudEventBusEvent));
 	}
 
+	[MessageName("tests.AwsSqsMessageBusShould.TestCloudEventBusEvent")]
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{
 	}

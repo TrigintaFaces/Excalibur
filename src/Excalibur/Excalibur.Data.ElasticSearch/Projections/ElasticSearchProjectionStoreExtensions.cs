@@ -64,12 +64,15 @@ public static class ElasticSearchProjectionStoreExtensions
 		//
 		// Keyed by the options name rather than registered globally, because two projections may
 		// address different clusters, and the settings object owns per-cluster caches.
-		services.TryAddKeyedSingleton(optionsName, (sp, key) =>
+		services.TryAddKeyedSingleton<ConfiguredProjectionClient>(optionsName, (sp, key) =>
 		{
 			var clientOptions = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>()
 				.Get((string)key!);
-			return new ElasticsearchClient(ElasticSearchProjectionClientSettings.Create(clientOptions));
+			var settings = ElasticSearchProjectionClientSettings.Create(clientOptions, out var scope, out var sourceContext);
+			return new ConfiguredProjectionClient(new ElasticsearchClient(settings), scope, sourceContext);
 		});
+		services.TryAddKeyedSingleton<ElasticsearchClient>(optionsName, (sp, key) =>
+			sp.GetRequiredKeyedService<ConfiguredProjectionClient>(key).Client);
 
 		// Register projection store -- uses IOptionsMonitor to resolve named options
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
@@ -78,7 +81,10 @@ public static class ElasticSearchProjectionStoreExtensions
 			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
-			return new ElasticSearchProjectionStore<TProjection>(client, optionsMonitor, logger);
+			var binding = sp.GetRequiredKeyedService<ConfiguredProjectionClient>(optionsName);
+			return new ElasticSearchProjectionStore<TProjection>(client, optionsMonitor, logger,
+				ReferenceEquals(client, binding.Client) ? binding.Scope : null,
+                ReferenceEquals(client, binding.Client) ? binding.SourceContext : null);
 		});
 
 		return services;

@@ -123,7 +123,7 @@ public sealed class SqlServerToElasticsearchSessionConsistencyShould
 		await using var host = await BuildAsync();
 
 		var read = await host.Reader.ReadAsync<LoadProjection>(
-			NewId(), new SaveResult(0, SessionToken: null), host.Cancellation);
+			NewId(), new SaveResult(0, SessionToken: null, ProjectionFreshness.NotRequested), host.Cancellation);
 
 		read.Freshness.ShouldBe(ProjectionFreshness.NotRequested);
 	}
@@ -196,7 +196,7 @@ public sealed class SqlServerToElasticsearchSessionConsistencyShould
 			aggregateId, "LoadTest", events, -1, host.Cancellation);
 
 		result.Success.ShouldBeTrue(result.ErrorMessage);
-		return new SaveResult(result.NextExpectedVersion ?? 0, result.LastEventPosition);
+		return new SaveResult(result.NextExpectedVersion ?? 0, result.LastEventPosition, ProjectionFreshness.NotRequested);
 	}
 
 	private async Task<PipelineHost> BuildAsync(TimeSpan? bound = null)

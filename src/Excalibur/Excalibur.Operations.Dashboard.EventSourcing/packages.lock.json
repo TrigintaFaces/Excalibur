@@ -95,7 +95,7 @@
       "excalibur.compliance": {
         "type": "Project",
         "dependencies": {
-          "Dapper": "[2.1.72, )",
+          "Dapper": "[2.1.89, )",
           "Excalibur.Compliance.Abstractions": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )"
         }
@@ -110,7 +110,7 @@
         "type": "Project",
         "dependencies": {
           "Ben.Demystifier": "[0.4.1, )",
-          "Dapper": "[2.1.72, )",
+          "Dapper": "[2.1.89, )",
           "Excalibur.Data.Abstractions": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
@@ -123,7 +123,7 @@
       "excalibur.data.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Dapper": "[2.1.72, )",
+          "Dapper": "[2.1.89, )",
           "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
           "Excalibur.Domain": "[1.0.0, )"
         }
@@ -185,7 +185,7 @@
           "OpenTelemetry.Api": "[1.15.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.15.3, )",
           "Polly": "[8.6.6, )",
-          "System.IO.Hashing": "[10.0.7, )"
+          "System.IO.Hashing": "[10.0.13, )"
         }
       },
       "excalibur.eventsourcing.abstractions": {
@@ -218,7 +218,7 @@
       "excalibur.operations.dashboard.spa": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.Extensions.FileProviders.Embedded": "[10.0.10, )"
+          "Microsoft.Extensions.FileProviders.Embedded": "[10.0.13, )"
         }
       },
       "excalibur.saga": {
@@ -266,9 +266,9 @@
       },
       "Dapper": {
         "type": "CentralTransitive",
-        "requested": "[2.1.72, )",
-        "resolved": "2.1.72",
-        "contentHash": "ns4mGqQd9a/MhP8m6w556vVlZIa0/MfUu03zrxjZC/jlr1uVCsUac8bkdB+Fs98Llbd56rRSo1eZH5VVmeGZyw=="
+        "requested": "[2.1.89, )",
+        "resolved": "2.1.89",
+        "contentHash": "1VjFE664wnxvuhlgP8kS4PeFFF4jqD3VkbIHW6Zlc52zuibgcz5ICnIHcQXlTp6pURpPNGLV0ZpNe5x9KePJnA=="
       },
       "FluentValidation": {
         "type": "CentralTransitive",
@@ -319,9 +319,9 @@
       },
       "Microsoft.Extensions.FileProviders.Embedded": {
         "type": "CentralTransitive",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "TZQQIZ1wFmQX7WdRAyhaDlv3splUPOYheTP3aZtoLpxMlVnLOFRjiLaDB0PZX/d27N52+FLbiNkwL02x4hZgjg=="
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "H4baeis/dx/NZ87070hjvJc5mry36x68yQjiMKS3uFxa2tlAwWAciZZh3baTjGCDc7ChURQdLOzPLVsXfkAEFw=="
       },
       "Microsoft.IdentityModel.Tokens": {
         "type": "CentralTransitive",
@@ -383,9 +383,9 @@
       },
       "System.IO.Hashing": {
         "type": "CentralTransitive",
-        "requested": "[10.0.7, )",
-        "resolved": "10.0.7",
-        "contentHash": "6hsjdSr4VOXSOnhALkYplHpAxnTG1J33YN42IB6nH2fEg4QnJqrZ4Ft+qn7mkrKAOYC8pCSFYwVWw6rQbmwgLQ=="
+        "requested": "[10.0.13, )",
+        "resolved": "10.0.13",
+        "contentHash": "ZlcywyQ7FJmgOV2nctdfOEPGS0kRK8T2CdOoPr6F4HPYpmjSo6GQfj3yTyOzNO6B+2U84/JKSPkJJMWqLmVsMw=="
       }
     }
   }

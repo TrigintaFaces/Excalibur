@@ -3,7 +3,6 @@
 
 using System.Data;
 
-using Dapper;
 
 using Excalibur.Data;
 using Excalibur.Dispatch;
@@ -50,7 +49,7 @@ internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		// The keyed partition always yields a concrete, non-null tenant term (a real tenant or the
@@ -61,6 +60,6 @@ internal sealed class IsErasedRequest : DataRequestBase<IDbConnection, bool>
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
 		ResolveAsync = async connection =>
-			await connection.ExecuteScalarAsync<bool>(Command).ConfigureAwait(false);
+			(await SqlServerParameterSet.ExecuteScalarAsync<int>(connection, Command).ConfigureAwait(false)) != 0;
 	}
 }

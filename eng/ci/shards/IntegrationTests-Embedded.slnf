@@ -1,0 +1,17 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "tests\\unit\\Excalibur.A3.Governance.Tests\\Excalibur.A3.Governance.Tests.csproj",
+      "tests\\unit\\Excalibur.Data.DataProcessing.Tests\\Excalibur.Data.DataProcessing.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Tests\\Excalibur.Dispatch.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Transport.Tests\\Excalibur.Dispatch.Transport.Tests.csproj",
+      "tests\\unit\\Excalibur.EventSourcing.Tests\\Excalibur.EventSourcing.Tests.csproj",
+      "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
+      "tests\\unit\\Excalibur.Operations.Dashboard.Tests\\Excalibur.Operations.Dashboard.Tests.csproj",
+      "tests\\unit\\Excalibur.Testing.Conformance.Tests\\Excalibur.Testing.Conformance.Tests.csproj",
+      "tests\\unit\\Excalibur.Workflows.SqlServer.Tests\\Excalibur.Workflows.SqlServer.Tests.csproj",
+      "tests\\unit\\Excalibur.Workflows.Tests\\Excalibur.Workflows.Tests.csproj"
+    ]
+  }
+}

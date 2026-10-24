@@ -166,7 +166,7 @@ internal sealed class ProjectionErasureGapContributor : IErasureContributor
 
 		foreach (var registration in registry.GetAll())
 		{
-			if (registration.Mode is not ProjectionMode.Async)
+			if (registration.Mode is not (ProjectionMode.Async or ProjectionMode.Inline))
 			{
 				continue;
 			}

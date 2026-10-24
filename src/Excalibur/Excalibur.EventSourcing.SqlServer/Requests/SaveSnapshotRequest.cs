@@ -4,6 +4,8 @@
 
 using System.Data;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using System.Runtime.CompilerServices;
 
 using Dapper;
 
@@ -37,8 +39,22 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		TenantScope scope,
 		CancellationToken cancellationToken,
 		string schema = "dbo",
-		string table = "EventStoreSnapshots")
-	{
+        string table = "EventStoreSnapshots")
+        : this(snapshot, scope, schema, table,
+            static request => connection => connection.ExecuteAsync(request.Command), SerializeMetadata, cancellationToken)
+    {
+    }
+
+    internal static SaveSnapshotRequest CreateTyped(ISnapshot snapshot, TenantScope scope, CancellationToken cancellationToken,
+        string schema = "dbo", string table = "EventStoreSnapshots", IJsonTypeInfoResolver? metadataResolver = null) =>
+        new(snapshot, scope, schema, table,
+            static request => connection => SqlServerParameterSet.ExecuteNonQueryAsync(connection, request.Command),
+            metadata => SerializeTypedMetadata(metadata, metadataResolver), cancellationToken);
+
+    private SaveSnapshotRequest(ISnapshot snapshot, TenantScope scope, string schema, string table,
+        Func<SaveSnapshotRequest, Func<IDbConnection, Task<int>>> execute,
+        Func<IDictionary<string, object>?, byte[]?> serializeMetadata, CancellationToken cancellationToken)
+    {
 		ArgumentNullException.ThrowIfNull(snapshot);
 
 		var qualifiedTable = SqlTableName.Format(schema, table);
@@ -116,7 +132,7 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@TenantId", KeyedTenantPartition.FromScope(scope).TenantId);
 		parameters.Add("@SnapshotId", snapshot.SnapshotId);
 		parameters.Add("@AggregateId", snapshot.AggregateId);
@@ -124,12 +140,11 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 		parameters.Add("@Version", snapshot.Version);
 		parameters.Add("@Data", snapshot.Data.ToArray());
 		parameters.Add("@CreatedAt", snapshot.CreatedAt);
-		parameters.Add("@Metadata", SerializeMetadata(snapshot.Metadata), DbType.Binary);
+		parameters.Add("@Metadata", serializeMetadata(snapshot.Metadata), DbType.Binary);
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = execute(this);
 	}
 
 	/// <summary>
@@ -137,6 +152,24 @@ public sealed class SaveSnapshotRequest : DataRequestBase<IDbConnection, int>
 	/// schema-version entry consumed by snapshot upgrading round-trips. Null metadata is stored as
 	/// SQL NULL; an empty dictionary is preserved as empty.
 	/// </summary>
+    private static byte[]? SerializeTypedMetadata(IDictionary<string, object>? metadata, IJsonTypeInfoResolver? resolver)
+    {
+        if (metadata is null) { return null; }
+        // Preserve the legacy JIT contract, including user metadata types. Native and reflection-disabled
+        // applications use the configured generated resolver plus the framework's envelope metadata.
+        if (RuntimeFeature.IsDynamicCodeSupported && JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            return SerializeMetadata(metadata);
+        }
+        var options = new JsonSerializerOptions
+        {
+            TypeInfoResolver = resolver is null ? SqlServerSnapshotJsonContext.Default
+                : JsonTypeInfoResolver.Combine(resolver, SqlServerSnapshotJsonContext.Default),
+        };
+        var typeInfo = (JsonTypeInfo<IDictionary<string, object>>)options.GetTypeInfo(typeof(IDictionary<string, object>));
+        return JsonSerializer.SerializeToUtf8Bytes(metadata, typeInfo);
+    }
+
 	private static byte[]? SerializeMetadata(IDictionary<string, object>? metadata)
 	{
 		if (metadata is null)

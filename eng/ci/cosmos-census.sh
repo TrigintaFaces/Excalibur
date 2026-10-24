@@ -57,18 +57,8 @@ if [ "${1:-}" = "--self-test" ]; then
     st_tmp="$(mktemp -d)"; trap 'rm -rf "$st_tmp"' EXIT
     st_fail=0
 
-    # LIVENESS: the real tree must produce a non-zero behaviour census. If this returns 0 the census is
-    # broken in the direction that agrees with everything and measures nothing.
-    ft="$(grep -rlE 'CosmosDbBuilder|CosmosDbContainer' tests/ --include='*.cs' 2>/dev/null \
-        | xargs -r grep -hoE '(class|record)[[:space:]]+[A-Za-z0-9_]*(Fixture|Collection)[A-Za-z0-9_]*' 2>/dev/null \
-        | awk '{print $2}' | sort -u)"
-    fp="$(printf '%s|' $ft | sed 's/|$//')"
-    live="$(grep -rlE "$fp" tests/ --include='*Should.cs' --include='*Tests.cs' 2>/dev/null | grep -c . || true)"
-    if [ "${live:-0}" -gt 0 ]; then
-        echo "  liveness: behaviour census finds $live Cosmos class(es) in the real tree — PASS"
-    else
-        echo "  liveness: behaviour census found ZERO classes in a tree known to contain them — FAIL"; st_fail=1
-    fi
+    # Compiler discovery controls live in CosmosAdmissionRuleShould. This shell tests
+    # adapter-output accounting and in/out comparisons independently of C# syntax.
 
     # COUNTING arm: a [Theory] contributes ONE line per DATA CASE, not one per method.
     #
@@ -97,26 +87,6 @@ EOF
     # the dedup bug would be undetectable here.
     if [ "$st_cases" -eq "$st_distinct" ]; then
         echo "  counting: fixture no longer distinguishes cases from methods — the arm is vacuous — FAIL"; st_fail=1
-    fi
-
-    # SAFETY: a class that uses a Cosmos fixture but is NOT admitted by the filter must be detected.
-    # Planted, so the arm is proven to fire rather than assumed to.
-    mkdir -p "$st_tmp/tests"
-    cat >"$st_tmp/tests/PlantedUntaggedShould.cs" <<'EOF'
-public class PlantedUntaggedShould { private CosmosDbSnapshotStoreContainerFixture _f; }
-EOF
-    planted="$(grep -rlE 'CosmosDbSnapshotStoreContainerFixture' "$st_tmp/tests" --include='*Should.cs' 2>/dev/null | grep -c . || true)"
-    if [ "${planted:-0}" -eq 1 ]; then
-        echo "  safety:   a planted untagged Cosmos class IS detected by the behaviour census — PASS"
-    else
-        echo "  safety:   planted untagged Cosmos class was NOT detected — FAIL"; st_fail=1
-    fi
-
-    # SAFETY: the file-mention shape that returned 1-instead-of-9 must NOT be what ships.
-    if grep -q 'fixture_types=' "$0" && ! grep -qE "grep -rliE 'CosmosDbBuilder\|CosmosDbContainer' tests/integration" "$0"; then
-        echo "  safety:   census keys on fixture REFERENCES, not file mentions — PASS"
-    else
-        echo "  safety:   census reverted to the file-mention shape (measured: finds 1 of 9) — FAIL"; st_fail=1
     fi
 
     # The four arms below drive census_disagreement() — the SAME function the production path calls.
@@ -266,7 +236,8 @@ enumerate_expected() {
     local out="$1" proj one enumerated_any=0 n
     : >"$out"
     while IFS= read -r proj; do
-        proj="${proj%$''}"   # also strip it here: the slnf itself may carry CRLF
+        proj="${proj%$'
+'}"   # also strip it here: the slnf itself may carry CRLF
         [ -n "$proj" ] || continue
         is_test_project "$proj" || continue
         one="$(mktemp)"
@@ -344,52 +315,37 @@ if grep -qiE 'error (MSB|CS|NETSDK)[0-9]+|could not find|unable to find|no test 
     fail "enumeration reported load/build errors, so EXPECTED ($EXPECTED) is a floor rather than the population. A partial enumeration lowers the bar instead of raising an alarm."
 fi
 
-# --- Census A: Cosmos by TRAIT (what the filter can see) ---------------------------------------------
-trait_classes="$(printf '%s\n' "$expected_tests" \
-    | grep -iE '(^|\.)[A-Za-z0-9_]*cosmos[A-Za-z0-9_]*(\.|$)' \
-    | sed 's/\.[^.]*$//' | sort -u)"
+# Compare adapter-discovered qualified classes against compiler-derived fixture dependencies.
+# No filename or "Cosmos" naming convention determines membership.
+trait_classes="$(printf '%s\n' "$expected_tests" | sed 's/\.[^.]*$//' | sort -u)"
 TRAIT_CLASSES="$(printf '%s\n' "$trait_classes" | grep -c . || true)"
-
-# --- Census B: Cosmos by BEHAVIOUR (what actually starts an emulator) --------------------------------
-# A class is Cosmos-behavioural if it references a fixture that constructs a Cosmos emulator container.
-#
-# NOT "files that mention CosmosDbBuilder". The builder is constructed in FIXTURE files, and the test
-# classes live in different files entirely -- so that shape finds the fixtures and misses every test that
-# uses one. Measured: it returned 1 class where the real answer is 9. It is the census-by-familiar-shape
-# error, and it fails silently with a confident non-zero count, which is why the two-step below exists:
-# find the fixture TYPES first, then find the classes that reference them.
-fixture_types="$(grep -rlE 'CosmosDbBuilder|CosmosDbContainer' tests/ --include='*.cs' 2>/dev/null \
-    | xargs -r grep -hoE '(class|record)[[:space:]]+[A-Za-z0-9_]*(Fixture|Collection)[A-Za-z0-9_]*' 2>/dev/null \
-    | awk '{print $2}' | sort -u)"
-[ -n "${fixture_types//[[:space:]]/}" ] || fail "no Cosmos emulator fixture types found. The behaviour census cannot key on anything, so it would agree with the trait census by measuring nothing."
-
-fixture_pattern="$(printf '%s|' $fixture_types | sed 's/|$//')"
-# GLOB. `*Should.cs` alone is a NAMING census wearing a behaviour census's hat: a class that starts an
-# emulator but is named `*Tests.cs` is invisible to it, and invisibility here reads as agreement. Measured:
-# two such classes (a workflow conformance suite and a CDC state-store suite) were admitted on the
-# emulator-free path while this census reported the set clean. Both suffixes are in use in this tree.
-behaviour_classes="$(grep -rlE "$fixture_pattern" tests/ --include='*Should.cs' --include='*Tests.cs' 2>/dev/null \
-    | xargs -r -n1 basename \
-    | sed 's/\.cs$//' | sort -u)"
+roster="$(mktemp)"
+semantic="$(mktemp)"
+while IFS= read -r proj; do
+    proj="${proj%$'\r'}"
+    if is_test_project "$proj"; then printf '%s\n' "$proj" >> "$roster"; fi
+done < <(slnf_projects)
+DLL="eng/tools/RepositoryChecks/bin/Release/net10.0/RepositoryChecks.dll"
+[ -f "$DLL" ] || fail "Build RepositoryChecks before Cosmos admission validation."
+if ! dotnet "$DLL" "$PWD" --cosmos-admission "$roster" "$semantic"; then
+    rm -f "$roster" "$semantic"
+    fail "compiler-derived Cosmos admission census failed"
+fi
+behaviour_classes="$(python3 - "$semantic" <<'PYEOF'
+import json,sys
+with open(sys.argv[1], encoding='utf-8') as handle: report=json.load(handle)
+if report['projects'] <= 0: raise SystemExit('No project population')
+sys.stdout.buffer.write(('\n'.join(report['tests'])+'\n').encode('utf-8'))
+PYEOF
+)" || fail "unreadable compiler-derived Cosmos census"
+rm -f "$roster" "$semantic"
 BEHAVIOUR_CLASSES="$(printf '%s\n' "$behaviour_classes" | grep -c . || true)"
-
-echo "EXPECTED (all admitted tests)      = $EXPECTED"
-echo "Cosmos classes by TRAIT            = $TRAIT_CLASSES"
-echo "Cosmos classes by BEHAVIOUR        = $BEHAVIOUR_CLASSES"
-
-[ "${BEHAVIOUR_CLASSES:-0}" -gt 0 ] || fail "behaviour census returned 0 Cosmos classes. Either the census is broken or every Cosmos fixture vanished; both are refusals, not passes."
-
-# Behaviour is the ground truth. A class that starts an emulator but is not selected by the filter is
-# exactly the invisible-test defect, so behaviour > trait is the direction that must refuse.
-# Compare SIMPLE class names on both sides. The trait census yields fully-qualified names
-# (Namespace.Sub.ClassName) and the behaviour census yields file-derived simple names, so the two must be
-# normalised to the same shape before they can be differenced.
-#
-# `basename` does NOT do this: it splits on SLASHES, and a fully-qualified .NET type name contains none,
-# so it returns the input unchanged. Every behaviour class then failed to match its own trait entry and
-# the gate REFUSED a healthy tree -- reporting all 9 Cosmos classes as invisible when all 9 were present.
-# Measured, not theorised: this is what the first run of this script did.
-trait_simple="$(printf '%s\n' "$trait_classes" | sed 's/.*\.//' | sort -u)"
+echo "EXPECTED (all admitted tests) = $EXPECTED"
+echo "Admitted qualified classes = $TRAIT_CLASSES"
+echo "Emulator-dependent qualified classes = $BEHAVIOUR_CLASSES"
+# A shard without Cosmos fixtures is legitimate; it still has a nonempty adapter/project population.
+# Positive and negative compiler tests prevent a broken discovery rule from passing by returning zero.
+trait_simple="$trait_classes"
 
 if offenders="$(census_disagreement "$EMULATOR_SCOPE" "$behaviour_classes" "$trait_simple")"; then
     n="$(printf '%s\n' "$offenders" | grep -c .)"

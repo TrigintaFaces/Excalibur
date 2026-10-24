@@ -29,7 +29,7 @@ public sealed class TimerInfo : IDispatchEvent
 		Timestamp = DateTimeOffset.UtcNow;
 		Headers = new ReadOnlyDictionary<string, object>(_headers);
 		Features = _features;
-		MessageType = GetType().Name;
+		MessageType = MessageNameHelper.GetName(typeof(TimerInfo));
 	}
 
 	/// <inheritdoc />

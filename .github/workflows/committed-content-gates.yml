@@ -241,6 +241,11 @@ jobs:
       - name: aot-annotation-inventory (a new AOT-unsafe public member must be recorded)
         run: python3 eng/ci/aot-annotation-inventory-gate.py
 
+      - name: Build compiler-backed artifact checks
+        run: |
+          dotnet restore eng/tools/RepositoryChecks/RepositoryChecks.csproj --locked-mode -p:BuildExamplesAndTests=true
+          dotnet build eng/tools/RepositoryChecks/RepositoryChecks.csproj -c Release --no-restore -p:BuildExamplesAndTests=true
+
       - name: mutable-image-tag ratchet self-test (non-vacuity)
         run: bash eng/ci/mutable-image-tag-gate.sh --self-test
 
@@ -313,92 +318,21 @@ jobs:
       - name: gate-denominator-gate
         run: bash eng/ci/gate-denominator-gate.sh
 
-      - name: sql-predicate-gate
-        run: bash eng/ci/sql-predicate-gate.sh
-
-      # BLOCKING — a computed cadence/cap number asserted in a comment must appear in that file's code,
-      # or the prose drifted from a parameterising refactor and now documents a value the code no longer
-      # holds (a stale in-code-number claim). Passes clean on committed content today.
-      - name: orphaned-constant-gate
-        run: bash eng/ci/orphaned-constant-gate.sh
-
-      # BLOCKING — an inbox decorator that declares the relational transactional seam but omits the scoped
-      # one hides the middleware's highest-precedence exactly-once path, because that path is selected by a
-      # type test on the OUTERMOST store instance. Wrapping a document-store inbox in encryption or
-      # telemetry then silently downgrades atomicity to the at-least-once claim protocol, with no error and
-      # no log line. Pure grep over src/**/*.cs; passes clean on committed content today.
-      - name: inbox-decorator-seam-gate
-        run: bash eng/ci/inbox-decorator-seam-gate.sh
-
       # BLOCKING — a conformance suite that derives a kit living under tests/ instead of the one inside the
       # published conformance package is verifying a contract no consumer can obtain: our providers pass a
       # suite nobody outside this repository has, the published arms go unexercised, and the two drift with
       # nothing detecting it. Both halves stay green the whole time, which is why only a boundary-aware scan
       # can see it. Enumerated baseline (shrink-only: a stale entry also fails); passes clean today.
-      - name: conformance-fork-gate
-        run: bash eng/ci/conformance-fork-gate.sh
 
-      # BLOCKING — a provider that implements the published health contract while no suite derives the
-      # published conformance kit against it ships unverified, and the arms we impose on consumers are arms
-      # we do not run ourselves. This is how a misspelled required metrics key survived in several providers
-      # at once: the ones with derivers failed CI, the ones without were found only by a hand census. Binds
-      # by constructed type name, so a deriver cannot cover one provider and be credited for another.
-      # Passes clean today; a new implementor without a deriver fails on its first appearance.
-      - name: persistence-health-deriver-gate
-        run: bash eng/ci/persistence-health-deriver-gate.sh
+      # Persistence health coverage is enforced by the compiler census in ci.yml architecture-tests.
 
-      # BLOCKING — a store backend that implements a published contract while no suite derives that
-      # contract's published conformance kit against it ships verified by nothing that speaks the
-      # contract, and the arms we impose on every consumer writing their own provider are arms we never
-      # run against our own. Nothing else sees this: the arm census measures, per deriver, whether each
-      # arm is wired, which is answered only over the derivers that exist — a kit derived solely by an
-      # in-memory store scores perfect arm coverage while every durable backend for that contract is
-      # unverified, and reports the identical green. Binds by named type (construction, or a registration
-      # entry point resolved from source), so a deriver cannot cover one backend and be credited for its
-      # neighbour. Enumerated baseline, shrink-only: a stale entry also fails. Passes clean today; a
-      # newly-unverified backend fails on its first appearance.
-      - name: conformance-backend-coverage-gate
-        run: bash eng/ci/conformance-backend-coverage-gate.sh
+      # Backend conformance coverage is enforced by the compiler census in ci.yml architecture-tests.
 
-      # BLOCKING — a conformance arm that declines to run for an optional capability the store under test
-      # ACTUALLY HAS. Every test runner reports an arm that returned early exactly as it reports an arm
-      # that ran and passed, so the suite certifies behaviour nobody verified and records a reason that is
-      # false about that store. The kits already make the distinction observable through their skip hook;
-      # until now nothing asked it anything. This gate is the asking. It does NOT fail on every skip —
-      # most declines here are genuine absences and red-flagging those would be wrong — it fails only when
-      # the store implements the capability and the arm cannot reach it. The kits' own private nested
-      # fixtures construct no store by design and are reported as exempt on every run, so the exemption is
-      # visible rather than silent. Anything it cannot evaluate REFUSES rather than passing. Passes clean
-      # today; the self-test below reddens on a seeded narrowing so a green here is never vacuous.
-      - name: conformance-arm-skip-gate self-test (non-vacuity)
-        run: bash eng/ci/conformance-arm-skip-gate.sh --self-test
+      # Runtime capability enforcement and its semantic wiring/skip inventory are required
+      # by ci.yml architecture-tests. Provider execution remains covered by conformance tests.
 
-      - name: conformance-arm-skip-gate
-        run: bash eng/ci/conformance-arm-skip-gate.sh
-
-      # The census program above carries 14 unit tests and, until now, NOTHING invoked them -- not a
-      # workflow, not a hook, not another script. It was the only script under eng/ci referenced from
-      # nowhere at all. A test nobody runs is indistinguishable from a test that does not exist, and
-      # the right remedy for one is to run it rather than to delete it. The census is the part of the
-      # gate above that classifies C# syntax, so a regression in it silently changes every verdict the
-      # gate renders.
-      - name: conformance-arm-skip-census unit tests
-        run: python3 eng/ci/conformance-arm-skip-census.test.py
-
-      # BLOCKING — a subsystem ARCHITECTURE.md guarantee whose named enforcing test has drifted (renamed,
-      # deleted, or moved to a different class) reads as documented-and-verified while nothing checks it.
-      # Extracts every backtick-quoted test citation from each "## Evidence" section and confirms it
-      # resolves to a real declared class/method under src/ or tests/ -- a whole-symbol match, not a
-      # name-keyed grep of the guarantee sentence (which cannot detect its own citation rotting, since the
-      # sentence never changes). REFUSEs rather than passes on an Evidence section with zero classifiable
-      # citations, unless the file is enumerated in the baseline with a reason. Self-test proves the gate
-      # FAILS a renamed/deleted citation before the real run is trusted.
-      - name: architecture-evidence-gate self-test (non-vacuity)
-        run: bash eng/ci/architecture-evidence-gate.sh --self-test
-
-      - name: architecture-evidence-gate
-        run: bash eng/ci/architecture-evidence-gate.sh
-
+      # ArchitectureEvidenceShould checks subsystem citations against Roslyn declarations in the
+      # required Architecture Tests job, including ambiguity and zero-citation ratchet controls.
       # BLOCKING — thirteen gates that already run in CI had their own self-test invoked by nothing.
       # A gate enforces; its self-test is the only thing establishing that the gate can still FAIL.
       # Wired separately, those two facts drift: a gate whose detection silently goes vacuous keeps
@@ -422,11 +356,10 @@ jobs:
         run: |
           set -u
           failed=0
-          for g in assert-tests-executed conformance-backend-coverage-gate conformance-fork-gate \
-                   gate-denominator-gate inbox-decorator-seam-gate orphan-test-project-gate \
-                   orphaned-constant-gate package-metadata-gate persistence-health-deriver-gate \
-                   sql-predicate-gate task-delay-syncwait-gate workflow-hygiene-gate \
-                   wwmd-reinvention-smells; do
+          for g in assert-tests-executed \
+                   gate-denominator-gate orphan-test-project-gate \
+                   package-metadata-gate \
+                   workflow-hygiene-gate; do
             # `|| rc=$?`: this step's shell is `bash -e`, so an unguarded failing command
             # kills the step before `rc=$?` is read -- the per-gate name, exit code and log
             # tail below then never print. A condition context suppresses -e and keeps them.
@@ -443,7 +376,7 @@ jobs:
           [ "$failed" -eq 0 ] || exit 1
 
       # BLOCKING — a seam whose blast radius demands a higher CLASS of guarantee than it produces,
-      # reported as covered. architecture-evidence-gate (above) asserts that a guarantee's named test
+      # reported as covered. ArchitectureEvidenceShould asserts that a guarantee's named test
       # still resolves; this one asserts the guarantee is of the right CLASS at all. A green
       # sampling-class suite says nothing about a state space it never enumerated, so a catastrophic
       # seam with no model check is UNVERIFIED at that rung, never clean. Coverage is bidirectional:
@@ -461,32 +394,10 @@ jobs:
       - name: rigor-ladder-gate
         run: bash eng/ci/rigor-ladder-gate.sh
 
-      # BLOCKING — a raw `await Task.Delay(...)` sync-wait in test code, or a sub-ten-second
-      # CancellationTokenSource deadline, is a non-deterministic wall-clock dependency (poll a condition
-      # with a bounded timeout instead).
-      #
-      # NOT diff-based. It scans every tests/**/*.cs in the tree and compares the hits against the
-      # shrink-only baseline in eng/ci/task-delay-syncwait.baseline.txt, so its verdict depends on the
-      # content of the tree and on nothing else. Do not reintroduce the diff: this workflow also runs on
-      # a mirror whose every push is one squashed release commit, where HEAD~1 is the previous RELEASE —
-      # there the "added lines" are the entire release, and the diff form reported ~50 long-standing uses
-      # as newly added across 130,524 added lines and took the default branch red.
-      - name: task-delay-syncwait-gate
-        run: bash eng/ci/task-delay-syncwait-gate.sh
+      # Deterministic test timing is enforced by the Roslyn census in ci.yml.
 
-      # A message's stored identity must come from its declared [MessageName] and nothing else. A name
-      # taken from the CLR type embeds the namespace, assembly and assembly version, so a refactor
-      # silently changes the identity of data already written and everything stored under the old name
-      # becomes unreadable. Four such derivations were found by inventory and unified; a reviewer found
-      # a fifth, and this gate found three more, two of them putting a CLR type name on the wire. An
-      # inventory measures the past -- this measures every commit. Shrink-only baseline.
-      - name: message-identity-single-source
-        run: bash eng/ci/message-identity-single-source-gate.sh
-
-      # The gate above is only worth having if it can still fail. Its self-test plants a violation and
-      # asserts detection, plus safety, baseline-honouring, and REFUSE-not-pass on an unsearchable tree.
-      - name: message-identity-single-source self-test
-        run: bash eng/ci/message-identity-single-source-gate.test.sh
+      # Message identity is enforced by compiler diagnostic REPO002 in every source project.
+      # Boundary.Tests verifies semantic positive/negative controls and evaluated analyzer wiring.
 
       # Its arms first, for the same reason as every other gate here. Six of them, and one exists because
       # the gate's own first run was green on small fixtures while reporting every real release missing:

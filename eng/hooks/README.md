@@ -6,7 +6,11 @@ This directory contains canonical versions of Git hooks used for automated gover
 ## Available Hooks
 
 ### pre-commit
-Enforces namespace depth requirements **and** flushes the Beads tracker before commits are accepted.
+The historical namespace-depth pre-commit hook is no longer shipped. CI enforces the production
+namespace-depth policy through `.github/workflows/namespace-validation.yml`: prefer at most four
+segments, allow five with justification, reject six or more. See
+[namespace conventions](../../docs/coding-standards/namespace-conventions.md).
+Compiled architecture tests and public API checks also enforce consumer-facing boundaries.
 
 > **RETIRED — the `bd-flush-guard` tracker backstop no longer exists.**
 >
@@ -23,21 +27,6 @@ Enforces namespace depth requirements **and** flushes the Beads tracker before c
 >
 > Read the **committed** blob, not `bd show` — the DB and the tracked file are separate surfaces and the
 > export between them can fail without failing your command.
-
-**Namespace depth — what it does:**
-- Analyzes staged C# files for namespace depth violations
-- Applies path-based depth limits (NS-001 and NS-001a):
-
-| Path | Max Depth | Warning Level | Error Level |
-|------|-----------|---------------|-------------|
-| `src/` (production) | 5 | depth 5 | depth ≥6 |
-| `tests/` (test code) | 7 | depth 6-7 | depth ≥8 |
-
-- Blocks commits exceeding maximum depth for each path type
-- Warns about namespaces at acceptable maximum
-- Passes silently for optimal depths (≤4 for src/, ≤5 for tests/)
-
-**See**: the header comment in `eng/hooks/pre-commit` for the per-gate detail.
 
 ### pre-push
 Enforces `CHANGELOG.md [Unreleased]` update when pushing significant changes.

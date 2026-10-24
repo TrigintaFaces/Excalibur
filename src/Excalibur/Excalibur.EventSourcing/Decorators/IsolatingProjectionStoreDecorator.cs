@@ -79,6 +79,11 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 				? new DestinationIdentityView(identity)
 				: null;
 		}
+		if (serviceType == typeof(IProjectionDestinationScope))
+		{
+			return Inner.GetService(serviceType) is IProjectionDestinationScope scope
+				? new DestinationScopeView(scope) : null;
+		}
 
 		if (serviceType == typeof(IProjectionVisibilityBarrier))
 		{
@@ -93,6 +98,11 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 	private sealed class DestinationIdentityView(IProjectionDestinationIdentity inner) : IProjectionDestinationIdentity
 	{
 		public string Identity => inner.Identity;
+	}
+
+	private sealed class DestinationScopeView(IProjectionDestinationScope inner) : IProjectionDestinationScope
+	{
+		public string Scope => inner.Scope;
 	}
 
 	private sealed class VisibilityBarrierView(IProjectionVisibilityBarrier inner) : IProjectionVisibilityBarrier

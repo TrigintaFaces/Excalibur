@@ -230,8 +230,10 @@ public sealed class MessageTypeFastPathShould
 
 	private sealed class DerivedMessageContext : MessageContext;
 
+	[MessageName("fast-path.base")]
 	private class BaseCommand : IDispatchAction;
 
+	[MessageName("fast-path.derived")]
 	private sealed class DerivedCommand : BaseCommand;
 
 	private sealed class BaseCommandHandler : IActionHandler<BaseCommand>

@@ -156,6 +156,13 @@ Excalibur.EventSourcing.FilterOperator.LessThanOrEqual = 5 -> Excalibur.EventSou
 Excalibur.EventSourcing.FilterOperator.NotEquals = 1 -> Excalibur.EventSourcing.FilterOperator
 Excalibur.EventSourcing.FilterParser
 Excalibur.EventSourcing.IAggregateQuery<TAggregate>
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>.GetWithPositionAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(TProjection? Projection, Excalibur.EventSourcing.ProjectionPosition Position)>!
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>.RefoldAtPositionAsync(string! id, TProjection! projection, long atPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionRefoldResult>!
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>.TypeInfo.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>!
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>.UpsertAtPositionAsync(string! id, TProjection! projection, long? expectedPosition, long newPosition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionAdvanceResult>!
+Excalibur.EventSourcing.IAotProjectionStore<TProjection>.UpsertUnnumberedAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.IAtomicMaterializedViewStore
 Excalibur.EventSourcing.IAtomicMaterializedViewStore.SaveViewAndPositionAsync<TView>(string! viewName, string! viewId, TView! view, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Excalibur.EventSourcing.IAtomicMaterializedViewStore.SupportsAtomicWrites.get -> bool
@@ -178,7 +185,7 @@ Excalibur.EventSourcing.IDistinctValuesProjectionStore<TProjection>.DistinctValu
 Excalibur.EventSourcing.IEphemeralProjectionEngine
 Excalibur.EventSourcing.IEphemeralProjectionEngine.BuildAsync<TProjection>(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection!>!
 Excalibur.EventSourcing.IEventNotificationBroker
-Excalibur.EventSourcing.IEventNotificationBroker.NotifyAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>! events, Excalibur.EventSourcing.EventNotificationContext! context) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.IEventNotificationBroker.NotifyAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>! events, Excalibur.EventSourcing.EventNotificationContext! context) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionFreshness>!
 Excalibur.EventSourcing.IEventNotificationHandler<TEvent>
 Excalibur.EventSourcing.IEventNotificationHandler<TEvent>.HandleAsync(TEvent event, Excalibur.EventSourcing.EventNotificationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.IEventSourcedRepository<TAggregate, TKey>
@@ -249,12 +256,15 @@ Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.UpsertAtPosition
 Excalibur.EventSourcing.IPositionedProjectionStore<TProjection>.UpsertUnnumberedAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.IProjectionDestinationIdentity
 Excalibur.EventSourcing.IProjectionDestinationIdentity.Identity.get -> string!
+Excalibur.EventSourcing.IProjectionDestinationScope
+Excalibur.EventSourcing.IProjectionDestinationScope.Scope.get -> string!
 Excalibur.EventSourcing.IProjectionEventHandler<TProjection, TEvent>
 Excalibur.EventSourcing.IProjectionProcessor
 Excalibur.EventSourcing.IProjectionProcessor.ProcessPendingAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.ProjectionProcessingResult>!
 Excalibur.EventSourcing.IProjectionRecovery
 Excalibur.EventSourcing.IProjectionRecovery.ReapplyAsync<TProjection>(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Excalibur.EventSourcing.IProjectionSessionReader
+Excalibur.EventSourcing.IProjectionSessionReader.ReadAsync<TProjection>(string! projectionId, Excalibur.EventSourcing.SaveResult session, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.ProjectionRead<TProjection!>>
 Excalibur.EventSourcing.IProjectionSessionReader.ReadAsync<TProjection>(string! projectionId, Excalibur.EventSourcing.SaveResult session, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.ProjectionRead<TProjection!>>
 Excalibur.EventSourcing.IProjectionStore<TProjection>
 Excalibur.EventSourcing.IProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
@@ -366,6 +376,12 @@ Excalibur.EventSourcing.ProjectionFreshness
 Excalibur.EventSourcing.ProjectionFreshness.BoundExpired = 2 -> Excalibur.EventSourcing.ProjectionFreshness
 Excalibur.EventSourcing.ProjectionFreshness.Fresh = 1 -> Excalibur.EventSourcing.ProjectionFreshness
 Excalibur.EventSourcing.ProjectionFreshness.NotRequested = 0 -> Excalibur.EventSourcing.ProjectionFreshness
+Excalibur.EventSourcing.ProjectionHaltReason
+Excalibur.EventSourcing.ProjectionHaltReason.CheckpointWriteFailed = 4 -> Excalibur.EventSourcing.ProjectionHaltReason
+Excalibur.EventSourcing.ProjectionHaltReason.EventUndeserializable = 2 -> Excalibur.EventSourcing.ProjectionHaltReason
+Excalibur.EventSourcing.ProjectionHaltReason.None = 0 -> Excalibur.EventSourcing.ProjectionHaltReason
+Excalibur.EventSourcing.ProjectionHaltReason.PrefixUnavailable = 1 -> Excalibur.EventSourcing.ProjectionHaltReason
+Excalibur.EventSourcing.ProjectionHaltReason.ProjectionFaulted = 3 -> Excalibur.EventSourcing.ProjectionHaltReason
 Excalibur.EventSourcing.ProjectionHandlerContext
 Excalibur.EventSourcing.ProjectionHandlerContext.AggregateId.get -> string!
 Excalibur.EventSourcing.ProjectionHandlerContext.AggregateType.get -> string!
@@ -378,6 +394,7 @@ Excalibur.EventSourcing.ProjectionHandlerContext.Timestamp.get -> System.DateTim
 Excalibur.EventSourcing.ProjectionMode
 Excalibur.EventSourcing.ProjectionMode.Async = 0 -> Excalibur.EventSourcing.ProjectionMode
 Excalibur.EventSourcing.ProjectionMode.Ephemeral = 1 -> Excalibur.EventSourcing.ProjectionMode
+Excalibur.EventSourcing.ProjectionMode.Inline = 2 -> Excalibur.EventSourcing.ProjectionMode
 Excalibur.EventSourcing.ProjectionPosition
 Excalibur.EventSourcing.ProjectionPosition.ExpectedPositionOrNull.get -> long?
 Excalibur.EventSourcing.ProjectionPosition.Kind.get -> Excalibur.EventSourcing.ProjectionPositionKind
@@ -398,10 +415,12 @@ Excalibur.EventSourcing.ProjectionProcessingOutcome.NotLeader = 1 -> Excalibur.E
 Excalibur.EventSourcing.ProjectionProcessingResult
 Excalibur.EventSourcing.ProjectionProcessingResult.EventsApplied.get -> long
 Excalibur.EventSourcing.ProjectionProcessingResult.EventsApplied.init -> void
+Excalibur.EventSourcing.ProjectionProcessingResult.HaltReason.get -> Excalibur.EventSourcing.ProjectionHaltReason
+Excalibur.EventSourcing.ProjectionProcessingResult.HaltReason.init -> void
 Excalibur.EventSourcing.ProjectionProcessingResult.Outcome.get -> Excalibur.EventSourcing.ProjectionProcessingOutcome
 Excalibur.EventSourcing.ProjectionProcessingResult.Outcome.init -> void
 Excalibur.EventSourcing.ProjectionProcessingResult.ProjectionProcessingResult() -> void
-Excalibur.EventSourcing.ProjectionProcessingResult.ProjectionProcessingResult(long EventsApplied, Excalibur.EventSourcing.ProjectionProcessingOutcome Outcome) -> void
+Excalibur.EventSourcing.ProjectionProcessingResult.ProjectionProcessingResult(long EventsApplied, Excalibur.EventSourcing.ProjectionProcessingOutcome Outcome, Excalibur.EventSourcing.ProjectionHaltReason HaltReason) -> void
 Excalibur.EventSourcing.ProjectionRead<TProjection>
 Excalibur.EventSourcing.ProjectionRead<TProjection>.Freshness.get -> Excalibur.EventSourcing.ProjectionFreshness
 Excalibur.EventSourcing.ProjectionRead<TProjection>.Freshness.init -> void
@@ -450,8 +469,10 @@ Excalibur.EventSourcing.ResolvedEventPayload
 Excalibur.EventSourcing.SaveResult
 Excalibur.EventSourcing.SaveResult.CommittedVersion.get -> long
 Excalibur.EventSourcing.SaveResult.CommittedVersion.init -> void
+Excalibur.EventSourcing.SaveResult.Projections.get -> Excalibur.EventSourcing.ProjectionFreshness
+Excalibur.EventSourcing.SaveResult.Projections.init -> void
 Excalibur.EventSourcing.SaveResult.SaveResult() -> void
-Excalibur.EventSourcing.SaveResult.SaveResult(long CommittedVersion, long? SessionToken) -> void
+Excalibur.EventSourcing.SaveResult.SaveResult(long CommittedVersion, long? SessionToken, Excalibur.EventSourcing.ProjectionFreshness Projections) -> void
 Excalibur.EventSourcing.SaveResult.SessionToken.get -> long?
 Excalibur.EventSourcing.SaveResult.SessionToken.init -> void
 Excalibur.EventSourcing.SnapshotDecisionContext

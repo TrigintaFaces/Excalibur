@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Projections;
 
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -55,6 +57,12 @@ public static class ImmutableProjectionServiceCollectionExtensions
 		// Run configure eagerly for DI registration, defer projection registration
 		var projBuilder = new ImmutableProjectionBuilder<TProjection>(builder.Services);
 		configure(projBuilder);
+		if (projBuilder.Mode == ProjectionMode.Inline)
+		{
+			InlineProjectionCoordinator.Register(builder.Services);
+		}
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IPositionedProjectionProbe, PositionedProjectionProbe<TProjection>>());
 
 		builder.Services.AddSingleton<EventNotificationServiceCollectionExtensions.IConfigureProjection>(sp =>
 		{
@@ -72,21 +80,17 @@ public static class ImmutableProjectionServiceCollectionExtensions
 		: EventNotificationServiceCollectionExtensions.IConfigureProjection
 		where TProjection : class
 	{
-		private readonly IProjectionRegistry _registry;
-		private readonly ImmutableProjectionBuilder<TProjection> _builder;
+		private readonly Action _configure;
 		private readonly Lock _configureGate = new();
 		private bool _configured;
 
-		internal ConfigureImmutableProjection(
-			IProjectionRegistry registry,
-			ImmutableProjectionBuilder<TProjection> builder)
-		{
-			_registry = registry;
-			_builder = builder;
-		}
+        [RequiresUnreferencedCode("Legacy projection stores may serialize reflectively.")]
+        [RequiresDynamicCode("Legacy projection stores may serialize reflectively.")]
+        internal ConfigureImmutableProjection(IProjectionRegistry registry, ImmutableProjectionBuilder<TProjection> builder)
+        {
+            _configure = () => builder.Build(registry);
+        }
 
-		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		public void Configure()
 		{
 			lock (_configureGate)
@@ -96,7 +100,7 @@ public static class ImmutableProjectionServiceCollectionExtensions
 					return;
 				}
 
-				_builder.Build(_registry);
+				_configure();
 				_configured = true;
 			}
 		}

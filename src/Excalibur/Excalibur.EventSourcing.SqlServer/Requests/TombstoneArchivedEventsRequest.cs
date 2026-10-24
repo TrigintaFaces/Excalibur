@@ -41,8 +41,23 @@ public sealed class TombstoneArchivedEventsRequest : DataRequestBase<IDbConnecti
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
-	{
-		ArgumentNullException.ThrowIfNull(tenant);
+
+        : this(tenant, aggregateId, aggregateType, toVersion, schema, table,
+            static request => connection => connection.ExecuteAsync(request.Command), cancellationToken)
+    {
+    }
+
+    internal static TombstoneArchivedEventsRequest CreateTyped(KeyedTenantPartition tenant,
+        string aggregateId, string aggregateType, long toVersion, CancellationToken cancellationToken,
+        string schema = "dbo", string table = "EventStoreEvents") =>
+        new(tenant, aggregateId, aggregateType, toVersion, schema, table,
+            static request => connection => SqlServerParameterSet.ExecuteNonQueryAsync(connection, request.Command), cancellationToken);
+
+    private TombstoneArchivedEventsRequest(KeyedTenantPartition tenant, string aggregateId, string aggregateType,
+        long toVersion, string schema, string table,
+        Func<TombstoneArchivedEventsRequest, Func<IDbConnection, Task<int>>> execute, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(tenant);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
@@ -77,7 +92,7 @@ public sealed class TombstoneArchivedEventsRequest : DataRequestBase<IDbConnecti
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@ToVersion", toVersion);
@@ -88,7 +103,6 @@ public sealed class TombstoneArchivedEventsRequest : DataRequestBase<IDbConnecti
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = execute(this);
 	}
 }

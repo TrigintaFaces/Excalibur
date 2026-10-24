@@ -131,7 +131,7 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task SetMessageTypeOnContext()
+	public async Task LeaveAnUnnamedLocalMessageWithoutAWireIdentity()
 	{
 		// Arrange
 		var successResult = Excalibur.Dispatch.MessageResult.Success();
@@ -150,7 +150,7 @@ public sealed class DispatcherShould
 		await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
-		context.GetMessageType().ShouldNotBeNullOrWhiteSpace();
+		context.GetMessageType().ShouldBeNull();
 	}
 
 	[Fact]

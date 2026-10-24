@@ -1,16 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Reflection;
-using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 
 /// <summary>
-/// Tests for Sprint 542 P0 fix S542.8 (bd-dcolc):
-/// MessageTypeCache._initialized must be volatile to prevent init race on multi-core CPUs.
+/// Tests atomic cache publication and one-time initialization.
 /// </summary>
 [Collection("MessageTypeCacheTests")]
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -27,35 +24,38 @@ public sealed class MessageTypeCacheVolatileShould : IDisposable
 		ResetCache();
 	}
 
-	private static void ResetCache()
-	{
-		var flags = BindingFlags.NonPublic | BindingFlags.Static;
-
-		var initializedField = typeof(MessageTypeCache).GetField("_initialized", flags);
-		initializedField?.SetValue(null, false);
-
-		var typeCacheField = typeof(MessageTypeCache).GetField("_typeCache", flags);
-		typeCacheField?.SetValue(null, System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty);
-
-		var nameCacheField = typeof(MessageTypeCache).GetField("_nameToTypeCache", flags);
-		nameCacheField?.SetValue(null, System.Collections.Frozen.FrozenDictionary<string, Type>.Empty);
-	}
+	private static void ResetCache() => MessageTypeCache.Reset();
 
 	[Fact]
-	public void HaveVolatileInitializedField()
+	public async Task PublishMetadataAndNamesTogetherAfterConstruction()
 	{
-		// Arrange & Act
-		var field = typeof(MessageTypeCache)
-			.GetField("_initialized", BindingFlags.NonPublic | BindingFlags.Static);
+		var constructing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var release = new ManualResetEventSlim();
+		IEnumerable<Type> Types()
+		{
+			yield return typeof(NamedMessage);
+			constructing.SetResult();
+			release.Wait(TimeSpan.FromSeconds(30)).ShouldBeTrue();
+		}
 
-		// Assert
-		field.ShouldNotBeNull("MessageTypeCache should have _initialized static field");
-		field.FieldType.ShouldBe(typeof(bool));
-
-		var modifiers = field.GetRequiredCustomModifiers();
-		modifiers.ShouldContain(typeof(IsVolatile),
-			"_initialized should be volatile to prevent initialization race on multi-core CPUs");
+		var initialize = Task.Run(() => MessageTypeCache.Initialize(Types()));
+		try
+		{
+			await constructing.Task.WaitAsync(TimeSpan.FromSeconds(30));
+			MessageTypeCache.GetCachedTypes().ShouldBeEmpty();
+			MessageTypeCache.ResolveType("atomic.named").ShouldBeNull();
+		}
+		finally
+		{
+			release.Set();
+			await initialize;
+		}
+		MessageTypeCache.GetMetadata(typeof(NamedMessage)).ShouldNotBeNull();
+		MessageTypeCache.ResolveType("atomic.named").ShouldBe(typeof(NamedMessage));
 	}
+
+	[MessageName("atomic.named")]
+	private sealed class NamedMessage;
 
 	[Fact]
 	public void PreventDoubleInitialization()

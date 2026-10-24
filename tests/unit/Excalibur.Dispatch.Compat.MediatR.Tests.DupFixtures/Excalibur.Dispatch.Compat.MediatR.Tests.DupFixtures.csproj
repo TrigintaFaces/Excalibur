@@ -8,6 +8,8 @@
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>false</IsTestProject>
+    <OutputType>Library</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

@@ -2,6 +2,7 @@
 -- SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 --
 -- Projection table schema.
+-- ddl-migration: provisioning-only {ProjectionTableName} - Earlier alpha projection tables require fresh provisioning and replay; CREATE does not upgrade key widths or tenant collation.
 --
 -- UNLIKE 001-004, THIS ONE IS A TEMPLATE, and it has to be: a projection table's name is a
 -- per-projection option, so there is no fixed set of tables to create. Replace the token below once

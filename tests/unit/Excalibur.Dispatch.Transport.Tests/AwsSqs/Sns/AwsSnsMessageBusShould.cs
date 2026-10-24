@@ -216,6 +216,7 @@ public sealed class AwsSnsMessageBusShould : IAsyncDisposable
 			"a bus with no bridge registered must not emit CloudEvent attributes");
 	}
 
+	[MessageName("tests.AwsSnsMessageBusShould.TestCloudEventBusEvent")]
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{
 	}

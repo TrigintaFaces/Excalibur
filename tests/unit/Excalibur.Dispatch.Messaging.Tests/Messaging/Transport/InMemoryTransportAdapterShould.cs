@@ -95,6 +95,28 @@ public sealed class InMemoryTransportAdapterShould : IAsyncDisposable
 		_sut.IsRunning.ShouldBeTrue();
 	}
 
+	[Theory]
+	[InlineData(false, null)]
+	[InlineData(true, "adapter.named")]
+	public async Task DispatchLocallyWithoutInventingAnExternalIdentity(bool named, string? expected)
+	{
+		await _sut.StartAsync(CancellationToken.None);
+		var dispatcher = A.Fake<IDispatcher>();
+		IMessageContext? received = null;
+		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(call => received = call.Arguments.Get<IMessageContext>(1))
+			.Returns(Task.FromResult<IMessageResult>(MessageResult.Success()));
+		IDispatchMessage message = named ? new NamedMessage() : new UnnamedMessage();
+		(await _sut.ReceiveAsync(message, dispatcher, CancellationToken.None)).Succeeded.ShouldBeTrue();
+		received.ShouldNotBeNull();
+		received.GetMessageType().ShouldBe(expected);
+	}
+
+	[MessageName("adapter.named")]
+	private sealed class NamedMessage : IDispatchMessage;
+
+	private sealed class UnnamedMessage : IDispatchMessage;
+
 	[Fact]
 	public async Task StopSuccessfully()
 	{

@@ -196,7 +196,7 @@ def main():
                 raise Refusal('Docs table evidence is incomplete/unreadable; inspect docsCheck diagnostics')
             return result['exitCode']
         def build_helper():
-            command('helper-build',[args.dotnet,'build',str(project),'-c','Release','-p:RunAnalyzers=false'],180)
+            command('helper-build',[args.dotnet,'build',str(project),'-c','Release','-warnaserror'],180)
             built=project.parent/'bin/Release/net10.0/AotAnnotationInventory.dll'
             if not built.is_file():
                 raise Refusal('Helper build produced no expected scanner DLL')

@@ -82,12 +82,17 @@ USAGE
 from __future__ import annotations
 
 import fnmatch
+import importlib.util
 import os
 import re
 import sys
 import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+_FACTS_SPEC = importlib.util.spec_from_file_location("ddl_facts", os.path.join(os.path.dirname(__file__), "ddl-migration-completeness.py"))
+_FACTS = importlib.util.module_from_spec(_FACTS_SPEC)
+_FACTS_SPEC.loader.exec_module(_FACTS)
+
 
 # <None ...> / <Content ...> opening tags, captured whole so attributes are read per item.
 _ITEM = re.compile(r"<(?:None|Content)\b[^>]*>", re.IGNORECASE | re.DOTALL)
@@ -241,13 +246,6 @@ def _read_baseline(path: str) -> set[str] | None:
         return None
 
 
-# A table-name default on an options type: `public string FooTableName { get; set; } = "Foo";`
-# Keyed off the ARTIFACT (the declared default a consumer actually gets) rather than a hand-listed
-# table inventory, which is the shape that has rotted on this tree before.
-_TABLE_DECL = re.compile(
-    r'public\s+string\s+(?P<prop>\w*Table\w*)\s*\{\s*get;\s*set;\s*\}\s*=\s*"(?P<name>[A-Za-z0-9_]+)"'
-)
-
 # Prefix/Suffix/Schema name a FRAGMENT of an identifier, not a table. Looking one up as though it
 # were a table produces a finding that can never be fixed, which is how a gate earns its suppression.
 _NOT_A_TABLE = re.compile(r"(Prefix|Suffix|Schema)$", re.I)
@@ -277,10 +275,13 @@ def declared_tables(csprojs: list[str], css: list[str]) -> dict[str, dict[str, s
                     text = fh.read()
             except OSError:
                 continue
-            for m in _TABLE_DECL.finditer(text):
-                if _NOT_A_TABLE.search(m.group("prop")):
+            for prop in _FACTS.csharp_facts(text)["properties"]:
+                name, value = prop["name"], prop["value"]
+                if "Table" not in name or _NOT_A_TABLE.search(name):
                     continue
-                found.setdefault(m.group("name"), cs)
+                # This is a declared constant SQL identifier, not C# source parsing.
+                if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_]+", value):
+                    found.setdefault(value, cs)
         if found:
             out[pkg] = found
     return out
@@ -338,7 +339,11 @@ def check_tables(csprojs: list[str], sqls: list[str], css: list[str], out, err) 
         print("Nothing was measured for table coverage. This is not a pass.", file=err)
         return 2
 
-    declared = declared_tables(csprojs, css)
+    try:
+        declared = declared_tables(csprojs, css)
+    except (OSError, _FACTS.Refuse) as error:
+        print("::error:: REFUSE - table declaration extraction: " + str(error), file=err)
+        return 2
 
     if not declared:
         # Distinguish "parsed sources and found no table declarations" from "there were no sources

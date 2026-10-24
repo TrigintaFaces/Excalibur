@@ -188,7 +188,7 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 	{
 		ArgumentNullException.ThrowIfNull(store);
 
-		return store.GetService(typeof(IDeadLetterStoreAdmin)) as IDeadLetterStoreAdmin;
+		return ValidateCapability<IDeadLetterStoreAdmin>(store, store.GetService(typeof(IDeadLetterStoreAdmin)));
 	}
 
 	/// <summary>Resolves the untenanted store for one arm, clearing residual data first.</summary>
@@ -640,7 +640,7 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
 
-		if (ResolveAdminFacet(store) is not { } adminBefore)
+		if (ValidateCapability<IDeadLetterStoreAdmin>(store, ResolveAdminFacet(store)) is not { } adminBefore)
 		{
 			SkipArm(nameof(DeleteAsync_ShouldDecreaseCount), typeof(IDeadLetterStoreAdmin), "Store does not implement admin interface; skip count verification");
 			return;
@@ -671,7 +671,7 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
 
-		if (ResolveAdminFacet(store) is not { } admin)
+		if (ValidateCapability<IDeadLetterStoreAdmin>(store, ResolveAdminFacet(store)) is not { } admin)
 		{
 			SkipArm(nameof(GetCountAsync_EmptyStore_ShouldReturnZero), typeof(IDeadLetterStoreAdmin), "Store does not implement admin interface; skip count verification");
 			return;
@@ -698,7 +698,7 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 		await store.StoreAsync(CreateDeadLetterMessage(), CancellationToken.None).ConfigureAwait(false);
 		await store.StoreAsync(CreateDeadLetterMessage(), CancellationToken.None).ConfigureAwait(false);
 
-		if (ResolveAdminFacet(store) is not { } adminCount)
+		if (ValidateCapability<IDeadLetterStoreAdmin>(store, ResolveAdminFacet(store)) is not { } adminCount)
 		{
 			SkipArm(nameof(GetCountAsync_AfterStores_ShouldReturnCorrectCount), typeof(IDeadLetterStoreAdmin), "Store does not implement admin interface; skip count verification");
 			return;
@@ -737,7 +737,7 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 		await store.StoreAsync(recentMessage, CancellationToken.None).ConfigureAwait(false);
 
 		// Cleanup with 5-day retention (should remove 10-day old message)
-		if (ResolveAdminFacet(store) is not { } cleanupAdmin)
+		if (ValidateCapability<IDeadLetterStoreAdmin>(store, ResolveAdminFacet(store)) is not { } cleanupAdmin)
 		{
 			SkipArm(nameof(CleanupOldMessagesAsync_ShouldRemoveOldMessages), typeof(IDeadLetterStoreAdmin), "Store does not implement admin interface; skip cleanup verification");
 			return;
@@ -783,7 +783,7 @@ public abstract class DeadLetterStoreConformanceTestKit : ConformanceTestKit
 		await store.StoreAsync(message, CancellationToken.None).ConfigureAwait(false);
 
 		// Cleanup with 7-day retention (should NOT remove 5-day old message)
-		if (ResolveAdminFacet(store) is not { } retentionAdmin)
+		if (ValidateCapability<IDeadLetterStoreAdmin>(store, ResolveAdminFacet(store)) is not { } retentionAdmin)
 		{
 			SkipArm(nameof(CleanupOldMessagesAsync_ShouldRespectRetention), typeof(IDeadLetterStoreAdmin), "Store does not implement admin interface; skip retention verification");
 			return;

@@ -3649,42 +3649,6 @@
       "warningId": "IL3050"
     },
     {
-      "line": 726,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 726,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 907,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 907,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
-    },
-    {
-      "line": 913,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL2026"
-    },
-    {
-      "line": 913,
-      "file": "src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs",
-      "justification": "Serialization inherently uses reflection",
-      "warningId": "IL3050"
-    },
-    {
       "line": 234,
       "file": "src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs",
       "justification": "Serialization inherently uses reflection",

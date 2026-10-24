@@ -23,7 +23,7 @@ namespace Excalibur.EventSourcing.Projections;
 ///     .When&lt;OrderShipped&gt;((proj, e) => { proj.ShippedAt = e.ShippedAt; }));
 /// </code>
 /// <para>
-/// If <see cref="Async"/> is not called, the projection
+/// If no mode is selected, the projection
 /// defaults to <see cref="ProjectionMode.Async"/>.
 /// </para>
 /// <para>
@@ -40,12 +40,22 @@ namespace Excalibur.EventSourcing.Projections;
 public interface IProjectionBuilder<TProjection>
 	where TProjection : class, new()
 {
+	/// <summary>Applies the committed event prefix before the save returns, with automatic durable recovery.</summary>
+	/// <remarks>
+	/// A committed save whose projections cannot be confirmed reports
+	/// <see cref="ProjectionFreshness.BoundExpired"/> on <see cref="SaveResult.Projections"/> rather than
+	/// throwing: the events ARE durable and only the read model is behind. Do not repeat the command --
+	/// answer from the stale read model, or wait on the session token.
+	/// </remarks>
+	/// <returns>This builder.</returns>
+	IProjectionBuilder<TProjection> Inline();
+
 	/// <summary>
 	/// Configures the projection to be applied asynchronously by the projection host. This is the
-	/// default and, since inline application was removed, the only mode.
+	/// default mode. Register an explicit background host or processor for Async projections.
 	/// </summary>
 	/// <remarks>
-	/// The host is the single writer for this projection's rows and applies events in position order.
+	/// Cooperating processors apply events in position order using conditional positioned writes.
 	/// A save returns a session token; pass it to a read that must observe its own write. Read-after-write
 	/// is therefore available on request rather than implicit, which is what makes a lost fold
 	/// inexpressible instead of merely unlikely.

@@ -114,11 +114,11 @@ internal readonly struct SubjectKeyHandle : IEquatable<SubjectKeyHandle>
 	/// (tenant, token) pairs give distinct handles.
 	/// </para>
 	/// <para>
-	/// <b>Length-prefixed composition is mandatory, not stylistic.</b> Naive concatenation makes
+	/// <b>Unambiguous segment composition is mandatory, not stylistic.</b> Naive concatenation makes
 	/// (tenant <c>"a"</c>, subject <c>"bc"</c>) collide with (tenant <c>"ab"</c>, subject <c>"c"</c>) — a
-	/// cross-tenant collision introduced by the very change meant to remove one. This is the same reasoning
-	/// <c>AesGcmEncryptionProvider.BuildAssociatedData</c> states for its own fields, reused rather than
-	/// rediscovered.
+	/// cross-tenant collision introduced by the very change meant to remove one.
+	/// <c>SegmentedKey.Compose</c> preserves segment boundaries by escaping separators inside each segment
+	/// before the composed value is hashed.
 	/// </para>
 	/// <para>
 	/// The handle is keyed by the deployment pepper for the same reason the token is: an unkeyed digest over

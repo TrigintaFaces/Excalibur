@@ -95,6 +95,9 @@ internal sealed class ProjectionRegistration
 	/// </summary>
 	internal ProjectionMode Mode { get; }
 
+	/// <summary>Closed-generic handler lookup, used to avoid unrelated store I/O and refreshes.</summary>
+	internal Func<Type, bool>? HandlesEvent { get; init; }
+
 	/// <summary>
 	/// Gets the multi-stream projection containing event handlers.
 	/// </summary>

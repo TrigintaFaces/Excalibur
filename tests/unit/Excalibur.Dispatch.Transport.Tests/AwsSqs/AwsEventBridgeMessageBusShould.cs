@@ -265,12 +265,15 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 		A.CallTo(() => client.PutEventsAsync(A<PutEventsRequest>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
+	[MessageName("tests.AwsEventBridgeMessageBusShould.TestDocument")]
 	private sealed class TestDocument : IDispatchDocument;
 
+	[MessageName("tests.AwsEventBridgeMessageBusShould.TestCloudEventBusEvent")]
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{
 	}
 
+	[MessageName("tests.AwsEventBridgeMessageBusShould.TestAction")]
 	private sealed class TestAction : IDispatchAction
 	{
 	}

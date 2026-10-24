@@ -3,6 +3,7 @@
 
 
 using System.Data;
+using System.Data.Common;
 
 using Dapper;
 
@@ -39,13 +40,35 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
-		: this(aggregateId, aggregateType, fromVersion, KeyedTenantPartition.FromScope(scope), long.MaxValue, schema, table, cancellationToken)
+		: this(aggregateId, aggregateType, fromVersion, KeyedTenantPartition.FromScope(scope), long.MaxValue, schema, table,
+			static request => async connection =>
+			{
+				using var rows = await connection.ExecuteReaderAsync(request.Command).ConfigureAwait(false);
+				return await ReadEventsAsync((DbDataReader)rows, request.Command.CancellationToken).ConfigureAwait(false);
+			}, cancellationToken)
 	{
 	}
 
 	internal LoadEventsRequest(
 		string aggregateId, string aggregateType, long fromVersion, KeyedTenantPartition partition,
 		long upToVersion, string schema, string table, CancellationToken cancellationToken)
+		: this(aggregateId, aggregateType, fromVersion, partition, upToVersion, schema, table,
+			static request => async connection =>
+			{
+				using var command = ((SqlServerParameterSet)request.Parameters).CreateCommand(connection, request.Command);
+				using var rows = await command.ExecuteReaderAsync(request.Command.CancellationToken).ConfigureAwait(false);
+				return await ReadEventsAsync(rows, request.Command.CancellationToken).ConfigureAwait(false);
+			}, cancellationToken)
+	{
+	}
+
+	internal static LoadEventsRequest CreateTyped(string aggregateId, string aggregateType, long fromVersion,
+		TenantScope scope, CancellationToken cancellationToken, string schema = "dbo", string table = "EventStoreEvents") =>
+		new(aggregateId, aggregateType, fromVersion, KeyedTenantPartition.FromScope(scope), long.MaxValue, schema, table, cancellationToken);
+
+	private LoadEventsRequest(string aggregateId, string aggregateType, long fromVersion, KeyedTenantPartition partition,
+		long upToVersion, string schema, string table,
+		Func<LoadEventsRequest, Func<IDbConnection, Task<IReadOnlyList<StoredEvent>>>> execute, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(partition);
 		ArgumentOutOfRangeException.ThrowIfNegative(upToVersion);
@@ -71,7 +94,7 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@FromVersion", fromVersion);
@@ -81,31 +104,25 @@ public sealed class LoadEventsRequest : DataRequestBase<IDbConnection, IReadOnly
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection =>
-		{
-			var rows = await connection.QueryAsync<LoadedEventRow>(Command).ConfigureAwait(false);
+		ResolveAsync = execute(this);
+	}
 
+	private static async Task<IReadOnlyList<StoredEvent>> ReadEventsAsync(DbDataReader rows, CancellationToken cancellationToken)
+	{
 			var events = new List<StoredEvent>();
-			foreach (var row in rows)
+			while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
 			{
-				events.Add(new StoredEvent(
-					row.EventId,
-					row.AggregateId,
-					row.AggregateType,
-					row.EventType,
-					row.EventData,
-					row.Metadata,
-					row.Version,
-					row.Timestamp)
+				events.Add(new StoredEvent(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.GetString(3),
+					await rows.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false) ? null : (byte[])rows.GetValue(4), await rows.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : (byte[])rows.GetValue(5),
+					rows.GetInt64(6), (DateTimeOffset)rows.GetValue(7))
 				{
-					ArchivedAt = row.ArchivedAt,
-					GlobalPosition = row.GlobalPosition,
-					TenantId = row.TenantId,
+					ArchivedAt = await rows.IsDBNullAsync(8, cancellationToken).ConfigureAwait(false) ? null : (DateTimeOffset)rows.GetValue(8),
+					GlobalPosition = rows.GetInt64(9),
+					TenantId = rows.GetString(10),
 				});
 			}
 
 			return events;
-		};
 	}
 }
 

@@ -32,6 +32,7 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gate-denominator.sh"
 
 BASELINE_FILE="eng/ci/mutable-image-tag-baseline.txt"
+CSHARP_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tools/RepositoryChecks/bin/Release/net10.0/RepositoryChecks.dll"
 SELF_TEST=0
 [ "${1:-}" = "--self-test" ] && SELF_TEST=1
 
@@ -45,23 +46,55 @@ PATTERN='[a-z0-9][a-z0-9._-]*[./][a-z0-9._/-]*:[A-Za-z0-9._-]*latest[A-Za-z0-9._
 count_scanned() {
     local root="${1:-.}"
     if [ "$root" = "." ]; then
-        git ls-files '*.cs' '*.yml' '*.yaml' '*Dockerfile*' 2>/dev/null | grep -c . || true
+        image_files | grep -c . || true
     else
         find "$root" -type f \( -name '*.cs' -o -name '*.yml' -o -name '*.yaml' -o -name '*Dockerfile*' \) 2>/dev/null | grep -c . || true
     fi
 }
 
-count_mutable() {
-    local root="${1:-.}"
-    if [ "$root" = "." ]; then
-        git ls-files '*.cs' '*.yml' '*.yaml' '*Dockerfile*' 2>/dev/null \
-            | xargs grep -hoE "$PATTERN" 2>/dev/null \
-            | grep -vE '^https?' | wc -l | tr -d '[:space:]'
-    else
-        grep -rhoE "$PATTERN" "$root" 2>/dev/null \
-            | grep -vE '^https?' | wc -l | tr -d '[:space:]'
-    fi
+image_files() {
+    # Include new files and exclude worktree deletions so a local run measures the
+    # candidate tree that will be committed, rather than the previous Git index.
+    git ls-files --cached --others --exclude-standard '*.cs' '*.yml' '*.yaml' '*Dockerfile*' | while IFS= read -r file; do
+        [ ! -f "$file" ] || printf '%s\n' "$file"
+    done
 }
+
+count_mutable() (
+    local root="${1:-.}"
+    local inventory cs_files decoded file
+    inventory="$(mktemp)" || return 3
+    cs_files="$(mktemp)" || return 3
+    decoded="$(mktemp)" || return 3
+    trap 'rm -f "$inventory" "$cs_files" "$decoded"' EXIT
+    if [ "$root" = "." ]; then
+        image_files > "$inventory" || return 3
+    else
+        find "$root" -type f \( -name '*.cs' -o -name '*.yml' -o -name '*.yaml' -o -name '*Dockerfile*' \) > "$inventory" || return 3
+    fi
+    while IFS= read -r file; do
+        case "$file" in
+            *.cs) printf '%s\n' "$file" >> "$cs_files" ;;
+            *) cat "$file" >> "$decoded" || return 3; printf '\n' >> "$decoded" ;;
+        esac
+    done < "$inventory"
+    if [ -s "$cs_files" ]; then
+        [ -f "$CSHARP_TOOL" ] || { echo 'REFUSE: build RepositoryChecks before the image gate.' >&2; return 3; }
+        if command -v cygpath >/dev/null 2>&1; then
+            cygpath -m -f "$cs_files" > "$inventory" || return 3
+            cp "$inventory" "$cs_files" || return 3
+        fi
+        dotnet "$CSHARP_TOOL" --image-strings "$cs_files" >> "$decoded" || return 3
+    fi
+    awk -v pattern="$PATTERN" '{
+        line=$0
+        while (match(line, pattern)) {
+            value=substr(line,RSTART,RLENGTH)
+            if (value !~ /^https?/) { count++; print "Mutable image reference: " value > "/dev/stderr" }
+            line=substr(line,RSTART+RLENGTH)
+        }
+    } END { print count+0 }' "$decoded"
+)
 
 if [ "$SELF_TEST" -eq 1 ]; then
     tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -89,6 +122,18 @@ if [ "$SELF_TEST" -eq 1 ]; then
     [ "$n" = "0" ] && echo "  ok  : SAFETY -- a pinned version tag is NOT counted" \
         || { echo "  FAIL: a pinned tag was counted (got $n)"; fail=1; }
 
+    # The C# branch must decode escapes/constants and exclude comments.
+    printf '%s\n' 'const string tag = "lat\u0065st"; var image = "registry.example/service:" + tag;' > "$tmp/images.cs"
+    n="$(count_mutable "$tmp")"
+    [ "$n" = 1 ] || { echo "FAIL: Roslyn did not decode the C# image (got $n)"; fail=1; }
+    printf '%s\n' '// registry.example/service:latest' > "$tmp/images.cs"
+    n="$(count_mutable "$tmp")"
+    [ "$n" = 0 ] || { echo "FAIL: C# comment counted as an image (got $n)"; fail=1; }
+    printf '%s\n' 'var broken = "unterminated;' > "$tmp/images.cs"
+    if count_mutable "$tmp" >/dev/null 2>&1; then
+        echo 'FAIL: malformed C# inventory passed'; fail=1
+    fi
+
     [ "$fail" -eq 0 ] && { echo "SELF-TEST: the mutable-image-tag ratchet is non-vacuous."; exit 0; }
     echo "SELF-TEST FAILED" >&2; exit 1
 fi
@@ -102,7 +147,7 @@ case "$baseline" in ''|*[!0-9]*)
     echo "::error::REFUSE: baseline '$baseline' is not a number." >&2; exit 3 ;;
 esac
 
-current="$(count_mutable .)"
+current="$(count_mutable .)" || { echo '::error::REFUSE: image inventory failed.' >&2; exit 3; }
 case "$current" in ''|*[!0-9]*)
     echo "::error::REFUSE: could not measure the current population (got '$current'). Not measured is not the same as clean." >&2; exit 3 ;;
 esac
@@ -116,9 +161,6 @@ echo "mutable-tag images pulled from a registry: $current (baseline $baseline)"
 
 if [ "$current" -gt "$baseline" ]; then
     echo "::error::A new container image was added at a MUTABLE tag: $current now, baseline $baseline. A 'latest' tag is a promise the registry can re-point, so the image tested is not necessarily the image anyone else gets -- and most of these ship inside samples and templates. Pin it to an immutable version, or raise the baseline deliberately and say why." >&2
-    echo "current offenders:" >&2
-    git ls-files '*.cs' '*.yml' '*.yaml' '*Dockerfile*' 2>/dev/null \
-        | xargs grep -noE "$PATTERN" 2>/dev/null | grep -vE ':https?' | sort -u | head -40 >&2
     exit 1
 fi
 

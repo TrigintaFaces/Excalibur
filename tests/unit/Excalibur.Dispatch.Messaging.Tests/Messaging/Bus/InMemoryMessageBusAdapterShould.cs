@@ -27,6 +27,26 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	public void ThrowForNullLogger() =>
 		Should.Throw<ArgumentNullException>(() => new InMemoryMessageBusAdapter(null!));
 
+	[Theory]
+	[InlineData(false, null, null)]
+	[InlineData(true, null, "local.named")]
+	[InlineData(true, "external.named", "external.named")]
+	public async Task PreserveDeclaredOrExplicitIdentityWithoutInventingOne(bool named, string? explicitName, string? expected)
+	{
+		await _sut.StartAsync(CancellationToken.None);
+		var context = new Excalibur.Dispatch.Messaging.MessageContext();
+		context.SetMessageType(explicitName);
+		IDispatchMessage message = named ? new NamedLocalMessage() : new UnnamedLocalMessage();
+		var result = await _sut.PublishAsync(message, context, CancellationToken.None);
+		result.Succeeded.ShouldBeTrue();
+		context.GetMessageType().ShouldBe(expected);
+	}
+
+	[MessageName("local.named")]
+	private sealed class NamedLocalMessage : IDispatchMessage;
+
+	private sealed class UnnamedLocalMessage : IDispatchMessage;
+
 	[Fact]
 	public void HaveCorrectName()
 	{

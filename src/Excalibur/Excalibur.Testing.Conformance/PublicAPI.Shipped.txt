@@ -301,6 +301,7 @@ static Excalibur.Testing.Conformance.ConformanceArmLedger.Skipped.get -> System.
 static Excalibur.Testing.Conformance.ConformanceArmLivenessGate.EvaluateFailure() -> string?
 static Excalibur.Testing.Conformance.ConformanceArmLivenessGate.EvaluateFailure(int armsExecuted, int armsSkipped, string! description) -> string?
 static Excalibur.Testing.Conformance.ConformanceTestKit.ReadUntilAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<T>!>! read, System.Func<T, bool>! satisfied, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T>!
+static Excalibur.Testing.Conformance.ConformanceTestKit.ValidateCapability<TCapability>(object! provider, object? resolved) -> TCapability?
 static Excalibur.Testing.Conformance.ErasureStoreConformanceTestKit.ConformanceSigningKey.get -> byte[]!
 static Excalibur.Testing.Conformance.InboxStoreConformanceTestKit.CreateAdminStore(Excalibur.Dispatch.IInboxStore! store) -> Excalibur.Dispatch.IInboxStoreAdmin!
 static Excalibur.Testing.Conformance.KeyEscrowServiceConformanceTestKit.CreateKeyMaterial(int size = 32) -> byte[]!

@@ -180,6 +180,7 @@ internal static class SqliteTableInitializer
 	/// would share one checkpoint and each would skip whatever the other had consumed.
 	/// </remarks>
 	internal static string CheckpointsTableDdl(string table) =>
+		// ddl-migration: provisioning-only {table}Definitions - This companion table is created on first binding; existing checkpoint rows stay in the separate base table, verified by the SQLite checkpoint conformance regression.
 		$"""
 		CREATE TABLE IF NOT EXISTS [{table}] (
 			SubscriptionName TEXT NOT NULL COLLATE BINARY,

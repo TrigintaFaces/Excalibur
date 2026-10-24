@@ -22,8 +22,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 # Configuration
-$GovernedDirectories = @("src", "tests", "samples", "benchmarks", "load-tests")
-$ExcludedDirectories = @("labs", "tools", "node_modules", "bin", "obj")
+$GovernedDirectories = @("src", "tests", "samples", "benchmarks", "load-tests", "eng/tools")
+$ExcludedDirectories = @("labs", "node_modules", "bin", "obj")
 # Explicit file exclusions (duplicate projects, etc)
 $ExcludedFiles = @(
     # None currently - stub files should be deleted, not excluded
@@ -33,6 +33,7 @@ function Get-ProjectClassification {
     param([string]$Path)
 
     if ($Path -match "^src/") { return "Shipping" }
+    if ($Path -match "^eng/tools/") { return "Tool" }
     if ($Path -match "^tests/unit/") { return "Test" }
     if ($Path -match "^tests/integration/") { return "Test" }
     if ($Path -match "^tests/functional/") { return "Test" }
@@ -218,14 +219,13 @@ governed_directories:
   - samples/**
   - benchmarks/**
   - load-tests/**
+  - eng/tools/**
 
 exclusions:
   - path: templates/**
     reason: "Raw template projects are solution items, validated after instantiation; template package is explicitly governed"
   - path: labs/**
     reason: "Experimental - not governed"
-  - path: eng/tools/**
-    reason: "Build utilities - not packaged"
 
 projects:
 "@

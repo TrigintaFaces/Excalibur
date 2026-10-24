@@ -144,6 +144,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Setup .NET for project classification
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
       - name: Validate preflight structure and policy
         shell: bash
         run: |
@@ -335,32 +339,8 @@ jobs:
         working-directory: docs-site
         run: npm run validate:version-links
 
-      # Diff-scoped: fails only when a doc changed in THIS PR introduces a C# snippet
-      # referencing a framework type that does not exist in the real public surface.
-      # Pre-existing phantoms in untouched docs are tolerated (cleaned up separately);
-      # intentional placeholders opt out with a ```csharp ignore fence. CI, not pre-commit.
-      - name: Docs C# snippet phantom gate (diff-scoped)
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          # Assign, then export, rather than `export X="$(...)"`. The combined form takes its exit
-          # status from `export`, so under `set -e` a failing `git rev-parse` would be swallowed and
-          # the gate would run against an empty base ref. Separating them makes the failure abort.
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            DOCS_GATE_BASE_REF="$PR_BASE_SHA"
-          else
-            DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
-          fi
-          export DOCS_GATE_BASE_REF
-          git cat-file -e "${DOCS_GATE_BASE_REF}^{commit}"
-          bash eng/ci/docs-csharp-phantom-gate.sh
-
-      # The gate is only evidence if it can fail: safety (a new phantom -> RED), liveness
-      # (a real API -> GREEN), diff-scope (a pre-existing phantom in an unchanged doc -> GREEN),
-      # and the ignore-marker opt-out. Proves all arms against a throwaway fixture.
-      - name: Prove the docs phantom gate is non-vacuous
+      # Compiler binding runs in the required architecture job, including doc-only changes.
+      - name: Verify Markdown fence extraction and diff selection
         run: bash eng/ci/docs-csharp-phantom-gate.test.sh
 
       - name: Build Docusaurus (enforcing zero warnings)
@@ -901,29 +881,17 @@ jobs:
   integration-tests:
     name: Integration Tests (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
-    # Split because this was the longest job in the workflow at ~37 minutes and, once the false
-    # ordering around it was removed, it WAS the critical path.
-    #
-    # The boundary is measured, not guessed. Per-assembly time from a real run's trx:
-    #   Excalibur.Integration.Tests      19.8 min  (1577 tests)
-    #   Excalibur.Dispatch.Integration   14.2 min  ( 945 tests)
-    #   Inbox.Oracle + Outbox.Oracle      0.6 min  ( 104 tests)
-    # which splits cleanly on project boundaries at 19.8 / 14.8 with no intra-assembly filtering.
-    #
-    # TWO is the right number, not a step toward more. functional-tests finishes around the 35-minute
-    # mark, so once this drops below ~26 minutes IT becomes the constraint and further splitting of
-    # this job buys nothing. Each additional shard also pays its own checkout, build and container
-    # startup. Split further only after the unit/functional legs move.
-    #
-    # fail-fast is off: these are independent suites, and cancelling one because the other failed
-    # would destroy exactly the diagnostic signal a red run needs.
+    # Split the container suites by assembly and the Excalibur suite by namespace.
+    # Embedded covers Integration/EndToEnd tests hosted in unit-test projects;
+    # their Unit filter excludes these cases. Keep each test in exactly one route.
+    # Independent failures must retain results from the other matrix entries.
     strategy:
       fail-fast: false
       matrix:
         shard:
           # probe: a test project that is a member of THIS shard, for the collector check below.
           #
-          # The excalibur suite runs as FOUR legs sharing one assembly. Its xunit.runner.json sets
+          # The excalibur suite runs as six legs sharing one assembly. Its xunit.runner.json sets
           # maxParallelThreads=1 -- these tests drive real containers and must not interleave -- so
           # the suite cannot be made faster from the inside. The parallelism lives here instead, and
           # each leg is still strictly serial internally, which is the isolation the runner config
@@ -957,6 +925,10 @@ jobs:
             leg: rest
             filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
             probe: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
+          - name: embedded
+            leg: ''
+            filter: eng/ci/shards/IntegrationTests-Embedded.slnf
+            probe: tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj
           - name: dispatch
             leg: ''
             filter: eng/ci/shards/IntegrationTests-Dispatch.slnf
@@ -1047,38 +1019,16 @@ jobs:
           # thirteen tests that need no emulator and could have kept running here for free. The
           # Infrastructure trait set is verified identical to the census's behaviour set — the classes
           # that actually construct a Cosmos fixture.
-          $baseFilter = '(Category=Integration|Category=EndToEnd)&Infrastructure!=CosmosEmulator'
-
-          # LEG NARROWING. The excalibur suite is one assembly pinned to maxParallelThreads=1 by its
-          # own xunit.runner.json, so it is split across jobs by namespace instead. Both halves of
-          # the split are derived from ONE list -- a leg runs its prefix, 'rest' runs the complement
-          # of every prefix -- so a typo moves tests between legs and cannot drop them on the floor.
-          # An unknown leg name THROWS rather than falling through to the unnarrowed filter, because
-          # falling through would silently run the whole suite on four jobs and still look green.
-          $leg = '${{ matrix.shard.leg }}'
-          if ($leg) {
-            $root = 'Excalibur.Integration.Tests.'
-            $prefixes = [ordered]@{}
-            foreach ($line in Get-Content eng/ci/integration-excalibur-legs.txt) {
-              $t = $line.Trim()
-              if (-not $t -or $t.StartsWith('#') -or $t -notmatch '=') { continue }
-              $kv = $t.Split('=', 2)
-              $prefixes[$kv[0].Trim()] = $kv[1].Trim()
-            }
-            if ($prefixes.Count -eq 0) { throw 'no leg prefixes parsed from eng/ci/integration-excalibur-legs.txt' }
-            if ($leg -eq 'rest') {
-              foreach ($v in $prefixes.Values) { $baseFilter += "&FullyQualifiedName!~$root$v" }
-            } elseif ($prefixes.Contains($leg)) {
-              $baseFilter += "&FullyQualifiedName~$root$($prefixes[$leg])"
-            } else {
-              throw "unknown leg '$leg' -- not in eng/ci/integration-excalibur-legs.txt (known: $($prefixes.Keys -join ', '), rest)"
-            }
-            Write-Host "Leg '$leg' narrows the filter to: $baseFilter"
-          }
-
-          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          $filterInfo = ./eng/ci/get-integration-test-filter.ps1 -Leg '${{ matrix.shard.leg }}' | ConvertFrom-Json
           "INTEGRATION_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
           Write-Host "Using integration filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Build compiler-backed Cosmos admission gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore eng/tools/RepositoryChecks/RepositoryChecks.csproj --locked-mode
+          dotnet build eng/tools/RepositoryChecks/RepositoryChecks.csproj --configuration Release --no-restore -warnaserror
 
       - name: Establish EXPECTED test population
         shell: bash
@@ -1547,7 +1497,7 @@ jobs:
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=functional-tests.trx" \
+            --logger "trx;LogFilePrefix=functional-tests" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
@@ -1630,11 +1580,13 @@ jobs:
     # Independent of integration-tests: no artifact of theirs is read and no output consumed.
     # Gating on it only delayed this suite and, on a failed integration run, skipped it.
     needs: unit-tests
+    if: ${{ !cancelled() && (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') }}
     timeout-minutes: 120
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Setup build environment
@@ -1642,6 +1594,34 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
+
+      - name: Restore complete semantic census population
+        run: dotnet restore Excalibur.sln --locked-mode -p:BuildExamplesAndTests=true -p:Configuration=Release
+
+      - name: Validate repository policies with Roslyn
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          set -euo pipefail
+          DOCS_GATE_BASE_REF="${PR_BASE_SHA:-${MERGE_BASE_SHA:-$(git rev-parse HEAD^1)}}"
+          export DOCS_GATE_BASE_REF
+          git cat-file -e "${DOCS_GATE_BASE_REF}^{commit}"
+          mkdir -p artifacts/repository-checks
+          python3 eng/ci/docs-csharp-extract.py --request --repo . --base "$DOCS_GATE_BASE_REF" > artifacts/repository-checks/documentation-request.json
+          dotnet eng/tools/RepositoryChecks/bin/Release/net10.0/RepositoryChecks.dll \
+            "$GITHUB_WORKSPACE" --release-policies artifacts/repository-checks
+
+      - name: Upload semantic policy evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: semantic-repository-policy-evidence
+          path: |
+            artifacts/repository-checks
+            !artifacts/repository-checks/**/bin/**
+            !artifacts/repository-checks/**/obj/**
+          retention-days: 30
 
       - name: Run architecture test projects
         run: |
@@ -1761,7 +1741,7 @@ jobs:
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=flaky-quarantine.trx" \
+            --logger "trx;LogFilePrefix=flaky-quarantine" \
             --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             -- RunConfiguration.TestSessionTimeout=900000
@@ -1842,6 +1822,87 @@ jobs:
         with:
           name: aot-build-analysis
           path: artifacts/reports/AotBuildAnalysis
+
+  # Strict publication of the consumer path that combines SQL persistence and Elasticsearch Inline.
+  # A JIT build or diagnostic publish cannot establish Native AOT compatibility.
+  # The alpha accepts only the exact reviewed official-driver limitation; all drift fails.
+  inline-native-aot:
+    name: SQL Elasticsearch Inline Native AOT (Windows)
+    runs-on: windows-latest
+    needs: smoke-tests
+    timeout-minutes: 120
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - name: Strict publish SQL Elasticsearch Inline native probe
+        shell: pwsh
+        env:
+          EXCALIBUR_TEST_JSON_REFLECTION: 'false'
+        run: |
+          New-Item -ItemType Directory -Force artifacts/inline-native-aot | Out-Null
+          python eng/ci/inline-native-aot-verdict.test.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj `
+            -c Release -m:1 -p:BuildExamplesAndTests=true `
+            "-p:SolutionDir=$env:GITHUB_WORKSPACE/" -p:SolutionName=Excalibur `
+            -p:JsonSerializerIsReflectionEnabledByDefault=false -warnaserror `
+            --filter 'FullyQualifiedName~SerializationFallback_RequiresResolverWhenReflectionIsDisabled|FullyQualifiedName~GeneratedSerialization_PreservesEventAndMetadataWithoutReflection' `
+            --logger 'trx;LogFilePrefix=sql-reflection-disabled' --results-directory artifacts/inline-native-aot `
+            --blame-hang-timeout 2m -- RunConfiguration.TestSessionTimeout=120000
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Keep PublishAot in the probe project: a global command-line property also reaches
+          # netstandard analyzer projects, which are build tools and cannot be native apps.
+          $publishAot = dotnet msbuild tests/harnesses/SqlElasticInlineAotProbe/SqlElasticInlineAotProbe.csproj `
+            -nologo -p:Configuration=Release -p:RuntimeIdentifier=win-x64 -getProperty:PublishAot
+          if ($LASTEXITCODE -ne 0 -or "$publishAot".Trim() -ne 'true') {
+            throw 'The SQL Elasticsearch probe must evaluate PublishAot=true.'
+          }
+          dotnet msbuild tests/harnesses/SqlElasticInlineAotProbe/SqlElasticInlineAotProbe.csproj `
+            -nologo -p:Configuration=Release -p:RuntimeIdentifier=win-x64 `
+            '-getProperty:NETCoreSdkVersion,RuntimeIdentifier,PublishAot,TreatWarningsAsErrors,ILLinkTreatWarningsAsErrors,SuppressTrimAnalysisWarnings,TrimmerSingleWarn' `
+            > artifacts/inline-native-aot/properties.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path -LiteralPath artifacts/inline-native-aot/publish/SqlElasticInlineAotProbe.exe) {
+            throw 'A prior native executable would invalidate this publication attempt.'
+          }
+          $nativeLockRun = [guid]::NewGuid().ToString('N')
+          dotnet publish tests/harnesses/SqlElasticInlineAotProbe/SqlElasticInlineAotProbe.csproj `
+            -c Release -r win-x64 -o artifacts/inline-native-aot/publish `
+            "-p:NuGetLockFilePath=obj/native-inline/$nativeLockRun/packages.lock.json" -p:RestorePackagesWithLockFile=true `
+            -p:BuildExamplesAndTests=true -warnaserror `
+            -p:TreatWarningsAsErrors=true -p:ILLinkTreatWarningsAsErrors=true `
+            -p:SuppressTrimAnalysisWarnings=false -p:TrimmerSingleWarn=false `
+            2>&1 | Tee-Object artifacts/inline-native-aot/publish.log
+          $publishExit = $LASTEXITCODE
+          python eng/ci/inline-native-aot-verdict.py --exit-code $publishExit `
+            --log artifacts/inline-native-aot/publish.log `
+            --assets tests/harnesses/SqlElasticInlineAotProbe/obj/project.assets.json `
+            --properties artifacts/inline-native-aot/properties.json `
+            --results artifacts/inline-native-aot `
+            --executable artifacts/inline-native-aot/publish/SqlElasticInlineAotProbe.exe `
+            --output artifacts/inline-native-aot/verdict.json
+          $verdictExit = $LASTEXITCODE
+          Get-Content artifacts/inline-native-aot/verdict.json | Add-Content $env:GITHUB_STEP_SUMMARY
+          exit $verdictExit
+      - name: Preserve strict native publish diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: inline-native-aot-windows
+          path: |
+            artifacts/inline-native-aot/publish.log
+            artifacts/inline-native-aot/*.trx
+            artifacts/inline-native-aot/*.json
+          if-no-files-found: error
+          retention-days: 30
 
   # ── Coverage analysis (reusable workflow) ──
   call-coverage:
@@ -2553,7 +2614,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    needs: [changes, preflight, package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality]
+    needs: [changes, preflight, package, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, unit-tests-macos, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, call-coverage, call-security, call-governance, call-performance, serialization-policy, sample-validation, aot-sample-validation, documentation-validation, dashboard-spa, unit-tests-async-risk, unit-shard-aggregation, unit-tests-windows-async-risk, unit-tests-macos-async-risk, packaging-smoke-tests, aot-build-analysis, pack-quality, inline-native-aot]
     if: always()
     steps:
       - name: Generate CI summary
@@ -2586,6 +2647,7 @@ jobs:
           echo "| Serialization Policy | ${{ needs.serialization-policy.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Sample Validation (T3.4) | ${{ needs.sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| AOT Sample Validation | ${{ needs.aot-sample-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL Elasticsearch Inline AOT diagnostic policy (accepted upstream limitation; not certification) | ${{ needs.inline-native-aot.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Performance Gates | ${{ needs.call-performance.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -2619,7 +2681,7 @@ jobs:
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           # These run regardless of classification. On a docs-only change they are the entire gate,
           # so if they are missing or skipped the run proved nothing and must not pass.
-          ALWAYS_REQUIRED: "changes preflight documentation-validation"
+          ALWAYS_REQUIRED: "changes preflight documentation-validation architecture-tests"
           # Jobs that are allowed to SKIP on a pull request, and only there.
           #
           # The performance gates are wired to run on push and not on pull requests

@@ -29,10 +29,8 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 /// so a regression to <c>GetType().FullName</c> cannot accidentally satisfy it.
 /// </para>
 /// <para>
-/// The liveness arms matter as much: a type declaring no name must still send (falling back to the CLR
-/// name) rather than throw, because <c>MessageNameHelper.GetName</c> throws and a send that has always
-/// worked must not start failing. Without those arms the suite would be satisfied by a world in which
-/// every publish threw.
+/// Named messages and explicit inbound identities must publish successfully. Unnamed messages must
+/// fail before sending; local dispatch must not manufacture a CLR identity that bypasses this boundary.
 /// </para>
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
@@ -40,6 +38,30 @@ namespace Excalibur.Dispatch.Transport.Tests.CrossTransport;
 public sealed class TransportsNameMessagesByDeclaredNameShould
 {
 	private const string DeclaredName = "contoso.sales.order-placed.v1";
+
+	[Theory]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Aws.AwsSqsMessageBus))]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Aws.AwsSnsMessageBus))]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Aws.AwsEventBridgeMessageBus))]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Azure.AzureServiceBusMessageBus))]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Azure.AzureEventHubMessageBus))]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus))]
+	[InlineData(typeof(Excalibur.Dispatch.Transport.Kafka.KafkaMessageBus))]
+	[InlineData(typeof(RabbitMqMessageBus))]
+	public void EveryCloudEventEnvelopeRequiresADeclaredOrExplicitIdentity(Type busType)
+	{
+		var create = busType.GetMethod("CreateEnvelope", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+		create.ShouldNotBeNull();
+		using var named = (MessageEnvelope)create.Invoke(null, [new DeclaredNameEvent(), new MessageContext()])!;
+		named.MessageType.ShouldBe(DeclaredName);
+		var exception = Should.Throw<System.Reflection.TargetInvocationException>(() =>
+			create.Invoke(null, [new UndeclaredNameEvent(), new MessageContext()]));
+		exception.InnerException.ShouldBeOfType<InvalidOperationException>();
+		var inbound = new MessageContext();
+		inbound.SetMessageType("external.event");
+		using var forwarded = (MessageEnvelope)create.Invoke(null, [new UndeclaredNameEvent(), inbound])!;
+		forwarded.MessageType.ShouldBe("external.event");
+	}
 
 	[Fact]
 	public async Task Grpc_StampsTheDeclaredName_NotTheClrFullName()
@@ -69,11 +91,9 @@ public sealed class TransportsNameMessagesByDeclaredNameShould
 	}
 
 	[Fact]
-	public async Task Grpc_FallsBackToTheClrName_WhenTheTypeDeclaresNone()
+	public async Task Grpc_RefusesAnUnnamedMessageBeforeSending()
 	{
-		// Liveness: an undeclared type must still send. MessageNameHelper.GetName THROWS for such a
-		// type, so a fix that reached for it would turn every publish of an unnamed message into a
-		// failure -- a worse defect than the one being fixed.
+		// Refusal happens before the sender observes a message.
 		var sender = A.Fake<ITransportSender>();
 		TransportMessage? sent = null;
 		_ = A.CallTo(() => sender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
@@ -87,14 +107,10 @@ public sealed class TransportsNameMessagesByDeclaredNameShould
 		await using var adapter = new GrpcTransportAdapter(
 			channel, sender, NullLogger<GrpcTransportAdapter>.Instance);
 
-		await adapter.SendAsync(
-			new UndeclaredNameEvent(),
-			"orders",
-			A.Fake<IMessageContext>(),
-			CancellationToken.None);
-
-		_ = sent.ShouldNotBeNull();
-		sent.MessageType.ShouldBe(typeof(UndeclaredNameEvent).FullName);
+		await Should.ThrowAsync<InvalidOperationException>(() => adapter.SendAsync(
+			new UndeclaredNameEvent(), "orders", A.Fake<IMessageContext>(), CancellationToken.None));
+		sent.ShouldBeNull();
+		A.CallTo(() => sender.SendAsync(A<TransportMessage>._, A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -107,12 +123,10 @@ public sealed class TransportsNameMessagesByDeclaredNameShould
 	}
 
 	[Fact]
-	public async Task RabbitMq_FallsBackToTheClrName_WhenTheTypeDeclaresNone()
+	public async Task RabbitMq_RefusesAnUnnamedMessageBeforeSending()
 	{
-		// Liveness, as above: an undeclared type must still publish.
-		var messageType = await PublishThroughRabbitCloudEventsAsync(new UndeclaredNameEvent(), contextMessageType: null);
-
-		messageType.ShouldBe(typeof(UndeclaredNameEvent).FullName);
+		await Should.ThrowAsync<InvalidOperationException>(() =>
+			PublishThroughRabbitCloudEventsAsync(new UndeclaredNameEvent(), contextMessageType: null));
 	}
 
 	[Fact]

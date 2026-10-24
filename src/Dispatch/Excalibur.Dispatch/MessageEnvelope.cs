@@ -23,7 +23,7 @@ public sealed class MessageEnvelope<TMessage> : IDisposable
 		{
 			MessageId = metadata.MessageId,
 			CorrelationId = metadata.CorrelationId,
-			MessageType = typeof(TMessage).FullName,
+			MessageType = MessageNameHelper.GetDeclaredName(message.GetType()),
 			ReceivedTimestampUtc = DateTimeOffset.UtcNow, // Record-based metadata doesn't have TimestampTicks
 			DeliveryCount = 0, // Record-based metadata doesn't have DeliveryCount, use default
 		};
@@ -34,8 +34,15 @@ public sealed class MessageEnvelope<TMessage> : IDisposable
 	/// Initializes a new instance with metadata and context.
 	/// </summary>
 	public MessageEnvelope(TMessage message, in MessageMetadata metadata, IMessageContext? context)
-		: this(message, metadata) =>
+		: this(message, metadata)
+	{
 		Context = context;
+		var incomingName = context?.GetMessageType();
+		if (!string.IsNullOrWhiteSpace(incomingName))
+		{
+			_inner.MessageType = incomingName;
+		}
+	}
 
 	/// <summary>
 	/// Gets the strongly-typed message.

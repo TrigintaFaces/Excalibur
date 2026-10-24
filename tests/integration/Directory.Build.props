@@ -1,0 +1,12 @@
+<Project>
+  <Import Project="../Directory.Build.props" />
+  <PropertyGroup>
+    <RepositoryCosmosFixturePolicy>true</RepositoryCosmosFixturePolicy>
+  </PropertyGroup>
+  <!-- Repository policy analyzers run in the compiler and never enter consumer packages. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RepositoryCosmosFixturePolicy" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../eng/tools/RepositoryAnalyzers/RepositoryAnalyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

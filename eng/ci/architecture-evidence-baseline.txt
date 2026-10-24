@@ -1,6 +1,6 @@
 # Subsystem ARCHITECTURE.md files whose "## Evidence" section names no classifiable test citation --
 # not because the gate is blind to their format, but because the section genuinely cites no test by
-# name. See eng/ci/architecture-evidence-gate.sh for what "classifiable" means and why a zero-citation
+# name. See tests/architecture/Boundary.Tests/ArchitectureEvidenceShould.cs for what "classifiable" means and why a zero-citation
 # section REFUSES rather than PASSES when it is not on this list.
 #
 # THIS FILE IS A DEBT LEDGER WITH A RATCHET, NOT AN ALLOWLIST.
@@ -13,4 +13,7 @@
 #
 # Format: one path per line, relative to the repo root, matching the gate's own reported path exactly.
 # Blank lines and #-comments are ignored.
+# Citations use Type.Method, a test type name, or an unscoped Test_arm name. Use
+# global::Namespace.Type.Method (or global::Namespace.Type) to disambiguate names.
+# Qualified package names and settings without global:: are ordinary prose, not citations.
 

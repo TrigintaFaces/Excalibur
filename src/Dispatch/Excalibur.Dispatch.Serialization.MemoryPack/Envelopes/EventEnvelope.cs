@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Serialization.MemoryPack;
 /// Uses [MemoryPackOrder] for explicit field ordering to support schema evolution.
 /// </para>
 /// </remarks>
-[MemoryPackable]
+[MemoryPackable(GenerateType.NoGenerate)]
 public sealed partial class EventEnvelope
 {
 	/// <summary>

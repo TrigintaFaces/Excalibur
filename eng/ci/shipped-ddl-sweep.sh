@@ -75,6 +75,12 @@ set -uo pipefail
 # gate's own .test.sh — can SKIP the git rev-parse. Under heavy AV, git subprocess spawns dominate,
 # and a gate a commit/launch waits on must stay fast (an unaffordable gate is an unrun gate — this
 # sprint's own inert-gate defect). Unset => production behavior unchanged (SA guard 1).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SQL_PARSER="$SCRIPT_DIR/../tools/RepositoryChecks/bin/Release/net10.0/RepositoryChecks.dll"
+if [ ! -f "$SQL_PARSER" ]; then
+    echo "REFUSE: build eng/tools/RepositoryChecks/RepositoryChecks.csproj in Release before checking shipped SQL." >&2
+    exit 2
+fi
 REPO_ROOT="${SHIPPED_DDL_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}"
 cd "$REPO_ROOT" || exit 2
 
@@ -111,6 +117,16 @@ SHIPPED_DDL_MAP_FILE="${SHIPPED_DDL_MAP_FILE:-}"
 # IsErasedRequest.cs and GetCurrentVersionRequest.cs target Events but do not contain
 # "Event" in the filename, so they are listed explicitly (the glob field is word-split).
 MAP_ROWS=(
+    'events[.]EventsPosition|src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/AllocateAndInsertEventsRequest.cs|qualifiedCounter|sqlserver commit position counter'
+    'dbo[.]EventsPosition|src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/AllocateAndInsertEventsRequest.cs|qualifiedCounter|sqlserver commit position counter'
+    'dbo[.]EventStoreEventsPosition|src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/AllocateAndInsertEventsRequest.cs|qualifiedCounter|sqlserver commit position counter'
+    'events_position|src/Excalibur/Excalibur.EventSourcing.Postgres/Requests/AllocateAndInsertEventsRequest.cs|qualifiedCounter|postgres commit position counter|event-sourcing/migrations[.]md'
+    'Events_Position|src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs|pattern:\{_table\}_Position|sqlite commit position counter'
+    'compliance[.]ErasureDestroyedKeys|src/Excalibur/Excalibur.Compliance.SqlServer/Erasure/SqlServerErasureStore.cs|_options[.]FullDestroyedKeysTableName|sqlserver destruction records'
+    'compliance[.]ErasureDestructionIntents|src/Excalibur/Excalibur.Compliance.SqlServer/Erasure/SqlServerErasureStore.cs|_options[.]FullDestructionIntentsTableName|sqlserver destruction intents'
+    'compliance[.]erasure_destroyed_keys|src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs|_options[.]FullDestroyedKeysTableName|postgres destruction records'
+    'compliance[.]erasure_destruction_intents|src/Excalibur/Excalibur.Compliance.Postgres/Erasure/PostgresErasureStore.cs|_options[.]FullDestructionIntentsTableName|postgres destruction intents'
+    'SampleEffectLog|samples/11-real-world/TwoProcessProjections/NotificationHandler.cs|literal:SampleEffectLog|sample effect receipt'
     # The docs spell these schema-qualified (public.outbox); the write path and the older docs
     # spell them bare. Matching is anchored (^re$), so an unqualified pattern silently stops
     # matching the moment a doc gains its schema prefix -- which is how these three entered the
@@ -256,7 +272,7 @@ ddl_columns() {
             sub(/--.*$/, "", line)                       # strip trailing comment
             gsub(/^[ \t]+|[ \t]+$/, "", line)
             if (line == "") next
-            if (tolower(line) ~ /^(primary|foreign|unique|constraint|check|index|key)\b/) next
+            if (tolower(line) ~ /^(primary|foreign|unique|constraint|check|index|key)([ \t(]|$)/) next
             n=split(line, f, /[ \t]+/)
             if (n < 2) next
             col=f[1]
@@ -294,7 +310,7 @@ ddl_column_types() {
             sub(/--.*$/, "", line)
             gsub(/^[ \t]+|[ \t]+$/, "", line)
             if (line == "") next
-            if (tolower(line) ~ /^(primary|foreign|unique|constraint|check|index|key)\b/) next
+            if (tolower(line) ~ /^(primary|foreign|unique|constraint|check|index|key)([ \t(]|$)/) next
             n=split(line, f, /[ \t]+/)
             if (n < 2) next
             col=f[1]
@@ -328,16 +344,26 @@ ddl_column_types() {
 
 # ── parse: column names WRITTEN/READ by src SQL, SCOPED to one table ───────────────────────────
 # Enters a statement at UPDATE/INSERT INTO/DELETE FROM/MERGE INTO/FROM {var} where <var> matches
-# tvar, and leaves at the raw-string SQL block terminator. Inside, collects columns from FOUR
+# tvar, and leaves at the Roslyn-extracted string boundary. Inside, collects columns from FOUR
 # clauses: `col = @Param|:Param` (SET + WHERE), the INSERT paren-list, and
 # OUTPUT inserted./deleted.col. Unscoped extraction unions sibling tables' columns and manufactures
 # false positives -- see the MAP note above, which is why entry is gated on the interpolated tvar.
+sql_grep() {
+    local rc=0
+    grep "$@" || rc=$?
+    [ "$rc" -le 1 ] || return "$rc"
+    return 0
+}
+
 src_written_columns() {
     local glob="$1" tvar="$2" blocktext joined
     blocktext="$(_list_files "$glob" | grep -E '\.cs$' | while IFS= read -r f; do
         [ -f "$f" ] || continue
+        sqltext="$(dotnet "$SQL_PARSER" --sql-text "$f")" || exit 2
         awk -v tv="$tvar" '
             {
+                # Normalize checkout line endings before anchored SQL boundary matching.
+                sub(/\r$/, "", $0)
                 # `MERGE INTO` is OPTIONAL-INTO in T-SQL: `MERGE <target> WITH (<hints>) AS <alias>`
                 # is the same statement and is the form every fenced writer here uses. Requiring INTO
                 # meant the extractor never ENTERED those statements and recovered zero columns, which
@@ -346,8 +372,8 @@ src_written_columns() {
                 # Taught generally rather than only far enough to clear the one MAPPED row: a parser
                 # that recognises exactly the statements some gate happens to consult makes every
                 # future negative result unreliable, with nothing in the output to reveal it.
-                if ($0 ~ /(UPDATE|INSERT[ \t]+INTO|DELETE[ \t]+FROM|MERGE([ \t]+INTO)?|FROM)[ \t]*[]["`]*\{/ \
-                    && $0 ~ ("\\{" tv "\\}")) inblk=1
+                target = tv ~ /^(literal|pattern):/ ? substr(tv, 9) : "\\{" tv "\\}"
+                if ($0 ~ ("(UPDATE|INSERT[ \t]+INTO|DELETE[ \t]+FROM|MERGE([ \t]+INTO)?|FROM)[ \t]*[][\"`]*" target "([^A-Za-z0-9_]|$)")) inblk=1
                 if (inblk) print
                 # A CTE-closing line ENDS the block. Without this the block ran to the raw-string
                 # terminator, which assumes one raw string writes one table. That is false for a
@@ -357,26 +383,35 @@ src_written_columns() {
                 # A later CTE targeting a mapped table re-enters on its own UPDATE/INSERT/FROM
                 # line, so leaving here loses nothing.
                 if (inblk && $0 ~ /^[ \t]*\)[,;]?[ \t]*$/) inblk=0
-                if (inblk && $0 ~ /"""/) inblk=0
+                if ($0 == "__END_CSHARP_SQL__") inblk=0
             }
-        ' "$f" 2>/dev/null || true
-    done)"
+        ' <<< "$sqltext" || exit 2
+    done)" || return "$E_REFUSE"
 
-    joined="$(printf '%s' "$blocktext" | tr '\n' ' ')"
+    # Normalize explicitly mapped literal table names to the same scoped SQL marker.
+    if [[ "$tvar" == literal:* ]]; then
+        blocktext="$(printf '%s' "$blocktext" | sed "s/${tvar#literal:}/{literal_table}/g")" || return "$E_REFUSE"
+        tvar=literal_table
+    elif [[ "$tvar" == pattern:* ]]; then
+        blocktext="$(printf '%s' "$blocktext" | sed -E "s/${tvar#pattern:}/{mapped_table}/g")" || return "$E_REFUSE"
+        tvar=mapped_table
+    fi
+    joined="$(printf '%s' "$blocktext" | tr '\n' ' ')" || return "$E_REFUSE"
 
     {
         # SET / WHERE param form:  col = @Param | :Param
         printf '%s\n' "$blocktext" \
-            | grep -oE '[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[@:][A-Za-z_]' \
-            | sed -E 's/[[:space:]]*=.*$//'
+            | sql_grep -oE '(^|[^@A-Za-z_])[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[^=>[:space:]]' \
+            | sed -E 's/^[^A-Za-z_]//' \
+            | sed -E 's/[[:space:]]*=.*$//' || return "$E_REFUSE"
 
         # INSERT paren-list: INSERT INTO {tvar} ( a, b, c )  -- may span lines (joined)
         printf '%s' "$joined" \
-            | grep -oiE "INSERT[[:space:]]+INTO[[:space:]]*[]["\x60]*\{$tvar\}[]["\x60]*[[:space:]]*\([^)]*\)" \
+            | sql_grep -oiE "INSERT[[:space:]]+INTO[[:space:]]*[]["\x60]*\{$tvar\}[]["\x60]*([[:space:]]+AS[[:space:]]+[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*\([^)]*\)" \
             | sed -E 's/^[^(]*\(//; s/\).*$//' \
             | tr ',' '\n' \
             | sed -E 's/[[:space:]]//g; s/\{[^}]*\}//g; s/[]"\x60[]//g' \
-            | grep -E '^[A-Za-z_][A-Za-z0-9_]*$'
+            | sql_grep -E '^[A-Za-z_][A-Za-z0-9_]*$' || return "$E_REFUSE"
 
         # MERGE INSERT clause: `INSERT ( a, b, c )` with NO `INTO {tvar}` -- in a MERGE the target is
         # already named by `MERGE INTO {tvar}`, so the WHEN-NOT-MATCHED INSERT drops the table name.
@@ -387,17 +422,20 @@ src_written_columns() {
         # The `{...}` strip keeps an interpolated-suffix column (e.g. `Metadata{tenantInsertColumn}`)
         # as its literal name; a fully-interpolated column has no static name and is out of reach.
         printf '%s' "$joined" \
-            | grep -oiE "INSERT[[:space:]]*\([^)]*\)" \
+            | sql_grep -oiE "INSERT[[:space:]]*\([^)]*\)" \
             | sed -E 's/^[^(]*\(//; s/\).*$//' \
             | tr ',' '\n' \
             | sed -E 's/[[:space:]]//g; s/\{[^}]*\}//g; s/[]"\x60[]//g' \
-            | grep -E '^[A-Za-z_][A-Za-z0-9_]*$'
+            | sql_grep -E '^[A-Za-z_][A-Za-z0-9_]*$' || return "$E_REFUSE"
 
         # OUTPUT inserted.col / deleted.col
         printf '%s\n' "$blocktext" \
-            | grep -oiE '(inserted|deleted)\.[A-Za-z_][A-Za-z0-9_]*' \
+            | sql_grep -oiE '(inserted|deleted)\.[A-Za-z_][A-Za-z0-9_]*' \
             | sed -E 's/^[^.]*\.//'
-    } 2>/dev/null | tr 'A-Z' 'a-z' | sort -u
+    } | tr 'A-Z' 'a-z' | sort -u || return "$E_REFUSE"
+    # An absent SQL clause is valid; the caller independently enforces the column floor.
+    # C# extraction failures returned above and cannot be converted into an empty success.
+    return 0
 }
 
 sweep() {
@@ -502,7 +540,7 @@ sweep() {
                     checked=$((checked + 1))
                     local dcols scols missing nd ns
                     dcols="$(ddl_columns "$f" "$tbl_re")"
-                    scols="$(src_written_columns "$glob" "$tvar")"
+                    scols="$(src_written_columns "$glob" "$tvar")" || return "$E_REFUSE"
                     nd="$(printf '%s' "$dcols" | grep -c . || true)"
                     ns="$(printf '%s' "$scols" | grep -c . || true)"
                     # Non-vacuity floor BEFORE any verdict: too few parsed columns means the parser
@@ -902,6 +940,36 @@ EOF
     else
         echo "  ok  ARM8 floor    — zero-recovery=REFUSE(2) · narrow-but-complete (2 of 2)=PASS(0), at the default floor"
     fi
+
+    # Compiler composition controls have enough known columns to satisfy the floor:
+    # a detached suffix must still fail for the missing column, never pass as partial SQL.
+    mkdir -p "$tmp/composition/docs" "$tmp/composition/src"
+    cat > "$tmp/composition/docs/schema.sql" <<'EOF'
+CREATE TABLE probe (
+    a INT,
+    b INT,
+    c INT
+);
+EOF
+    printf 'probe|%s/composition/src/**|t|composition probe\n' "$tmp" > "$tmp/composition/map"
+    local composition_out composition_rc variant
+    for variant in parentheses constant delimiter unresolved; do
+        case "$variant" in
+            parentheses) printf '%s\n' 'var sql = $"UPDATE {t} SET a=@A, b=@B, c=@C" + (", missing=@Missing");' ;;
+            constant) printf '%s\n' 'const string suffix = ", missing=@Missing"; var sql = $"UPDATE {t} SET a=@A, b=@B, c=@C" + suffix;' ;;
+            delimiter) printf '%s\n' 'var sql = $"UPDATE {t} SET a=@A, b=@B, c=@C\n__END_CSHARP_SQL__\n, missing=@Missing";' ;;
+            unresolved) printf '%s\n' 'var sql = $"UPDATE {t} SET a=@A, b=@B, c=@C" + GetColumns();' ;;
+        esac > "$tmp/composition/src/w.cs"
+        composition_out="$(SHIPPED_DDL_DOC_ROOTS="$tmp/composition/docs" SHIPPED_DDL_SRC_ROOTS="$tmp/composition/src" \
+            SHIPPED_DDL_MAP_FILE="$tmp/composition/map" sweep 2>&1)"
+        composition_rc=$?
+        case "$variant:$composition_rc" in
+            parentheses:1|constant:1)
+                if ! printf '%s' "$composition_out" | grep -q missing; then bad=1; fi ;;
+            delimiter:2|unresolved:2) ;;
+            *) echo "self-test composition FAIL: $variant returned $composition_rc: $composition_out" >&2; bad=1 ;;
+        esac
+    done
 
     if [ "$bad" -ne 0 ]; then
         echo "shipped-ddl-sweep --self-test: FAILED (the gate is broken or vacuous)" >&2

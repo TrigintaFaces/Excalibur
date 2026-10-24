@@ -103,6 +103,7 @@ public sealed class RabbitMqMessageBusCloudEventsShould : UnitTestBase
 		return services.BuildServiceProvider();
 	}
 
+	[MessageName("tests.RabbitMqMessageBusCloudEventsShould.TestCloudEventBusEvent")]
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{
 	}

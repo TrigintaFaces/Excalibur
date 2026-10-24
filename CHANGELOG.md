@@ -17,6 +17,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Restored — durable Inline projections in API, Jobs, or both
+
+`.Inline()` again configures foreground projection completion and automatic recovery in a single host.
+API-only, Jobs-only, and cooperating hosts use the same registration. The durable processor folds ordered
+pages and uses positioned conditional writes; it does not restore the former unconditional inline writer.
+Explicitly managed `.Async()` processing remains available.
+
+- Each projection retains its own checkpoint. A repeatedly failing projection keeps retrying its missing
+  prefix while healthy projections advance independently; session reads use the requested projection's progress.
+- An operational projection failure after commit preserves the successful save and returns
+  `ProjectionFreshness.BoundExpired` with its session token. Retry the read, not the already committed command.
+- SQL Server's guarded JIT serialization fallback preserves the canonical event and metadata bytes without
+  redundant local AOT suppressions. Reflection-disabled applications require generated metadata at startup.
+
+**Native AOT release limitation:** the complete SQL Server-to-Elasticsearch path is not yet certified for
+warning-free native publishing. The official SqlClient dependency still emits trimming and dynamic-code
+diagnostics. This upstream limitation is an accepted exception for this alpha; it is not a claim of
+Native AOT support for the complete path. Strict publishing retains the diagnostics as errors, and the
+upstream fix remains tracked. Generated projection APIs and successful diagnostic runtime probes do not
+establish warning-free native compatibility. Use a JIT deployment for this SQL Server-to-Elasticsearch
+path until an official SqlClient release passes strict native publishing and the recovery matrix.
+
+### Changed (breaking) — a filtered projection count no longer rehydrates, and a filter on a non-column property now matches nothing
+
+`InMemoryProjectionStore` captures each row's filterable property values when the row is written, and
+`CountAsync` and `QueryAsync` filter on those captured values. Counting never needed the projection
+object — it needed property values — and deserializing to obtain them is what put a Native-AOT
+precondition on this one store's `CountAsync`: a requirement `IProjectionStore<T>.CountAsync` does not
+declare, and that every persistent store shipped here satisfies without it. The requirement had been
+suppressed rather than removed, which hid the report and left the requirement in place. `CountAsync`
+now carries none, and the interface is unchanged. `QueryAsync` still deserializes, because it has to
+return the projections, but now only for the rows that matched.
+
+Two consequences for filters against this store:
+
+- **A filter naming a property whose type a database could not hold in a column now matches nothing**,
+  the way it already behaved for a property that does not exist, and the way it behaves against SQL
+  Server, Postgres, Cosmos DB, MongoDB, DynamoDB, Elasticsearch, OpenSearch and Firestore. It
+  previously compared the property's `ToString()` output, which no other store does. The filterable
+  shapes are the column-shaped ones: primitives, enums, `string`, `decimal`, `DateTime`,
+  `DateTimeOffset`, `TimeSpan`, `DateOnly`, `TimeOnly`, `Guid`, and their nullable forms.
+- A filterable property whose value is `null` is still captured, so `null` filters keep matching it.
+
+## [10.0.0-alpha.17] - 2026-10-23
+
 ### Removed (breaking) — inline projections, replaced by session-consistent reads
 
 `.Inline()`, `ProjectionMode.Inline` and the inline dispatch path are **deleted**. There is no obsolete
@@ -75,6 +120,16 @@ records that — it attests exclusivity, not safety.
 `EventNotificationOptions.ProjectionApplyWarningThreshold`. It was named for a processing mode that no
 longer exists (see the inline-projection removal above). A slow apply is also the earliest signal that
 session-consistent reads are about to report an expired bound, which is what the warning is for.
+
+### Changed — the SQL Server projection schema pins a binary collation on its tenant column
+
+`005_CreateProjectionSchema.sql` and the per-projection table DDL now declare the tenant key column
+`COLLATE Latin1_General_BIN2`. SQL Server's default server collation is case-insensitive, so `Acme` and
+`acme` resolved to one tenant's rows in the database while the application treated them as two tenants.
+The event-store and outbox schemas already pinned this; the projection schema did not. **A projection
+table you have already created keeps its current collation** — this DDL ships as content you apply, and
+nothing alters an existing column, so pinning it on a live database is an `ALTER TABLE ... ALTER COLUMN`
+you run yourself.
 
 ## [10.0.0-alpha.16] - 2026-10-21
 
@@ -3766,7 +3821,9 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.15...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.17...HEAD
+[10.0.0-alpha.17]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.16...v10.0.0-alpha.17
+[10.0.0-alpha.16]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.15...v10.0.0-alpha.16
 [10.0.0-alpha.15]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.14...v10.0.0-alpha.15
 [10.0.0-alpha.14]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.13...v10.0.0-alpha.14
 [10.0.0-alpha.13]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.12...v10.0.0-alpha.13

@@ -321,6 +321,11 @@ public sealed class EventStoreCanonicalSerializerGuardTests
     private static readonly IReadOnlyDictionary<string, string> ProjectionStoreAllowlist =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["ElasticSearchProjectionStore.cs"] =
+                "Elasticsearch owns its source wire format. Generated operations obtain effective metadata " +
+                "from that same client source serializer, preserving existing naming, enums, nulls and numbers. " +
+                "GeneratedProjectionStoreShould.PreserveTheExistingSourceWireFormatWithDefaultNamingGeneratedMetadata " +
+                "checks generated writes against the legacy reader; substituting the framework factory changes the contract.",
             ["EncryptingProjectionStoreDecorator.cs"] =
                 "IProjectionStore decorator operating on projection instances PRE/POST the inner store's " +
                 "serialization; its JsonSerializer use handles the EncryptedData field envelope — not the " +

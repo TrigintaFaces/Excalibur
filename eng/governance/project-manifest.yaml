@@ -14,14 +14,13 @@ governed_directories:
   - samples/**
   - benchmarks/**
   - load-tests/**
+  - eng/tools/**
 
 exclusions:
   - path: templates/**
     reason: "Raw template projects are solution items, validated after instantiation; template package is explicitly governed"
   - path: labs/**
     reason: "Experimental - not governed"
-  - path: eng/tools/**
-    reason: "Build utilities - not packaged"
 
 projects:
   - path: benchmarks/Excalibur.Benchmarks/Excalibur.Benchmarks.csproj
@@ -1715,6 +1714,20 @@ projects:
     framework_owner: Excalibur
     notes: "Executable child-process probe used by scheduler integration tests; not independently discoverable"
 
+  - path: tests/harnesses/InlineProjectionAotProbe/InlineProjectionAotProbe.csproj
+    classification: Test
+    in_solution: true
+    category: NativeAOT
+    framework_owner: Excalibur
+    notes: "Executable NativeAOT Inline projection probe using the in-memory store; not independently xUnit discoverable"
+
+  - path: tests/harnesses/SqlElasticInlineAotProbe/SqlElasticInlineAotProbe.csproj
+    classification: Test
+    in_solution: true
+    category: NativeAOT
+    framework_owner: Excalibur
+    notes: "Executable SQL Server-to-Elasticsearch Inline probe; strict native publish and isolated runtime scenarios are required for certification"
+
   - path: tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj
     classification: Test
     in_solution: true
@@ -2292,3 +2305,15 @@ projects:
     classification: Template
     in_solution: true
     framework_owner: Dispatch
+
+  - path: eng/tools/AotAnnotationInventory/AotAnnotationInventory.csproj
+    classification: Tool
+    in_solution: true
+
+  - path: eng/tools/RepositoryAnalyzers/RepositoryAnalyzers.csproj
+    classification: Tool
+    in_solution: true
+
+  - path: eng/tools/RepositoryChecks/RepositoryChecks.csproj
+    classification: Tool
+    in_solution: true

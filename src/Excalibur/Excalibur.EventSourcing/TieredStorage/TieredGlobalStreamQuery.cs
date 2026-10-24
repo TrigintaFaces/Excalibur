@@ -73,6 +73,18 @@ internal sealed class TieredGlobalStreamQuery : IGlobalStreamQuery
 			{
 				throw new InvalidOperationException("The global page has invalid identity, tenant provenance, or position ordering.");
 			}
+			if (row.GlobalPosition != previous + 1)
+			{
+				// This decorator INHERITS contiguity from the query it wraps and, until this check,
+				// asserted only that positions advance -- the same weaker predicate the projection
+				// host used. Two layers depending on a property neither of them states is how the
+				// property goes missing when the inner registration is displaced. A gap here would
+				// let a caller advance a cursor past a position nobody folded.
+				throw new InvalidOperationException(
+					$"The global page jumped from position {previous} to {row.GlobalPosition}. A tiered read must "
+					+ "preserve the contiguous run it was given: a gap would let a caller advance its cursor past "
+					+ "an unfolded position, which is never redelivered.");
+			}
 			previous = row.GlobalPosition;
 			if (!ErasedEventMarker.IsErased(row.EventType) && row.EventData is null && row.ArchivedAt is null)
 			{

@@ -88,10 +88,20 @@ function Get-DeclaredRoutes([string]$Project) {
     return $routes
 }
 
+function Get-StableItemSignature($Item) {
+    $metadata = [ordered]@{}
+    foreach ($property in ($Item.PSObject.Properties | Sort-Object Name)) {
+        if ($property.Name -notin @('AccessedTime', 'CreatedTime', 'ModifiedTime')) {
+            $metadata[$property.Name] = $property.Value
+        }
+    }
+    return ($metadata | ConvertTo-Json -Compress -Depth 8)
+}
+
 function Compare-ModeContext($Default, $Source, $Package, $Routes, [string]$Configuration, [string]$Context) {
     foreach ($kind in @('ProjectReference', 'PackageReference', 'PackageVersion')) {
-        $a = @($Default.Items.$kind | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 })
-        $b = @($Source.Items.$kind | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 })
+        $a = @($Default.Items.$kind | ForEach-Object { Get-StableItemSignature $_ })
+        $b = @($Source.Items.$kind | ForEach-Object { Get-StableItemSignature $_ })
         Assert-SameSet $a $b "$Context default/false $kind"
     }
     $matchedProjects = @{}
@@ -176,6 +186,25 @@ function Get-DependencySignature($Dependency) {
     $override = $Dependency.PSObject.Properties['VersionOverride']
     return "$($Dependency.Identity)|$(if ($version) { $version.Value })|$(if ($override) { $override.Value })"
 }
+
+function Get-RuntimeProjectReferences($Evaluation) {
+    foreach ($reference in $Evaluation.Items.ProjectReference) {
+        if ((Get-ItemValue $reference 'OutputItemType') -eq 'Analyzer' -and
+            (Get-ItemValue $reference 'ReferenceOutputAssembly') -ne 'false') {
+            throw 'Analyzer project reference must set ReferenceOutputAssembly=false.'
+        }
+    }
+    @($Evaluation.Items.ProjectReference | Where-Object {
+        (Get-ItemValue $_ 'ReferenceOutputAssembly') -ne 'false'
+    })
+}
+
+function Get-BuildReferenceSignatures($Evaluation) {
+    @($Evaluation.Items.ProjectReference | Where-Object {
+        (Get-ItemValue $_ 'ReferenceOutputAssembly') -eq 'false' -or
+        (Get-ItemValue $_ 'OutputItemType') -eq 'Analyzer'
+    } | ForEach-Object { "$($_.FullPath)|$(Get-ReferenceRole $_)" })
+}
 $previousMode = $env:UsePackageReferences
 $previousVersion = $env:DispatchPackageVersion
 $modeVerdict = [ordered]@{ status='incomplete'; inventory=@(); plannedContexts=@(); comparisons=@(); controls=@(); scope='Source dependencies preserved in current projects with own/ancestor UsePackageReferences item conditions; imported items evaluated in each declared context. Mode additions reported for separate review; not complete set equivalence or approval of additions.' }
@@ -188,11 +217,33 @@ try {
     $modeVerdict.sourceSha256 = $beforeIdentity.sha256
     $modeVerdict.candidateSha = $beforeHead
     $checks = 0
+    $metadataControl = [pscustomobject]@{ Identity='metadata-control'; PrivateAssets='all'; AccessedTime='before'; CreatedTime='before'; ModifiedTime='before' }
+    $metadataBefore = Get-StableItemSignature $metadataControl
+    $metadataControl.AccessedTime = 'after'
+    $metadataControl.CreatedTime = 'after'
+    $metadataControl.ModifiedTime = 'after'
+    if ((Get-StableItemSignature $metadataControl) -cne $metadataBefore) { throw 'Filesystem timestamps changed dependency semantics.' }
+    $metadataControl.PrivateAssets = 'none'
+    if ((Get-StableItemSignature $metadataControl) -ceq $metadataBefore) { throw 'Dependency asset mutation was ignored.' }
+    $modeVerdict.controls += [ordered]@{ identity='stable-metadata-retains-asset-policy'; status='passed' }
+    $analyzerControl = [pscustomobject]@{ Items=[pscustomobject]@{ ProjectReference=@(
+        [pscustomobject]@{ FullPath='compiler-control'; OutputItemType='Analyzer'; ReferenceOutputAssembly='false'; PrivateAssets='all' }
+    ) } }
+    if (@(Get-RuntimeProjectReferences $analyzerControl).Count -ne 0) { throw 'Private analyzer was counted as a runtime dependency.' }
+    $analyzerControl.Items.ProjectReference[0].ReferenceOutputAssembly = 'true'
+    $analyzerRefused = $false
+    try { $null = Get-RuntimeProjectReferences $analyzerControl }
+    catch {
+        if ($_.Exception.Message -ne 'Analyzer project reference must set ReferenceOutputAssembly=false.') { throw }
+        $analyzerRefused = $true
+    }
+    if (-not $analyzerRefused) { throw 'Analyzer with runtime assembly output was accepted.' }
+    $modeVerdict.controls += [ordered]@{ identity='analyzer-runtime-output'; status='refused' }
     foreach ($provider in @('SqlServer', 'Postgres')) {
         $project = Join-Path $RepositoryRoot "src/metapackages/Excalibur.$provider/Excalibur.$provider.csproj"
         foreach ($configuration in @('Debug', 'Release')) {
             $source = Get-Evaluation $project $configuration
-            $references = @($source.Items.ProjectReference)
+            $references = @(Get-RuntimeProjectReferences $source)
             if ($references.Count -ne 7) { throw "$provider source mode must retain seven ProjectReferences." }
             $expected = @($references | ForEach-Object {
                 $target = Get-Evaluation $_.FullPath $configuration
@@ -202,11 +253,12 @@ try {
             $external = @($source.Items.PackageReference | ForEach-Object { (Get-DependencySignature $_) })
             foreach ($requiredExternal in @('Microsoft.Extensions.Configuration.Binder||', 'Microsoft.Extensions.DependencyInjection.Abstractions||')) { if ($external -notcontains $requiredExternal) { throw "$provider required external dependency changed: $requiredExternal" } }
             $explicitSource = Get-Evaluation $project $configuration 'false'
-            Assert-SameSet @($explicitSource.Items.ProjectReference.FullPath) @($references.FullPath) "$provider false/default source parity"
+            Assert-SameSet @($explicitSource.Items.ProjectReference.FullPath) @($source.Items.ProjectReference.FullPath) "$provider false/default source parity"
             Assert-SameSet @($explicitSource.Items.PackageReference | ForEach-Object { (Get-DependencySignature $_) }) $external "$provider false/default external parity"
             foreach ($version in @('', '1.2.3-arb-p06')) {
                 $package = Get-Evaluation $project $configuration 'true' $version
-                if (@($package.Items.ProjectReference).Count) { throw "$provider package mode retains ProjectReferences." }
+                if (@(Get-RuntimeProjectReferences $package).Count) { throw "$provider package mode retains runtime ProjectReferences." }
+                Assert-SameSet @(Get-BuildReferenceSignatures $package) @(Get-BuildReferenceSignatures $source) "$provider source/package build reference parity"
                 $internal = @($package.Items.PackageReference | Where-Object Identity -like 'Excalibur.*')
                 Assert-SameSet @($internal | ForEach-Object Identity) $expected "$provider $configuration package/source dependency parity"
                 $expectedVersion = if ($version) { $version } else { '0.0.0-local' }
@@ -324,7 +376,8 @@ try {
     if ($LASTEXITCODE -ne 0 -or $afterHead -cne $beforeHead -or $afterIdentity.sha256 -cne $beforeIdentity.sha256) {
         throw 'Source/HEAD changed during dependency mode comparison.'
     }
-    if ($modeVerdict.plannedContexts.Count -lt ($modeVerdict.inventory.Count * 2) -or $modeVerdict.controls.Count -ne 3) { throw 'Dependency mode comparison did not finish its required population.' }
+    if ($modeVerdict.plannedContexts.Count -lt ($modeVerdict.inventory.Count * 2)) { throw 'Dependency mode comparison did not finish its required population.' }
+    Assert-SameSet @($modeVerdict.controls | ForEach-Object identity) @('stable-metadata-retains-asset-policy', 'analyzer-runtime-output', 'clone-healthy', 'clone-missing-edge', 'clone-restored') 'Exact dependency control population'
     Assert-SameSet @($modeVerdict.comparisons | ForEach-Object context) $modeVerdict.plannedContexts 'Exact planned dependency contexts'
     if (@($modeVerdict.plannedContexts | Sort-Object -Unique).Count -ne $modeVerdict.plannedContexts.Count) { throw 'Planned dependency context identities are duplicated.' }
     $modeVerdict.status = 'passed'

@@ -123,7 +123,7 @@ public sealed class CooperativeProjectionProcessingShould
 			result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
 			result.EventsApplied.ShouldBe(1, "the request must process page two while the worker remains live");
 			admitted.Take(2).ShouldBe(["worker", "manual"]);
-			(await checkpoints.GetCheckpointAsync("cooperative", safety.Token).ConfigureAwait(false)).ShouldBe(2);
+			(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("cooperative", typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(2);
 		}
 		finally
 		{
@@ -162,7 +162,7 @@ public sealed class CooperativeProjectionProcessingShould
 		var held = await store.GetWithPositionAsync("order-1", safety.Token).ConfigureAwait(false);
 		held.Projection.ShouldNotBeNull().Count.ShouldBe(2);
 		held.Position.Value.ShouldBe(2);
-		(await checkpoints.GetCheckpointAsync("cooperative", safety.Token).ConfigureAwait(false)).ShouldBe(2);
+		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("cooperative", typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(2);
 		initialReads.ShouldBe(2, "both hosts must really race from the same durable starting point");
 	}
 
@@ -201,7 +201,7 @@ public sealed class CooperativeProjectionProcessingShould
 		await Should.ThrowAsync<InvalidOperationException>(() => incompatible.ProcessPendingAsync(safety.Token));
 		reads.ShouldBe(1, "the mismatching host must be refused before reading a page");
 		effects.ShouldBe(0);
-		(await checkpoints.GetCheckpointAsync("cooperative", safety.Token).ConfigureAwait(false)).ShouldBe(1);
+		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("cooperative", typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 	}
 
 	private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);

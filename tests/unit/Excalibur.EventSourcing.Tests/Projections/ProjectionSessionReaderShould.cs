@@ -17,6 +17,17 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Component", "Core")]
 public sealed class ProjectionSessionReaderShould
 {
+    [Fact]
+    public async Task RefuseSubscriptionProgressAsProofOfThisProjectionsFreshness()
+    {
+        var (reader, checkpoints, health, clock) = Build(TimeSpan.FromMilliseconds(100));
+        health.RecordApplied(Subscription, 150);
+        checkpoints.Checkpoint = 0;
+        var pending = reader.ReadAsync<Row>("stale", new SaveResult(1, 100, ProjectionFreshness.NotRequested), CancellationToken.None).AsTask();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        (await pending).Freshness.ShouldBe(ProjectionFreshness.BoundExpired);
+    }
+
 	private const string Subscription = "projections";
 
 	// Real time, not the fake clock: this exists so a wait that never terminates FAILS rather than hangs
@@ -95,7 +106,7 @@ public sealed class ProjectionSessionReaderShould
 		var (reader, checkpoints, _, _) = Build();
 		using var safety = Safety();
 
-		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, SessionToken: null), safety.Token);
+		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, SessionToken: null, ProjectionFreshness.NotRequested), safety.Token);
 
 		read.Freshness.ShouldBe(ProjectionFreshness.NotRequested);
 		checkpoints.Reads.ShouldBe(0, "a read requesting no consistency must not consult progress at all");
@@ -108,9 +119,9 @@ public sealed class ProjectionSessionReaderShould
 		// that consulted only durable state would wait out its bound against a caught-up projection.
 		var (reader, checkpoints, health, _) = Build();
 		using var safety = Safety();
-		health.RecordApplied(Subscription, 150);
+		health.RecordApplied(AsyncProjectionProcessingHost.CheckpointNameFor(Subscription, typeof(Row)), 150);
 
-		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 100), safety.Token);
+		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token);
 
 		read.Freshness.ShouldBe(ProjectionFreshness.Fresh);
 		checkpoints.Reads.ShouldBe(0, "the durable checkpoint should not be needed once this process has applied past the token");
@@ -125,7 +136,7 @@ public sealed class ProjectionSessionReaderShould
 		using var safety = Safety();
 		checkpoints.Checkpoint = 100;
 
-		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 100), safety.Token);
+		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token);
 
 		read.Freshness.ShouldBe(ProjectionFreshness.Fresh);
 	}
@@ -138,7 +149,7 @@ public sealed class ProjectionSessionReaderShould
 		var (reader, _, _, clock) = Build(TimeSpan.FromMilliseconds(100));
 		using var safety = Safety();
 
-		var reading = reader.ReadAsync<Row>("row-1", new SaveResult(1, 100), safety.Token).AsTask();
+		var reading = reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token).AsTask();
 		clock.Advance(TimeSpan.FromSeconds(1));
 
 		var read = await reading;
@@ -154,9 +165,9 @@ public sealed class ProjectionSessionReaderShould
 		var (reader, _, health, clock) = Build(TimeSpan.FromSeconds(30));
 		using var safety = Safety();
 
-		var reading = reader.ReadAsync<Row>("row-1", new SaveResult(1, 100), safety.Token).AsTask();
+		var reading = reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token).AsTask();
 
-		health.RecordApplied(Subscription, 100);
+		health.RecordApplied(AsyncProjectionProcessingHost.CheckpointNameFor(Subscription, typeof(Row)), 100);
 		clock.Advance(TimeSpan.FromMilliseconds(50));
 
 		var read = await reading;
@@ -214,7 +225,7 @@ public sealed class ProjectionSessionReaderShould
 			// and a fake clock cannot advance while the test is blocked inside that read.
 			TimeProvider.System);
 
-		var result = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 42), safety.Token)
+		var result = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 42, ProjectionFreshness.NotRequested), safety.Token)
 			.ConfigureAwait(false);
 
 		result.Freshness.ShouldBe(

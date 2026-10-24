@@ -232,7 +232,8 @@ public sealed class StreamingDocumentHandlerShould
 		// Assert - context should have been populated
 		context.CorrelationId.ShouldNotBeNullOrEmpty();
 		context.CausationId.ShouldNotBeNullOrEmpty();
-		context.GetMessageType().ShouldNotBeNullOrEmpty();
+		// This local document has no declared wire identity. Streaming must not manufacture one.
+		context.GetMessageType().ShouldBeNull();
 	}
 
 	[Fact]

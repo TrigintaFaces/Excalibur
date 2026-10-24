@@ -111,6 +111,7 @@ public sealed class AwsSnsRetryOwnershipShould
         provider.GetRequiredKeyedService<AwsSnsMessageBus>("orders").ShouldNotBeSameAs(provider.GetRequiredKeyedService<AwsSnsMessageBus>("payments"));
     }
 
+    [MessageName("tests.AwsSnsRetryOwnershipShould.OwnershipEvent")]
     private sealed record OwnershipEvent : IDispatchEvent;
 
     [Fact]

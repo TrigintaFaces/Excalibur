@@ -98,14 +98,6 @@ gates:
     published: true
     has_test: false
     has_lock: false
-  - path: "eng/ci/architecture-evidence-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
   - path: "eng/ci/assert-binary-matches-source.sh"
     kind: UNREVIEWED
     kind_proxy: reporter
@@ -210,66 +202,10 @@ gates:
     published: true
     has_test: false
     has_lock: false
-  - path: "eng/ci/conformance-arm-skip-census.py"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: nowhere
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/conformance-arm-skip-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/conformance-arm-wiring.py"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/conformance-backend-coverage-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/conformance-fork-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/container-image-pinning-gate.py"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
   - path: "eng/ci/cosmos-census.sh"
     kind: UNREVIEWED
     kind_proxy: reporter
     kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/cosmos-fixture-pattern-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
     runs_in: ci
     published: true
     has_test: false
@@ -322,30 +258,6 @@ gates:
     published: true
     has_test: true
     has_lock: false
-  - path: "eng/ci/docs-csharp-member-gate.py"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: nowhere
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/docs-csharp-phantom-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
-  - path: "eng/ci/duplicate-xml-doc-tags.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: pre-commit+ci
-    published: true
-    has_test: true
-    has_lock: true
   - path: "eng/ci/f5-sweep.sh"
     kind: UNREVIEWED
     kind_proxy: reporter
@@ -434,14 +346,6 @@ gates:
     published: true
     has_test: false
     has_lock: false
-  - path: "eng/ci/inbox-decorator-seam-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
   - path: "eng/ci/integration-serial-runner-gate.sh"
     kind: UNREVIEWED
     kind_proxy: gate
@@ -470,14 +374,6 @@ gates:
     kind: UNREVIEWED
     kind_proxy: reporter
     kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
-  - path: "eng/ci/message-identity-single-source-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
     runs_in: ci
     published: true
     has_test: true
@@ -522,14 +418,6 @@ gates:
     published: true
     has_test: true
     has_lock: false
-  - path: "eng/ci/orphaned-constant-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
   - path: "eng/ci/p0-classify.py"
     kind: UNREVIEWED
     kind_proxy: reporter
@@ -545,14 +433,6 @@ gates:
     runs_in: ci
     published: true
     has_test: true
-    has_lock: false
-  - path: "eng/ci/persistence-health-deriver-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
-    runs_in: ci
-    published: true
-    has_test: false
     has_lock: false
   - path: "eng/ci/policy-consistency-gate.py"
     kind: UNREVIEWED
@@ -690,14 +570,6 @@ gates:
     published: true
     has_test: true
     has_lock: false
-  - path: "eng/ci/sql-predicate-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
   - path: "eng/ci/sqlserver-ddl-hygiene.sh"
     kind: UNREVIEWED
     kind_proxy: reporter
@@ -722,43 +594,11 @@ gates:
     published: true
     has_test: true
     has_lock: false
-  - path: "eng/ci/task-delay-syncwait-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
-  - path: "eng/ci/tenant-range-op-coverage-gate.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
-    runs_in: ci
-    published: true
-    has_test: true
-    has_lock: false
   - path: "eng/ci/tracked-artifact-gate.sh"
     kind: UNREVIEWED
     kind_proxy: reporter
     kind_evidence: "no exit-1 / exit $E_* path found"
     runs_in: nowhere
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/unconditional-skip-ratchet.sh"
-    kind: UNREVIEWED
-    kind_proxy: gate
-    kind_evidence: "exit 2"
-    runs_in: ci
-    published: true
-    has_test: false
-    has_lock: false
-  - path: "eng/ci/wallclock-deadline-sweep.py"
-    kind: UNREVIEWED
-    kind_proxy: reporter
-    kind_evidence: "no exit-1 / exit $E_* path found"
-    runs_in: ci
     published: true
     has_test: false
     has_lock: false
@@ -838,6 +678,30 @@ gates:
     kind: gate
     kind_proxy: gate
     kind_evidence: "read: main() prints 'PASS:' or 'FAIL:' and returns 0 or 1 over two independent build roots"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/integration-route-audit.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "read and mutation-tested: refuses unscheduled embedded integration cases by comparing independently discovered adapter identities against supported workflow routes; not execution certification"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/validate-sbom.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "read and mutation-tested: requires every restored shipping NuGet package identity in the generated BOM; rejects empty or incomplete inventory"
+    runs_in: ci
+    published: true
+    has_test: true
+    has_lock: false
+  - path: "eng/ci/inline-native-aot-verdict.py"
+    kind: gate
+    kind_proxy: gate
+    kind_evidence: "read and mutation-tested: accepts only clean strict publication or the explicitly approved complete official SqlClient diagnostic multiset; requires both reflection-disabled regressions, preserves failed publication, never certifies native runtime"
     runs_in: ci
     published: true
     has_test: true

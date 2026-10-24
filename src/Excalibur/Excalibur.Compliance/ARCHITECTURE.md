@@ -127,10 +127,10 @@ across tenants in ordinary multi-tenant deployments -- the collision is the comm
 
 **How it is achieved.** One derivation, reached by both paths, refusing to produce a handle without a
 tenant: `SubjectKeyHandle.ForSubjectHash` (`Erasure/SubjectKeyHandle.cs:164`) keys an HMAC over a
-**length-prefixed** composition of the tenant identifier and the subject's pseudonymisation token.
-Length-prefixing is load-bearing rather than stylistic: plain concatenation makes tenant `a` with subject
-`bc` one input with tenant `ab` and subject `c`, which would introduce a cross-tenant collision in the act
-of removing one. The result is 64 uppercase hexadecimal characters -- the same width and character set as
+**escaped segment** composition of the tenant identifier and the subject's pseudonymisation token,
+using `SegmentedKey.Compose`. Escaping preserves segment boundaries: plain concatenation makes tenant
+`a` with subject `bc` one input with tenant `ab` and subject `c`, which would introduce a cross-tenant
+collision in the act of removing one. The result is 64 uppercase hexadecimal characters -- the same width and character set as
 the handle it replaced, so no key-store object-name constraint moves, and no tenant identifier appears
 anywhere it could be case-folded or rejected.
 
@@ -145,13 +145,11 @@ nothing while reporting a completed erasure -- the mirror of the defect above, a
 destruction is queued at `Erasure/ErasureService.cs:661`, and the destruction-confirmation pass derives the
 same handle at `Erasure/ErasureService.cs:1609`.
 
-**Every spelling of "no tenant" collapses onto one identity**, through `SubjectKeyHandle.OwningTenant`
-(`Erasure/SubjectKeyHandle.cs:111`). A single-tenant write resolves the framework's default tenant
-identity, while an untenanted erasure request is PERSISTED as the reserved untenanted sentinel; two
-spellings would be two handles, so a single-tenant erasure would destroy a key nothing was written under.
-The collapse reuses the framework's single predicate for what counts as untenanted rather than restating
-it, and it happens at the caller -- the derivation itself refuses an absent tenant, which is what makes the
-omission inexpressible rather than defaulted.
+**The exact resolved owner is preserved**, through `SubjectKeyHandle.OwningTenant`.
+The explicit default tenant and the untenanted storage partition remain distinct owners. Missing or
+blank owners are rejected, not normalized or silently replaced. The write path supplies its captured
+owner; erasure supplies the owner persisted on its request. Both paths must therefore name the same
+owner deliberately, rather than relying on ambient context when background processing runs.
 
 **The AES-GCM associated data binds the tenant transitively**, because the handle is written into it
 length-prefixed. The `TenantId` field of the encryption context is populated as well, on the write at
@@ -902,7 +900,7 @@ same provisioning type, so the floor and the startup check report the same condi
   that destroyed nothing at all would satisfy the first arm perfectly.
   `MintADifferentKey_ForEachTenantSharingOneSubjectId` asserts the premise separately, so that a handle
   collision and the data loss it causes are distinguishable failures rather than one aborted arm.
-  `DeriveDifferentHandles_ForTenantAndSubjectSplitsThatConcatenateIdentically` binds the length-prefixed
+  `DeriveDifferentHandles_ForTenantAndSubjectSplitsThatConcatenateIdentically` binds the unambiguous segment
   composition against the collision plain concatenation would introduce, and
   `ATenantQualifiedSubjectKeyHandleShould.RefuseAnUnresolvedOwner` binds an unresolvable owner as
   INEXPRESSIBLE rather than defaulted -- a `null`, empty or whitespace tenant throws instead of folding to

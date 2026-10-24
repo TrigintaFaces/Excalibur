@@ -9,7 +9,7 @@
 #   notices when a seam's coverage silently shrinks: a property suite deleted, a model file renamed,
 #   or a brand-new guarantee-critical package landing with no rung declared at all.
 #
-#   This is the same shape as architecture-evidence-gate.sh one rung up. There, a DELETED test read
+#   This is the same shape as ArchitectureEvidenceShould one rung up. There, a DELETED test read
 #   as a STANDING one. Here, an ABSENT CLASS OF GUARANTEE reads as a covered seam, because the only
 #   thing anyone looks at is whether the tests are green — and a green sampling-class suite says
 #   nothing whatsoever about a state space it never enumerated.
@@ -154,17 +154,8 @@ for s in seams:
                     if key in p.lower().replace(os.sep, "/").replace("-", "")]
             if not hits:
                 FAIL.append("%s: claims R3 but no property suite under tests/property/ resolves to it." % name)
-            elif not any(re.search(r"Gen\.|Check\.|Prop\.|\[Property\]|Arb\.|new Random\(|[Ss]eed",
-                                   open(h, encoding="utf-8", errors="replace").read()) for h in hits):
-                # PROXY, and named as one. The REQUIREMENT is "inputs are generated rather than
-                # enumerated, and a failure prints something that reproduces it." No regex tests that.
-                # The first version matched only FsCheck/CsCheck API names, so a hand-rolled
-                # Random-plus-printed-seed suite FAILED -- which meant this gate had silently decided
-                # the dependency question that nobody had ruled. Verified with a control: the
-                # hand-rolled form did not match and the vendor form did.
-                FAIL.append("%s: claims R3 but its suite shows no sign of generated input (no "
-                            "generator API, no Random, no seed) -- a fixed-input test filed under "
-                            "tests/property/ is an example test." % name)
+            # Generator references are checked by RepositoryChecks --release-policies
+            # against compiled test entry points. This script owns artifact existence only.
         if r >= 4:
             models = (glob.glob(os.path.join(root, "spec", "tla", "%s.tla" % name))
                       + glob.glob(os.path.join(root, "spec", "alloy", "%s.als" % name)))
@@ -362,12 +353,7 @@ self_test() {
 	mk "$tmp/nopbt" catastrophic "[R1, R2, R3]" "[R4]"
 	arm "claiming R3 with no property suite FAILS" 1 "$tmp/nopbt"
 
-	# FAIL 7 — a property suite with no generator is an example test in a property folder.
-	mk "$tmp/fakepbt" catastrophic "[R1, R2, R3]" "[R4]"
-	mkdir -p "$tmp/fakepbt/tests/property/demo"
-	printf 'public class DemoProperties { public void X() { Assert.True(true); } }\n' \
-		> "$tmp/fakepbt/tests/property/demo/DemoProperties.cs"
-	arm "a property suite with no generator FAILS" 1 "$tmp/fakepbt"
+	# Generator negative controls live in GeneratedInputRuleShould (compiled Roslyn tests).
 
 	# FAIL 8 — claims R4 with no model at all.
 	mk "$tmp/nomodel" catastrophic "[R1, R2, R3, R4]" "[]"
@@ -426,7 +412,7 @@ self_test() {
 	if ((fail > 0)); then return 1; fi
 	echo "NON-VACUITY ESTABLISHED: the gate FAILS on a missing seam doc, an undeclared guarantee, a"
 	echo "                        catastrophic seam leaving a rung unaccounted for, a claimed rung"
-	echo "                        with no artifact, a property suite with no generated input, a"
+	echo "                        with no artifact, a"
 	echo "                        model with no invariant or no"
 	echo "                        scope, and a cumulative gap; and REFUSES rather"
 	echo "                        than passing when it cannot see the manifest or the tree."

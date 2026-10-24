@@ -1,4 +1,13 @@
 ﻿<Project>
+    <!-- Repository compiler rules stay out of consumer packages. -->
+    <PropertyGroup>
+        <RepositoryMessageIdentityPolicy>true</RepositoryMessageIdentityPolicy>
+    </PropertyGroup>
+    <ItemGroup>
+        <CompilerVisibleProperty Include="RepositoryMessageIdentityPolicy" />
+        <ProjectReference Include="$(MSBuildThisFileDirectory)../eng/tools/RepositoryAnalyzers/RepositoryAnalyzers.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
 	<!-- ============================================================================================
        Project Classification Metadata
        ============================================================================================

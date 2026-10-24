@@ -77,6 +77,23 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
+        var store = ProjectionStoreOperations<TProjection>.Legacy(_serviceProvider.GetRequiredService<IProjectionStore<TProjection>>());
+        await ReapplyCoreAsync(aggregateId, aggregateType, store, _serviceProvider, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal Task ReapplyGeneratedAsync<TProjection>(string aggregateId, string aggregateType,
+        ProjectionStoreOperations<TProjection> store, IServiceProvider handlerServices, CancellationToken cancellationToken) where TProjection : class, new()
+    {
+        if (_eventSerializer is not AotJsonEventSerializer)
+        {
+            throw new InvalidOperationException("Generated projection recovery requires AddAotEventSerializer with the application's generated event context.");
+        }
+        return ReapplyCoreAsync(aggregateId, aggregateType, store, handlerServices, cancellationToken);
+    }
+
+    private async Task ReapplyCoreAsync<TProjection>(string aggregateId, string aggregateType,
+        ProjectionStoreOperations<TProjection> store, IServiceProvider handlerServices, CancellationToken cancellationToken) where TProjection : class, new()
+    {
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
 		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
 
@@ -109,8 +126,7 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 				+ "other aggregate's contribution. Rebuild the whole projection instead.");
 		}
 
-		var store = _serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
-		var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
+		var positioned = store.IsPositioned ? store : null;
 
 		for (var attempt = 1; ; attempt++)
 		{
@@ -124,7 +140,7 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 				readAt = readAtPos.ExpectedPositionOrNull;
 			}
 
-			var replayed = await ReplayAsync(projection, aggregateId, aggregateType, cancellationToken)
+			var replayed = await ReplayAsync(projection, aggregateId, aggregateType, handlerServices, cancellationToken)
 				.ConfigureAwait(false);
 
 			// NOTHING TO RECOVER MEANS WRITE NOTHING. An aggregate with no events has no history to fold,
@@ -309,16 +325,14 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 
 	/// <summary>Replays an aggregate's whole history into fresh projection state.</summary>
 	/// <returns>The folded state, the highest position folded, and how many events were applied.</returns>
-	[RequiresUnreferencedCode("Event deserialization requires type metadata; consumers must preserve event types.")]
-	[RequiresDynamicCode("Event deserialization is inherently dynamic; projection recovery resolves types at run time.")]
 	private async Task<(TProjection State, long? HighestPosition, int EventCount)> ReplayAsync<TProjection>(
 		MultiStreamProjection<TProjection> projection,
 		string aggregateId,
-		string aggregateType,
-		CancellationToken cancellationToken)
-		where TProjection : class, new()
-	{
-		// Load all events for this aggregate using the caller-provided aggregate type
+        string aggregateType, IServiceProvider handlerServices,
+        CancellationToken cancellationToken)
+        where TProjection : class, new()
+    {
+        // Load all events for this aggregate using the caller-provided aggregate type
 		var storedEvents = await _eventStore.LoadAsync(
 			aggregateId,
 			aggregateType,
@@ -386,7 +400,7 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 						storedEvent.Version,
 						storedEvent.Timestamp,
 						isReplay: true),
-					_serviceProvider,
+					handlerServices,
 					cancellationToken)
 				.ConfigureAwait(false);
 

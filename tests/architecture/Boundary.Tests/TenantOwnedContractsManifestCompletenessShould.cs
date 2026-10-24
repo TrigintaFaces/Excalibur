@@ -109,6 +109,10 @@ public sealed class TenantOwnedContractsManifestCompletenessShould
     private static readonly IReadOnlyDictionary<string, string> Exclusions = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         // --- Excalibur.EventSourcing -------------------------------------------------------------------
+        ["IAotProjectionStore"] =
+            "Generated-metadata capability of the manifested IProjectionStore, resolved exclusively through " +
+            "the outer store. Tenant/encryption decorators decline unsupported capabilities rather than " +
+            "exposing the inner store. GeneratedProjectionApiShould locks refusal, including direct DI bypass.",
         ["ICursorMapStore"] =
             "Coordination state: maps projection/subscription cursors to stream positions. Framework " +
             "bookkeeping, not tenant-owned domain rows.",

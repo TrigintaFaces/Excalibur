@@ -43,6 +43,38 @@ public sealed class SqlServerDeadLetterQueueTenantProvenanceShould(SqlServerCont
 
 	private readonly SqlServerContainerFixture _fixture = fixture;
 
+	[Theory]
+	[InlineData("named", null, "dead-letter.order")]
+	[InlineData("named", "external.order", "external.order")]
+	[InlineData("named", " ", "dead-letter.order")]
+	[InlineData("dto", null, "")]
+	[InlineData("dispatch", null, "")]
+	public async Task PreserveFailureCaptureWithoutInventingClrIdentities(string kind, string? explicitName, string expected)
+	{
+		await EnsureSchemaAsync().ConfigureAwait(false);
+		object message = kind switch
+		{
+			"named" => new NamedOrderPayload("order"),
+			"dispatch" => new UnnamedOrderMessage(),
+			_ => new OrderPayload("order"),
+		};
+		var replayCount = 0;
+		var queue = QueueFor(TenantA, _ => { replayCount++; return Task.CompletedTask; });
+		var metadata = explicitName is null ? null : new Dictionary<string, string> { ["MessageType"] = explicitName };
+		var id = await queue.EnqueueAsync(message, DeadLetterReason.MaxRetriesExceeded, CancellationToken.None, metadata: metadata);
+		var entry = await queue.GetEntryAsync(id, CancellationToken.None);
+		entry.ShouldNotBeNull();
+		entry.MessageType.ShouldBe(expected);
+		entry.Payload.ShouldNotBeEmpty();
+		(await queue.ReplayAsync(id, CancellationToken.None)).ShouldBeTrue();
+		replayCount.ShouldBe(1);
+	}
+
+	[MessageName("dead-letter.order")]
+	private sealed record NamedOrderPayload(string OrderId);
+
+	private sealed class UnnamedOrderMessage : IDispatchMessage;
+
 	private sealed class FixedTenantContext(string? tenantId) : ITenantContext
 	{
 		public string? TenantId { get; } = tenantId;

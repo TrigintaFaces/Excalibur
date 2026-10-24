@@ -40,7 +40,7 @@ internal sealed class SqlServerArchiveScanner(Func<SqlConnection> connectionFact
 			// This fence bounds stream membership only. Policy evaluation reads entire selected streams.
 			var qualifiedTable = SqlTableName.Format(schema, table);
 #pragma warning disable CA2100 // Schema and table validated by the provider table-name formatter.
-			var horizon = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+			var horizon = await SqlServerParameterSet.ExecuteScalarAsync<long>(connection, new CommandDefinition(
 				$"SELECT COALESCE(MAX(Position), 0) FROM {qualifiedTable}", cancellationToken: cancellationToken)).ConfigureAwait(false);
 #pragma warning restore CA2100
 			cursor = new Cursor(this, snapshot, instant, horizon, null);

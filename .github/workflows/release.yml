@@ -581,10 +581,11 @@ jobs:
       attestations: read
     name: Admit Official Build Packages
     runs-on: ubuntu-latest
-    # 75 = the 50-minute resolution wait below, plus 25 for the work after it: downloading the full
-    # package set, re-checking every hash, verifying provenance per package, and reading each
-    # nuspec. This cap must exceed the wait or the job dies mid-wait and GitHub reports a
-    # `cancelled` job -- which reads as a policy decision rather than as a bound expiring.
+    # This cap must exceed the test-verdict wait below, or the job dies mid-wait and GitHub reports
+    # a `cancelled` job -- which reads as a policy decision rather than as a bound expiring. The
+    # wait is 90 minutes and the work after it (downloading the full package set, re-checking every
+    # hash, verifying provenance per package, reading each nuspec) has measured at 25, so 120 holds
+    # both with headroom. Raising the wait past ~95 requires raising this first.
     timeout-minutes: 120
     needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
@@ -798,12 +799,23 @@ jobs:
       # in four consecutive releases, both 'Latest eligible run is incomplete' on a run that went on to
       # finish. The budget bounds patience only; an incomplete run at expiry still refuses, and the
       # wait is scoped to this commit's own run (never the ancestor walk, never the freshness re-check).
-      # Observed cost of this job to date: 13-22 seconds against a 120-minute cap.
+      #
+      # 90, not 50, and the number is measured rather than chosen. The CI run this waits on took
+      # 78, 85, 100, 116, 119, 143, 147 and 200 minutes across eight consecutive runs. This job
+      # cannot start until the soak jobs it depends on finish, which is ~80 minutes into that run,
+      # so the budget only has to cover what is LEFT: 0, 2, 17, 33, 36, 60, 64 and 117 minutes
+      # respectively. 50 covered five of those eight and refused the rest; 90 covers seven. The
+      # remaining case is a CI run at twice its median, and refusing there is the correct answer --
+      # a budget that covers every outlier is a budget that would also wait out a genuinely stuck
+      # run. REFUSE is exit 2: nothing was measured, so nothing is promoted.
+      #
+      # Raising this further means raising the job cap above first; see the comment on it.
       - name: Prove the promoted commit actually passed its tests
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: bash eng/ci/release-test-verdict-gate.sh --sha "$(git rev-parse HEAD)" --wait-minutes 50
+          RELEASE_VERSION: ${{ needs.pre-release-validation.outputs.version }}
+        run: bash eng/ci/release-test-verdict-gate.sh --sha "$(git rev-parse HEAD)" --wait-minutes 90 --release-version "$RELEASE_VERSION"
 
       # The immutable artifact, fetched from the run that produced it. Not rebuilt, not repacked --
       # these are the bytes the official build hashed and attested, or the checks below will say so.

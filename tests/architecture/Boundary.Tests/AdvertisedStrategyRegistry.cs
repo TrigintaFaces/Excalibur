@@ -180,6 +180,10 @@ internal static class AdvertisedStrategyRegistry
 			"Excalibur.EventSourcing.ProjectionMode",
 			"Excalibur.EventSourcing.Abstractions",
 			[
+                new StrategyValueCoverage(
+                    "Inline", 2, CoverageKind.Implementor,
+                    "Excalibur.EventSourcing.Projections.InlineProjectionCoordinator", EsAsm,
+                    "Inline registration wires bounded post-commit completion and recovery through the coordinator."),
 				new StrategyValueCoverage(
 					"Async", 0, CoverageKind.Implementor,
 					"Excalibur.EventSourcing.Projections.AsyncProjectionProcessingHost", EsAsm,

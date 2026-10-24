@@ -76,7 +76,15 @@ public sealed class ProjectionProcessorRegistrationShould
 		var processor = provider.GetRequiredService<IProjectionProcessor>();
 		var host = provider.GetRequiredService<AsyncProjectionProcessingHost>();
 
-		processor.ShouldBeSameAs(host);
+		// THE PROPERTY IS ONE CURSOR OWNER, not one object. The pull API is a composite over every
+		// registered mode, so identity with the async host is no longer expressible -- but what the arm
+		// exists to forbid is two independent cursors over one subscription, and that is still bound by
+		// the composite driving the SAME host singleton the background worker drives.
+		processor.ShouldBeOfType<CompositeProjectionProcessor>()
+			.AsyncHost.ShouldBeSameAs(host,
+				"a manual drive and a background pass must serialise through one host, not race on two");
+		provider.GetRequiredService<AsyncProjectionProcessingHost>().ShouldBeSameAs(host,
+			"the host must be a singleton, or each resolution owns its own cursor");
 	}
 
 	[Theory]
@@ -138,7 +146,7 @@ public sealed class ProjectionProcessorRegistrationShould
 		immutable.ShouldNotBeNull().Total.ShouldBe(42m);
 		immutable.ShippedAt.ShouldBe(shippedAt);
 		var checkpoint = await provider.GetRequiredService<ISubscriptionCheckpointStore>()
-			.GetCheckpointAsync(GlobalStreamProjectionOptions.DefaultProjectionName, TestContext.Current.CancellationToken);
+			.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor(GlobalStreamProjectionOptions.DefaultProjectionName, typeof(OrderSummary)), TestContext.Current.CancellationToken);
 		checkpoint.ShouldBe(appended.LastEventPosition);
 		checkpoint.ShouldNotBeNull();
 	}

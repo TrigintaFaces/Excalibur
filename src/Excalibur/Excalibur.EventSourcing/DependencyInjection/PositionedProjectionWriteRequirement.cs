@@ -36,6 +36,9 @@ internal interface IPositionedProjectionProbe
 
 	/// <summary>Gets the provider's configured target identity within the consumer subscription scope.</summary>
 	string? GetDestinationIdentity(IServiceProvider services);
+
+	/// <summary>Gets the actual destination cluster configuration, when available.</summary>
+	string? GetDestinationScope(IServiceProvider services) => null;
 }
 
 /// <inheritdoc />
@@ -73,6 +76,12 @@ internal sealed class PositionedProjectionProbe<TProjection> : IPositionedProjec
 			throw new InvalidOperationException($"Projection '{ProjectionTypeName}' advertised an empty destination identity.");
 		}
 		return identity;
+	}
+
+	public string? GetDestinationScope(IServiceProvider services)
+	{
+		var store = services.GetRequiredService<IProjectionStore<TProjection>>();
+		return (store.GetService(typeof(IProjectionDestinationScope)) as IProjectionDestinationScope)?.Scope;
 	}
 
 	/// <inheritdoc />

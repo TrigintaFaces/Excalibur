@@ -200,9 +200,12 @@ public sealed class ClaimCheckMessageSerializer(
 			return PrependFrameTag(InlineFrameTag, payload);
 		}
 
+		// Resolve dispatch identity before storing a blob; plain payloads have no message identity.
+		var messageName = message is IDispatchMessage ? MessageNameHelper.GetName(message.GetType()) : null;
+
 		var metadata = new ClaimCheckMetadata
 		{
-			MessageType = typeof(T).Name,
+			MessageType = messageName,
 			ContentType = _baseSerializer.ContentType,
 		};
 
@@ -211,7 +214,7 @@ public sealed class ClaimCheckMessageSerializer(
 		var envelopeBytes = _baseSerializer.SerializeToBytes(new ClaimCheckEnvelope
 		{
 			Reference = reference,
-			MessageType = typeof(T).Name,
+			MessageType = messageName ?? string.Empty,
 			SerializerName = _baseSerializer.Name,
 			OriginalSize = payload.Length,
 		});

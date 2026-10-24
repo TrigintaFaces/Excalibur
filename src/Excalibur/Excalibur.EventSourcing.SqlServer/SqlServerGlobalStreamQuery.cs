@@ -75,32 +75,24 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 			""";
 #pragma warning restore CA2100
 
-		var rows = await connection.QueryAsync<StoredEventRow>(
-			new CommandDefinition(
-				sql,
-				new { Position = position.Position, MaxCount = maxCount },
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+		using var command = Parameters(position.Position, maxCount).CreateCommand(connection,
+			new CommandDefinition(sql, cancellationToken: cancellationToken));
+		using var rows = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
 		// NOTE: the contiguity guard that used to live here is now ContiguousGlobalStreamQuery, applied
 		// as a decorator by this provider's registration. It is one correctness rule over an interface
 		// with several implementations, and a copy per provider is how the next provider comes to lack
 		// it. Do not reintroduce it here.
 		var result = new List<StoredEvent>();
-		foreach (var row in rows)
+		while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			result.Add(new StoredEvent(
-				row.EventId,
-				row.AggregateId,
-				row.AggregateType,
-				row.EventType,
-				row.EventData,
-				row.Metadata,
-				row.Version,
-				row.Timestamp)
+			result.Add(new StoredEvent(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.GetString(3),
+				await rows.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false) ? null : (byte[])rows.GetValue(4), await rows.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : (byte[])rows.GetValue(5),
+				rows.GetInt64(6), (DateTimeOffset)rows.GetValue(7))
 			{
-				GlobalPosition = row.Position,
-				ArchivedAt = row.ArchivedAt,
-				TenantId = row.TenantId,
+				GlobalPosition = rows.GetInt64(8),
+				ArchivedAt = await rows.IsDBNullAsync(9, cancellationToken).ConfigureAwait(false) ? null : (DateTimeOffset)rows.GetValue(9),
+				TenantId = rows.GetString(10),
 			});
 		}
 
@@ -131,11 +123,9 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 			""";
 #pragma warning restore CA2100
 
-		var rows = await connection.QueryAsync<StoredEventRow>(
-			new CommandDefinition(
-				sql,
-				new { Position = position.Position, MaxCount = maxCount, EventType = eventType },
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+		using var command = Parameters(position.Position, maxCount, eventType).CreateCommand(connection,
+			new CommandDefinition(sql, cancellationToken: cancellationToken));
+		using var rows = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
 		// NOT PROTECTED BY THE CONTIGUITY RULE APPLIED IN ReadAllAsync, and it cannot be: filtering
 		// by event type returns a legitimately SPARSE set of positions, so a gap here carries no
@@ -143,21 +133,15 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		// mark from this read is exposed to the same skip ReadAllAsync now defends against. Tracked;
 		// do not assume parity with the unfiltered read.
 		var result = new List<StoredEvent>();
-		foreach (var row in rows)
+		while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			result.Add(new StoredEvent(
-				row.EventId,
-				row.AggregateId,
-				row.AggregateType,
-				row.EventType,
-				row.EventData,
-				row.Metadata,
-				row.Version,
-				row.Timestamp)
+			result.Add(new StoredEvent(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.GetString(3),
+				await rows.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false) ? null : (byte[])rows.GetValue(4), await rows.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : (byte[])rows.GetValue(5),
+				rows.GetInt64(6), (DateTimeOffset)rows.GetValue(7))
 			{
-				GlobalPosition = row.Position,
-				ArchivedAt = row.ArchivedAt,
-				TenantId = row.TenantId,
+				GlobalPosition = rows.GetInt64(8),
+				ArchivedAt = await rows.IsDBNullAsync(9, cancellationToken).ConfigureAwait(false) ? null : (DateTimeOffset)rows.GetValue(9),
+				TenantId = rows.GetString(10),
 			});
 		}
 
@@ -174,25 +158,16 @@ internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
 		var sql = $"SELECT ISNULL(MAX(Position), 0) FROM {_qualifiedTable}";
 #pragma warning restore CA2100
 
-		return await connection.ExecuteScalarAsync<long>(
+		return await SqlServerParameterSet.ExecuteScalarAsync<long>(connection,
 			new CommandDefinition(sql, cancellationToken: cancellationToken)).ConfigureAwait(false);
 	}
 
-	/// <summary>
-	/// Row mapping for Dapper query results.
-	/// </summary>
-	private sealed record StoredEventRow(
-		string EventId,
-		string AggregateId,
-		string AggregateType,
-		string EventType,
-		byte[] EventData,
-		byte[]? Metadata,
-		long Version,
-		DateTimeOffset Timestamp,
-		long Position,
-		DateTimeOffset? ArchivedAt,
-		string TenantId);
-
-
+	private static SqlServerParameterSet Parameters(long position, int maxCount, string? eventType = null)
+	{
+		var parameters = new SqlServerParameterSet();
+		parameters.Add("Position", position);
+		parameters.Add("MaxCount", maxCount);
+		if (eventType is not null) { parameters.Add("EventType", eventType); }
+		return parameters;
+	}
 }

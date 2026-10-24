@@ -157,6 +157,7 @@ internal sealed partial class AwsSnsMessageBus(
 		// The declared name, not the CLR FullName -- mirrors the other transports' CreateEnvelope for
 		// the same reason (it becomes the outgoing CloudEvent type attribute).
 		var messageClrType = message.GetType();
+		var messageName = context.GetMessageType() ?? MessageNameHelper.GetName(messageClrType);
 
 		var envelope = new MessageEnvelope(message)
 		{
@@ -167,9 +168,7 @@ internal sealed partial class AwsSnsMessageBus(
 			CausationId = context.CausationId,
 			TraceParent = context.GetTraceParent(),
 			TenantId = context.GetTenantId(),
-			MessageType = context.GetMessageType()
-				?? MessageNameHelper.GetDeclaredName(messageClrType)
-				?? messageClrType.FullName,
+			MessageType = messageName,
 			ContentType = context.GetContentType() ?? "application/json",
 			DeliveryCount = context.GetDeliveryCount(),
 			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,

@@ -1,3 +1,5 @@
+-- ddl-migration: provisioning-only ErasureDestroyedKeys - Earlier alpha ledger identities require a new schema; incompatible tables are rejected without deleting destruction evidence.
+-- ddl-migration: provisioning-only ErasureRequests - Fresh current-alpha request schemas only; earlier schemas require fresh provisioning because the retention partition cannot be inferred from the encryption owner.
 -- SQL Server requires SET QUOTED_IDENTIFIER ON to create a FILTERED index (one with a WHERE
 -- clause), and sqlcmd defaults it OFF. [compliance].[LegalHolds] declares one inline, so without
 -- this prologue the whole CREATE TABLE fails with Msg 1934 and Msg 1750 and THE TABLE IS NEVER

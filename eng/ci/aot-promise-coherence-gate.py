@@ -36,6 +36,8 @@ EXIT
 import os
 import re
 import subprocess
+import argparse
+from unittest.mock import patch
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -48,7 +50,7 @@ def _tag(el):
     return el.tag.split("}")[-1]
 
 
-def aot_claim(proj):
+def aot_claim(proj, dotnet="dotnet"):
     """Return 'true', 'false', or 'unknown' for a project's IsAotCompatible declaration.
 
     An explicit declaration is authoritative and needs no MSBuild evaluation. A project that does
@@ -64,19 +66,22 @@ def aot_claim(proj):
             v = el.text.strip().lower()
             if v in ("true", "false"):
                 return v
-    dotnet = os.path.join(REPO_ROOT, ".dotnet", "dotnet.exe")
-    if not os.path.isfile(dotnet):
-        dotnet = os.path.join(REPO_ROOT, ".dotnet", "dotnet")
-    if not os.path.isfile(dotnet):
-        dotnet = "dotnet"
+    # Honor the caller's toolchain. An old repo-local host may lack global.json's SDK.
     try:
-        out = subprocess.run(
+        result = subprocess.run(
             [dotnet, "msbuild", proj, "-getProperty:IsAotCompatible", "-v:q", "-nologo"],
-            capture_output=True, text=True, timeout=180,
-        ).stdout.strip().lower()
-    except Exception:
+            capture_output=True, text=True, timeout=180, cwd=REPO_ROOT,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        print(f"REFUSE: property evaluation via {dotnet} failed for {proj}: {error}", file=sys.stderr)
         return "unknown"
-    return out if out in ("true", "false") else "unknown"
+    out = result.stdout.strip().lower()
+    if result.returncode != 0 or out not in ("true", "false"):
+        print(f"REFUSE: property evaluation via {dotnet} for {proj} exited {result.returncode}: "
+              f"{result.stderr.strip()} {result.stdout.strip()}", file=sys.stderr)
+        return "unknown"
+    return out
+
 
 
 def shipped_refs(proj):
@@ -114,7 +119,7 @@ def shipped_refs(proj):
     return refs, unreadable
 
 
-def scan(scan_root, quiet=False):
+def scan(scan_root, quiet=False, dotnet="dotnet"):
     projects = sorted(
         os.path.join(d, f)
         for d, _, fs in os.walk(scan_root)
@@ -127,8 +132,9 @@ def scan(scan_root, quiet=False):
                   file=sys.stderr)
         return 2
 
-    claims = {p: aot_claim(p) for p in projects}
-    violations = unreadable = checked = 0
+    claims = {p: aot_claim(p, dotnet) for p in projects}
+    violations = checked = 0
+    unreadable = sum(claim == "unknown" for claim in claims.values())
 
     for proj in projects:
         if claims[proj] != "true":
@@ -137,7 +143,7 @@ def scan(scan_root, quiet=False):
         refs, missing = shipped_refs(proj)
         unreadable += missing
         for ref in refs:
-            rclaim = claims.get(ref) or aot_claim(ref)
+            rclaim = claims.get(ref) or aot_claim(ref, dotnet)
             if rclaim == "unknown":
                 unreadable += 1
                 continue
@@ -168,7 +174,7 @@ DOC = os.path.join(REPO_ROOT, "docs-site", "docs", "advanced", "aot-compatibilit
 DOC_ROW = re.compile(r"^\|\s*`(Excalibur[\w.]+)`\s*\|\s*(.+?)\s*\|")
 
 
-def check_docs(doc_path=DOC, src_root=SRC, quiet=False):
+def check_docs(doc_path=DOC, src_root=SRC, quiet=False, dotnet="dotnet"):
     """The published per-package table must agree with the property it claims to report.
 
     That document defines its own statuses in terms of the build property -- "AOT-safe" means
@@ -211,7 +217,7 @@ def check_docs(doc_path=DOC, src_root=SRC, quiet=False):
             claim = "false"
         else:
             continue
-        actual = aot_claim(proj)
+        actual = aot_claim(proj, dotnet)
         if actual == "unknown":
             if not quiet:
                 print("REFUSE: could not read IsAotCompatible for {}".format(pkg), file=sys.stderr)
@@ -337,6 +343,46 @@ def self_test():
                 print("  FAIL  {} -- returned {}, expected {}".format(name, rc, expected))
                 fails += 1
 
+        # An unknown root must refuse even with no incoming reference or documentation row.
+        inherited = os.path.join(tmp, "inherited")
+        os.makedirs(inherited)
+        project = os.path.join(inherited, "Inherited.csproj")
+        with open(project, "w", encoding="utf-8") as fh:
+            fh.write('<Project Sdk="Microsoft.NET.Sdk" />')
+        for label, code, stdout, expected in [
+            ("inherited false passes", 0, "false", 0),
+            ("inherited true passes", 0, "true", 0),
+            ("failed host cannot masquerade as true", 1, "true", 2),
+            ("invalid host output refuses unknown root", 0, "unexpected", 2),
+            ("blank host output refuses unknown root", 0, "", 2),
+        ]:
+            with patch.object(subprocess, "run", return_value=subprocess.CompletedProcess(
+                    [], code, stdout, "fixture diagnostic")) as host:
+                rc = scan(inherited, quiet=True, dotnet="configured SDK/dotnet")
+                correct_host = host.call_args.args[0][0] == "configured SDK/dotnet"
+            passed = rc == expected and correct_host
+            print(f"  {'PASS' if passed else 'FAIL'}  {label}; configured SDK used")
+            fails += not passed
+        with patch.object(subprocess, "run", side_effect=FileNotFoundError("fixture host missing")):
+            rc = scan(inherited, quiet=True)
+        print(f"  {'PASS' if rc == 2 else 'FAIL'}  missing host refuses unknown root")
+        fails += rc != 2
+
+        with patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("fixture", 180)):
+            rc = scan(inherited, quiet=True)
+        print(f"  {'PASS' if rc == 2 else 'FAIL'}  timed-out host refuses unknown root")
+        fails += rc != 2
+        doc_root = os.path.join(tmp, "inherited-doc")
+        doc = _doc_fixture(doc_root, "**Not compatible**")
+        inherited_doc_project = os.path.join(doc_root, "Excalibur.Whatever", "Excalibur.Whatever.csproj")
+        with open(inherited_doc_project, "w", encoding="utf-8") as fh:
+            fh.write('<Project Sdk="Microsoft.NET.Sdk" />')
+        with patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "false", "")) as host:
+            rc = check_docs(doc, doc_root, quiet=True, dotnet="configured SDK/dotnet")
+            passed = rc == 0 and host.call_args.args[0][0] == "configured SDK/dotnet"
+        print(f"  {'PASS' if passed else 'FAIL'}  documentation uses configured host unchanged")
+        fails += not passed
+
         # The published-table arm needs its own arms, or it is a check nobody proved can fail.
         d = os.path.join(tmp, "doc_ok")
         rc = check_docs(_doc_fixture(d, "**Not compatible**"), d, quiet=True)
@@ -367,18 +413,18 @@ def self_test():
     if fails:
         print("self-test: {} arm(s) FAILED".format(fails))
         return 1
-    print("self-test: {}/{} arms pass".format(len(cases) + 4, len(cases) + 4))
+    print("self-test: {}/{} arms pass".format(len(cases) + 12, len(cases) + 12))
     return 0
 
 
 if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else ""
-    if arg == "--self-test":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--scan', action='store_true')
+    parser.add_argument('--dotnet', default='dotnet', help='SDK host; defaults to PATH and global.json')
+    args = parser.parse_args()
+    if args.self_test:
         sys.exit(self_test())
-    if arg in ("", "--scan"):
-        rc_graph = scan(SRC)
-        rc_docs = check_docs()
-        # Report the worst outcome, and never let a REFUSE be masked by a pass.
-        sys.exit(2 if 2 in (rc_graph, rc_docs) else max(rc_graph, rc_docs))
-    print("usage: {} [--self-test]".format(os.path.basename(sys.argv[0])), file=sys.stderr)
-    sys.exit(2)
+    rc_graph = scan(SRC, dotnet=args.dotnet)
+    rc_docs = check_docs(dotnet=args.dotnet)
+    sys.exit(2 if 2 in (rc_graph, rc_docs) else max(rc_graph, rc_docs))

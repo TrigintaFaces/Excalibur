@@ -212,4 +212,8 @@
     </ItemGroup>
     <Copy SourceFiles="@(ScheduleProbeCopy)" DestinationFiles="@(ScheduleProbeCopy->'%(Destination)')" SkipUnchangedFiles="true" />
   </Target>
+  <ItemGroup>
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Scripts/005_AddKeyDestructionLedger.sql" Link="Schema/SqlServer/005_AddKeyDestructionLedger.sql" />
+    <EmbeddedResource Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Scripts/004_AddKeyDestructionLedger.sql" Link="Schema/Postgres/004_AddKeyDestructionLedger.sql" />
+  </ItemGroup>
 </Project>

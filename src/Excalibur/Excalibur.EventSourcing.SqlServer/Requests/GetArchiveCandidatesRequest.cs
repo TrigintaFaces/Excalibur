@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
+using System.Data.Common;
 
 using Dapper;
 
@@ -42,7 +43,8 @@ public sealed class GetArchiveCandidatesRequest
 		CancellationToken cancellationToken,
 		string schema = "dbo",
 		string table = "EventStoreEvents")
-		: this(policy, batchSize, utcNow, null, null, schema, table, cancellationToken)
+		: this(policy, batchSize, utcNow, null, null, schema, table,
+            static request => connection => connection.QueryAsync<ArchiveCandidateRow>(request.Command), cancellationToken)
 	{
 	}
 
@@ -51,8 +53,22 @@ public sealed class GetArchiveCandidatesRequest
 	internal GetArchiveCandidatesRequest(
 		ArchivePolicy policy, int batchSize, DateTimeOffset utcNow, long? scanHorizon,
 		(string TenantId, string AggregateId, string AggregateType)? after,
-		string schema, string table, CancellationToken cancellationToken)
-	{
+        string schema, string table, CancellationToken cancellationToken)
+        : this(policy, batchSize, utcNow, scanHorizon, after, schema, table,
+            static request => connection => SqlServerParameterSet.ExecuteAsync(connection, request.Command, ReadRowsAsync), cancellationToken)
+    {
+    }
+
+    internal static GetArchiveCandidatesRequest CreateTyped(ArchivePolicy policy, int batchSize,
+        DateTimeOffset utcNow, CancellationToken cancellationToken, string schema = "dbo", string table = "EventStoreEvents") =>
+        new(policy, batchSize, utcNow, null, null, schema, table, cancellationToken);
+
+    private GetArchiveCandidatesRequest(ArchivePolicy policy, int batchSize, DateTimeOffset utcNow,
+        long? scanHorizon, (string TenantId, string AggregateId, string AggregateType)? after,
+        string schema, string table,
+        Func<GetArchiveCandidatesRequest, Func<IDbConnection, Task<IEnumerable<ArchiveCandidateRow>>>> query,
+        CancellationToken cancellationToken)
+    {
 		ArgumentNullException.ThrowIfNull(policy);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
@@ -60,7 +76,7 @@ public sealed class GetArchiveCandidatesRequest
 
 		// Age and global-position triggers are alternatives. Retention overrides both and can stand alone.
 		var conditions = new List<string>();
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		if (policy.MaxAge is { } maxAge)
 		{
 			conditions.Add("EventTimestamp < @MaxAgeCutoff");
@@ -166,9 +182,10 @@ public sealed class GetArchiveCandidatesRequest
 
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
+		var queryRows = query(this);
 		ResolveAsync = async connection =>
 		{
-			var rows = await connection.QueryAsync<ArchiveCandidateRow>(Command).ConfigureAwait(false);
+			var rows = await queryRows(connection).ConfigureAwait(false);
 
 			var candidates = new List<ArchiveCandidate>();
 			foreach (var row in rows)
@@ -207,6 +224,22 @@ public sealed class GetArchiveCandidatesRequest
 	/// Row shape returned by the discovery query, mapped to <see cref="ArchiveCandidate"/> once the tenant
 	/// term has been routed through <see cref="KeyedTenantPartition"/>.
 	/// </summary>
+    private static async Task<IEnumerable<ArchiveCandidateRow>> ReadRowsAsync(DbCommand command, CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<ArchiveCandidateRow>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            rows.Add(new ArchiveCandidateRow
+            {
+                TenantId = await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(0),
+                AggregateId = reader.GetString(1), AggregateType = reader.GetString(2),
+                ArchivableUpToVersion = reader.GetInt64(3), EventCount = reader.GetInt32(4),
+            });
+        }
+        return rows;
+    }
+
 	private sealed class ArchiveCandidateRow
 	{
 		// Deliberately NOT defaulted. Dapper leaves a property untouched when the result set has no matching

@@ -63,6 +63,34 @@ public sealed class ElasticSearchProjectionClientLifetimeShould : UnitTestBase
 	}
 
 	[Fact]
+	public async Task KeepTheScopeBoundToTheSharedClientWhenOptionsChange()
+	{
+		await using var provider = BuildProvider();
+		await using var first = provider.CreateAsyncScope();
+		var firstStore = first.ServiceProvider.GetRequiredService<IProjectionStore<LifetimeProjection>>();
+		var before = firstStore.GetService(typeof(IProjectionDestinationScope)).ShouldBeAssignableTo<IProjectionDestinationScope>().Scope;
+		provider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<ElasticSearchProjectionStoreOptions>>()
+			.Get(typeof(LifetimeProjection).FullName!).NodeUri = "http://other-cluster:9200";
+		await using var second = provider.CreateAsyncScope();
+		var secondStore = second.ServiceProvider.GetRequiredService<IProjectionStore<LifetimeProjection>>();
+		secondStore.GetService(typeof(IProjectionDestinationScope)).ShouldBeAssignableTo<IProjectionDestinationScope>().Scope.ShouldBe(before);
+		ReferenceEquals(ClientOf(firstStore), ClientOf(secondStore)).ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task DeclineAutomaticScopeForAnExternallySuppliedClient()
+	{
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddElasticSearchProjectionStore<LifetimeProjection>(_ => new ElasticsearchClient(new Uri(NodeUri)),
+			o => o.NodeUri = "http://not-the-client:9200");
+		await using var provider = services.BuildServiceProvider();
+		await using var scope = provider.CreateAsyncScope();
+		scope.ServiceProvider.GetRequiredService<IProjectionStore<LifetimeProjection>>()
+			.GetService(typeof(IProjectionDestinationScope)).ShouldBeNull();
+	}
+
+	[Fact]
 	public async Task SupplyTheClientBeforeTheStoreIssuesAnyRequest()
 	{
 		// A client created lazily on first use is created PER STORE, so "it works" is indistinguishable

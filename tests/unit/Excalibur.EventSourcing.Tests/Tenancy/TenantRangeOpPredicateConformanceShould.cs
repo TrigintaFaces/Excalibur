@@ -34,7 +34,7 @@ namespace Excalibur.EventSourcing.Tests.Tenancy;
 /// paired check is kept and inverted, so a regression that drops the column from either half is
 /// still caught.</description></item>
 /// </list>
-/// The companion <c>eng/ci/tenant-range-op-coverage-gate.sh</c> guarantees this set is COMPLETE, so a
+/// The companion <c>RepositoryChecks --tenant-mutations</c> guarantees this set is COMPLETE, so a
 /// newly added range op cannot escape the check by not being listed here.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -159,10 +159,21 @@ public sealed class TenantRangeOpPredicateConformanceShould
 	/// </summary>
 	private static string? BoundTenantTerm(Dapper.CommandDefinition command, string parameterName)
 	{
-		var parameters = command.Parameters.ShouldBeOfType<Dapper.DynamicParameters>(
+		// ASSIGNABLE-TO, not OF-TYPE. The property under test is "the tenant term is BOUND as a
+		// parameter rather than inlined into the statement" -- not which concrete bag carries it.
+		// ShouldBeOfType pinned the exact runtime type, so introducing SqlServerParameterSet (which
+		// DERIVES from DynamicParameters, and from which the bound term reads identically) failed three
+		// arms for a reason that has nothing to do with tenant isolation. Pinning the bag type is the
+		// mechanism; binding the term is the requirement.
+		var parameters = command.Parameters.ShouldBeAssignableTo<Dapper.DynamicParameters>(
 			"the request must bind its tenant term as a parameter, never inline it into the statement.");
 
-		return parameters.Get<string>(parameterName);
+		// A request that inlined the tenant into the SQL binds no such parameter, and Get<string> would
+		// answer null -- which a ShouldNotBe(sentinel) assertion downstream would happily accept. Fail
+		// here instead, so "no tenant parameter at all" can never read as "correctly scoped".
+		return parameters!.Get<string>(parameterName).ShouldNotBeNull(
+			$"no value is bound to {parameterName}: the tenant term was inlined or omitted, and an absent "
+			+ "binding must never pass as a scoped predicate.");
 	}
 
 	// ---- EraseEvents: column-absent single-partition (category 3) -> paired structural check ------

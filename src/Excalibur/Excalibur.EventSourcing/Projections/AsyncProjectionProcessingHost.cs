@@ -28,9 +28,12 @@ namespace Excalibur.EventSourcing.Projections;
 /// <para>
 /// Cooperating instances of this host write persisted projections using positioned compare-and-set writes. It polls the global stream and applies
 /// events in position order, which is what lets a projection row's position mean what it claims.
-/// Projections were once also folded during <c>SaveAsync</c>; that second, uncoordinated writer could
-/// lose a fold and is removed. A caller needing read-after-write passes the session token
-/// <c>SaveAsync</c> returns to <c>IProjectionSessionReader</c>.
+/// Projections were once also folded during <c>SaveAsync</c> by a second, uncoordinated writer that
+/// wrote without a position and so could lose a fold. That writer is gone. Inline projections are now
+/// DRIVEN THROUGH THIS HOST rather than applied beside it: the save waits for this ordered processor to
+/// reach the committed position, so there is still exactly one writer per projection row and the lost
+/// fold is not expressible. A caller that does not want to wait passes the session token
+/// <c>SaveAsync</c> returns to <c>IProjectionSessionReader</c> instead.
 /// </para>
 /// <para>
 /// Register via <c>es.EnableProjectionProcessing()</c> on <see cref="DependencyInjection.IEventSourcingBuilder"/>.
@@ -49,6 +52,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	private readonly ProjectionHealthState? _healthState;
 	private readonly EventNotificationOptions _notificationOptions;
 	private readonly TimeProvider _timeProvider;
+	private readonly ProjectionMode _mode;
 
 	// One finite page per lease. FIFO acquisition lets request-driven work make progress
 	// while the background reader remains live; the lease is never held during idle polling.
@@ -58,6 +62,61 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		QueueLimit = int.MaxValue,
 		QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
 	});
+
+	/// <summary>
+	/// The cursor key for one registration: one durable cursor PER PROJECTION under the subscription.
+	/// </summary>
+	/// <remarks>
+	/// The checkpoint store is keyed by an opaque string, so per-registration cursors need no schema
+	/// change. The key does change, so cursors recorded under the old single-cursor key are not found
+	/// and each projection re-folds from zero. That is the accepted cost of the change; the fold itself
+	/// is idempotent, because a positioned row refuses an event it has already folded.
+	/// </remarks>
+	private static string CheckpointNameFor(string subscription, ProjectionRegistration registration) =>
+		CheckpointNameFor(subscription, registration.ProjectionType);
+
+	/// <summary>The cursor key for one projection type. The single source of truth for that string.</summary>
+	/// <remarks>
+	/// Internal rather than private because the session reader and the tests must derive the SAME key.
+	/// A second copy of this expression is a silent failure waiting to happen: a reader looking under a
+	/// name nothing writes finds no cursor, waits out its whole bound, and reports a caught-up
+	/// projection as stale.
+	/// </remarks>
+	internal static string CheckpointNameFor(string subscription, Type projectionType)
+	{
+		ArgumentNullException.ThrowIfNull(projectionType);
+
+		return $"{subscription}:{projectionType.FullName}";
+	}
+
+	/// <summary>
+	/// The registrations a save must wait for: those consuming at least one of its committed event types.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The required set depends only on committed event types, never on scheduling or failures.
+	/// A null <c>HandlesEvent</c> means the registration handles everything, so it is always required.
+	/// The predicate is complete: an event whose handler lookup misses is skipped by the fold before
+	/// anything else runs, and the override-id escape hatch changes which ROW a fold targets rather
+	/// than which TYPES a registration consumes.
+	/// </para>
+	/// </remarks>
+	internal IReadOnlyList<Type> RequiredRegistrations(IReadOnlyList<Type> committedEventTypes)
+	{
+		ArgumentNullException.ThrowIfNull(committedEventTypes);
+
+		var required = new List<Type>();
+		foreach (var registration in _registry.GetByMode(_mode))
+		{
+			if (registration.HandlesEvent is not { } handles
+				|| committedEventTypes.Any(handles))
+			{
+				required.Add(registration.ProjectionType);
+			}
+		}
+
+		return required;
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="AsyncProjectionProcessingHost"/> class.
@@ -70,7 +129,8 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		IServiceProvider serviceProvider,
 		ILogger<AsyncProjectionProcessingHost> logger,
 		IOptions<EventNotificationOptions>? notificationOptions = null,
-		TimeProvider? timeProvider = null)
+		TimeProvider? timeProvider = null,
+		ProjectionMode mode = ProjectionMode.Async)
 	{
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
@@ -80,6 +140,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_notificationOptions = notificationOptions?.Value ?? new EventNotificationOptions();
 		_timeProvider = timeProvider ?? TimeProvider.System;
+		_mode = mode;
 
 		_observability = serviceProvider.GetService(typeof(ProjectionObservability)) as ProjectionObservability;
 		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState)) as ProjectionHealthState;
@@ -87,48 +148,98 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 
 	/// <inheritdoc />
 	public override async Task StartAsync(CancellationToken cancellationToken)
-	{
+    {
+        await GeneratedProjectionValidation.ValidateAsync(_serviceProvider, cancellationToken).ConfigureAwait(false);
 		// .NET 10 runs all ExecuteAsync code in the background. Definition mismatches
 		// must prevent the application from serving traffic, so validate here explicitly.
 		_ = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
 		ValidateSubscriptionOptions(_options.Value);
-		_ = await BindDefinitionAsync(_registry.GetByMode(ProjectionMode.Async), _options.Value, cancellationToken)
+		_ = await BindDefinitionAsync(_registry.GetByMode(_mode), _options.Value, cancellationToken)
 			.ConfigureAwait(false);
 		await base.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	public async Task<ProjectionProcessingResult> ProcessPendingAsync(CancellationToken cancellationToken)
+		=> await ProcessThroughAsync(null, required: null, cancellationToken).ConfigureAwait(false);
+
+	/// <summary>Whether ONE projection has folded through <paramref name="position"/>.</summary>
+	/// <remarks>
+	/// Per projection, never a minimum over all of them. Cursors are per registration, so a reader of
+	/// one projection must be answered from THAT projection's cursor; a minimum would make a reader
+	/// wait on projections it is not reading, which is the shared fate this design removes.
+	/// </remarks>
+	internal async Task<bool> HasAppliedAsync(Type projectionType, long position, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(projectionType);
+
+		var registrations = _registry.GetByMode(_mode);
+		_ = await BindDefinitionAsync(registrations, _options.Value, cancellationToken).ConfigureAwait(false);
+
+		var registration = registrations.FirstOrDefault(r => r.ProjectionType == projectionType);
+		if (registration is null)
+		{
+			// Not a projection this host drives, so this host can make no claim about it.
+			return false;
+		}
+
+		var checkpoint = await _checkpointStore
+			.GetCheckpointAsync(CheckpointNameFor(_options.Value.ProjectionName, registration), cancellationToken)
+			.ConfigureAwait(false);
+		return checkpoint >= position;
+	}
+
+	internal async Task<ProjectionProcessingResult> ProcessThroughAsync(
+		long? committedPosition,
+		IReadOnlyList<Type>? required,
+		CancellationToken cancellationToken)
 	{
 		long applied = 0;
 		try
 		{
 			var query = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
 			// A finite target: concurrent producers cannot keep a request draining forever.
-			var target = await query.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+			var target = committedPosition ?? await query.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
 			while (true)
 			{
-				var page = await ProcessPageAsync(query, cancellationToken).ConfigureAwait(false);
+				var page = await ProcessPageAsync(query, cancellationToken, target).ConfigureAwait(false);
 				applied += page.Applied;
 				cancellationToken.ThrowIfCancellationRequested();
+
+				// CAUGHT UP IS TESTED BEFORE THE HALT, AND THE ORDER IS THE WHOLE FIX. A page can report a
+				// fault for a registration this caller does not depend on while every registration it DOES
+				// depend on advanced past the target. Testing the halt first would fail this save for
+				// somebody else's broken projection, which is the shared fate being removed.
+				if (IsCaughtUp(page, required, target))
+				{
+					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None);
+				}
+
 				if (page.Outcome == ProjectionProcessingOutcome.Halted)
 				{
-					return new ProjectionProcessingResult(applied, page.Outcome);
+                    if (required is not null && !required.Any(page.Failed.Contains))
+                    {
+                        if (required.Any(page.Progressed.Contains)) { continue; }
+                        return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Halted,
+                            ProjectionHaltReason.PrefixUnavailable);
+                    }
+					// The page's own reason is propagated, never re-derived here: this frame cannot see
+					// whether the apply faulted, an event was undeserializable, or the checkpoint write
+					// failed, and guessing is what made Halted unactionable in the first place.
+					return new ProjectionProcessingResult(applied, page.Outcome, page.HaltReason);
 				}
-				if (page.Position >= target)
-				{
-					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.CaughtUp);
-				}
+
 				if (page.Applied == 0 && page.Outcome != ProjectionProcessingOutcome.Contested)
 				{
-					// A temporarily unreadable prefix is pending, never falsely caught up.
-					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Halted);
+					// A temporarily unreadable prefix is pending, never falsely caught up. This is the
+					// one halt that clears by waiting, so it is the one a caller may retry.
+					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Halted, ProjectionHaltReason.PrefixUnavailable);
 				}
 			}
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Cancelled);
+			return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Cancelled, ProjectionHaltReason.None);
 		}
 	}
 
@@ -158,7 +269,30 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		}
 	}
 
-	private async Task<PageResult> ProcessPageAsync(IGlobalStreamQuery query, CancellationToken cancellationToken)
+	/// <summary>The completion predicate: a quantifier over what the caller depends on.</summary>
+	/// <remarks>
+	/// With no required set, every registration must have reached the target. A required subset
+	/// cannot be held back by unrelated failures, but scheduling never changes what either claim means.
+	/// </remarks>
+	private static bool IsCaughtUp(PageResult page, IReadOnlyList<Type>? required, long target)
+	{
+		if (required is null)
+		{
+			return page.Cursors.Values.All(at => at >= target);
+		}
+
+		foreach (var projectionType in required)
+		{
+			if (!page.Cursors.TryGetValue(projectionType, out var at) || at < target)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private async Task<PageResult> ProcessPageAsync(IGlobalStreamQuery query, CancellationToken cancellationToken, long? target = null)
 	{
 		using var lease = await _pageGate.AcquireAsync(1, cancellationToken).ConfigureAwait(false);
 		if (!lease.IsAcquired)
@@ -166,19 +300,79 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			throw new InvalidOperationException("The projection page queue is full or disposed.");
 		}
 
-		var registrations = _registry.GetByMode(ProjectionMode.Async);
+		var registrations = _registry.GetByMode(_mode);
 		var options = _options.Value;
 		var name = options.ProjectionName;
 		ValidateSubscriptionOptions(options);
 
 		var destinations = await BindDefinitionAsync(registrations, options, cancellationToken).ConfigureAwait(false);
 
-		var expected = await _checkpointStore.GetCheckpointAsync(name, cancellationToken).ConfigureAwait(false);
-		var position = expected ?? 0;
+		// ONE CURSOR READ PER REGISTRATION. The expected value keeps its nullability, because the store
+		// distinguishes "no cursor yet" from "a cursor at zero" and the compare-and-set below relies on
+		// that distinction.
+		var keys = new string[registrations.Count];
+		var expectedAt = new long?[registrations.Count];
+		var cursorAt = new long[registrations.Count];
+		var cursors = new Dictionary<Type, long>(registrations.Count);
+		for (var i = 0; i < registrations.Count; i++)
+		{
+			keys[i] = CheckpointNameFor(name, registrations[i]);
+			expectedAt[i] = await _checkpointStore.GetCheckpointAsync(keys[i], cancellationToken).ConfigureAwait(false);
+			cursorAt[i] = expectedAt[i] ?? 0;
+			cursors[registrations[i].ProjectionType] = cursorAt[i];
+		}
+
 		if (registrations.Count == 0)
 		{
-			return new PageResult(0, position, ProjectionProcessingOutcome.CaughtUp);
+			return new PageResult(0, 0, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None, cursors);
 		}
+
+        long applied = 0;
+        var failed = new HashSet<Type>();
+        var progressed = new HashSet<Type>();
+        var outcome = ProjectionProcessingOutcome.CaughtUp;
+        var reason = ProjectionHaltReason.None;
+        // Share a read only when every recipient starts at that exact durable cursor. A failed
+        // registration remains eligible on the next round, but never receives a later sibling's page.
+        foreach (var group in Enumerable.Range(0, registrations.Count).GroupBy(i => cursorAt[i]))
+        {
+            var indices = group.ToArray();
+            var members = indices.Select(i => registrations[i]).ToArray();
+            var expectations = indices.Select(i => expectedAt[i]).ToArray();
+            var page = await ProcessCursorGroupAsync(query, members, expectations, destinations,
+                group.Key, options, target, cancellationToken).ConfigureAwait(false);
+            applied += page.Applied;
+            failed.UnionWith(page.Failed);
+            progressed.UnionWith(page.Progressed);
+            foreach (var entry in page.Cursors) { cursors[entry.Key] = entry.Value; }
+            if (page.Outcome == ProjectionProcessingOutcome.Halted && outcome != ProjectionProcessingOutcome.Halted)
+            {
+                outcome = page.Outcome;
+                reason = page.HaltReason;
+            }
+            else if (page.Outcome == ProjectionProcessingOutcome.Contested && outcome == ProjectionProcessingOutcome.CaughtUp)
+            {
+                outcome = page.Outcome;
+            }
+        }
+        if (outcome != ProjectionProcessingOutcome.Halted) { _healthState?.RecordApplied(name, cursors.Values.Min()); }
+        return new PageResult(applied, cursors.Values.Min(), outcome, reason, cursors)
+        { Failed = failed, Progressed = progressed };
+    }
+
+    private async Task<PageResult> ProcessCursorGroupAsync(IGlobalStreamQuery query,
+        IReadOnlyList<ProjectionRegistration> registrations, long?[] expectedAt,
+        IReadOnlyDictionary<Type, string?> destinations, long position, GlobalStreamProjectionOptions options,
+        long? target, CancellationToken cancellationToken)
+    {
+        var name = options.ProjectionName;
+        var keys = registrations.Select(r => CheckpointNameFor(name, r)).ToArray();
+        var cursorAt = expectedAt.Select(at => at ?? 0).ToArray();
+        var cursors = registrations.ToDictionary(r => r.ProjectionType, _ => position);
+        var failed = new HashSet<Type>();
+        var progressed = new HashSet<Type>();
+        PageResult Result(long applied, ProjectionProcessingOutcome outcome, ProjectionHaltReason reason) =>
+            new(applied, cursors.Values.Min(), outcome, reason, cursors) { Failed = failed, Progressed = progressed };
 		var events = await query.ReadAllAsync(
 			new GlobalStreamPosition(position, DateTimeOffset.MinValue), options.BatchSize, cancellationToken)
 			.ConfigureAwait(false);
@@ -186,12 +380,40 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		StoredEvent? last = null;
 		var processed = 0;
 		var poison = false;
+		var faulted = false;
+		var contested = false;
+		var checkpointFailed = false;
+		var advanced = false;
 		foreach (var stored in events)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			if (stored.GlobalPosition <= (last?.GlobalPosition ?? position))
+			if (target is { } limit && stored.GlobalPosition > limit) { break; }
+			var expectedNext = (last?.GlobalPosition ?? position) + 1;
+			if (stored.GlobalPosition < expectedNext)
 			{
 				throw new InvalidOperationException("The global stream returned an unordered or non-advancing page.");
+			}
+			if (stored.GlobalPosition > expectedNext)
+			{
+				// CONTIGUITY IS ASSERTED HERE because this is the site that WRITES the checkpoint, and
+				// the checkpoint is the claim contiguity protects: advancing the cursor to this page's
+				// last position asserts every position at or below it has been folded. A gap breaks
+				// that claim silently and unrecoverably -- the skipped event stays below the cursor
+				// forever, so nothing redelivers it and nothing downstream ever learns.
+				//
+				// ContiguousGlobalStreamQuery normally truncates a gapped page before it reaches here,
+				// so in a provider-registered composition this never fires. It is NOT redundant with
+				// that decorator: the decorator is applied with TryAdd on a public interface, so the
+				// FIRST registration wins and a consumer -- or a second UseXxx() call -- can displace
+				// it, at which point the guarantee is silently absent. Asserting it at the invariant's
+				// own site makes the bad state unreachable regardless of who registered what, and
+				// leaves the decorator as the early-truncate-and-log optimisation it should be.
+				throw new InvalidOperationException(
+					$"The global stream returned position {stored.GlobalPosition} where {expectedNext} was required. "
+					+ "A page containing a gap cannot advance a projection checkpoint: the missing positions would "
+					+ "sit below the cursor without having been folded, and would never be redelivered. An "
+					+ "IGlobalStreamQuery must return the contiguous run from the requested position, stopping at "
+					+ "the first gap rather than reading past it.");
 			}
 			if (!ErasedEventMarker.IsErased(stored.EventType))
 			{
@@ -210,48 +432,122 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			last = stored;
 			processed++;
 		}
+		// ALL-FALSE WHEN NOTHING WAS DISPATCHED. An all-tombstone page delivers no batch, and the cursor
+		// must still advance past it -- otherwise the host re-reads the same tombstones forever. Nothing
+		// was applied, so nothing can have faulted.
+		var faults = new bool[registrations.Count];
 		if (batch.Count > 0)
 		{
 			var context = new EventNotificationContext(last!.AggregateId, last.AggregateType,
 				last.Version, last.Timestamp, IsReplay: false, GlobalPosition: last.GlobalPosition);
-			var faulted = await DispatchToProjectionsAsync(registrations, batch, context, destinations, cancellationToken).ConfigureAwait(false);
+			faults = await DispatchToProjectionsAsync(registrations, batch, context, destinations, cancellationToken).ConfigureAwait(false);
 			cancellationToken.ThrowIfCancellationRequested();
-			if (faulted)
+		}
+
+		{
+
+			// A FAULT NO LONGER STOPS ITS SIBLINGS. Each registration's cursor advances on its own, so a
+			// faulting projection holds only its own cursor back. Advancing a shared cursor past a
+			// registration that did not fold is what made this a stall for everyone -- and is still
+			// forbidden, which is exactly what a per-registration cursor expresses.
+			for (var i = 0; i < registrations.Count; i++)
 			{
-				_healthState?.RecordHalt(name);
-				return new PageResult(0, position, ProjectionProcessingOutcome.Halted);
+				var projectionType = registrations[i].ProjectionType;
+				if (faults[i])
+				{
+					faulted = true;
+					failed.Add(projectionType);
+					continue;
+				}
+
+
+				// NEVER ADVANCE BACKWARDS. A page bounded by a save's target can end BELOW a registration
+				// that is already further ahead -- the registration folded nothing here because it had
+				// already folded all of it. Its cursor must stay put: the store refuses a lower value
+				// outright, so without this guard the common case throws in the write path.
+				if (last is null || last.GlobalPosition <= cursorAt[i])
+				{
+					continue;
+				}
+
+				// THE VALUE WRITTEN IS "DELIVERED THROUGH", AND IT EQUALS THE PAGE'S LAST POSITION ONLY
+				// BECAUSE EVERY REGISTRATION RECEIVES THE WHOLE PROCESSED PREFIX. Read that sentence
+				// before changing the dispatch.
+				//
+				// A cursor advanced to P asserts that nothing at or below P is still owed to THIS
+				// registration. `last` can sit above the highest BATCHED position -- trailing erased
+				// events advance `last` without entering the batch -- and that is sound here, because a
+				// tombstone carries nothing to fold and every registration was handed the same batch.
+				//
+				var deliveredThrough = last.GlobalPosition;
+
+				try
+				{
+					var outcome = await _checkpointStore.AdvanceCheckpointAsync(
+						keys[i], expectedAt[i], deliveredThrough, cancellationToken).ConfigureAwait(false);
+					if (outcome == CheckpointAdvanceOutcome.Superseded)
+					{
+						// Another instance advanced this registration. Its fold is idempotent at the row,
+						// so the work is not lost -- re-read and let the caller iterate.
+						var winner = await _checkpointStore.GetCheckpointAsync(keys[i], cancellationToken).ConfigureAwait(false);
+						cursors[projectionType] = winner ?? cursorAt[i];
+                        if (cursors[projectionType] > cursorAt[i]) { progressed.Add(projectionType); }
+						contested = true;
+						continue;
+					}
+
+					cursors[projectionType] = deliveredThrough;
+                    progressed.Add(projectionType);
+                    _healthState?.RecordApplied(keys[i], deliveredThrough);
+					advanced = true;
+				}
+				catch (Exception ex) when (ex is not OperationCanceledException)
+				{
+					LogAsyncProjectionCheckpointWriteFailed(ex);
+					checkpointFailed = true;
+                    failed.Add(projectionType);
+				}
 			}
 		}
+
 		// A handler that returns after catching cancellation cannot acknowledge the page.
 		// Every page starts from durable state; a crash or failed CAS simply redelivers it.
 		cancellationToken.ThrowIfCancellationRequested();
-		if (last is not null)
+
+        // A subscription-wide mark may only describe the minimum across ALL registrations.
+        // Per-projection session reads use the individual durable/confirmed cursor instead.
+        if (poison) { failed.UnionWith(registrations.Select(r => r.ProjectionType)); }
+		if (checkpointFailed)
 		{
-			try
-			{
-				var result = await _checkpointStore.AdvanceCheckpointAsync(
-					name, expected, last.GlobalPosition, cancellationToken).ConfigureAwait(false);
-				if (result == CheckpointAdvanceOutcome.Superseded)
-				{
-					var winner = await _checkpointStore.GetCheckpointAsync(name, cancellationToken).ConfigureAwait(false);
-					return new PageResult(processed, winner ?? position, ProjectionProcessingOutcome.Contested);
-				}
-				position = last.GlobalPosition;
-				_healthState?.RecordApplied(name, position);
-			}
-			catch (Exception ex) when (ex is not OperationCanceledException)
-			{
-				LogAsyncProjectionCheckpointWriteFailed(ex);
-				_healthState?.RecordHalt(name);
-				return new PageResult(0, position, ProjectionProcessingOutcome.Halted);
-			}
+			_healthState?.RecordHalt(name);
+			return Result(0, ProjectionProcessingOutcome.Halted, ProjectionHaltReason.CheckpointWriteFailed);
 		}
+
 		if (poison)
 		{
 			_healthState?.RecordHalt(name);
+            return Result(processed, ProjectionProcessingOutcome.Halted, ProjectionHaltReason.EventUndeserializable);
 		}
-		return new PageResult(processed, position,
-			poison ? ProjectionProcessingOutcome.Halted : ProjectionProcessingOutcome.CaughtUp);
+
+		if (faulted)
+		{
+			// Reported as a halt so a caller waiting on THIS registration learns the cause, while the
+			// healthy registrations above have already advanced regardless.
+			//
+			// APPLIED REFLECTS WHETHER ANY CURSOR MOVED, not whether a page was read. When the only
+			// projection on the page faulted, nothing is durably acknowledged and the honest count is
+			// zero -- the pre-change contract, and what a caller inspecting progress depends on. When a
+			// sibling DID advance, zero would understate real durable progress.
+			_healthState?.RecordHalt(name);
+			return Result(advanced ? processed : 0, ProjectionProcessingOutcome.Halted, ProjectionHaltReason.ProjectionFaulted);
+		}
+
+		if (contested)
+		{
+			return Result(processed, ProjectionProcessingOutcome.Contested, ProjectionHaltReason.None);
+		}
+
+		return Result(processed, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None);
 	}
 
 	private static void ValidateSubscriptionOptions(GlobalStreamProjectionOptions options)
@@ -301,7 +597,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 				{
 					throw new InvalidOperationException($"Asynchronous projection '{probe.ProjectionTypeName}' requires positioned writes.");
 				}
-				destinations[probe.ProjectionType] = probe.GetDestinationIdentity(scope.ServiceProvider);
+				destinations[probe.ProjectionType] = GetDestination(probe, scope.ServiceProvider);
 			}
 		}
 
@@ -327,7 +623,37 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	private static void AppendDescriptorPart(StringBuilder builder, string part) =>
 		builder.Append(part.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(part);
 
-	private readonly record struct PageResult(long Applied, long Position, ProjectionProcessingOutcome Outcome);
+	private string? GetDestination(IPositionedProjectionProbe probe, IServiceProvider provider)
+	{
+		var identity = probe.GetDestinationIdentity(provider);
+		if (_mode != ProjectionMode.Inline) { return identity; }
+		var descriptor = new StringBuilder();
+		AppendDescriptorPart(descriptor, probe.GetDestinationScope(provider) ?? string.Empty);
+		AppendDescriptorPart(descriptor, identity ?? string.Empty);
+		return descriptor.ToString();
+	}
+
+	/// <param name="Applied">Stream events in this page, including tombstones.</param>
+	/// <param name="Position">
+	/// The minimum cursor over every registration in this page: the point from which the
+	/// next page is owed, not the furthest any single projection has reached.
+	/// </param>
+	/// <param name="Outcome">Why this page stopped.</param>
+	/// <param name="HaltReason">The cause of a halt, or <see cref="ProjectionHaltReason.None"/>.</param>
+	/// <param name="Cursors">
+	/// Every registration's cursor AFTER this page. Carried rather than recomputed so a caller can test
+	/// its own required subset without a second round of store reads.
+	/// </param>
+	private readonly record struct PageResult(
+		long Applied,
+		long Position,
+		ProjectionProcessingOutcome Outcome,
+		ProjectionHaltReason HaltReason,
+		IReadOnlyDictionary<Type, long> Cursors)
+    {
+        internal IReadOnlySet<Type> Failed { get; init; } = new HashSet<Type>();
+        internal IReadOnlySet<Type> Progressed { get; init; } = new HashSet<Type>();
+    }
 
 	/// <summary>
 	/// Resolves and deserializes a stored event to a domain event, throwing on a null result rather
@@ -371,15 +697,18 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	}
 
 	/// <summary>
-	/// Dispatches domain events to all async projection registrations concurrently.
+	/// Applies a page to projection registrations concurrently and reports each registration's failure.
 	/// </summary>
 	/// <returns>
-	/// <see langword="true"/> if at least one projection's apply faulted (each projection is still
-	/// attempted — fault-independence); otherwise <see langword="false"/>. The caller MUST NOT advance the
-	/// checkpoint past a batch that reports a fault, so a failed apply is reprocessed rather than silently
-	/// skipped (read-model integrity; parity with the deserialize-poison halt and GlobalStreamProjectionHost).
+	/// Failure flags in registration order. A <see langword="true"/> entry prevents that registration's
+	/// checkpoint from advancing past the page, so its failed apply can be retried.
 	/// </returns>
-	private async Task<bool> DispatchToProjectionsAsync(
+	/// <remarks>
+	/// Every registration is attempted independently. Successful registrations can advance their own
+	/// checkpoints even when another registration fails. These outcomes describe applying the stream
+	/// page; individual read-model row positions do not establish that the whole page was processed.
+	/// </remarks>
+	private async Task<bool[]> DispatchToProjectionsAsync(
 		IReadOnlyList<ProjectionRegistration> registrations,
 		List<ProjectionEvent> domainEvents,
 		EventNotificationContext context,
@@ -406,7 +735,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			}
 		}
 
-		var anyFaulted = false;
+		var faulted = new bool[tasks.Length];
 		for (var j = 0; j < tasks.Length; j++)
 		{
 			try
@@ -420,7 +749,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 				// Fault-independence: still await every projection so an independent one is not abandoned.
 				// But REPORT the fault so the caller does not advance the checkpoint past it (halt-at-failure),
 				// preventing silent read-model drift from the event log.
-				anyFaulted = true;
+				faulted[j] = true;
 				var projectionName = registrations[j].ProjectionType.Name;
 				LogAsyncProjectionDispatchError(projectionName, ex);
 
@@ -436,7 +765,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			}
 		}
 
-		return anyFaulted;
+		return faulted;
 	}
 
 	/// <remarks>
@@ -453,13 +782,17 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		CancellationToken cancellationToken)
 	{
 		var started = _timeProvider.GetTimestamp();
+		if (registration.HandlesEvent is { } handles && !domainEvents.Any(e => handles(e.Domain.GetType())))
+		{
+			return;
+		}
 
 		await using (var scope = _serviceProvider.CreateAsyncScope())
 		{
 			foreach (var probe in scope.ServiceProvider.GetServices<IPositionedProjectionProbe>())
 			{
 				if (probe.ProjectionType == registration.ProjectionType
-					&& !string.Equals(expectedDestination, probe.GetDestinationIdentity(scope.ServiceProvider), StringComparison.Ordinal))
+					&& !string.Equals(expectedDestination, GetDestination(probe, scope.ServiceProvider), StringComparison.Ordinal))
 				{
 					throw new InvalidOperationException($"Projection '{probe.ProjectionTypeName}' changed destination between binding and applying the page.");
 				}

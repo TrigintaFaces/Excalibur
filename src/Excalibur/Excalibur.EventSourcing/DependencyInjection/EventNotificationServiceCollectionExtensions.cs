@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
@@ -64,6 +65,10 @@ public static class EventNotificationServiceCollectionExtensions
 		// The projection registration itself is deferred to startup.
 		var projectionBuilder = new ProjectionBuilder<TProjection>(builder.Services);
 		configure(projectionBuilder);
+		if (projectionBuilder.Mode == ProjectionMode.Inline)
+		{
+			InlineProjectionCoordinator.Register(builder.Services);
+		}
 
 		builder.Services.AddSingleton<IConfigureProjection>(sp =>
 		{
@@ -88,6 +93,70 @@ public static class EventNotificationServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ProjectionStoreValidator>());
 
 		return builder;
+	}
+
+    /// <summary>Registers a projection using generated metadata and an AOT-safe store capability.</summary>
+    /// <typeparam name="TProjection">Projection state type.</typeparam>
+    /// <param name="builder">Event sourcing builder.</param>
+    /// <param name="typeInfo">The same generated metadata instance supplied by the store's JSON context.</param>
+    /// <param name="configure">Projection handlers and processing mode.</param>
+    /// <returns>The builder.</returns>
+    /// <remarks>Unsupported stores or decorators are rejected; this overload never falls back to reflective persistence.</remarks>
+	public static IEventSourcingBuilder AddProjection<TProjection>(
+		this IEventSourcingBuilder builder,
+		JsonTypeInfo<TProjection> typeInfo,
+        Action<IProjectionBuilder<TProjection>> configure)
+		where TProjection : class, new()
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(typeInfo);
+
+		// Ensure event notification infrastructure is registered
+		builder.UseEventNotification();
+
+		// Run configure eagerly: WhenHandledBy registers handler types in DI via
+		// TryAddTransient, which must happen before the container is built.
+		// The projection registration itself is deferred to startup.
+		var projectionBuilder = new ProjectionBuilder<TProjection>(builder.Services);
+		configure(projectionBuilder);
+        if (projectionBuilder.Mode == ProjectionMode.Ephemeral)
+        {
+            throw new NotSupportedException("Generated projection registration supports Inline and Async persistence. Ephemeral caching does not yet consume generated metadata.");
+        }
+
+		if (projectionBuilder.Mode == ProjectionMode.Inline)
+		{
+			InlineProjectionCoordinator.Register(builder.Services);
+		}
+
+		builder.Services.AddSingleton<IConfigureProjection>(sp =>
+		{
+			return new ConfigureProjection<TProjection>(
+				() => projectionBuilder.BuildGenerated(sp.GetRequiredService<IProjectionRegistry>(), typeInfo));
+		});
+
+		// Closed over TProjection here, where the type is known, so the startup check needs no
+		// reflection and stays AOT-safe. It costs nothing unless the host requires positioned writes.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IPositionedProjectionProbe, PositionedProjectionProbe<TProjection>>());
+
+		// The same shape for the store itself, and NOT opt-in: a projection registered with nowhere to
+		// store it folds into nothing, which is wrong on every host. TryAddEnumerable de-duplicates on
+		// the implementation type, so the validator lands once however many projections are registered.
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IProjectionStoreProbe>(
+				new ProjectionStoreProbe<TProjection>(projectionBuilder.Mode)));
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, ProjectionStoreValidator>());
+		builder.Services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ProjectionStoreValidator>());
+
+        if (projectionBuilder.Mode != ProjectionMode.Ephemeral)
+        {
+            builder.Services.AddSingleton<IGeneratedProjectionValidator>(sp => new GeneratedProjectionValidator<TProjection>(sp, typeInfo));
+        }
+        return builder;
 	}
 
 	/// <summary>
@@ -136,7 +205,7 @@ public static class EventNotificationServiceCollectionExtensions
 	/// <summary>
 	/// Scans the specified assembly for types implementing
 	/// <see cref="IProjectionConfiguration{TProjection}"/> and registers each
-	/// discovered projection via <see cref="AddProjection{TProjection}"/>.
+	/// discovered projection via <see cref="AddProjection{TProjection}(IEventSourcingBuilder, Action{IProjectionBuilder{TProjection}})"/>.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <param name="assembly">The assembly to scan for projection configurations.</param>
@@ -211,7 +280,7 @@ public static class EventNotificationServiceCollectionExtensions
 
 	/// <summary>
 	/// Helper to register a discovered <see cref="IProjectionConfiguration{TProjection}"/>
-	/// via the existing <see cref="AddProjection{TProjection}"/> path.
+	/// via the existing <see cref="AddProjection{TProjection}(IEventSourcingBuilder, Action{IProjectionBuilder{TProjection}})"/> path.
 	/// </summary>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -302,32 +371,29 @@ public static class EventNotificationServiceCollectionExtensions
 	/// }));
 	/// </code>
 	/// </example>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder UseProjectionRecovery(
 		this IEventSourcingBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		builder.Services.TryAddSingleton<IProjectionRecovery>(sp =>
+		builder.Services.TryAddSingleton<ProjectionRecoveryService>(sp =>
 			new ProjectionRecoveryService(
 				sp.GetRequiredService<IProjectionRegistry>(),
 				sp.GetRequiredKeyedService<IEventStore>("default"),
 				sp.GetRequiredService<Excalibur.Dispatch.IEventSerializer>(),
 				sp,
 				sp.GetRequiredService<Logging.ILogger<ProjectionRecoveryService>>()));
+        builder.Services.TryAddSingleton<IProjectionRecovery>(sp => sp.GetRequiredService<ProjectionRecoveryService>());
 
 		return builder;
 	}
 
 	/// <summary>
 	/// Registers the event notification broker and the projection registry.
-	/// Called automatically by <see cref="AddProjection{TProjection}"/>.
+	/// Called automatically by <see cref="AddProjection{TProjection}(IEventSourcingBuilder, Action{IProjectionBuilder{TProjection}})"/>.
 	/// </summary>
 	/// <param name="builder">The event sourcing builder.</param>
 	/// <returns>The builder for fluent chaining.</returns>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public static IEventSourcingBuilder UseEventNotification(
 		this IEventSourcingBuilder builder)
 	{
@@ -425,8 +491,6 @@ public static class EventNotificationServiceCollectionExtensions
 	/// </summary>
 	internal interface IConfigureProjection
 	{
-		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 		void Configure();
 	}
 
@@ -437,21 +501,17 @@ public static class EventNotificationServiceCollectionExtensions
 	internal sealed class ConfigureProjection<TProjection> : IConfigureProjection
 		where TProjection : class, new()
 	{
-		private readonly IProjectionRegistry _registry;
-		private readonly ProjectionBuilder<TProjection> _projectionBuilder;
+		private readonly Action _configure;
 		private readonly Lock _configureGate = new();
 		private bool _configured;
 
-		internal ConfigureProjection(
-			IProjectionRegistry registry,
-			ProjectionBuilder<TProjection> projectionBuilder)
-		{
-			_registry = registry;
-			_projectionBuilder = projectionBuilder;
-		}
+        [RequiresUnreferencedCode("Legacy projection stores may serialize reflectively.")]
+        [RequiresDynamicCode("Legacy projection stores may serialize reflectively.")]
+        internal ConfigureProjection(IProjectionRegistry registry, ProjectionBuilder<TProjection> projectionBuilder)
+            : this(() => projectionBuilder.Build(registry)) { }
 
-		[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-		[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
+        internal ConfigureProjection(Action configure) => _configure = configure;
+
 		public void Configure()
 		{
 			lock (_configureGate)
@@ -461,7 +521,7 @@ public static class EventNotificationServiceCollectionExtensions
 					return;
 				}
 
-				_projectionBuilder.Build(_registry);
+				_configure();
 				_configured = true;
 			}
 		}

@@ -15,7 +15,9 @@ public sealed class DeadLetterEntry
 	public Guid Id { get; init; }
 
 	/// <summary>
-	/// Gets the type name of the original message.
+	/// Gets the original message's explicit or declared identity, or an empty string when unknown.
+	/// An unknown identity does not prevent failure capture; replay requires the configured handler
+	/// to interpret the payload and must not treat an empty identity as a routable message name.
 	/// </summary>
 	public required string MessageType { get; init; }
 

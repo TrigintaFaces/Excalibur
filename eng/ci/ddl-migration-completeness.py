@@ -124,6 +124,9 @@ import os
 import re
 import subprocess
 import sys
+import json
+import atexit
+import functools
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
@@ -196,7 +199,7 @@ def read_at(root: str, rev: str, path: str) -> str | None:
             return None
         try:
             with open(full, encoding="utf-8-sig", errors="replace") as fh:
-                return fh.read()
+                return artifact_text(path, fh.read())
         except OSError as exc:
             raise Refuse(f"cannot read {path} from the working tree: {exc}",
                          "unreadable") from exc
@@ -209,7 +212,7 @@ def read_at(root: str, rev: str, path: str) -> str | None:
         if "does not exist" in lowered or "exists on disk" in lowered:
             return None
         raise Refuse(f"cannot read {path} at {rev}: {proc.stderr.strip()}", "unreadable")
-    return proc.stdout
+    return artifact_text(path, proc.stdout)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -234,22 +237,6 @@ _ALTER_TABLE = re.compile(
     re.IGNORECASE,
 )
 
-# A table-name default on an options type. Keyed off the declared default a consumer actually gets
-# -- the same artifact-keyed approach the sibling packing gate uses -- rather than a hand-listed
-# table inventory, which is the shape that has rotted on this tree before.
-_TABLE_DEFAULT = re.compile(
-    "public\\s+string\\s+(?P<prop>\\w+)\\s*\\{\\s*get;\\s*(?:set|init);\\s*\\}\\s*=\\s*"
-    "\"(?P<name>[A-Za-z0-9_]+)\""
-)
-
-# The COMPOSED form: `public string FullFooTableName => $"{SchemaName}.{FooTableName}";`. Real stores
-# interpolate the composed property into their DDL, not the leaf one, so a resolver that understood
-# only the literal above would REFUSE on the majority of the C# limb -- an honest refusal, and a
-# useless gate. One level of indirection is not an edge case here; it is the normal spelling.
-_TABLE_EXPR = re.compile(
-    'public\\s+string\\s+(?P<prop>\\w+)\\s*=>\\s*\\$?"(?P<body>(?:[^"\\\\]|\\\\.)*)"'
-)
-
 # Words that open a TABLE-level constraint rather than a column. Anything else at the head of a
 # top-level item is a column name.
 _CONSTRAINT_HEADS = {
@@ -263,7 +250,7 @@ _BLOCK_COMMENT = re.compile("/\\*.*?\\*/", re.DOTALL)
 # pattern, not by a follow-up check, so a marker with nothing after the dash does not parse as a
 # marker at all and the finding stands.
 _PROVISIONING_ONLY = re.compile(
-    "ddl-migration:\\s*provisioning-only\\s+(?P<table>[A-Za-z0-9_{}.\\[\\]\"]+)\\s*[-:]\\s*(?P<why>\\S.*)",
+    "ddl-migration:[ \\t]*provisioning-only[ \\t]+(?P<table>[A-Za-z0-9_{}.\\[\\]\"]+)[ \\t]*[-:][ \\t]*(?P<why>[^\\s\\r\\n][^\\r\\n]*)",
     re.IGNORECASE,
 )
 
@@ -393,7 +380,7 @@ def parse_tables(text: str, where: str) -> dict[str, Table]:
     return out
 
 
-def resolve(key: str, defaults: "Defaults", fields: dict[str, str], setvars: "dict[str, str] | None" = None) -> str | None:
+def resolve(key: str, defaults: "Defaults", fields: dict[str, str | None], setvars: "dict[str, str] | None" = None) -> str | None:
     """`{_options.RegistrationsTableName}` -> `DataInventoryRegistrations`, or None if unresolvable.
 
     Resolution is scoped to the DECLARING TYPE, not to the package. Property names are not unique
@@ -418,12 +405,14 @@ def resolve(key: str, defaults: "Defaults", fields: dict[str, str], setvars: "di
     resolved = key
     for hole in re.findall("[{][^{}]*[}]", key):
         segments = [x.strip() for x in hole.strip("{}").split(".")]
+        if len(segments) > 2:
+            return None  # Intermediate member types have not been resolved.
         prop = segments[-1]
         owner = fields.get(segments[0]) if len(segments) > 1 else None
         value = None
         if owner and owner in defaults.by_type and prop in defaults.by_type[owner]:
             value = defaults.by_type[owner][prop]
-        elif prop in defaults.unambiguous:
+        elif len(segments) == 1 and prop in defaults.unambiguous:
             value = defaults.unambiguous[prop]
         if value is None:
             return None
@@ -471,11 +460,6 @@ def package_dir(root: str, path: str) -> str | None:
     return None
 
 
-def unescape_csharp(body: str) -> str:
-    """C# string-literal escapes -> the characters they denote."""
-    return body.replace('\\"', '"').replace('\\\\', '\\')
-
-
 class Defaults:
     """Table-name defaults, per declaring type, plus the package-wide UNAMBIGUOUS subset.
 
@@ -489,20 +473,6 @@ class Defaults:
     def __init__(self, by_type: dict[str, dict[str, str]], unambiguous: dict[str, str]) -> None:
         self.by_type = by_type
         self.unambiguous = unambiguous
-
-
-_CLASS_DECL = re.compile("(?:class|record|struct)\\s+(?P<name>\\w+)")
-
-
-def _declaring_type(text: str, position: int) -> str:
-    """The nearest enclosing type declaration before `position`, or "" when there is none."""
-    name = ""
-    for match in _CLASS_DECL.finditer(text, 0, position):
-        name = match.group("name")
-    return name
-
-
-_FIELD_DECL = re.compile("(?P<type>\\w+)\\s+(?P<field>_\\w+)\\s*[;=)]")
 
 
 def sqlcmd_vars(text: str) -> dict[str, str]:
@@ -521,47 +491,117 @@ def sqlcmd_vars(text: str) -> dict[str, str]:
     return out
 
 
-def field_types(text: str) -> dict[str, str]:
-    """field name -> declared type, for the fields an interpolation hole names.
+_compiler = None
 
-    `private readonly SqlServerLegalHoldStoreOptions _options;` is what tells the resolver WHICH
-    class's `TableName` a `{_options.TableName}` means.
-    """
-    out: dict[str, str] = {}
-    for match in _FIELD_DECL.finditer(text):
-        out.setdefault(match.group("field"), match.group("type"))
+
+@functools.lru_cache(maxsize=4096)
+def csharp_facts(source: str):
+    global _compiler
+    if _compiler is None:
+        dll = os.path.join(REPO, "eng", "tools", "RepositoryChecks", "bin", "Release", "net10.0", "RepositoryChecks.dll")
+        if not os.path.isfile(dll):
+            raise Refuse("Build RepositoryChecks before checking C# DDL")
+        _compiler = subprocess.Popen(["dotnet", dll, "--ddl-facts"], stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, text=True, encoding="utf-8")
+        atexit.register(_compiler.terminate)
+    _compiler.stdin.write(json.dumps(source) + "\n")
+    _compiler.stdin.flush()
+    response = _compiler.stdout.readline()
+    if not response:
+        raise Refuse("C# DDL compiler stopped without a response")
+    facts = json.loads(response)
+    if "error" in facts:
+        raise Refuse("C# DDL extraction: " + facts["error"], "C# extraction incomplete")
+    return facts
+
+
+class CSharpSql(str):
+    def __new__(cls, source):
+        facts = csharp_facts(source)
+        instance = super().__new__(cls, "\n".join(facts["sql"] + facts["comments"]))
+        instance.facts = facts
+        return instance
+
+
+def artifact_text(path, source):
+    return CSharpSql(source) if path.lower().endswith(".cs") else source
+
+
+def field_types(text: str) -> dict[str, str | None]:
+    out = {}
+    for field in getattr(text, "facts", {}).get("fields", []):
+        if field["name"] in out and out[field["name"]] != field["type"]:
+            # Preserve ambiguity only for SQL holes that actually reference this field.
+            out[field["name"]] = None
+            continue
+        out[field["name"]] = field["type"]
     return out
 
 
-def package_defaults(root: str, pkgdir: str) -> Defaults:
-    """Declared table-name defaults across a package, attributed to the type that declares them.
+def historical_sources(root, revision, relative):
+    """Read a revision's package blobs in one Git batch; validate every framed response."""
+    entries = []
+    for entry in git(root, "ls-tree", "-r", "-z", revision, "--", relative).split("\0"):
+        if not entry:
+            continue
+        metadata, separator, path = entry.partition("\t")
+        mode, kind, oid = metadata.split()
+        if path.endswith(".cs"):
+            if not separator or kind != "blob":
+                raise Refuse("Unsupported historical C# entry: " + path)
+            entries.append((oid, path))
+    if not entries:
+        return {}
+    result = subprocess.run(["git", "-C", root, "cat-file", "--batch"],
+                            input="".join(oid + "\n" for oid, _ in entries).encode("ascii"), capture_output=True)
+    if result.returncode:
+        raise Refuse("Historical package blob read failed: " + result.stderr.decode("utf-8", errors="replace"))
+    offset, sources = 0, {}
+    for expected, path in entries:
+        end = result.stdout.find(b"\n", offset)
+        header = result.stdout[offset:end].decode("ascii").split()
+        if end < offset or len(header) != 3 or header[:2] != [expected, "blob"]:
+            raise Refuse("Invalid historical blob response for " + path)
+        size = int(header[2]); offset = end + 1
+        content = result.stdout[offset:offset + size]
+        if len(content) != size or result.stdout[offset + size:offset + size + 1] != b"\n":
+            raise Refuse("Truncated historical blob: " + path)
+        sources[path] = artifact_text(path, content.decode("utf-8-sig", errors="strict"))
+        offset += size + 1
+    if offset != len(result.stdout):
+        raise Refuse("Unexpected historical blob response tail")
+    return sources
 
-    Two shapes, because both appear in shipped stores: a literal default, and a composed property
-    built from other properties. The composed ones are resolved to a fixpoint so that
-    `FullDiscoveredLocationsTableName` reaches an actual name rather than another hole.
-    """
+
+@functools.lru_cache(maxsize=1024)
+def package_defaults(root: str, pkgdir: str, revision=WORKING_TREE) -> Defaults:
+    """Read declarations from the actual revision being compared, never today's options for old DDL."""
     literals: dict[str, dict[str, str]] = {}
     exprs: dict[str, dict[str, str]] = {}
-    for dirpath, dirnames, filenames in os.walk(pkgdir):
-        dirnames[:] = [d for d in dirnames if d not in ("obj", "bin")]
-        for name in filenames:
-            if not name.lower().endswith(".cs"):
+    unresolved = set()
+    relative = os.path.relpath(pkgdir, root).replace(os.sep, "/")
+    if revision == WORKING_TREE:
+        files = []
+        for directory, dirs, names in os.walk(pkgdir):
+            dirs[:] = [d for d in dirs if d not in ("obj", "bin")]
+            files.extend(os.path.relpath(os.path.join(directory, name), root).replace(os.sep, "/")
+                         for name in names if name.endswith(".cs"))
+    else:
+        snapshots = historical_sources(root, revision, relative)
+        files = list(snapshots)
+    for path in files:
+        text = read_at(root, revision, path) if revision == WORKING_TREE else snapshots[path]
+        if text is None:
+            raise Refuse("Missing inventoried source: " + path)
+        for prop in text.facts["properties"]:
+            owner, name, value = prop["owner"], prop["name"], prop["value"]
+            if value is None:
+                unresolved.add(name)
                 continue
-            try:
-                with open(os.path.join(dirpath, name), encoding="utf-8-sig", errors="replace") as fh:
-                    text = fh.read()
-            except OSError:
-                continue
-            for match in _TABLE_DEFAULT.finditer(text):
-                owner = _declaring_type(text, match.start())
-                literals.setdefault(owner, {}).setdefault(match.group("prop"), match.group("name"))
-            for match in _TABLE_EXPR.finditer(text):
-                owner = _declaring_type(text, match.start())
-                # The composed body is C# source, so a quoted identifier reaches us escaped. Left
-                # escaped, the table key resolves to a lone backslash -- a confident finding about a
-                # table that does not exist, which reads exactly like a working gate.
-                body = unescape_csharp(match.group("body"))
-                exprs.setdefault(owner, {}).setdefault(match.group("prop"), body)
+            previous = exprs.setdefault(owner, {}).get(name)
+            if previous is not None and previous != value:
+                raise Refuse("Conflicting C# property defaults: " + owner + "." + name)
+            exprs[owner][name] = value
 
     by_type: dict[str, dict[str, str]] = {t: dict(v) for t, v in literals.items()}
     for owner, props in exprs.items():
@@ -591,10 +631,17 @@ def package_defaults(root: str, pkgdir: str) -> Defaults:
     for props in by_type.values():
         for prop, value in props.items():
             seen.setdefault(prop, set()).add(value)
-    unambiguous = {p: next(iter(v)) for p, v in seen.items() if len(v) == 1}
+    unambiguous = {p: next(iter(v)) for p, v in seen.items() if len(v) == 1 and p not in unresolved}
+    aliases = {}
+    for owner in by_type:
+        aliases.setdefault(owner.rsplit(".", 1)[-1], []).append(owner)
+    for alias, owners in aliases.items():
+        if len(owners) == 1:
+            by_type.setdefault(alias, by_type[owners[0]])
     return Defaults(by_type, unambiguous)
 
 
+@functools.lru_cache(maxsize=256)
 def package_alter_index(root: str, pkgdir: str, defaults: "Defaults") -> dict[str, str]:
     """table (upper) -> concatenated text of every ALTER TABLE on it, across the CURRENT package.
 
@@ -610,7 +657,7 @@ def package_alter_index(root: str, pkgdir: str, defaults: "Defaults") -> dict[st
                 continue
             try:
                 with open(os.path.join(dirpath, name), encoding="utf-8-sig", errors="replace") as fh:
-                    raw = fh.read()
+                    raw = artifact_text(name, fh.read())
                 text = strip_comments(raw)
             except OSError:
                 continue
@@ -693,7 +740,7 @@ def constraint_columns(text: str) -> list[str]:
 
 
 def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
-                   label: str) -> list[Finding]:
+                   label: str, before_rev=WORKING_TREE, after_rev=WORKING_TREE) -> list[Finding]:
     """One artifact, one step of history. Raises Refuse when it cannot be evaluated."""
     if after is None or before is None:
         # Deleted, or brand new. A script with no previous shipped content has nothing to migrate
@@ -712,6 +759,8 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
         raise Refuse(f"cannot attribute {path} to a package (no .csproj above it)",
                      "unattributable to a package")
     defaults = package_defaults(root, pkgdir)
+    before_defaults = package_defaults(root, pkgdir, before_rev)
+    after_defaults = package_defaults(root, pkgdir, after_rev)
     alters = package_alter_index(root, pkgdir, defaults)
     fields = field_types(after)
     setvars = sqlcmd_vars(after)
@@ -730,12 +779,29 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
         sources.append((current, field_types(current), sqlcmd_vars(current)))
 
     declared: dict[str, str] = {}
+    declared_templates: dict[str, str] = {}
     for content, content_fields, content_setvars in sources:
         for match in _PROVISIONING_ONLY.finditer(content):
-            resolved = resolve(table_key(match.group("table")), defaults,
+            raw = table_key(match.group("table"))
+            resolved = resolve(raw, defaults,
                                content_fields, content_setvars)
             if resolved is not None:
-                declared[resolved.upper()] = match.group("why").strip()
+                declared[table_key(resolved).upper()] = match.group("why").strip()
+            elif raw in parse_tables(content, path) and sum(
+                table_key(item.group("name")) == raw
+                for item in _CREATE_TABLE.finditer(strip_comments(content))
+            ) == 1:
+                # A provisioning-only declaration names an explicit reset contract, not a
+                # physical-table inference. Match the exact template spelling, never a guessed
+                # default, case-folded C# parameter, or another table sharing its prefix.
+                holes = re.findall(r"\{([^{}]+)\}", raw)
+                if holes and all(re.fullmatch(r"[A-Za-z0-9_]+", hole) for hole in holes):
+                    ambiguous = any(
+                        len({props[hole] for props in defaults.by_type.values() if hole in props}) > 1
+                        for hole in holes
+                    )
+                    if not ambiguous:
+                        declared_templates[raw] = match.group("why").strip()
 
     findings: list[Finding] = []
 
@@ -750,11 +816,17 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
             constraint_signature(item) for item in left.constraints
         } == {constraint_signature(item) for item in right.constraints}
 
-    def resolved_tables(tables: dict[str, Table], content: str) -> dict[str, tuple[str, Table]]:
+    def resolved_tables(tables: dict[str, Table], content: str, side_defaults: Defaults) -> dict[str, tuple[str, Table]]:
         resolved_side: dict[str, tuple[str, Table]] = {}
         for raw, shape in sorted(tables.items()):
-            identity = resolve(raw, defaults, field_types(content), sqlcmd_vars(content))
+            identity = resolve(raw, side_defaults, field_types(content), sqlcmd_vars(content))
             if identity is None:
+                if raw in declared_templates:
+                    if sum(table_key(item.group("name")) == raw
+                           for item in _CREATE_TABLE.finditer(strip_comments(content))) != 1:
+                        raise identity_refusal(raw)
+                    print(f"provisioning-only: {path}: {raw}: {declared_templates[raw]}")
+                    continue
                 # Unchanged placeholders are a documented coverage limitation, not evidence of a
                 # migration defect. A meaningful change or changed spelling cannot use this escape.
                 other = new_tables if tables is old_tables else old_tables
@@ -775,8 +847,8 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
 
     # Resolve both sides before matching. SQLCMD spellings can change while naming the same table;
     # matching raw text first would incorrectly treat the narrowed schema as a brand-new table.
-    old_resolved = resolved_tables(old_tables, before)
-    new_resolved = resolved_tables(new_tables, after)
+    old_resolved = resolved_tables(old_tables, before, before_defaults)
+    new_resolved = resolved_tables(new_tables, after, after_defaults)
     for table, (resolved, new_table) in sorted(new_resolved.items()):
         if table not in old_resolved:
             continue
@@ -820,7 +892,6 @@ _TABLE_PROBE = re.compile(
 # The advertised surface: a member whose NAME promises the consumer a schema verification. Keyed on
 # the promise rather than on a probe, because the defect is the gap between what is advertised and
 # what is checked.
-_VERIFY_SURFACE = re.compile("Verify\\w*Schema")
 
 # Probes that answer "does the COLUMN exist". Any one of these makes the verification able to fail
 # on a stale schema, which is the property being required.
@@ -853,7 +924,8 @@ def check_verifications(root: str, out, err) -> tuple[int, list[str]]:
                     text = fh.read()
             except OSError:
                 continue
-            body = strip_comments(text)
+            facts = csharp_facts(text)
+            body = "\n".join(facts["sql"])
             if not _CREATE_TABLE.search(body):
                 continue
             # The population is the ADVERTISED check, not every file that happens to probe a
@@ -862,12 +934,13 @@ def check_verifications(root: str, out, err) -> tuple[int, list[str]]:
             # cries wolf is suppressed, at which point it protects nothing. What the consumer is
             # promised -- and what certifies a broken database as healthy -- is a store that
             # advertises "verify the schema is present, else fail fast".
-            if not _VERIFY_SURFACE.search(body):
-                continue
-            if not _TABLE_PROBE.search(body):
+            if any(not (_TABLE_PROBE.search(probe) or _COLUMN_PROBE.search(probe)) for probe in facts["verifications"]):
+                raise Refuse("Unresolved schema verifier in " + os.path.relpath(full, root))
+            probes = [probe for probe in facts["verifications"] if _TABLE_PROBE.search(probe)]
+            if not probes:
                 continue
             examined += 1
-            if not _COLUMN_PROBE.search(body):
+            if any(not _COLUMN_PROBE.search(probe) for probe in probes):
                 rel = os.path.relpath(full, root).replace(os.sep, "/")
                 pkg = package_of(root, rel) or "?"
                 findings.append(f"{pkg}:verify-is-existence-only:{os.path.basename(rel)}")
@@ -948,7 +1021,7 @@ def scan_step(root: str, before_rev: str, after_rev: str,
                 continue
             before = read_at(root, before_rev, path)
             evaluated += 1
-            findings.extend(evaluate_delta(root, path, before, after, label))
+            findings.extend(evaluate_delta(root, path, before, after, label, before_rev, after_rev))
         except Refuse as exc:
             refusals.append(f"refuse:{path}:{exc.reason}")
     return findings, evaluated, refusals
@@ -956,6 +1029,8 @@ def scan_step(root: str, before_rev: str, after_rev: str,
 
 def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
          head: str | None = None) -> int:
+    package_defaults.cache_clear()
+    package_alter_index.cache_clear()
     root = repo_root()
     # The resolved subject is part of the finding, not context. A count with no stated subject
     # cannot be reproduced or challenged, and a positive control passes just as happily against the
@@ -1015,7 +1090,11 @@ def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
     for key in sorted(set(refusals)):
         seen.setdefault(key, "could not be evaluated")
 
-    verify_examined, verify_findings = check_verifications(root, out, err)
+    try:
+        verify_examined, verify_findings = check_verifications(root, out, err)
+    except Refuse as exc:
+        print("::error:: REFUSE - " + str(exc), file=err)
+        return 2
     for key in verify_findings:
         seen.setdefault(key, "schema verification probes table existence only")
 
@@ -1030,6 +1109,9 @@ def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
           f"unmigrated in-place deltas={unmigrated}  "
           f"verify gaps={len(verify_findings)}  not evaluated={len(set(refusals))}  "
           f"baselined={len(baseline)}  new={len(fresh)}  stale-baseline={len(stale)}", file=out)
+    if base is None and stale:
+        for key in stale:
+            print(f"stale-baseline: {key}", file=out)
 
     if unrecorded:
         print(f"::error:: REFUSE - {len(unrecorded)} artifact(s) could not be evaluated and are not "
@@ -1414,6 +1496,9 @@ def self_test() -> int:
     tight_after = tight_before.replace("UNIQUE(Id)", "UNIQUE(Id, TenantId)")
     ambiguous_before = 'CREATE TABLE [{TableName}] (Id INT NOT NULL, TenantId INT NULL);'
     ambiguous_after = ambiguous_before.replace("TenantId INT NULL", "TenantId INT NOT NULL")
+    def cs_literal(sql_text):
+        return "public static class Ddl { public const string Sql = " + json.dumps(sql_text) + "; }"
+
     ambiguous_defaults = '''
 public class InboxOptions { public string TableName { get; set; } = "Inbox"; }
 public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
@@ -1428,6 +1513,32 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
 
     # (label, v1, v2, baseline entries, expected exit, commit v2?)
     arms: list[tuple[str, dict[str, str], dict[str, str], set[str], int, bool]] = [
+        ("LIVENESS exact template reset declaration is honored",
+         {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {table} - fresh provisioning required\n" + unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 0, True),
+        ("SAFETY template change without reset declaration refuses",
+         {sql: unresolved}, {sql: unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 2, True),
+        ("SAFETY another template declaration cannot waive this table",
+         {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {other} - fresh provisioning required\n" + unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 2, True),
+        ("SAFETY template parameter spelling is case sensitive",
+         {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {Table} - fresh provisioning required\n" + unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 2, True),
+        ("SAFETY reset declaration without reason cannot waive a table",
+         {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {table} - \n" + unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 2, True),
+        ("SAFETY declaration cannot choose an ambiguous option default",
+         {cs: ambiguous_defaults + cs_literal(ambiguous_before)}, {cs: ambiguous_defaults + "// ddl-migration: provisioning-only {TableName} - fresh provisioning required\n" + cs_literal(ambiguous_after)}, set(), 2, True),
+        ("LIVENESS ordinal format template reset is honored",
+         {cs: cs_literal(unresolved.replace("{table}", "{1}"))}, {cs: "// ddl-migration: provisioning-only {1} - fresh provisioning required\n" + cs_literal(unresolved.replace("{table}", "{1}").replace("INT NULL", "INT NOT NULL"))}, set(), 0, True),
+        ("LIVENESS declared new companion preserves base-table checks",
+         {sql: unresolved}, {sql: unresolved + "\n-- ddl-migration: provisioning-only {table}Definitions - additive companion\nCREATE TABLE [{table}Definitions] (Hash TEXT NOT NULL);"}, set(), 0, True),
+        ("SAFETY companion declaration cannot waive changed base table",
+         {sql: unresolved}, {sql: unresolved.replace("INT NULL", "INT NOT NULL") + "\n-- ddl-migration: provisioning-only {table}Definitions - additive companion\nCREATE TABLE [{table}Definitions] (Hash TEXT NOT NULL);"}, set(), 2, True),
+        ("SAFETY template reset cannot waive a concrete sibling delta",
+         {sql: unresolved + _V1_SQL}, {sql: "-- ddl-migration: provisioning-only {table} - fresh provisioning required\n" + unresolved.replace("INT NULL", "INT NOT NULL") + _V2_SQL_ADDS_COLUMN}, set(), 1, True),
+        ("SAFETY template declaration cannot choose between definitions",
+         {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {table} - fresh provisioning required\n" + unresolved + unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 2, True),
+        ("SAFETY template declaration cannot collapse schema owners",
+         {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {table} - fresh provisioning required\n" + unresolved.replace("[{table}]", "[a].[{table}]") + unresolved.replace("[{table}]", "[b].[{table}]").replace("INT NULL", "INT NOT NULL")}, set(), 2, True),
+        ("SAFETY current reset cannot hide ambiguous predecessor definitions",
+         {sql: unresolved + unresolved.replace("INT NULL", "INT NOT NULL")}, {sql: "-- ddl-migration: provisioning-only {table} - fresh provisioning required\n" + unresolved}, set(), 2, True),
         ("LIVENESS tight to spaced UNIQUE and CHECK is cosmetic",
          {sql: tight_before}, {sql: tight_before.replace("CHECK(", "CHECK (").replace("UNIQUE(", "UNIQUE (")}, set(), 0, True),
         ("LIVENESS spaced to tight UNIQUE and CHECK is cosmetic",
@@ -1550,6 +1661,35 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
         ("REFUSE   an empty population is NOT a pass",
          {sql: _V1_SQL}, {sql: _V1_SQL}, set(), 2, True),
     ]
+
+    arms.extend([
+        ("LIVENESS unrelated ambiguous fields do not poison literal SQL",
+         {sql: _V1_SQL, cs: 'class First { string _logger; } class Second { int _logger; }'},
+         {sql: _V2_SQL_COMMENT_ONLY, cs: 'class First { string _logger; } class Second { int _logger; }'}, set(), 0, True),
+        ("REFUSE nested receiver cannot skip an unresolved intermediate property",
+         {cs: _V1_CS.replace('_options.RegistrationsTableName', '_options.Inner.RegistrationsTableName')},
+         {cs: _V2_CS_ADDS_COLUMN_AND_KEY.replace('_options.RegistrationsTableName', '_options.Inner.RegistrationsTableName')}, set(), 2, True),
+        ("REFUSE SQL receiver ambiguity cannot borrow either owner's defaults",
+         {cs: _V1_CS + 'class Other { string _options; }'},
+         {cs: _V2_CS_ADDS_COLUMN_AND_KEY + 'class Other { string _options; }'}, set(), 2, True),
+        ("LIVENESS qualified resolved declaration matches normalized table",
+         {cs: _V1_CS.replace('"ExampleRegistrations"', '"[compliance].[ExampleRegistrations]"')},
+         {cs: '// ddl-migration: provisioning-only {_options.RegistrationsTableName} - Fresh schema required\n' + _V2_CS_ADDS_COLUMN_AND_KEY.replace('"ExampleRegistrations"', '"[compliance].[ExampleRegistrations]"')}, set(), 0, True),
+        ("SAFETY qualified declaration for another table cannot excuse delta",
+         {cs: _V1_CS.replace('"ExampleRegistrations"', '"[compliance].[ExampleRegistrations]"')},
+         {cs: '// ddl-migration: provisioning-only Other - Fresh schema required\n' + _V2_CS_ADDS_COLUMN_AND_KEY.replace('"ExampleRegistrations"', '"[compliance].[ExampleRegistrations]"')}, set(), 1, True),
+        ("SAFETY historical defaults cannot borrow today's migration",
+         {cs: _V1_CS}, {cs: _V2_CS_ADDS_COLUMN_AND_KEY}, set(), 1, True,
+         {cs: _V2_CS_ADDS_COLUMN_AND_KEY.replace('"ExampleRegistrations"', '"DifferentTable"'),
+          migration: "ALTER TABLE DifferentTable ADD TenantId NVARCHAR(255); ALTER TABLE DifferentTable ADD PRIMARY KEY(TableName, FieldName, TenantId);"}),
+        ("REFUSE unknown owner default cannot borrow another owner's table",
+         {cs: _V1_CS.replace('= "ExampleRegistrations";', '= Unknown();') + 'public class OtherOptions { public string RegistrationsTableName {get;set;} = "Other"; }'},
+         {cs: _V2_CS_ADDS_COLUMN_AND_KEY.replace('= "ExampleRegistrations";', '= Unknown();') + 'public class OtherOptions { public string RegistrationsTableName {get;set;} = "Other"; }',
+          migration: "ALTER TABLE Other ADD TenantId NVARCHAR(255);"}, set(), 2, True),
+        ("SAFETY unrelated column helper cannot certify table-only verifier",
+         {sql: _V1_SQL, verify: _VERIFY_EXISTENCE_ONLY_CS.replace('private static Task Query', 'private string Unused() => "sys.columns"; private static Task Query')},
+         {sql: _V2_SQL_COMMENT_ONLY, verify: _VERIFY_EXISTENCE_ONLY_CS.replace('private static Task Query', 'private string Unused() => "sys.columns"; private static Task Query')}, set(), 1, True),
+    ])
 
     print("self-test: proving this gate can report FAIL, PASS and REFUSE")
     failures = 0

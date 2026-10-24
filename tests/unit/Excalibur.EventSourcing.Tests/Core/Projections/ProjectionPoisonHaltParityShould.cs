@@ -44,7 +44,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		var poison = new StoredEvent(
 			"evt-poison", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow)
 		{
-			GlobalPosition = 5,
+			GlobalPosition = 1,
 		};
 		var deserializeObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -191,7 +191,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		var evt = new StoredEvent(
 			"evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow)
 		{
-			GlobalPosition = 5,
+			GlobalPosition = 1,
 		};
 		var applyObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

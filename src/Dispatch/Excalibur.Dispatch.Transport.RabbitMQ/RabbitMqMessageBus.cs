@@ -200,16 +200,14 @@ internal sealed partial class RabbitMqMessageBus(
 		// The declared name, not the CLR FullName. This value becomes the CloudEvent type attribute on a
 		// message leaving the process -- often to another organisation's broker -- and a FullName carries
 		// the namespace and assembly, so a consumer refactoring their own code changes the string the
-		// far side matches on. GetDeclaredName rather than GetName because GetName THROWS for a type
-		// declaring no name and a publish must not start failing for a message that has always published.
-		// Both forms resolve on receipt: the type registry claims a type under its declared name AND its
-		// CLR forms, so this needs no migration.
+		// far side matches on. Require a declared name before allocating or publishing the envelope.
 		//
 		// The context still wins where it has a value: on a receive-then-re-emit round trip it holds the
 		// ORIGINATING publisher's type string, and restating that as our own name would rewrite another
 		// organisation's event identity. CloudEventEnvelopeConverter makes the same call for the same
 		// reason.
 		var messageClrType = message.GetType();
+		var messageName = context.GetMessageType() ?? MessageNameHelper.GetName(messageClrType);
 
 		var envelope = new MessageEnvelope(message)
 		{
@@ -220,9 +218,7 @@ internal sealed partial class RabbitMqMessageBus(
 			CausationId = context.CausationId,
 			TraceParent = context.GetTraceParent(),
 			TenantId = context.GetTenantId(),
-			MessageType = context.GetMessageType()
-				?? MessageNameHelper.GetDeclaredName(messageClrType)
-				?? messageClrType.FullName,
+			MessageType = messageName,
 			ContentType = context.GetContentType() ?? "application/json",
 			DeliveryCount = context.GetDeliveryCount(),
 			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,

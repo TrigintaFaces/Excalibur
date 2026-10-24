@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Dapper;
+using Excalibur.EventSourcing.SqlServer.Requests;
 
 using Excalibur.Data.Validation;
 
@@ -147,10 +148,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var json = await connection.QuerySingleOrDefaultAsync<string>(
+		var json = await SqlServerParameterSet.QuerySingleOrDefaultAsync<string>(connection,
 			new CommandDefinition(
 				sql,
-				new { TenantId = ResolveTenantKey(), ViewName = viewName, ViewId = viewId },
+				SqlServerParameterSet.Create(("TenantId", ResolveTenantKey()), ("ViewName", viewName), ("ViewId", viewId)),
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -194,10 +195,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
+		_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 			new CommandDefinition(
 				sql,
-				new { TenantId = ResolveTenantKey(), ViewName = viewName, ViewId = viewId, Data = json, UpdatedAt = now },
+				SqlServerParameterSet.Create(("TenantId", ResolveTenantKey()), ("ViewName", viewName), ("ViewId", viewId), ("Data", json), ("UpdatedAt", now)),
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -221,12 +222,12 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var rowsAffected = await connection.ExecuteAsync(
+		var rowsAffected = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 			new CommandDefinition(
 				sql,
 				// The tenant term is not optional on a delete: without it this statement removes whichever tenant
 				// happens to hold that (ViewName, ViewId), which is not necessarily the caller.
-				new { TenantId = ResolveTenantKey(), ViewName = viewName, ViewId = viewId },
+				SqlServerParameterSet.Create(("TenantId", ResolveTenantKey()), ("ViewName", viewName), ("ViewId", viewId)),
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -253,10 +254,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var position = await connection.QuerySingleOrDefaultAsync<long?>(
+		var position = await SqlServerParameterSet.QuerySingleOrDefaultAsync<long?>(connection,
 			new CommandDefinition(
 				sql,
-				new { TenantId = ResolveTenantKey(), ViewName = viewName },
+				SqlServerParameterSet.Create(("TenantId", ResolveTenantKey()), ("ViewName", viewName)),
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -305,10 +306,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		// The MERGE matches no row when the stored checkpoint is already at or beyond `position`, so the
 		// affected-row count IS the outcome. It used to be discarded and the save logged unconditionally,
 		// which reported a write that the monotonic guard had refused.
-		var affected = await connection.ExecuteAsync(
+		var affected = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 			new CommandDefinition(
 				sql,
-				new { TenantId = ResolveTenantKey(), ViewName = viewName, Position = position, UpdatedAt = now },
+				SqlServerParameterSet.Create(("TenantId", ResolveTenantKey()), ("ViewName", viewName), ("Position", position), ("UpdatedAt", now)),
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
@@ -335,10 +336,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
+		_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 			new CommandDefinition(
 				sql,
-				new { TenantId = ResolveTenantKey(), ViewName = viewName },
+				SqlServerParameterSet.Create(("TenantId", ResolveTenantKey()), ("ViewName", viewName)),
 				cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 	}
@@ -401,10 +402,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 
 		try
 		{
-			_ = await connection.ExecuteAsync(
+			_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 				new CommandDefinition(
 					viewSql,
-					new { TenantId = tenantKey, ViewName = viewName, ViewId = viewId, Data = json, UpdatedAt = now },
+					SqlServerParameterSet.Create(("TenantId", tenantKey), ("ViewName", viewName), ("ViewId", viewId), ("Data", json), ("UpdatedAt", now)),
 					transaction,
 					cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
@@ -414,10 +415,10 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 				await OnAfterViewBeforePositionAsync(cancellationToken).ConfigureAwait(false);
 			}
 
-			_ = await connection.ExecuteAsync(
+			_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 				new CommandDefinition(
 					positionSql,
-					new { TenantId = tenantKey, ViewName = viewName, Position = position, UpdatedAt = now },
+					SqlServerParameterSet.Create(("TenantId", tenantKey), ("ViewName", viewName), ("Position", position), ("UpdatedAt", now)),
 					transaction,
 					cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
@@ -521,7 +522,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
+		_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 			new CommandDefinition(sql, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 

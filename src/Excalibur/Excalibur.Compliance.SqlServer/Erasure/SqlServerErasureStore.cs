@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+// ddl-migration: provisioning-only {_options.FullRequestsTableName} - Earlier alpha tenant identity and partition schemas require fresh provisioning; preserve the earlier schema separately.
+// ddl-migration: provisioning-only {_options.FullDestroyedKeysTableName} - Earlier alpha ledger identities require a new schema; no record is deleted or backfilled.
+
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
@@ -1247,9 +1250,9 @@ public sealed partial class SqlServerErasureStore
 					+ "the package ships the migration that adds them -- apply "
 					+ "'003_ReplaceLegalBasisColumns.sql' and restart. For any other missing column we ship no "
 					+ "alter script: the create scripts already declare them, so a freshly provisioned database "
-					+ "is correct and only a pre-existing one reaches this. Either re-provision from the shipped "
-					+ "create script, or add the listed column(s) by hand with a NOT NULL default matching a "
-					+ "never-updated row. Then restart.")
+					+ "is correct and only a pre-existing one reaches this. Provision a new compliance schema from the shipped "
+					+ "create script. Preserve the earlier schema and its destruction evidence; "
+					+ "arbitrary defaults cannot safely backfill tenant identity. Then restart.")
 				{
 					TableName = tableName,
 				};

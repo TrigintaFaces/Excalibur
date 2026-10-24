@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Collections.Frozen;
-using System.Reflection;
 
 using Excalibur.Dispatch;
 using Excalibur.Dispatch.Caching;
@@ -178,21 +176,21 @@ public sealed class MessageTypeCacheShould : IDisposable
 	// ---- ResolveType ----
 
 	[Fact]
-	public void ResolveType_ByFullName_ReturnsType()
+	public void ResolveType_ByDeclaredName_ReturnsType()
 	{
 		MessageTypeCache.Initialize([typeof(SampleEvent)]);
 
-		var resolved = MessageTypeCache.ResolveType(typeof(SampleEvent).FullName!);
+		var resolved = MessageTypeCache.ResolveType("cache.event");
 
 		resolved.ShouldBe(typeof(SampleEvent));
 	}
 
 	[Fact]
-	public void ResolveType_BySimpleName_ReturnsType()
+	public void ResolveType_ByDeclaredAlias_ReturnsType()
 	{
 		MessageTypeCache.Initialize([typeof(SampleEvent)]);
 
-		var resolved = MessageTypeCache.ResolveType(nameof(SampleEvent));
+		var resolved = MessageTypeCache.ResolveType("cache.legacy-event");
 
 		resolved.ShouldBe(typeof(SampleEvent));
 	}
@@ -222,35 +220,51 @@ public sealed class MessageTypeCacheShould : IDisposable
 	}
 
 	[Fact]
-	public void ResolveType_SimpleNameCollision_FirstRegisteredWins()
+	public void NeverResolveUndeclaredClrNames()
 	{
-		// Both types share simple name "SampleEvent" but different full names.
-		// Initialize iterates in order; TryAdd for simple name means the first one wins.
 		MessageTypeCache.Initialize([typeof(SampleEvent), typeof(SampleCommand)]);
+		MessageTypeCache.ResolveType(typeof(SampleEvent).FullName!).ShouldBeNull();
+		MessageTypeCache.ResolveType(nameof(SampleEvent)).ShouldBeNull();
+	}
 
-		// Simple name resolves
-		var bySimple = MessageTypeCache.ResolveType(nameof(SampleEvent));
-		bySimple.ShouldBe(typeof(SampleEvent));
+	[Fact]
+	public void ReturnNullForUnnamedLocalMessages() => MessageTypeCache.GetTypeName(typeof(FallbackType)).ShouldBeNull();
 
-		// Full names resolve independently
-		MessageTypeCache.ResolveType(typeof(SampleEvent).FullName!).ShouldBe(typeof(SampleEvent));
-		MessageTypeCache.ResolveType(typeof(SampleCommand).FullName!).ShouldBe(typeof(SampleCommand));
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void RejectEveryDeclaredIdentityCollisionBeforePublishingAndAllowRetry(bool reverse)
+	{
+		foreach (var pair in new[]
+		{
+			new[] { typeof(CanonicalA), typeof(CanonicalB) },
+			new[] { typeof(CanonicalA), typeof(AliasA) },
+			new[] { typeof(AliasA), typeof(AliasB) },
+		})
+		{
+			MessageTypeCache.Reset();
+			Should.Throw<InvalidOperationException>(() => MessageTypeCache.Initialize(reverse ? pair.Reverse() : pair));
+			MessageTypeCache.GetCachedTypes().ShouldBeEmpty();
+			MessageTypeCache.ResolveType("collision").ShouldBeNull();
+			MessageTypeCache.Initialize([typeof(SampleEvent), typeof(SampleEvent)]);
+			MessageTypeCache.ResolveType(MessageTypeCache.GetTypeName(typeof(SampleEvent))!).ShouldBe(typeof(SampleEvent));
+		}
 	}
 
 	// ---- GetTypeName ----
 
 	[Fact]
-	public void GetTypeName_ForCachedType_ReturnsCachedFullName()
+	public void GetTypeName_ForCachedType_ReturnsDeclaredName()
 	{
 		MessageTypeCache.Initialize([typeof(SampleEvent)]);
 
 		var name = MessageTypeCache.GetTypeName(typeof(SampleEvent));
 
-		name.ShouldBe(typeof(SampleEvent).FullName);
+		name.ShouldBe("cache.event");
 	}
 
 	[Fact]
-	public void GetTypeName_ForFallbackType_ReturnsFallbackFullName()
+	public void GetTypeName_ForFallbackType_ReturnsDeclaredName()
 	{
 		MessageTypeCache.Initialize(Array.Empty<Type>());
 
@@ -258,17 +272,17 @@ public sealed class MessageTypeCacheShould : IDisposable
 		MessageTypeCache.GetOrCreateMetadata(typeof(SampleEvent));
 		var name = MessageTypeCache.GetTypeName(typeof(SampleEvent));
 
-		name.ShouldBe(typeof(SampleEvent).FullName);
+		name.ShouldBe("cache.event");
 	}
 
 	[Fact]
-	public void GetTypeName_ForUncachedType_ReturnsTypeFullName()
+	public void GetTypeName_ForUncachedType_ReturnsDeclaredName()
 	{
 		MessageTypeCache.Initialize(Array.Empty<Type>());
 
 		var name = MessageTypeCache.GetTypeName(typeof(SampleCommand));
 
-		name.ShouldBe(typeof(SampleCommand).FullName);
+		name.ShouldBe("cache.command");
 	}
 
 	[Fact]
@@ -367,34 +381,27 @@ public sealed class MessageTypeCacheShould : IDisposable
 
 	// ---- Helpers ----
 
-	private static void ResetCache()
-	{
-		var flags = BindingFlags.NonPublic | BindingFlags.Static;
-
-		var initializedField = typeof(MessageTypeCache).GetField("_initialized", flags);
-		initializedField?.SetValue(null, false);
-
-		var typeCacheField = typeof(MessageTypeCache).GetField("_typeCache", flags);
-		typeCacheField?.SetValue(null, FrozenDictionary<Type, MessageTypeMetadata>.Empty);
-
-		var nameCacheField = typeof(MessageTypeCache).GetField("_nameToTypeCache", flags);
-		nameCacheField?.SetValue(null, FrozenDictionary<string, Type>.Empty);
-
-		// Also clear fallback cache
-		var fallbackField = typeof(MessageTypeCache).GetField("_fallbackTypeCache", flags);
-		if (fallbackField?.GetValue(null) is System.Collections.Concurrent.ConcurrentDictionary<Type, MessageTypeMetadata> fallback)
-		{
-			fallback.Clear();
-		}
-	}
+	private static void ResetCache() => MessageTypeCache.Reset();
 
 	// ---- Test doubles ----
 
+	[MessageName("cache.event")]
+	[MessageNameAlias("cache.legacy-event")]
 	private sealed class SampleEvent : IDispatchEvent;
 
+	[MessageName("cache.command")]
 	private sealed class SampleCommand : IDispatchAction;
 
 	private sealed class SampleIntegrationEvent : IIntegrationEvent;
 
 	private sealed class FallbackType;
+	[MessageName("collision")]
+	private sealed class CanonicalA;
+	[MessageName("collision")]
+	private sealed class CanonicalB;
+	[MessageName("alias-a"), MessageNameAlias("collision")]
+	private sealed class AliasA;
+	[MessageName("alias-b"), MessageNameAlias("collision")]
+	private sealed class AliasB;
+
 }

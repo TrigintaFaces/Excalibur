@@ -71,7 +71,10 @@ def scan_scripts(repo=None):
     out = subprocess.run(["git", "-C", repo, "ls-files"] + SCAN_GLOBS,
                          capture_output=True)
     paths = [p.strip() for p in out.stdout.decode("utf-8", "replace").split("\n") if p.strip()]
-    return sorted(p for p in paths if not EXCLUDE_SUFFIX.search(p))
+    # Tracked-but-deleted files are absent from the candidate work tree. Keeping them here
+    # invents an orphan after a legitimate retirement and hides a dead row when it is retained.
+    return sorted(p for p in paths if not EXCLUDE_SUFFIX.search(p)
+                  and os.path.isfile(os.path.join(repo, p)))
 
 
 def parse_manifest(path):
@@ -412,6 +415,19 @@ def self_test():
                   rc, untracked_named, dead_named, crossed))
         arms += 1
         fails += not ok
+        os.remove(os.path.join(repo, other))
+        write_manifest(mpath, [(real, "gate", "ci")])
+        rc = check(mpath, fpath, repo=repo, quiet=True)
+        print("  PASS  a retired tracked script is not an on-disk orphan" if rc == 0
+              else "  FAIL  returned {}, expected 0".format(rc))
+        arms += 1
+        fails += rc != 0
+        write_manifest(mpath, [(real, "gate", "ci"), (other, "gate", "ci")])
+        rc = check(mpath, fpath, repo=repo, quiet=True)
+        print("  PASS  a retained row for a tracked deletion fails" if rc == 1
+              else "  FAIL  returned {}, expected 1".format(rc))
+        arms += 1
+        fails += rc != 1
     if fails:
         print("self-test: {} of {} arm(s) FAILED".format(fails, arms))
         return 1

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
+using System.Data.Common;
 
 using Dapper;
 
@@ -81,16 +82,23 @@ internal sealed class GetCommittedAppendOutcomeRequest : DataRequestBase<IDbConn
 		// a pre-migration row is not silently invisible to this classification.
 		const string TenantPredicate = " AND COALESCE(TenantId, @UntenantedSentinel) = @TenantId";
 
+		var parameters = new SqlServerParameterSet();
+		var eventParameters = new List<string>(eventIds.Count);
+		foreach (var eventId in eventIds)
+		{
+			var name = "@EventId" + eventParameters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			eventParameters.Add(name);
+			parameters.Add(name, eventId);
+		}
+
 		// No lock hint, deliberately. This runs after the transaction is gone, and it is a question
 		// about durably committed rows: a row either survived the commit or it did not.
 #pragma warning disable CA2100 // Table name is validated by SqlTableName.Format; every value is bound
 		var sql =
 			$"SELECT COUNT(*) AS CommittedCount, MIN(Position) AS FirstPosition, MAX(Position) AS LastPosition, MAX(Version) AS LastVersion "
-			+ $"FROM {qualifiedTable} WHERE EventId IN @EventIds{TenantPredicate};";
+			+ $"FROM {qualifiedTable} WHERE EventId IN ({string.Join(',', eventParameters)}){TenantPredicate};";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
-		parameters.Add("@EventIds", eventIds);
 		parameters.Add("@TenantId", partition.TenantId);
 		parameters.Add("@UntenantedSentinel", TenantScope.UntenantedSentinel);
 
@@ -105,7 +113,14 @@ internal sealed class GetCommittedAppendOutcomeRequest : DataRequestBase<IDbConn
 				return new CommittedAppendOutcome(0, null, null, null);
 			}
 
-			return await connection.QuerySingleAsync<CommittedAppendOutcome>(Command).ConfigureAwait(false);
+			using var command = parameters.CreateCommand(connection, Command);
+			using var row = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+			if (!await row.ReadAsync(cancellationToken).ConfigureAwait(false))
+			{
+				throw new InvalidOperationException("The committed append query returned no aggregate result.");
+			}
+			return new CommittedAppendOutcome(row.GetInt32(0), await row.IsDBNullAsync(1, cancellationToken).ConfigureAwait(false) ? null : row.GetInt64(1),
+				await row.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false) ? null : row.GetInt64(2), await row.IsDBNullAsync(3, cancellationToken).ConfigureAwait(false) ? null : row.GetInt64(3));
 		};
 	}
 }

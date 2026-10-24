@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing;
 /// The broker is invoked by <c>EventSourcedRepository.SaveAsync</c> immediately after
 /// <c>IEventStore.AppendAsync</c> succeeds. It invokes the registered
 /// <c>IEventNotificationHandler&lt;TEvent&gt;</c> instances sequentially, one event at a time in
-/// commit order. It writes no projection: a projection row is folded by the projection host,
+/// commit order. Inline completion then drives the ordered projection processor,
 /// which applies committed events in global-stream order.
 /// </para>
 /// <para>
@@ -33,7 +33,14 @@ public interface IEventNotificationBroker
 	/// </summary>
 	/// <param name="events">The domain events that were committed, in order.</param>
 	/// <param name="context">Context about the aggregate that produced the events.</param>
-	/// <returns>A task representing the asynchronous notification operation.</returns>
+	/// <returns>
+	/// Whether this save's <c>Inline</c> projections reached the context's global position:
+	/// <see cref="ProjectionFreshness.NotRequested"/> when no projection is registered <c>Inline</c>,
+	/// <see cref="ProjectionFreshness.Fresh"/> when they folded the prefix through it, and
+	/// <see cref="ProjectionFreshness.BoundExpired"/> when the bounded wait ended first. The value is
+	/// RETURNED rather than thrown because the events are already committed: an exception here reports a
+	/// failed save that did not fail, and every retry policy in the ecosystem would repeat the command.
+	/// </returns>
 	/// <exception cref="System.Exception">
 	/// A failing handler's own exception is rethrown with its stack trace preserved, when
 	/// <see cref="EventNotificationOptions.FailurePolicy"/> is
@@ -48,11 +55,11 @@ public interface IEventNotificationBroker
 	/// not accepting one makes it expressible at none.
 	/// </para>
 	/// <para>
-	/// The phase is bounded instead by <see cref="EventNotificationOptions.PostCommitTimeout"/>, on its
+	/// Notification delivery and Inline completion each use <see cref="EventNotificationOptions.PostCommitTimeout"/>, on their
 	/// own clock, so an unresponsive store still cannot hold a save open forever.
 	/// </para>
 	/// </remarks>
-	Task NotifyAsync(
+	Task<ProjectionFreshness> NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context);
 }

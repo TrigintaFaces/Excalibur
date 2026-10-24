@@ -124,7 +124,7 @@ jobs:
       # difference would never be reported. The verifying build already restores locked; this is the
       # producing build, and it is the one whose graph reaches consumers.
       - name: Restore shipping projects
-        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --locked-mode --verbosity quiet -p:Configuration=Release
 
       - name: Build shipping projects
         shell: bash
@@ -229,18 +229,14 @@ jobs:
           # Pinned in .config/dotnet-tools.json rather than installed at whatever version is newest
           # today, so the tool that produces our supply-chain evidence cannot change between runs.
           dotnet tool restore
-          dotnet CycloneDX ./src -o ./sbom -F Json -t
+          dotnet CycloneDX eng/ci/shards/ShippingOnly.slnf -o ./sbom -F Json -t -dpr
 
-      - name: Assert the SBOM exists
+      - name: Validate shipping SBOM completeness before handoff
         shell: bash
         run: |
           set -euo pipefail
-          count=$(find ./sbom -name 'bom.json' -o -name 'bom.xml' | wc -l)
-          if [ "$count" -eq 0 ]; then
-            echo "::error::REFUSE: no SBOM generated. An absent SBOM is not an empty one, and the attestation below would have nothing to bind."
-            exit 1
-          fi
-          echo "SBOM file(s): $count"
+          python3 eng/ci/validate-sbom.test.py
+          python3 eng/ci/validate-sbom.py --bom sbom/bom.json
 
       - name: Record the unsigned handoff
         id: transfer

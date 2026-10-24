@@ -80,6 +80,7 @@ public sealed class KafkaMessageBusShould : UnitTestBase
 		headerNames.ShouldContain("ce_specversion");
 	}
 
+	[MessageName("tests.KafkaMessageBusShould.TestCloudEventBusEvent")]
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{
 	}

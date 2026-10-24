@@ -4473,11 +4473,6 @@ dotnet_diagnostic.IDE0130.severity = none
 # ============================================================================================
 # Custom Roslyn analyzers for namespace conventions per ADR-050
 
-# NS1001: Namespace depth violations
-#   - Error for depth ≥6 (prohibited per NS-003)
-#   - Warning for depth 5 (acceptable with justification per NS-003)
-dotnet_diagnostic.NS1001.severity = error
-
 # NS1002: Namespace depth at acceptable maximum (analyzer removed - file I/O prohibited)
 # This analyzer was removed due to design flaw requiring file system access
 

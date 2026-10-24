@@ -3,11 +3,13 @@
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
+using System.Text.Json;
 
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.Mapping;
@@ -73,6 +75,9 @@ public sealed partial class ElasticSearchProjectionStore<
 	private readonly string _projectionType;
 	private readonly string _indexName;
 	private ElasticsearchClient? _client;
+	private readonly string? _destinationScope;
+    private readonly JsonSerializerContext? _sourceContext;
+	private readonly ElasticsearchClientSettings? _configuredClientSettings;
 	// Serialises first-time initialisation. Without it concurrent first callers each run the
 	// provisioning below, and where more than one field is assigned a second caller can observe
 	// a partly-built state and dereference null. Same defect class as the MongoDB stores.
@@ -97,6 +102,9 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
+		// Capture the actual connection settings and identity together; mutable options must not
+		// later identify one cluster while the cached client still writes to another.
+		_configuredClientSettings = ElasticSearchProjectionClientSettings.Create(_options, out _destinationScope, out _sourceContext);
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
 		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
@@ -130,6 +138,15 @@ public sealed partial class ElasticSearchProjectionStore<
 		_fieldDefinitions = BuildFieldDefinitions(_declaredMapping);
 	}
 
+	internal ElasticSearchProjectionStore(ElasticsearchClient client,
+		IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor,
+		ILogger<ElasticSearchProjectionStore<TProjection>> logger, string? destinationScope, JsonSerializerContext? sourceContext = null)
+        : this(client, optionsMonitor, logger)
+    {
+        _destinationScope = destinationScope;
+        _sourceContext = sourceContext;
+    }
+
 	private enum ProjectionFieldType
 	{
 		String,
@@ -150,11 +167,20 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async Task<TProjection?> GetByIdAsync(
+	public Task<TProjection?> GetByIdAsync(
 		string id,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+        GetByIdAsyncCore(id, cancellationToken);
+
+	private async Task<TProjection?> GetByIdAsyncCore(
+		string id,
+		CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		if (typeInfo is not null)
+        {
+            return (await GetWithPositionAsyncCore(id, cancellationToken, typeInfo).ConfigureAwait(false)).Projection;
+        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
@@ -254,10 +280,16 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async Task UpsertUnnumberedAsync(
+	public Task UpsertUnnumberedAsync(
 		string id,
 		TProjection projection,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+        UpsertUnnumberedAsyncCore(id, projection, cancellationToken);
+
+	private async Task UpsertUnnumberedAsyncCore(
+		string id,
+		TProjection projection,
+		CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -267,7 +299,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var response = await _client!
 			.IndexAsync(
-				BuildDocument(projection, ProjectionPosition.Unnumbered),
+				BuildDocument(projection, ProjectionPosition.Unnumbered, typeInfo),
 				r => r.Index(_indexName).Id(id).Refresh(WriteRefresh),
 				cancellationToken)
 			.ConfigureAwait(false);
@@ -946,7 +978,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			}
 			if (_client is null)
 			{
-				_client = new ElasticsearchClient(ElasticSearchProjectionClientSettings.Create(_options));
+				_client = new ElasticsearchClient(_configuredClientSettings!);
 			}
 
 			await CreateIndexIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
@@ -963,7 +995,20 @@ public sealed partial class ElasticSearchProjectionStore<
 
 	object? IServiceProvider.GetService(Type serviceType)
 	{
+        if (serviceType == typeof(IAotProjectionStore<TProjection>))
+        {
+            return _sourceContext?.GetTypeInfo(typeof(TProjection)) is JsonTypeInfo<TProjection> typeInfo
+                && (_client?.SourceSerializer ?? ((IElasticsearchClientSettings)_configuredClientSettings!).SourceSerializer).TryGetJsonSerializerOptions(out var sourceOptions)
+                && sourceOptions.GetTypeInfo(typeof(TProjection)) is JsonTypeInfo<TProjection> effectiveTypeInfo
+                ? new GeneratedStoreView(this, typeInfo, effectiveTypeInfo) : null;
+        }
+
 		ArgumentNullException.ThrowIfNull(serviceType);
+		if (serviceType == typeof(IProjectionDestinationScope))
+		{
+			// A supplied client can address a different cluster from the options: no guessed scope.
+			return _destinationScope is { } value ? new ConfiguredDestinationScope(value) : null;
+		}
 		if (serviceType == typeof(IProjectionDestinationIdentity))
 		{
 			return new ConfiguredDestinationIdentity("elasticsearch/" + _indexName);
@@ -977,9 +1022,25 @@ public sealed partial class ElasticSearchProjectionStore<
 		return serviceType.IsInstanceOfType(this) ? this : null;
 	}
 
+    private sealed class GeneratedStoreView(ElasticSearchProjectionStore<TProjection> store, JsonTypeInfo<TProjection> typeInfo, JsonTypeInfo<TProjection> effectiveTypeInfo)
+        : IAotProjectionStore<TProjection>
+    {
+        public JsonTypeInfo<TProjection> TypeInfo => typeInfo;
+        public Task<TProjection?> GetByIdAsync(string id, CancellationToken token) => store.GetByIdAsyncCore(id, token, effectiveTypeInfo);
+        public Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(string id, CancellationToken token) => store.GetWithPositionAsyncCore(id, token, effectiveTypeInfo);
+        public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(string id, TProjection state, long? expected, long next, CancellationToken token) => store.UpsertAtPositionAsyncCore(id, state, expected, next, token, effectiveTypeInfo);
+        public Task<ProjectionRefoldResult> RefoldAtPositionAsync(string id, TProjection state, long position, CancellationToken token) => store.RefoldAtPositionAsyncCore(id, state, position, token, effectiveTypeInfo);
+        public Task UpsertUnnumberedAsync(string id, TProjection state, CancellationToken token) => store.UpsertUnnumberedAsyncCore(id, state, token, effectiveTypeInfo);
+    }
+
 	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
 	{
 		public string Identity { get; } = identity;
+	}
+
+	private sealed class ConfiguredDestinationScope(string scope) : IProjectionDestinationScope
+	{
+		public string Scope { get; } = scope;
 	}
 
 	private sealed class SearchVisibilityBarrier(ElasticSearchProjectionStore<TProjection> store)
@@ -1110,11 +1171,15 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
+	public Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(
 		string id,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+        GetWithPositionAsyncCore(id, cancellationToken);
+
+	private async Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsyncCore(
+        string id, CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
-		var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
+		var read = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 		return (read.Projection, read.Position);
 	}
 
@@ -1147,12 +1212,20 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
+	public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
 		string id,
 		TProjection projection,
 		long? expectedPosition,
 		long newPosition,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+        UpsertAtPositionAsyncCore(id, projection, expectedPosition, newPosition, cancellationToken);
+
+	private async Task<ProjectionAdvanceResult> UpsertAtPositionAsyncCore(
+		string id,
+		TProjection projection,
+		long? expectedPosition,
+		long newPosition,
+		CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -1170,7 +1243,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var document = BuildDocument(projection, ProjectionPosition.At(newPosition));
+		var document = BuildDocument(projection, ProjectionPosition.At(newPosition), typeInfo);
 
 		if (expectedPosition is null)
 		{
@@ -1203,7 +1276,7 @@ public sealed partial class ElasticSearchProjectionStore<
 				// advancing it -- the late starter this branch exists to refuse -- and the caller re-reads
 				// and retries. A document carrying no number can never be advanced from at all, so telling
 				// the caller to retry would spin it forever against a document that will not change.
-				var conflicting = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
+				var conflicting = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 
 				// CHECKED FIRST, and the order is load-bearing. A read that finds no sequence pair means the
 				// document was deleted between the create and this read, and its position then reads as a
@@ -1223,7 +1296,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			throw IndexingFailure(created);
 		}
 
-		var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
+		var read = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 
 		if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 		{
@@ -1255,7 +1328,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		}
 
 		return await WriteAtSequenceAsync(
-			id, document, sequenceNumber, primaryTerm, newPosition, cancellationToken)
+			id, document, sequenceNumber, primaryTerm, newPosition, cancellationToken, typeInfo)
 			.ConfigureAwait(false);
 	}
 
@@ -1275,11 +1348,18 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async Task<ProjectionRefoldResult> RefoldAtPositionAsync(
+	public Task<ProjectionRefoldResult> RefoldAtPositionAsync(
 		string id,
 		TProjection projection,
 		long atPosition,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+        RefoldAtPositionAsyncCore(id, projection, atPosition, cancellationToken);
+
+	private async Task<ProjectionRefoldResult> RefoldAtPositionAsyncCore(
+		string id,
+		TProjection projection,
+		long atPosition,
+		CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 		ArgumentOutOfRangeException.ThrowIfNegative(atPosition);
@@ -1287,7 +1367,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
+		var read = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 
 		if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 		{
@@ -1307,10 +1387,10 @@ public sealed partial class ElasticSearchProjectionStore<
 		}
 
 		// Carries atPosition, so the position is written back unchanged.
-		var document = BuildDocument(projection, ProjectionPosition.At(atPosition));
+		var document = BuildDocument(projection, ProjectionPosition.At(atPosition), typeInfo);
 
 		var advanced = await WriteAtSequenceAsync(
-			id, document, sequenceNumber, primaryTerm, atPosition, cancellationToken)
+			id, document, sequenceNumber, primaryTerm, atPosition, cancellationToken, typeInfo)
 			.ConfigureAwait(false);
 
 		// The helper speaks the ADVANCE vocabulary. Translating here rather than reusing its result type is
@@ -1348,15 +1428,13 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// comparison the caller already performed is what refuses a re-delivery; neither substitutes for
 	/// the other.
 	/// </remarks>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task<ProjectionAdvanceResult> WriteAtSequenceAsync(
 		string id,
 		JsonObject document,
 		long sequenceNumber,
 		long primaryTerm,
 		long newPosition,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
 		var response = await _client!
 			.IndexAsync(
@@ -1372,7 +1450,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		if (IsVersionConflict(response))
 		{
-			var current = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
+			var current = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 
 			// Same discrimination as the pre-write check, and it has to be repeated here because the row
 			// can LOSE its number BETWEEN the caller's read and this write -- an unconditional upsert or an
@@ -1398,9 +1476,7 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// is the same shape the unconditional read produces -- deserializing with a separately-configured
 	/// serializer would diverge the moment a consumer customises naming or converters.
 	/// </remarks>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private async Task<PositionedRead> ReadForUpdateAsync(string id, CancellationToken cancellationToken)
+	private async Task<PositionedRead> ReadForUpdateAsync(string id, CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -1449,7 +1525,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_ = source.Remove(PositionField);
 
 		return new PositionedRead(
-			Deserialize(source),
+			Deserialize(source, typeInfo),
 			position,
 			response.SeqNo,
 			response.PrimaryTerm);
@@ -1482,11 +1558,16 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// cannot be placed" became "this state was never placed" -- the one distinction a positioned
 	/// writer has to act on.
 	/// </remarks>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private JsonObject BuildDocument(TProjection projection, ProjectionPosition position)
+	private JsonObject BuildDocument(TProjection projection, ProjectionPosition position, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
-		using var buffer = new MemoryStream();
+		if (typeInfo is not null)
+        {
+            var generated = JsonSerializer.SerializeToNode(projection, typeInfo) as JsonObject
+                ?? throw new InvalidOperationException("Projection metadata must describe a JSON object.");
+            generated[PositionField] = position.ToStored();
+            return generated;
+        }
+        using var buffer = new MemoryStream();
 		_client!.ElasticsearchClientSettings.SourceSerializer.Serialize(projection, buffer);
 
 		buffer.Position = 0;
@@ -1501,11 +1582,10 @@ public sealed partial class ElasticSearchProjectionStore<
 	}
 
 	/// <summary>Materializes a projection from stored JSON using the client's own source serializer.</summary>
-	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private TProjection? Deserialize(JsonObject source)
+	private TProjection? Deserialize(JsonObject source, JsonTypeInfo<TProjection>? typeInfo = null)
 	{
-		using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(source.ToJsonString()));
+		if (typeInfo is not null) { return source.Deserialize(typeInfo); }
+        using var buffer = new MemoryStream(Encoding.UTF8.GetBytes(source.ToJsonString()));
 		return _client!.ElasticsearchClientSettings.SourceSerializer.Deserialize<TProjection>(buffer);
 	}
 

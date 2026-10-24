@@ -1,207 +1,106 @@
 ---
-title: Projections are applied by the projection host, not by SaveAsync
-sidebar_label: Projections are applied by the host
-description: Inline projections are removed. SaveAsync no longer writes read models; it returns a session token, and IProjectionSessionReader honours it at the read. What to change, and why the old model was unsound.
+title: Restoring Inline with durable ordered processing
+sidebar_label: Inline projection migration
+description: Use Inline in one host or several while retaining positioned writes, shared Elasticsearch clients, and durable recovery.
 ---
 
-# Projections are applied by the projection host, not by `SaveAsync`
+# Inline projection migration
 
-**`.Inline()` is removed.** So is `ProjectionMode.Inline`. There is no obsolete stub and no compatibility
-shim: a registration that calls `.Inline()` no longer compiles.
-
-Every stored projection is now applied by the projection host, reading the global event stream in order
-with positioned compare-and-set writes. `SaveAsync` does not write read models. What replaces read-after-write consistency is
-**session consistency**: the save returns a token, and a read that carries that token waits until the
-projection has applied it.
-
-## Who is affected
-
-| you | affected? |
-|---|---|
-| call `.Inline()` anywhere | **yes** — it does not compile |
-| read a projection immediately after `SaveAsync` and expect it current | **yes** — and this one still compiles |
-| assign the result of `SaveAsync` to something other than `var` | **yes** — it returns `Task<SaveResult>` |
-| already use `.Async()` with `EnableProjectionProcessing()` | supply `SubscriptionScope`, use positioned stores, and agree on one definition across cooperating processes |
-| use `.Ephemeral()` only | no |
-| use no projections | no |
-
-The second row is the one to take seriously. **It compiles, it passes a single-threaded test, and it
-returns stale or `null` data under load.**
-
-## What to change
-
-### 1. `.Inline()` becomes `.Async()`
+`.Inline()` is available again for mutable and immutable projections. It completes read models through
+the committed global position before a successful save returns and automatically registers background
+recovery. An API, a Jobs application, or both can run the same configuration independently.
 
 ```csharp
-// before
-builder.AddProjection<OrderSummary>(p => p
-    .Inline()
-    .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
-
-// after
-builder.AddProjection<OrderSummary>(p => p
-    .Async()
-    .When<OrderPlaced>((proj, e) => { proj.Status = "Placed"; }));
+es.UseSqlServer(sql => sql.ConnectionString(connectionString));
+es.AddProjection<OrderSummary>(p => p.Inline()
+    .When<OrderPlaced>((view, e) => view.Total += e.Amount));
 ```
 
-### 2. Register the host — nothing will tell you that you forgot
+Register the projection store as usual. With connection-string SQL Server and options-based
+Elasticsearch, no separate projection processor, checkpoint registration, or subscription scope is
+needed. SQL checkpoint tables still need deployment through the provider migrations. For a non-default
+SQL schema, deploy the checkpoint tables in that same schema; the shipped script defaults to `dbo`.
 
-:::danger This is the step that fails silently
+## What changed underneath
 
-`.Async()` registers a projection. It does not register anything that **writes** one. A missing *store*
-registration fails start-up and names the projection; a missing host does not. Your application starts,
-reports healthy, serves reads, and every one of them is empty.
+The old Inline path applied only the locally saved events with no global position. Concurrent saves
+could lose a fold, and a partially updated row could become impossible to advance safely. The restored
+path reads the complete ordered prefix, folds each affected document once per page, writes state and
+position conditionally, and advances the checkpoint only after the configured visibility barrier.
+It shares this machinery with Async but has a separate cursor, so an unrelated Async handler does not
+run inside an Inline save.
 
-:::
+The Elasticsearch client remains a keyed singleton, shared by scoped stores. The historical per-save
+client creation bug exhausted connection pools and could surface as a canceled PUT with no HTTP
+response. Restoring Inline does not restore that lifetime. Cancellation alone still does not identify
+its cause; inspect the underlying transport and workload when diagnosing an incident.
 
-```csharp
-services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
-{
-    builder.AddProjection<OrderSummary>(p => p.Async().When<OrderPlaced>(/* ... */));
+## Migrate an existing destination deliberately
 
-    builder.EnableProjectionProcessing(options => options.SubscriptionScope = "orders/events/read-models");   // <-- add this
-}));
-```
+- Keep a positioned destination only when its projection definition and physical schema are compatible. Inline starts its own
+  checkpoint and skips document prefixes already recorded there. First startup may scan historical
+  events while establishing the new cursor.
+- SQL Server and PostgreSQL projection tables created by earlier alphas with incompatible key widths
+  or tenant collation need fresh provisioning and replay. The current tenant column is limited to 64 characters; SQL Server
+  also uses a 350-character projection ID and binary tenant collation. The shipped `CREATE` scripts
+  and schema generators do not alter an existing table. Stop all projection writers, provision a new
+  destination with the current schema, and rebuild it from the durable event stream before cutover.
+  Preserve the event store; do not clear its events or retry previously committed commands.
+- Rebuild legacy numberless or unplaceable rows before enabling processing. Do not assign them a
+  guessed position or retry the original command to repair them.
+- Stop old processors before changing a projection from Async to Inline. Changing the workset under an
+  existing subscription name is rejected. Use a new subscription name/revision and a deliberate
+  destination cutover if the projection semantics change. A new cursor alone cannot repair changed
+  projection semantics in an existing document.
+- Cooperating API and Jobs hosts must register the same Inline projection set, revision, source, and
+  destination configuration. Different endpoint lists fail closed even if operators know they reach
+  one cluster. A rebuilt/replaced database or cluster requires a coordinated checkpoint reset/cutover;
+  endpoint names do not identify physical data incarnations.
 
-Multiple instances cooperate through positioned projection writes and the shared checkpoint CAS.
-Use the same stable subscription name, `SubscriptionScope`, `SubscriptionRevision` and projection set
-for API and Jobs. A definition mismatch is refused before effects; ambient leader election is not used.
-External handler effects remain at-least-once and require idempotency. Changed semantics require a new
-subscription name and a deliberate destination rebuild or cutover.
+Inline uses `Inline:` plus `GlobalStreamProjectionOptions.ProjectionName` as its checkpoint name.
+For custom event readers, externally supplied Elasticsearch clients, or tenant routers, register the
+source-affine durable checkpoint store and configure a shared `SubscriptionScope` explicitly. Do not
+replace the provider's reader independently of its checkpoint binding.
 
-### 3. Carry the token to any read that must observe its own write
+## Destination unavailable after commit
 
-```csharp
-// before -- immediately consistent under the old model
-await repository.SaveAsync(order, ct);
-var summary = await store.GetByIdAsync(order.Id.ToString(), ct);
+Check `SaveResult.Projections`. `ProjectionFreshness.BoundExpired` means the events are committed and the
+read model is behind; the same `SaveResult` carries the version and the session token. Nothing is thrown,
+so there is no exception to catch and no retry policy to disarm.
+Return a committed/pending response with a read URL and session token if appropriate for your API.
+Do not ask the caller to resubmit the command. Recovery resumes automatically in a running host or on
+restart; `IProjectionSessionReader` waits on the Inline cursor for an Inline projection.
 
-// after
-SaveResult save = await repository.SaveAsync(order, ct);
+The foreground wait is bounded by `EventNotificationOptions.PostCommitTimeout`. Caller cancellation
+cannot cancel the post-commit work. A provider that ignores cancellation must still eventually finish;
+the framework retains its operation scope and lease until then. Poison handlers need repair rather
+than unlimited automatic command retries. Notification handlers retain their independent failure policy.
 
-ProjectionRead<OrderSummary> read =
-    await sessionReader.ReadAsync<OrderSummary>(order.Id.ToString(), save, ct);
+For Elasticsearch search-after-save, configure `Index.EnsureSearchVisibilityOnProjectionCheckpoint`.
+A successful document PUT alone does not promise that an Elasticsearch search can see the document.
 
-switch (read.Freshness)
-{
-    case ProjectionFreshness.Fresh:
-        return Results.Ok(read.Projection);          // observed your own write
-    case ProjectionFreshness.BoundExpired:
-        return Results.Accepted(value: read.Projection);  // may predate it; the save still succeeded
-    default:
-        return Results.Ok(read.Projection);          // NotRequested: no token, ordinary read
-}
-```
+## Keep Async when it fits
 
-`IProjectionSessionReader` is registered for you by `AddProjection<T>()`. Inject it like any other
-service.
+`.Async()` remains a separate option. Use `EnableProjectionProcessing()` for a background host, or
+`AddProjectionProcessor()` for an application that explicitly drives processing. Both may live in a
+single project; a second project is never required. Async saves return a session token without waiting
+for projection completion, and token-aware reads can wait when the caller needs read-your-writes.
 
-**A caller that does not need the guarantee changes nothing and pays nothing.** Passing no token — or a
-`SaveResult` whose `SessionToken` is `null` — reports `NotRequested` and waits for nothing.
+## AOT
 
-### 4. `SaveAsync` returns a value
+Use explicit generic registrations, explicit aggregate event application, and generated event JSON
+metadata. Projection event registrations also bind typed notification dispatch; the registered event
+path needs no runtime generic construction. Assembly scanning and unregistered runtime event types
+retain their existing dynamic-code requirements. Provider serialization must be configured separately;
+the native orchestration probe does not certify SQL Server or Elasticsearch client AOT support.
 
-`IEventSourcedRepository.SaveAsync` now returns `Task<SaveResult>`:
+For the SQL Server → Elasticsearch path, configure the same generated event metadata with
+`AddAotEventSerializer(context)` and `UseSqlServer(sql => sql.EventTypeInfoResolver(context))`, and set
+`ElasticSearchProjectionStoreOptions.SourceTypeInfoResolver` to generated read-model metadata. These
+are distinct serialization boundaries. Positioned document envelopes receive framework metadata
+automatically, and the Elasticsearch client remains shared.
 
-```csharp
-public readonly record struct SaveResult(long CommittedVersion, long? SessionToken);
-```
-
-Discarding it still compiles, so this is not a change the compiler finds for you everywhere. `await
-repository.SaveAsync(order, ct);` is still valid and still correct for a caller that does not read back.
-
-`SessionToken` is the global position of the **last** event the save wrote, and it is `null` when the
-event store assigns no global ordering or the save wrote nothing. **`null` is a real answer:** there is no
-coordinate to wait on, so a consistent read cannot be requested against this write. It does not mean the
-save failed.
-
-### 5. Serverless hosts drive the work themselves
-
-An Azure Function or a Lambda has no long-running process for a `BackgroundService`. Call
-`AddProjectionProcessor(options => options.SubscriptionScope = "orders/events/read-models")` and drive it from your trigger:
-
-```csharp
-var processor = serviceProvider.GetRequiredService<IProjectionProcessor>();
-
-ProjectionProcessingResult result = await processor.ProcessPendingAsync(ct);
-
-if (result.Outcome == ProjectionProcessingOutcome.Halted)
-{
-    logger.LogError("Projection processing halted after {Applied} events", result.EventsApplied);
-}
-```
-
-| `Outcome` | meaning |
-|---|---|
-| `CaughtUp` | the shared subscription reached the stream head captured when this call began |
-| `Halted` | work remains pending after an apply, prefix or checkpoint failure |
-| `Cancelled` | the caller cancelled; unacknowledged work may be redelivered |
-
-The built-in pull processor reconciles contested checkpoint writes and does not emit `NotLeader` or
-`BackgroundWorkerOwnsCursor`. Read `Outcome`; an event count alone cannot establish freshness.
-Manual and background drives can interleave between finite pages. With only manual processing,
-nothing advances between invocations.
-
-### 6. Failure handling moves
-
-`EventNotificationOptions.FailurePolicy` now governs only the post-commit **notification handlers**. A
-projection apply failure is handled by the host, which **does not advance its checkpoint past the failing
-batch** — it re-reads the same events rather than skipping them.
-
-So the pattern of catching `AggregateException` from `SaveAsync` to recover a projection no longer
-applies: no projection runs there to fail.
-
-## Why `.Inline()` was removed rather than deprecated
-
-Because the guarantee it advertised was not the guarantee it delivered, and the gap was silent.
-
-An inline projection ran after the events were durable, in-process, as a **second uncoordinated writer**
-of the projection row. Two concurrent saves whose events keyed to the same row produced this:
-
-```
-save A   reads row  {count: 10}
-save B   reads row  {count: 10}
-save A   folds its events, writes {count: 12}
-save B   folds its events, writes {count: 11}   <- nothing refuses it
-```
-
-Both saves returned success. **The events save A committed are durable in the event store and
-permanently absent from the read model**, and nothing downstream ever learns — the row is well-formed and
-every value in it was written correctly.
-
-The write also carried no global position, so the row could not be advanced by anything afterwards; only
-a full rebuild could repair it.
-
-A deprecation would have left that reachable while reading as supported. One writer applying in position
-order makes the interleaving inexpressible. The cost is the honest one: a read that needs its own write
-may have to wait, bounded, and can say so.
-
-## What is still not guaranteed
-
-**Fold completeness holds on a store that records positions, and nowhere else.** Every persistent
-projection store this framework ships implements `IPositionedProjectionStore<T>` — SQL Server,
-PostgreSQL, Elasticsearch, OpenSearch, MongoDB, Cosmos DB, DynamoDB and Firestore — and on those the
-conditional write refuses a writer working from a stale read.
-
-On a store without that capability, a rebuild can still silently regress a row the host has advanced
-past. A rebuild or replay onto such a store is now **refused when the service is constructed**; the
-escape hatch is:
-
-```csharp
-services.AllowUnpositionedProjectionRebuild();
-```
-
-That acknowledges **exclusivity, not safety**. It records that you have stopped the projection host and
-every other writer of those rows — which is more than the host: `ProjectionRebuildService`,
-`ProjectionRecoveryService`, a second `GlobalStreamProjectionHost` (which performs no leader election)
-and any code holding `IProjectionStore<T>` all write the same rows.
-
-## See also
-
-- [`ProjectionsSample`](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/09-advanced/persistence-patterns/ProjectionsSample) — working code
-  for the whole sequence, with no infrastructure required: register, save, `ProcessPendingAsync`,
-  `ReadAsync`, print `Freshness`
-- [Projections](../event-sourcing/projections.md) — the full reference
-- [Reading Your Own Writes](../event-sourcing/projections.md#reading-your-own-writes-session-consistency)
-- [What a projection's position means](../event-sourcing/projections.md#what-a-projections-position-means)
-- [Projection processing](../event-sourcing/projections.md) — shared subscription definitions, positioned writes and API/Jobs cooperation
+The real-provider native harness is `tests/harnesses/SqlElasticInlineAotProbe`. Its diagnostic executable
+exercises real SQL/Elasticsearch services, but strict native publishing still reports dependency
+diagnostics. **Do not treat this path as release-certified for native AOT until that strict gate passes.**
+The probe README records the tested platform/authentication and the remaining blockers.

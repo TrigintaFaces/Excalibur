@@ -4,6 +4,7 @@
 
 using System.Data;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch;
 
@@ -44,10 +45,19 @@ public static class DbConnectionExtensions
 		catch (Exception ex) when (ex is not (ApiException or OperationCanceledException))
 		{
 			throw new OperationFailedException(
-				TypeNameHelper.GetTypeDisplayName(typeof(TModel), fullName: false, includeGenericParameterNames: true),
-				TypeNameHelper.GetTypeDisplayName(dataRequest.GetType(), fullName: false, includeGenericParameterNames: true),
+				GetDiagnosticTypeName(typeof(TModel)),
+				GetDiagnosticTypeName(dataRequest.GetType()),
 				innerException: ex);
 		}
+	}
+
+	private static string GetDiagnosticTypeName(Type type)
+	{
+		// Demystifier inspects assembly files while formatting generic types. Native images have
+		// no such files. Keep the failure's type and cause, without rooting that optional formatter.
+		return RuntimeFeature.IsDynamicCodeSupported
+			? TypeNameHelper.GetTypeDisplayName(type, fullName: false, includeGenericParameterNames: true)
+			: type.Name;
 	}
 
 	/// <summary>

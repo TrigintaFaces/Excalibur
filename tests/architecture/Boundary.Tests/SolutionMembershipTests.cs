@@ -27,6 +27,24 @@ public sealed class SolutionMembershipTests
     public void SolutionManifestConfigurationsAndFilters_MustMatchDisk() =>
         SolutionInventory.Validate(RepoRoot);
 
+    [Fact]
+    public void AggregateUnitFilterMustIncludeEveryMatrixProject()
+    {
+        var directory = Path.Combine(RepoRoot, "eng", "ci", "shards");
+        var aggregate = ReadFilter(Path.Combine(directory, "UnitTests.slnf")).ToHashSet(StringComparer.Ordinal);
+        var matrix = Directory.EnumerateFiles(directory, "UnitTests-*.slnf").SelectMany(ReadFilter).ToHashSet(StringComparer.Ordinal);
+        matrix.ShouldNotBeEmpty();
+        matrix.Except(aggregate, StringComparer.Ordinal).ShouldBeEmpty("The aggregate unit command must run every CI unit project.");
+        aggregate.Except(matrix, StringComparer.Ordinal).ShouldBeEmpty("An aggregate-only project would escape the CI matrix.");
+
+        static string[] ReadFilter(string path)
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            return document.RootElement.GetProperty("solution").GetProperty("projects").EnumerateArray()
+                .Select(project => project.GetString()!.Replace('\\', '/')).ToArray();
+        }
+    }
+
     public static TheoryData<string> GovernanceCases()
     {
         var cases = new TheoryData<string>();
@@ -115,7 +133,7 @@ public sealed class SolutionMembershipTests
 /// </summary>
 internal sealed class SolutionInventory
 {
-    private static readonly string[] Roots = ["src", "tests", "samples", "benchmarks", "load-tests"];
+    private static readonly string[] Roots = ["src", "tests", "samples", "benchmarks", "load-tests", "eng/tools"];
     private static readonly string[] ConfigurationNames = ["Debug", "Release"];
     private static readonly string[] PlatformNames = ["Any CPU", "x64", "x86"];
     private const string TemplatePackage = "templates/Excalibur.Dispatch.Templates.csproj";
@@ -142,7 +160,7 @@ internal sealed class SolutionInventory
         return Directory.EnumerateFiles(fullDirectory, "*.csproj", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
             .Where(path => !path.Split('/').Any(segment => segment.StartsWith('.') ||
-                segment is "bin" or "obj" or "node_modules" or "labs" or "tools" or "BenchmarkDotNet.Artifacts"));
+                segment is "bin" or "obj" or "node_modules" or "labs" or "BenchmarkDotNet.Artifacts"));
     }
 
     internal static SolutionInventory ReadSolution(string root)
@@ -367,7 +385,7 @@ internal sealed class SolutionInventory
             Fields(exclusion, ["path", "reason"], ["path", "reason"]);
             _ = Scalar(exclusion["reason"]);
             var path = CanonicalPath(Scalar(exclusion["path"]));
-            Require(exclusions.Add(path) && !Roots.Contains(path.Split('/')[0], StringComparer.Ordinal), "Duplicate or governed exclusion");
+            Require(exclusions.Add(path) && !Roots.Any(directory => path.StartsWith(directory + "/", StringComparison.Ordinal)), "Duplicate or governed exclusion");
         }
         var manifest = new HashSet<string>(StringComparer.Ordinal);
         foreach (var node in Sequence(top["projects"]))
@@ -381,6 +399,7 @@ internal sealed class SolutionInventory
             Require(entry["in_solution"] is YamlScalarNode { Style: ScalarStyle.Plain, Value: "true" }, $"Invalid in_solution: {path}");
             var classification = path == TemplatePackage ? "Template" :
                 path.StartsWith("src/", StringComparison.Ordinal) ? "Shipping" :
+                path.StartsWith("eng/tools/", StringComparison.Ordinal) ? "Tool" :
                 path.StartsWith("samples/", StringComparison.Ordinal) ? "Sample" :
                 path.StartsWith("benchmarks/", StringComparison.Ordinal) || path.StartsWith("tests/benchmarks/", StringComparison.Ordinal) ? "Benchmark" : "Test";
             Require(Scalar(entry["classification"]) == classification, $"Incorrect classification: {path}");

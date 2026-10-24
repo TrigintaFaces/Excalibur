@@ -1,212 +1,54 @@
-# gate-wiring-baseline.txt — accepted known-orphan gates (tracked debt).
-#
-# Each line is the basename of an enforcement gate under eng/ci or eng/hooks that currently has NO
-# caller running it in CI or a git hook. gate-wiring.sh accepts these instead of failing the whole
-# battery, so the check ships LIVE against a codebase that already carries this debt.
-#
-# THIS FILE IS A SHRINK TARGET. Wiring a gate into a caller (a workflow, a git hook, or
-# harness-gates-ci.sh) should DELETE its line here. A brand-new gate added with no caller is NOT
-# allowed to be appended here casually — the default expectation is that a new gate is wired; a
-# baseline entry is an explicit, reviewed admission of temporary debt.
-#
-# Format: one gate basename per line. Blank lines and #-comments ignored.
+# Accepted caller-coverage exceptions. New orphan scripts fail gate-wiring.sh.
+# Entries may be removed when their caller is recognized; removing a child entry
+# does not certify its parent as required CI enforcement.
+# Format: one script basename per line; comments and blank lines are ignored.
 
-# --- enforcement gates that exist but are not yet run by any CI job or hook ---
+# Retained enforcement debt: this artifact check lacks a recognized caller.
 tracked-artifact-gate.sh
-# real committed-content enforcement gate that currently REFUSEs (cannot render a verdict, exit 2): its
-# shipped-DDL-table -> src-write-path map does not yet cover ~18 shipped-DDL blocks, and its column-count
-# floor rejects legitimate low-column keyed tables. Wiring it blocking today would red CI on a REFUSE, not
-# a real defect; an advisory `|| true` wrapper would swallow the REFUSE into a false-green. Baselined as
-# explicit tracked debt until the map + floor are completed, then wired blocking and this line deleted.
-shipped-ddl-sweep.sh
 
-# committed deliberately as a MANUAL tool, not as an enforcement gate. Its own header says so at
-# line 5 ("STATUS: UNWIRED. NOTHING INVOKES THIS SCRIPT") and the integrator ruled it that way when
-# it landed: it is a diagnostic a human runs, and labelling it in place was chosen over wiring it so
-# that nobody reads its presence as enforcement. This line records that ruling where gate-wiring
-# reads it. DELETE this line if it is ever given a caller — and update the header block at the same
-# time, because a stale "UNWIRED" notice on a wired gate is the same lie in the other direction.
+# Manual binary/source diagnostic; its explicit invocation supplies the subject.
 assert-binary-matches-source.sh
 
-# --- beads/metrics + planning helpers invoked manually or only when their own file is staged ---
-# manual human-decision triage tool (emits a terminal disposition for a human to act on); it evaluates
-# nothing on src/ and its name is a forbidden workflow token, so it is structurally un-wireable as a
-# committed-content gate.
+# Human issue-triage and issue-state classification, not repository validation.
 premise-triage.sh
-
-# --- non-.sh gates, visible since the enumeration widened to .py/.ps1 ---
-# These were always orphaned; the meta-gate could not see them, because it enumerated by file
-# extension rather than by what an enforcement gate is. Widening the population also WIRED three
-# others (the workflow-inventory check, the shipping-filter validator and the repository-link
-# validator), which is why they are absent from this list. The three below are not enforcement.
-
-# A doc-surface extractor used as a library by the docs validation flow, plus a diagnostic a human
-# runs. Already tracked as part of the wider set of gates that left the commit path and now run
-# nowhere; recorded here so the meta-gate stays live rather than red.
-docs-csharp-extract.py
-
-# Reads the P0 issue set on stdin and prints a machine-readable denominator. Its only caller is an
-# agent-mesh harness script, which is not a CI surface and does not run where CI runs. Wiring it into
-# a workflow would be wrong: it classifies issue-tracker state, not repository state.
 p0-classify.py
 
-# A generator, not a gate: it renders release notes from git history. It has no --check mode, so
-# there is no verdict for a caller to enforce. If it ever grows one, wire it and delete this line.
+# Generates release notes; it has no check mode or enforcement verdict.
 generate-changelog.ps1
 
-# --- conformance-arm census: real reports, not yet wireable without a false failure ---
-# Censuses every shipped conformance kit and reports, per deriver, which arms are not wired to a
-# runner -- a real gap, since an unwired arm never runs and its suite is still green. Its own
-# self-test passes and its findings are accurate.
-#
-# Not wired yet for two reasons, both of which must be resolved together rather than papered over.
-# First, its default mode always exits 0 and its --check mode currently fails on a suite that is
-# CORRECT: a focused tenancy suite deliberately wires 4 of 20 arms alongside a full suite wiring
-# 20 of 20, so a blocking gate would red the build on working code. That needs an explicit
-# opt-out marker on such a suite rather than an inference. Second, this gate reads tests/, and the
-# battery that would host it runs where CI runs; a gate whose inputs are absent there finds nothing
-# and reds the battery for a non-defect, which is the second condition documented on that
-# enumeration. Confirm the input is present before wiring rather than assuming.
-#
-# Recorded here so the meta-gate stays live rather than red. Tracked to closure.
+# Retained conformance coverage debt: focused suites and complete suites require
+# explicit disposition before this report can become a required check.
 conformance-arm-census.sh
 
-# The census program behind conformance-arm-skip-gate.sh, which invokes it by name on every run. It is
-# a library, not a gate: it renders no verdict at all -- it emits tab-separated records and the gate
-# decides. There is nothing here for a workflow to enforce, and the enumeration of caller surfaces does
-# not include sibling gate scripts, so the program it is called by cannot register as its caller. Same
-# shape as the doc-surface extractor above. If it ever grows its own verdict, wire it and delete this.
-conformance-arm-skip-census.py
-
-# a real committed-content enforcement gate that currently FAILS (exit 1) on ten live findings: methods
-# that write a durable mark -- a done-flag, a status, a completion timestamp or a past-tense log line --
-# on a path that skipped the work the mark attests. Its --self-test passes with seventeen arms, four of
-# which fail the gate and four of which name the record that fired, so it is non-vacuous today. Wiring it
-# blocking before those ten are dispositioned would red every commit for a defect the tree already
-# carries; wrapping it in `|| true` would convert a genuine FAIL into a false green, which is the exact
-# class this gate exists to detect, committed by its own installation. Baselined as explicit tracked debt
-# until the ten sites either fail loudly when the work did not happen or stop writing the receipt, then
-# wired blocking and both lines here deleted. The census is listed with it because it is unreachable
-# while its only caller is unwired.
+# Retained enforcement debt: durable-work receipts need site-by-site disposition.
+# The child census has a caller, but that does not wire this parent into CI.
 receipt-without-work-gate.sh
-receipt-without-work-census.py
 
-# build-lock.sh is NOT a gate and has no CI caller by design. It is a mutex wrapper agents put in
-# front of their own build and test commands so concurrent work in one tree stops racing bin/obj —
-# it takes a lock, runs whatever it was handed, and passes that command's exit code through
-# unchanged. Nothing invokes it on a schedule because it has no verdict of its own to report.
-#
-# It appears here because this census enumerates every script in eng/ci/ and treats an uncalled one
-# as an orphan gate. That is the correct default: a real gate with no caller is inert, which is the
-# failure this census exists to catch, and loosening the enumeration to recognise "wrappers" would
-# hand every future orphan an excuse. So the category error is recorded here rather than fixed by
-# weakening the detector.
-#
-# If this file ever grows a verdict — an exit code meaning something other than the wrapped
-# command's — it becomes a gate, and this entry must be deleted and the gate wired.
-build-lock.sh
-
-# config-binder-completeness-gate.{sh,py} — REAL gate, deliberately not wired yet, and the
-# reason is cost rather than doubt about its value.
-#
-# What it detects is genuine and silent: the Configuration Binding Source Generator emits
-# BindCore to populate an already-constructed instance (instance.Property = value), which is
-# legal for `set` and illegal for `init` — so for an init-only property it emits NO assignment
-# at all. No diagnostic, no warning, no runtime error: a binder that exists, runs, validates
-# its keys and assigns nothing. That shipped, and cost a P0 whose every signal read green.
-# The gate counts assignments in each generated BindCore against the type's settable-property
-# count and fails on a shortfall. It is proven non-vacuous against a real planted mutant.
-#
-# WHY NOT WIRED: it requires a full build with EmitCompilerGeneratedFiles, and it was measured
-# producing ZERO BYTES of output across two separate 10-minute runs. Its cost is therefore
-# unknown, and a CI step that is silent for ten minutes is indistinguishable from a hung one.
-# Wiring a gate whose runtime nobody has measured, in front of everyone's build, trades one
-# silent failure for another.
-#
-# TO WIRE IT, in order: (1) make it stream progress so a long run is distinguishable from a
-# stuck one, (2) measure its actual runtime to completion, (3) put it where that cost fits —
-# a scheduled or pre-release job rather than per-commit, if that is what the number says.
-# Until then it is a sweep tool that is run deliberately, and this entry says so rather than
-# letting it read as coverage nobody notices is absent.
+# Retained enforcement debt: generated configuration-binding verification needs
+# a measured, bounded build before mandatory wiring. Its Python child is invoked
+# by this script and no longer needs an independent orphan exemption.
 config-binder-completeness-gate.sh
-config-binder-completeness-gate.py
 
-# converted from an enforcement gate to a MANUAL tool on 2026-09-14, not newly added unwired. It ran on
-# the commit path and was removed there under the standing ruling that a pre-commit hook must be
-# grep-speed (a pre-commit hook must not invoke a compiler): it built the staged snapshot, costing
-# three to five minutes on every commit. It cannot be re-wired -- at pre-push and in CI the index is
-# empty, so it would exit 0 forever and enforce nothing while appearing to. The property it predicted is
-# verified in CI against the real commit by six workflows that check out and build it. Its own header
-# now says UNWIRED so nobody reads its presence as enforcement.
+# Manual staged-index tools. An empty index in CI is not their intended subject.
+# The snapshot tool invokes committed-sha-build-gate.sh; that child relationship
+# does not make staged-index validation a required CI check.
 staged-snapshot-coherence.sh
-# The two below lost their caller when the commit-path hooks were removed, and neither can be
-# re-homed anywhere that would run it honestly.
-#
-# staged-secret-scan.sh reads the INDEX. At pre-push and in CI the index is empty, so wiring it
-# there would exit 0 forever and enforce nothing while appearing to -- the same reason
-# staged-snapshot-coherence.sh sits above this line. Note that the security rules still describe
-# this scan as blocking; that description is now ahead of the wiring, which is worth correcting
-# separately rather than papering over by wiring it somewhere it cannot work.
 staged-secret-scan.sh
-# committed-sha-build-gate.sh BUILDS. It cannot go on the commit path, and in CI the workflows
-# already check out and build the real commit, which is the thing it approximates. It is documented
-# and used as a manual tool invoked with an explicit --sha, so it has no automated caller by design.
-committed-sha-build-gate.sh
-# pre-mirror-gates.py has NO automated caller BY DESIGN, and wiring it to one would defeat it.
-# It runs the gate commands the workflows invoke, so a CI caller would run every gate twice and a
-# commit-path caller would put the whole battery in front of every commit -- which the standing
-# instruction forbids. It is a manual pre-copy tool: run it by hand before copying to the mirror,
-# when the cost of catching a gate failure early is a few minutes instead of a round trip.
+
+# Manual pre-mirror orchestrator; invoking it from its own gates would duplicate
+# the complete battery rather than add a distinct safeguard.
 pre-mirror-gates.py
 
-# --- the cache-evidence and required-tests machinery ------------------------------------------
-#
-# These four arrived together and gate-wiring is right that nothing in a workflow or hook runs
-# them. Appending them is the explicit admission this file's header asks for, so here is the
-# reason for each rather than four bare lines.
-#
-# Two of them render NO VERDICT at all, so there is no green for an absent caller to forge. They
-# are a report generator and an evidence collector, and they are already classified NOT A GATE in
-# gate-denominator-baseline.txt for exactly that reason. Wiring them would not add protection;
-# it would add a step that prints.
-cache-restore-report.py
+# Manual evidence collection. The report dependency having a caller does not
+# establish required CI execution of this collector.
 collect-cache-evidence.py
-#
-# The other two DO have a caller -- eng/build.ps1:308 invokes invoke-required-tests.ps1, which in
-# turn invokes discover-required-tests.ps1 -- but eng/build.ps1 is not one of the surfaces
-# gate-wiring counts (workflows, git hooks, harness-gates-ci.sh), and a gate called only by another
-# orphan is still orphaned, which is the right rule. So these are not unprotected enforcement: they
-# are the DRIVER that produces required-test evidence, and the gate that renders the verdict over
-# that evidence -- required-test-evidence.py -- is wired into .github/workflows/ci.yml and is not
-# baselined here. Verified rather than assumed: grep shows ci.yml referencing it directly.
-#
-# Two routes would delete these lines, and the choice is a real one rather than a formality.
-# Either set GW_EXTRA_CALLER_GLOBS to include eng/build.ps1, which makes the developer build path a
-# recognised caller surface for every gate and so changes this meta-gate's definition of wired; or
-# give the required-tests path its own CI job, which is a workflow change with a per-run cost the
-# operator pays. Neither is a file move, so neither is being decided here.
-invoke-required-tests.ps1
-discover-required-tests.ps1
 
-# --- the two sample-verification scripts ------------------------------------------------------
-#
-# These arrived in 38e4b4b774, whose own commit body says it carried "roughly 900 files of other
-# agents' in-flight work that was sitting uncommitted in the shared tree" and "was not reviewed
-# file by file". So gate-wiring is right that nothing invokes them, and it is also right that this
-# is the first time anyone has looked: they were landed as a tree snapshot, not as finished work.
-#
-# They are NOT report generators -- both throw on a bad verdict, so an absent caller really is an
-# unenforced check, which is the stronger version of this debt rather than the weaker one.
-#
-# Why they are baselined instead of wired. Each needs inputs that only a build produces -- a built
-# sample assembly and a results directory for the first, a sample AOT publish run for the second --
-# so their caller has to be a workflow job, and adding one spends per-run Actions budget the
-# operator is deliberately not spending. Baselining records the gap where the gate will keep
-# reporting it; it does not close it.
-#
-# Why they are not deleted. Deleting is the other legitimate answer here and was considered. It is
-# declined because these are two days old, unreviewed, and plainly mid-delivery: their author's
-# intent is not recoverable from the tree, and a deletion pass over somebody's in-flight work is
-# not a wiring decision. Whoever owns the sample-certification path decides wire-or-delete.
+# Required-test driver is invoked by eng/build.ps1, outside the caller surfaces
+# recognized for this exception. Its discover-required-tests child has a caller;
+# the separate required-test-evidence verdict remains independently wired.
+invoke-required-tests.ps1
+
+# Retained sample-verification wiring debt: these need built sample assemblies,
+# runtime results, and AOT publish evidence from an appropriate workflow job.
 Verify-CosmosEventStoreSampleModes.ps1
 Verify-SampleAotDiagnosticPolicy.ps1

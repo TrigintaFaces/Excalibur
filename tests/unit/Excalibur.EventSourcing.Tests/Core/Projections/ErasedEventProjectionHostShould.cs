@@ -47,7 +47,12 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 [Trait("Component", "EventSourcing")]
 public sealed class ErasedEventAsyncProjectionHostShould
 {
-	private const long TombstoneGlobalPosition = 10;
+	// 1, NOT an arbitrary offset. The host now asserts contiguity where it writes the checkpoint, so a
+	// page must begin at checkpoint+1 -- these fixtures start from an empty checkpoint. A higher value
+	// here describes a stream the production contract cannot deliver: ContiguousGlobalStreamQuery
+	// truncates a gapped page to empty, so the host would never see it. Do not raise this to "make the
+	// numbers look realistic" -- it makes the fixture illegal and the arm times out instead of asserting.
+	private const long TombstoneGlobalPosition = 1;
 
 	private readonly InMemoryProjectionRegistry _registry = new();
 	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();

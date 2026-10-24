@@ -32,14 +32,14 @@ foreach ($p in $slnProjects) {
 }
 
 # Find all governed csproj files
-$GovernedDirectories = @("src", "tests", "samples", "benchmarks", "load-tests")
+$GovernedDirectories = @("src", "tests", "samples", "benchmarks", "load-tests", "eng/tools")
 $allProjects = @()
 foreach ($dir in $GovernedDirectories) {
     if (Test-Path $dir) {
         $projects = Get-ChildItem -Path $dir -Recurse -Filter "*.csproj" -File | Where-Object {
             $relative = [IO.Path]::GetRelativePath((Get-Location).Path, $_.FullName).Replace([char]92, '/')
             -not @($relative.Split('/') | Where-Object {
-                $_.StartsWith('.') -or $_ -cin @('bin','obj','node_modules','labs','tools','BenchmarkDotNet.Artifacts')
+                $_.StartsWith('.') -or $_ -cin @('bin','obj','node_modules','labs','BenchmarkDotNet.Artifacts')
             }).Count
         }
         $allProjects += $projects

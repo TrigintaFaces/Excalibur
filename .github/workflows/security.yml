@@ -126,54 +126,37 @@ jobs:
         with:
           checkout-ref: ${{ inputs.checkout-ref }}
           checkout-token: ${{ inputs.checkout-token }}
-          solution-filter: ''
+          solution-filter: 'eng/ci/shards/ShippingOnly.slnf'
 
       - name: Restore dependencies
-        run: bash ./build.sh --restore
-      - name: Generate CycloneDX SBOM for all packages
+        run: bash ./build.sh --restore --project eng/ci/shards/ShippingOnly.slnf --locked-mode --properties Configuration=Release
+      - name: Generate CycloneDX SBOM for shipping dependencies
         run: |
           # Pinned in .config/dotnet-tools.json rather than installed at whatever version is
           # newest today. `|| dotnet tool update` previously meant this step could silently change
           # the SBOM generator between runs, which is a poor property for the tool that produces our
           # supply-chain evidence.
           dotnet tool restore
-          dotnet CycloneDX ./src -o ./src -F Json -t
+          dotnet CycloneDX eng/ci/shards/ShippingOnly.slnf -o artifacts/sbom -F Json -t -dpr
 
       - name: Validate SBOM completeness
         run: |
-          echo "Validating SBOM completeness..."
-          sbom_count=$(find . -name "bom.json" -o -name "bom.xml" | wc -l)
-          echo "Found $sbom_count SBOM file(s)"
-          if [ "$sbom_count" -eq 0 ]; then
-            echo "No SBOM files generated"
-            exit 1
-          fi
-          find . -name "bom.json" -o -name "bom.xml"
+          python3 eng/ci/validate-sbom.test.py
+          python3 eng/ci/validate-sbom.py --source eng/ci/shards/ShippingOnly.slnf --bom artifacts/sbom/bom.json
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cyclonedx-sbom
-          path: |
-            **/bom.json
-            **/bom.xml
+          path: artifacts/sbom/bom.json
+          if-no-files-found: error
           retention-days: 90
 
       - name: SBOM summary
         run: |
-          echo "## Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Format:** CycloneDX" >> $GITHUB_STEP_SUMMARY
-          echo "**Standard:** NIST 800-53 CM-8" >> $GITHUB_STEP_SUMMARY
-          echo "**Scope:** All NuGet packages in src/" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Generated SBOMs" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          find . -name "bom.json" -o -name "bom.xml" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "SBOM artifacts uploaded with 90-day retention" >> $GITHUB_STEP_SUMMARY
-          echo "Satisfies FedRAMP CM-8 control requirement" >> $GITHUB_STEP_SUMMARY
+          echo "## Software Bill of Materials" >> "$GITHUB_STEP_SUMMARY"
+          echo "CycloneDX JSON covering the resolved NuGet dependency identities of ShippingOnly.slnf." >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifact: cyclonedx-sbom (90-day retention)." >> "$GITHUB_STEP_SUMMARY"
 
   dependency-review:
     name: Dependency Review

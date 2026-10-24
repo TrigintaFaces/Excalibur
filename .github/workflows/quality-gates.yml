@@ -149,21 +149,35 @@ jobs:
           base="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'HEAD~1' }}"
           bash eng/ci/wwmd-reinvention-smells.sh --base "$base" || true
 
-      # BLOCKING. A single /// doc block carrying two <summary>/<remarks>/<value> ships HALF a member's
-      # documented contract: the XML doc generator keeps one element and drops the rest, with ZERO
-      # compiler warnings, so the loss reaches the published .xml and IntelliSense unannounced.
-      #
-      # This runs the gate against the real source tree. The harness battery separately proves the gate
-      # is non-vacuous on fixtures — that proves the INSTRUMENT works, not that the TREE is clean, and
-      # only this step asserts the latter. The local pre-commit hook checks the staged subset, but
-      # core.hooksPath is machine-local config that no tracked file can set, so a fresh clone installs
-      # no hooks and this step is the only thing standing between a duplicate tag and the package.
-      #
-      # Exit contract: 0 clean · 1 duplicate tag(s) → FAIL · 2 no C# found → FAIL (an unevaluated tree
-      # is not a clean one; a silent skip here would be indistinguishable from a pass).
+      # Roslyn reads actual documentation elements, including block documentation and conditional
+      # compilations. The tests cover both production sources and policy regression fixtures.
+      # Missing/unreadable source populations and missing test execution are failures.
       - name: Duplicate XML doc tags (shipped source)
         shell: bash
-        run: bash eng/ci/duplicate-xml-doc-tags.sh src
+        run: |
+          dotnet test tests/architecture/Boundary.Tests/Boundary.Tests.csproj \
+            --configuration Release --no-build --no-restore \
+            -p:BuildExamplesAndTests=true -p:SolutionDir="$GITHUB_WORKSPACE/" -p:SolutionName=Excalibur \
+            --filter FullyQualifiedName~XmlDocumentationTagsShould \
+            --logger 'trx;LogFilePrefix=xml-documentation' --results-directory artifacts/xml-documentation \
+            --blame-hang-timeout 2m -- RunConfiguration.TestSessionTimeout=300000
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          results = [node for path in pathlib.Path('artifacts/xml-documentation').glob('*.trx')
+                     for node in ET.parse(path).iter() if node.tag.endswith('}UnitTestResult')]
+          assert results and all(node.attrib['outcome'] == 'Passed' for node in results), 'Documentation tests did not all execute successfully'
+          assert any(node.attrib['testName'].endswith('.PreserveEachProductionDocumentationBlockWithoutDuplicateContractTags') for node in results), 'Production documentation population was not verified'
+          print(f'Documentation validation: {len(results)} passed.')
+          PY
+
+      - name: Preserve documentation validation results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: xml-documentation-results
+          path: artifacts/xml-documentation/*.trx
+          if-no-files-found: error
+          retention-days: 30
 
   # Code coverage quality gate (sharded, self-contained)
   # Coverage USED TO BE COMPUTED HERE, by re-running the same six unit shards that ci.yml already
@@ -460,6 +474,16 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
           fetch-depth: 0
+
+      - name: Setup .NET for compiler-backed gate helpers
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Build compiler-backed gate helpers
+        run: |
+          dotnet restore eng/tools/RepositoryChecks/RepositoryChecks.csproj --locked-mode
+          dotnet build eng/tools/RepositoryChecks/RepositoryChecks.csproj --configuration Release --no-restore
 
       # Prove the orchestrator's exit is HONEST (a failing gate makes it exit 1) before trusting its
       # verdict -- the control runs in the SAME environment as the gate it proves.

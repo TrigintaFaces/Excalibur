@@ -10,8 +10,8 @@
 // Key concepts demonstrated:
 // - IProjection<TKey> - Read model interface
 // - IProjectionStore<T> - Storage abstraction
-// - AddProjection<T>().Async() - the projection host owns the read model
-// - EnableProjectionProcessing() - starts that host; without it nothing applies
+// - AddProjection<T>().Inline() - confirms the catalog during save; recovery is automatic
+// - AddProjection<T>().Async() - independent category processing with an explicit driver
 // - IProjectionProcessor.ProcessPendingAsync() - driving the host by hand, which is
 //   what a console app or a serverless trigger does instead of a BackgroundService
 // - SaveResult.SessionToken + IProjectionSessionReader - reading your own write
@@ -54,16 +54,16 @@ services.AddMetrics();
 // Register event types so the serializer resolves them without an assembly scan.
 services.AddEventTypesFromAssembly(typeof(Program).Assembly);
 
-// Add Excalibur event sourcing with an in-memory event store and async projections.
-// AddProjection<T>() registers a projection; EnableProjectionProcessing() below starts the
-// host that applies events to it. A save does NOT write read models -- it returns a session
+// Add event sourcing with an Inline catalog and an independent Async category summary.
+// Inline completes the catalog during save. EnableProjectionProcessing below registers the
+// independent Async driver for the category summary. Save also returns a session
 // token, and a read that must observe that save presents the token.
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
 	_ = builder.AddRepository<ProductAggregate, Guid>(id => new ProductAggregate(id));
 
 	// -----------------------------------------------------------------------
-	// Async projection: ProductCatalogProjection (single-stream)
+	// Inline projection: ProductCatalogProjection (single-stream)
 	// -----------------------------------------------------------------------
 	// This projection demonstrates all three handler tiers:
 	//
@@ -74,7 +74,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 	// each handler, then writes it back -- reading the global stream in order, as the
 	// only writer. WhenHandledBy handlers are resolved from DI and registered automatically.
 	builder.AddProjection<ProductCatalogProjection>(p => p
-		.Async()
+		.Inline()
 		// Tier 3: DI-resolved handler (has ILogger injection, see ProductCreatedHandler)
 		.WhenHandledBy<ProductCreated, ProductCreatedHandler>()
 		// Tier 1: Simple lambdas for straightforward property updates
@@ -217,9 +217,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			proj.LastModified = DateTimeOffset.UtcNow;
 			proj.Version++;
 		}));
-	// WITHOUT THIS LINE EVERY READ MODEL BELOW STAYS EMPTY. Registering a projection does not
-	// start anything; this registers the host that applies committed events to it, in
-	// global-stream order, as the only writer of those rows.
+	// The Async category summary needs an explicit driver. The Inline catalog does not.
+	// This registers the Async processor, applying committed events in
+	// global-stream order using conditional positioned writes.
 	_ = builder.EnableProjectionProcessing(options => options.SubscriptionScope = "projections-sample/memory-events/memory-views");
 }));
 services.AddInMemoryEventStore();
@@ -275,7 +275,7 @@ var chair = ProductAggregate.Create(
 var desk = ProductAggregate.Create(
 	Guid.NewGuid(), "Standing Desk", "Furniture", 599.99m, 15);
 
-// Save aggregates. Both projections are fed by the host afterwards:
+// Save aggregates. Inline confirms the catalog; Async is driven below:
 // - ProductCatalogProjection: keyed by aggregate ID (single-stream, default)
 // - CategorySummaryProjection: keyed by Category via KeyedBy<TEvent> (multi-stream)
 var lastSave = default(SaveResult);
@@ -574,9 +574,9 @@ Console.WriteLine("  Sample Complete!");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Key takeaways:");
-Console.WriteLine("  - AddProjection<T>().Async() for single-stream projections");
+Console.WriteLine("  - AddProjection<T>().Inline() for completion during save");
 Console.WriteLine("  - KeyedBy<TEvent>() for multi-stream projections (custom key)");
-Console.WriteLine("  - The projection host applies both projection types, not SaveAsync()");
+Console.WriteLine("  - Inline completes during save; Async uses its independent processor");
 Console.WriteLine("  - A read that must observe its own write carries the save's token");
 Console.WriteLine("  - No manual GetUncommittedEvents() iteration needed");
 Console.WriteLine("  - IProjectionStore<T> provides storage abstraction for both");

@@ -129,6 +129,7 @@ public sealed class AzureEventHubMessageBusShould
 		return producer;
 	}
 
+	[MessageName("tests.AzureEventHubMessageBusShould.TestCloudEventBusEvent")]
 	private sealed class TestCloudEventBusEvent : IDispatchEvent
 	{
 	}

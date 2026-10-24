@@ -37,8 +37,20 @@ public sealed class DeleteSnapshotsRequest : DataRequestBase<IDbConnection, int>
 		TenantScope scope,
 		CancellationToken cancellationToken,
 		string schema = "dbo",
-		string table = "EventStoreSnapshots")
-	{
+        string table = "EventStoreSnapshots")
+        : this(aggregateId, aggregateType, scope, schema, table,
+            static request => connection => connection.ExecuteAsync(request.Command), cancellationToken)
+    {
+    }
+
+    internal static DeleteSnapshotsRequest CreateTyped(string aggregateId, string aggregateType, TenantScope scope, CancellationToken cancellationToken,
+        string schema = "dbo", string table = "EventStoreSnapshots") =>
+        new(aggregateId, aggregateType, scope, schema, table,
+            static request => connection => SqlServerParameterSet.ExecuteNonQueryAsync(connection, request.Command), cancellationToken);
+
+    private DeleteSnapshotsRequest(string aggregateId, string aggregateType, TenantScope scope, string schema, string table,
+        Func<DeleteSnapshotsRequest, Func<IDbConnection, Task<int>>> execute, CancellationToken cancellationToken)
+    {
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
 
@@ -59,13 +71,12 @@ public sealed class DeleteSnapshotsRequest : DataRequestBase<IDbConnection, int>
 			""";
 #pragma warning restore CA2100
 
-		var parameters = new DynamicParameters();
+		var parameters = new SqlServerParameterSet();
 		parameters.Add("@AggregateId", aggregateId);
 		parameters.Add("@AggregateType", aggregateType);
 		parameters.Add("@TenantId", KeyedTenantPartition.FromScope(scope).TenantId);
 		Command = CreateCommand(sql, parameters, cancellationToken: cancellationToken);
 
-		ResolveAsync = async connection =>
-			await connection.ExecuteAsync(Command).ConfigureAwait(false);
+		ResolveAsync = execute(this);
 	}
 }

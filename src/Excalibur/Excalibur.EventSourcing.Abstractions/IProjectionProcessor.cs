@@ -35,7 +35,62 @@ public interface IProjectionProcessor
 /// pages. This is not a count of unique handler effects or a measure of another processor's work.
 /// </param>
 /// <param name="Outcome">Why the invocation stopped.</param>
-public readonly record struct ProjectionProcessingResult(long EventsApplied, ProjectionProcessingOutcome Outcome);
+/// <param name="HaltReason">
+/// What caused a <see cref="ProjectionProcessingOutcome.Halted"/> outcome, and
+/// <see cref="ProjectionHaltReason.None"/> for every other outcome. Required rather than defaulted: a
+/// caller deciding whether to wait or to give up cannot act on <c>Halted</c> alone, and a default would
+/// let a producer leave "not determined" looking indistinguishable from "did not halt".
+/// </param>
+public readonly record struct ProjectionProcessingResult(
+	long EventsApplied,
+	ProjectionProcessingOutcome Outcome,
+	ProjectionHaltReason HaltReason);
+
+/// <summary>What caused processing to halt, so a caller can tell a transient stop from a terminal one.</summary>
+/// <remarks>
+/// <para>
+/// <see cref="ProjectionProcessingOutcome.Halted"/> alone is not actionable. It is produced for causes with
+/// opposite correct responses: a prefix that is merely not readable yet clears on its own and should be
+/// waited for, while a faulted projection, a poison event, or an unconfirmed write do not clear by waiting
+/// and must never be reported to a caller as success.
+/// </para>
+/// <para>
+/// This matters most on the inline save path, where the caller's events are ALREADY COMMITTED. Retrying a
+/// transient halt there turns a needless "your durable write is pending" into a correct success; retrying a
+/// terminal one turns an unconfirmed write into a reported success, which is the silent failure class the
+/// positioned projection design exists to prevent. Only <see cref="PrefixUnavailable"/> is safe to retry.
+/// </para>
+/// </remarks>
+public enum ProjectionHaltReason
+{
+	/// <summary>The invocation did not halt. The only valid value for a non-halted outcome.</summary>
+	None = 0,
+
+	/// <summary>
+	/// The next contiguous prefix of the stream could not be read yet, which is the normal reading of an
+	/// append still in flight. TRANSIENT: it clears without intervention, so waiting is the correct response.
+	/// </summary>
+	PrefixUnavailable = 1,
+
+	/// <summary>
+	/// An event in the page could not be deserialized into a domain event. Terminal: it will not deserialize
+	/// on a later attempt, so the page is held rather than skipped and the event needs attention.
+	/// </summary>
+	EventUndeserializable = 2,
+
+	/// <summary>
+	/// A projection's apply threw, or its write could not be confirmed. Terminal for that projection: waiting
+	/// does not resolve it, and treating an unconfirmed write as applied is precisely the silent loss this
+	/// seam refuses.
+	/// </summary>
+	ProjectionFaulted = 3,
+
+	/// <summary>
+	/// The projection applied cleanly but its checkpoint could not be recorded, so the work is not durably
+	/// acknowledged. Not necessarily permanent, but never a success: the page is redelivered.
+	/// </summary>
+	CheckpointWriteFailed = 4,
+}
 
 /// <summary>Why a projection-processing invocation stopped.</summary>
 /// <remarks>Read the outcome as well as the count: no pending work, a halt and cancellation are different results.</remarks>

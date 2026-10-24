@@ -25,6 +25,32 @@ namespace Excalibur.Testing.Conformance;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test method naming convention")]
 public abstract class ConformanceTestKit
 {
+	/// <summary>Validates a capability lookup against the component's directly implemented facets.</summary>
+	/// <typeparam name="TCapability">The requested capability.</typeparam>
+	/// <param name="provider">The actual outer component under test.</param>
+	/// <param name="resolved">The raw lookup result, before a potentially lossy cast.</param>
+	/// <returns>The capability, or null when the component does not expose it.</returns>
+	/// <exception cref="ArgumentNullException">The provider is null.</exception>
+	/// <exception cref="TestFixtureAssertionException">The lookup returns the wrong type or hides a directly implemented capability.</exception>
+	/// <remarks>Use for contracts that require exposing directly implemented facets. Inner-only facets may be declined.</remarks>
+	protected static TCapability? ValidateCapability<TCapability>(object provider, object? resolved)
+		where TCapability : class
+	{
+		ArgumentNullException.ThrowIfNull(provider);
+		if (resolved is TCapability capability)
+		{
+			return capability;
+		}
+
+		if (resolved is not null || provider is TCapability)
+		{
+			throw new TestFixtureAssertionException(
+				$"The lookup for {typeof(TCapability).FullName} returned an incompatible result or hid a directly implemented capability.");
+		}
+
+		return null;
+	}
+
 	/// <summary>
 	/// Called when a conformance arm cannot run because the component under test does not provide the
 	/// optional capability the arm exercises.

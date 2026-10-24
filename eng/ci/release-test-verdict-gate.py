@@ -33,7 +33,7 @@ JOBS = {
     "unit-tests-macos-async-risk": ("Unit Tests (macOS - Async Risk)", ()),
     "integration-tests": ("Integration Tests (${{ matrix.shard.name }})", (
         "excalibur-eventsourcing", "excalibur-outbox", "excalibur-inbox", "excalibur-eventstore",
-        "excalibur-leaderelection", "excalibur-rest", "dispatch")),
+        "excalibur-leaderelection", "excalibur-rest", "embedded", "dispatch")),
     "functional-tests": ("Functional Tests", ()),
     "contract-tests": ("Contract Tests", ()),
     "architecture-tests": ("Architecture Tests", ()),
@@ -41,6 +41,9 @@ JOBS = {
     "flaky-tests-quarantine": ("Flaky Tests Quarantine (Non-blocking)", ()),
     "serialization-policy": ("Serialization Policy Validation", ()),
     "aot-build-analysis": ("AOT Build Analysis (report-only)", ()),
+    # Success means the strict diagnostic policy passed, including the explicitly
+    # accepted pinned SqlClient limitation. It does not certify native runtime support.
+    "inline-native-aot": ("SQL Elasticsearch Inline Native AOT (Windows)", ()),
     "quality": ("Quality Analysis", ()),
     "transport-conformance": ("Transport Conformance", ()),
     "release-blocking-tests": ("Release-Blocking Test Governance", ()),
@@ -51,11 +54,11 @@ JOBS = {
     "aot-sample-validation": ("AOT Sample Validation", ()),
     "summary": ("CI Summary", ()),
 }
-ALWAYS = {"changes", "preflight", "dashboard-spa", "documentation-validation", "flaky-tests-quarantine",
+ALWAYS = {"changes", "preflight", "architecture-tests", "dashboard-spa", "documentation-validation", "flaky-tests-quarantine",
           "release-blocking-tests", "release-blocking-ci", "summary"}
 DOC_STEPS = {
     "TypeScript check", "Validate version-safe docs links",
-    "Docs C# snippet phantom gate (diff-scoped)", "Prove the docs phantom gate is non-vacuous",
+    "Verify Markdown fence extraction and diff selection",
     "Build Docusaurus (enforcing zero warnings)",
 }
 TEST_STEPS = {
@@ -72,11 +75,12 @@ TEST_STEPS = {
     "integration-tests": {"Establish EXPECTED test population", "Run Integration Tests", "Verify integration test results"},
     "functional-tests": {"Run Functional Tests"},
     "contract-tests": {"Run contract tests"},
-    "architecture-tests": {"Run architecture test projects"},
+    "architecture-tests": {"Run architecture test projects", "Validate repository policies with Roslyn"},
     "transport-conformance": {"Run conformance tests"},
     "packaging-smoke-tests": {"Run packaging smoke tests"},
     "sample-validation": {"Run sample validation"},
     "aot-sample-validation": {"Build AOT sample (Release)", "Run AOT sample (smoke test)"},
+    "inline-native-aot": {"Strict publish SQL Elasticsearch Inline native probe"},
 }
 REPORT_ONLY = {"triage-labels": "Apply CI Triage Labels", "test-result-reporter": "Test Result Reporter"}
 REUSABLE = {
@@ -96,7 +100,7 @@ REUSABLE = {
 }
 PR_ONLY = {"call-security / Dependency Review", "call-coverage / Coverage Diff On Touched Files"}
 REUSABLE_TEST_STEPS = {
-    "call-performance / Performance Gate - MediatR Local Parity": {"Run MediatR local parity benchmark gate", "Enforce MediatR local parity thresholds"},
+    "call-performance / Performance Gate - MediatR Local Parity": {"Run MediatR local parity benchmark gate", "Validate MediatR benchmark evidence and report parity"},
     "call-performance / Performance Gate - Transport Comparison": {"Run transport comparison benchmark gate", "Enforce transport comparison thresholds"},
     "call-performance / Performance Gate - Dispatch Hot Path": {"Run dispatch hot-path benchmark gate", "Enforce dispatch hot-path thresholds"},
     "call-performance / Performance Gate - Observability Overhead": {"Run observability overhead benchmark gate", "Enforce observability overhead thresholds"},
@@ -121,15 +125,14 @@ echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"'''
 # combined `export X="$(...)"` takes its exit status from `export`, so under `set -e` a failing
 # `git rev-parse` was swallowed and the phantom gate ran against an empty base ref. Changing the
 # step without changing this pin is caught -- that is what this pin is for, and it caught it.
-DOC_SCRIPT = '''set -euo pipefail
-if [ "$EVENT_NAME" = "pull_request" ]; then
-  DOCS_GATE_BASE_REF="$PR_BASE_SHA"
-else
-  DOCS_GATE_BASE_REF="$(git rev-parse HEAD^1)"
-fi
+DOC_SCRIPT = r'''set -euo pipefail
+DOCS_GATE_BASE_REF="${PR_BASE_SHA:-${MERGE_BASE_SHA:-$(git rev-parse HEAD^1)}}"
 export DOCS_GATE_BASE_REF
 git cat-file -e "${DOCS_GATE_BASE_REF}^{commit}"
-bash eng/ci/docs-csharp-phantom-gate.sh'''
+mkdir -p artifacts/repository-checks
+python3 eng/ci/docs-csharp-extract.py --request --repo . --base "$DOCS_GATE_BASE_REF" > artifacts/repository-checks/documentation-request.json
+dotnet eng/tools/RepositoryChecks/bin/Release/net10.0/RepositoryChecks.dll \
+  "$GITHUB_WORKSPACE" --release-policies artifacts/repository-checks'''
 
 
 class Refuse(Exception):
@@ -239,10 +242,17 @@ def verify_docs_policy(workflow):
     # Only the executable run block of the named step counts. A quoted command
     # in a comment or another step cannot establish the comparison baseline.
     sections = job_sections(workflow)
+    architecture = sections["architecture-tests"]
+    if "fetch-depth: 0" not in architecture:
+        raise Refuse("Documentation compiler validation requires complete comparison history")
+    if "    if: ${{ !cancelled() && (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') }}" not in architecture:
+        raise Refuse("Documentation compiler validation must run when unit tests are skipped")
+    if 'ALWAYS_REQUIRED: "changes preflight documentation-validation architecture-tests"' not in sections["summary"]:
+        raise Refuse("Documentation-only candidates must require architecture/compiler validation")
     policies = (
         ("changes", "Classify", CLASSIFIER_SCRIPT, ["id: classify", "shell: bash"]),
-        ("documentation-validation", "Docs C# snippet phantom gate (diff-scoped)", DOC_SCRIPT,
-         ["env:", "EVENT_NAME: ${{ github.event_name }}", "PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}"]),
+        ("architecture-tests", "Validate repository policies with Roslyn", DOC_SCRIPT,
+         ["env:", "PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}", "MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}"]),
     )
     for job, name, script, bindings in policies:
         blocks = re.findall(r"^      - name: " + re.escape(name) + r"\n(.*?)(?=^      - name:|\Z)", sections[job], re.M | re.S)
@@ -437,6 +447,17 @@ def evaluate(sha, api, max_walk, wait_seconds=0):
 POLL_SECONDS = 15
 
 
+def verify_release_scope(sha, version):
+    # While the reviewed dependency exception exists in the candidate, promotion
+    # is alpha-only even if the upstream package later starts publishing cleanly.
+    # Retire this policy explicitly after strict publish AND runtime verification;
+    # a green CI classification must never silently grant stable release support.
+    policy = 'eng/ci/inline-native-aot-known-diagnostics.json'
+    if git('ls-tree', '--name-only', sha, '--', policy).strip():
+        if not version or not re.fullmatch(r'10\.0\.0-alpha\.[0-9]+', version):
+            raise Refuse('The accepted SqlClient AOT limitation permits only a 10.0.0-alpha.N release; retire the exception after upstream verification before any other release.')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", required=True)
@@ -446,6 +467,7 @@ def main(argv=None):
                         help="Bounded wait for the candidate's own CI run to COMPLETE before judging it. "
                              "Zero preserves the single-sample behaviour for every other caller.")
     parser.add_argument("--classify-base", help="Only classify base-to-sha change for CI")
+    parser.add_argument("--release-version", help="Resolved promotion version; required while the alpha-only upstream exception exists")
     parser.add_argument("--out", default="artifacts/reports/release-test-verdict.json")
     args = parser.parse_args(argv)
     api = GitHub(args.repo)
@@ -458,6 +480,7 @@ def main(argv=None):
             raise Refuse("Repository and positive ancestor bound required")
         if args.wait_minutes < 0:
             raise Refuse("Wait budget cannot be negative")
+        verify_release_scope(args.sha, args.release_version)
         tested_sha = evaluate(args.sha, api, args.max_walk, args.wait_minutes * 60.0)
         report.update(verdict="GREEN", tested_sha=tested_sha)
         print(f"GREEN: {args.sha} verified against tested commit {tested_sha}")

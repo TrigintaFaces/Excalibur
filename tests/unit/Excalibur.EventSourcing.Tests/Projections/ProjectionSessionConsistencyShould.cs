@@ -430,7 +430,7 @@ internal sealed class ProjectionSessionHarness : IDisposable
 			GlobalPosition = position,
 		});
 
-		return new SaveResult(version, position);
+		return new SaveResult(version, position, ProjectionFreshness.NotRequested);
 	}
 
 	/// <summary>Applies everything pending and returns, the way a serverless trigger does.</summary>

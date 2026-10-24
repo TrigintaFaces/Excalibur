@@ -103,9 +103,9 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		try
 		{
 #pragma warning disable CA2100 // Identifiers validated in the constructor
-			_ = await connection.ExecuteAsync(new CommandDefinition(
+			_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection, new CommandDefinition(
 				$"INSERT INTO {_definitionsTable} (SubscriptionName, DefinitionHash) VALUES (@Name, @Hash);",
-				new { Name = subscriptionName, Hash = definitionHash },
+				Parameters(subscriptionName, hash: definitionHash),
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 #pragma warning restore CA2100
 		}
@@ -117,9 +117,9 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		// No operation in this contract changes or deletes a definition. A separate read after the
 		// insert therefore observes the same immutable winner even when another instance won first.
 #pragma warning disable CA2100 // Identifiers validated in the constructor
-		var actual = await connection.ExecuteScalarAsync<string>(new CommandDefinition(
+		var actual = await SqlServerParameterSet.ExecuteScalarAsync<string>(connection, new CommandDefinition(
 			$"SELECT DefinitionHash FROM {_definitionsTable} WHERE SubscriptionName = @Name",
-			new { Name = subscriptionName },
+			Parameters(subscriptionName),
 			cancellationToken: cancellationToken)).ConfigureAwait(false);
 #pragma warning restore CA2100
 		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
@@ -134,10 +134,10 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 #pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-		return await connection.ExecuteScalarAsync<long?>(
+		return await SqlServerParameterSet.ExecuteScalarAsync<long?>(connection,
 			new CommandDefinition(
 				$"SELECT Position FROM {_table} WHERE SubscriptionName = @Name;",
-				new { Name = subscriptionName },
+				Parameters(subscriptionName),
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 #pragma warning restore CA2100
 	}
@@ -176,13 +176,19 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
 #pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-		var rows = await connection.QueryAsync<CheckpointRow>(
+		using var command = new SqlServerParameterSet().CreateCommand(connection,
 			new CommandDefinition(
 				$"SELECT SubscriptionName, Position FROM {_table};",
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
+				cancellationToken: cancellationToken));
+		using var rows = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 #pragma warning restore CA2100
 
-		return [.. rows.Select(static r => new SubscriptionCheckpoint(r.SubscriptionName, r.Position))];
+		var checkpoints = new List<SubscriptionCheckpoint>();
+		while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
+		{
+			checkpoints.Add(new SubscriptionCheckpoint(rows.GetString(0), rows.GetInt64(1)));
+		}
+		return checkpoints;
 	}
 
 	/// <summary>
@@ -202,14 +208,14 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		CancellationToken cancellationToken)
 	{
 #pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-		var affected = await connection.ExecuteAsync(
+		var affected = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 			new CommandDefinition(
 				$"""
 				UPDATE {_table}
 				SET Position = @NewPosition, UpdatedAt = SYSDATETIMEOFFSET()
 				WHERE SubscriptionName = @Name AND Position = @Expected;
 				""",
-				new { Name = subscriptionName, NewPosition = newPosition, Expected = expected },
+				Parameters(subscriptionName, newPosition, expected),
 				cancellationToken: cancellationToken)).ConfigureAwait(false);
 #pragma warning restore CA2100
 
@@ -234,13 +240,13 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		try
 		{
 #pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-			_ = await connection.ExecuteAsync(
+			_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
 				new CommandDefinition(
 					$"""
 					INSERT INTO {_table} (SubscriptionName, Position, UpdatedAt)
 					VALUES (@Name, @NewPosition, SYSDATETIMEOFFSET());
 					""",
-					new { Name = subscriptionName, NewPosition = newPosition },
+					Parameters(subscriptionName, newPosition),
 					cancellationToken: cancellationToken)).ConfigureAwait(false);
 #pragma warning restore CA2100
 
@@ -261,11 +267,13 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 		return () => new SqlConnection(connectionString);
 	}
 
-	/// <summary>Row shape for <see cref="EnumerateCheckpointsAsync"/>.</summary>
-	/// <remarks>
-	/// Named explicitly rather than materialized into <see cref="SubscriptionCheckpoint"/> directly: that
-	/// type is a positional record struct, and mapping a SELECT onto one depends on column order rather
-	/// than column name, which breaks silently the moment the projection changes.
-	/// </remarks>
-	private sealed record CheckpointRow(string SubscriptionName, long Position);
+	private static SqlServerParameterSet Parameters(string name, long? position = null, long? expected = null, string? hash = null)
+	{
+		var parameters = new SqlServerParameterSet();
+		parameters.Add("Name", name);
+		if (position is not null) { parameters.Add("NewPosition", position.Value); }
+		if (expected is not null) { parameters.Add("Expected", expected.Value); }
+		if (hash is not null) { parameters.Add("Hash", hash); }
+		return parameters;
+	}
 }

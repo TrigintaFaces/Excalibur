@@ -68,7 +68,7 @@ public sealed class TimerInfoShould
 		var timerInfo = new TimerInfo();
 
 		// Assert
-		timerInfo.MessageType.ShouldBe("TimerInfo");
+		timerInfo.MessageType.ShouldBe("Excalibur.Dispatch.TimerInfo");
 	}
 
 	#endregion
@@ -337,7 +337,7 @@ public sealed class TimerInfoShould
 		var timerInfo = new TimerInfo();
 
 		// Assert
-		timerInfo.MessageType.ShouldBe("TimerInfo");
+		timerInfo.MessageType.ShouldBe("Excalibur.Dispatch.TimerInfo");
 	}
 
 	#endregion

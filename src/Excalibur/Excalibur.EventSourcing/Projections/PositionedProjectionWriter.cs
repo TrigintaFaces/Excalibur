@@ -168,6 +168,17 @@ internal static class PositionedProjectionWriter<TProjection>
 		long? newPosition,
 		CancellationToken cancellationToken)
 	{
+        var operations = ProjectionStoreOperations<TProjection>.Legacy(store, positioned);
+        return await WriteAsync(operations, positioned is null ? null : operations, id, state,
+            expectedPosition, newPosition, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task<ProjectionAdvanceResult?> WriteAsync(
+        ProjectionStoreOperations<TProjection> store,
+        ProjectionStoreOperations<TProjection>? positioned,
+        string id, TProjection state, long? expectedPosition, long? newPosition,
+        CancellationToken cancellationToken)
+    {
 		ArgumentNullException.ThrowIfNull(store);
 
 		if (positioned is null || newPosition is not { } position)

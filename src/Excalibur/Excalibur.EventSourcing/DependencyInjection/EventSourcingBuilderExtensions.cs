@@ -511,8 +511,11 @@ public static class EventSourcingBuilderExtensions
 		// The pull API for hosts that cannot run a background service -- serverless, above all. Always
 		// registered: it costs nothing until called, and a Function app that discovered at deploy time
 		// that its projections never advance is the outcome this exists to prevent.
-		builder.Services.TryAddSingleton<IProjectionProcessor>(
-			sp => sp.GetRequiredService<AsyncProjectionProcessingHost>());
+		//
+		// It resolves to a COMPOSITE over every registered mode rather than to this host alone. Resolving
+		// to the async host directly left Inline projections driven by nothing in such a host, which
+		// contradicted the sentence above for the one mode whose consumers were promised read-your-writes.
+		ProjectionProcessorRegistration.EnsureRegistered(builder.Services);
 
 		// A processing host with no stream to poll returns immediately, so the application would start,
 		// report healthy, and process nothing forever. Turn that silence into a startup failure — the same

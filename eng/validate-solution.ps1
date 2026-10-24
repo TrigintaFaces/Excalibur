@@ -11,7 +11,7 @@ param([string]$ManifestPath = 'eng/governance/project-manifest.yaml')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = (Get-Location).Path
-$requiredRoots = @('src', 'tests', 'samples', 'benchmarks', 'load-tests')
+$requiredRoots = @('src', 'tests', 'samples', 'benchmarks', 'load-tests', 'eng/tools')
 $templatePackage = 'templates/Excalibur.Dispatch.Templates.csproj'
 
 function New-Set { return ,([Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)) }
@@ -29,7 +29,7 @@ function Get-Projects([string]$Directory) {
     Get-ChildItem -LiteralPath $Directory -Recurse -File -Filter '*.csproj' | ForEach-Object {
         $relative = [IO.Path]::GetRelativePath($repoRoot, $_.FullName).Replace([char]92, '/')
         $excluded = @($relative.Split('/') | Where-Object {
-            $_.StartsWith('.') -or $_ -cin @('bin','obj','node_modules','labs','tools','BenchmarkDotNet.Artifacts')
+            $_.StartsWith('.') -or $_ -cin @('bin','obj','node_modules','labs','BenchmarkDotNet.Artifacts')
         }).Count -gt 0
         if (-not $excluded) { $relative }
     }
@@ -111,7 +111,7 @@ try {
             continue
         }
         if ($section -ceq 'governance' -and $line -match '^  ([a-z_]+): (.+)$') { Add-Field $governance $Matches[1] $Matches[2]; continue }
-        if ($section -ceq 'governed_directories' -and $line -match '^  - ([a-z-]+)/\*\*$') {
+        if ($section -ceq 'governed_directories' -and $line -match '^  - ([a-z-]+(?:/[a-z-]+)*)/\*\*$') {
             if (-not $roots.Add($Matches[1])) { throw 'Duplicate governed directory' }; continue
         }
         if ($section -cin @('projects','exclusions')) {
@@ -138,7 +138,7 @@ try {
         Assert-Fields $item @('path','reason') @('path','reason')
         $path = Convert-RepoPath $item['path']
         if (-not $excludedPaths.Add($path)) { throw "Duplicate exclusion: $path" }
-        if ($path.Split('/')[0] -cin $requiredRoots) { throw "Cannot exclude governed project tree: $path" }
+        if (@($requiredRoots | Where-Object { $path.StartsWith($_ + '/', [StringComparison]::Ordinal) }).Count -gt 0) { throw "Cannot exclude governed project tree: $path" }
     }
 
     $disk = New-Set
@@ -153,6 +153,7 @@ try {
         if ($item['in_solution'] -cne 'true') { throw "Governed project must have literal in_solution: true: $path" }
         $classification = if ($path -ceq $templatePackage) { 'Template' }
             elseif ($path.StartsWith('src/', [StringComparison]::Ordinal)) { 'Shipping' }
+            elseif ($path.StartsWith('eng/tools/', [StringComparison]::Ordinal)) { 'Tool' }
             elseif ($path.StartsWith('samples/', [StringComparison]::Ordinal)) { 'Sample' }
             elseif ($path.StartsWith('benchmarks/', [StringComparison]::Ordinal) -or $path.StartsWith('tests/benchmarks/', [StringComparison]::Ordinal)) { 'Benchmark' }
             else { 'Test' }

@@ -141,6 +141,7 @@ internal sealed class PersistentFencedOutboxStore(SharedOutboxState state)
 }
 
 /// <summary>One conformance run against a given store object.</summary>
+// conformance-partial-suite: full coverage in InMemoryOutboxStoreConformanceShould
 internal sealed class OneKitRun(IOutboxStore store) : OutboxStoreConformanceTestKit
 {
 	protected override bool ParticipatesInFencing => true;
