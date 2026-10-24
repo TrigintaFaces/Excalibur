@@ -137,7 +137,13 @@ jobs:
           # the SBOM generator between runs, which is a poor property for the tool that produces our
           # supply-chain evidence.
           dotnet tool restore
-          dotnet CycloneDX eng/ci/shards/ShippingOnly.slnf -o artifacts/sbom -F Json -t -dpr
+          # A .slnf is authored with Windows separators and CycloneDX resolves the project
+          # paths literally, so on a Linux runner every path misses: the BOM comes back with
+          # zero components and the tool still exits 0. Normalise to forward slashes first.
+          # dotnet build/restore/pack resolve the original fine, which is why only this step
+          # needed it. See dotnet/msbuild#5715 and dotnet/sdk#53915.
+          python3 -c 'import json,pathlib; s=pathlib.Path("eng/ci/shards/ShippingOnly.slnf"); d=json.loads(s.read_text(encoding="utf-8-sig")); v=d["solution"]; v["path"]=v["path"].replace(chr(92),"/"); v["projects"]=[p.replace(chr(92),"/") for p in v["projects"]]; pathlib.Path("eng/ci/shards/ShippingOnly.sbom.slnf").write_text(json.dumps(d,indent=2),encoding="utf-8"); print("EXAMINED: "+str(len(v["projects"]))+" shipping project paths normalised")'
+          dotnet CycloneDX eng/ci/shards/ShippingOnly.sbom.slnf -o artifacts/sbom -F Json -t -dpr
 
       - name: Validate SBOM completeness
         run: |

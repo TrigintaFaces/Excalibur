@@ -608,3 +608,4 @@ spec/tla/**/*_TTrace_*.tla
 .beads.gate.lock
 .claude/settings.local.json
 .beads/dolt-server-config.yaml
+eng/ci/shards/ShippingOnly.sbom.slnf
