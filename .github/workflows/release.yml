@@ -1434,9 +1434,17 @@ jobs:
       # REMOVE THIS DEFAULT WHEN A CERTIFICATE IS OBTAINED, at the same time as the one in the
       # producing build, so the two never disagree about what is publishable.
       #
-      # A repository variable, if set, still wins in BOTH directions: a non-empty value takes
-      # precedence over the default here, so setting it to false restores the refusal.
-      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}
+      # NO LONGER A REPOSITORY VARIABLE. It read `${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}`, so
+      # the absence of a decision resolved to the permissive one -- which is what the gate below
+      # reports as "no explicit opt-out is set", a state that was in fact unreachable. The opt-out is
+      # now a committed literal: the same decision, recorded where it can be reviewed and dated.
+      #
+      # The comment above asks a future reader to change this "at the same time as the one in the
+      # producing build, so the two never disagree". That was an obligation with nothing enforcing
+      # it, and a disagreement is the worst case: every release built unsigned and then refused at
+      # the last gate before the push, or worse, the reverse. The promotion contract now pins this
+      # value and requires both workflows to carry it, so drift is caught before a tag, not during.
+      ALLOW_UNSIGNED_RELEASE: 'true'
     steps:
       # This job does not build, but it runs repository scripts -- the release receipt, before and
       # after the push -- so it needs the repository present.

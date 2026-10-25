@@ -29,6 +29,17 @@ namespace Excalibur.Integration.Tests.Data.EventStore;
 [Collection(CosmosDbEventStoreTestCollection.CollectionName)]
 [Trait("Category", "Integration")]
 [Trait("Component", "EventStore")]
+// REQUIRED, and its absence was caught by the Cosmos census rather than by a failing test. This
+// class constructs a Cosmos fixture, so it starts an emulator; the pull-request event-store shard
+// declares itself emulator-free and filters on Infrastructure!=CosmosEmulator. Untagged, it was
+// ADMITTED on that shard, which is why the census refused the whole leg before a single test ran.
+//
+// Infrastructure says what a test NEEDS and Database says what it is ABOUT -- only the first is a
+// selector, and it is the one that moves this class to the nightly leg where an emulator exists.
+// The nightly filter carries no Infrastructure exclusion, so tagging it here excludes it from the
+// shard that cannot host it WITHOUT making it a test that runs nowhere.
+[Trait("Infrastructure", "CosmosEmulator")]
+[Trait("Database", "CosmosDb")]
 [Trait("Pattern", "FaultInjection")]
 public sealed class CosmosDbEventStoreCommitOutcomeShould(CosmosDbEventStoreContainerFixture fixture)
 {

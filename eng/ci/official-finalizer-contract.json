@@ -1,7 +1,30 @@
 {
   "schema": 1,
   "scope": "Exact privileged finalizer job and inherited execution environment; changes require independent review. CI must never regenerate this approval input.",
-  "sha256": "b1414aef7465b1d138abd480d5343486df01e02af4a8d2b269361d22209394b6",
+  "review_obligations": [
+    "Diff the packages job, workflow env and workflow defaults against the superseded digest, and name every key that changed.",
+    "For each changed key, name the assertion that covers it. If none does, say so: that key is pin-only, and today that list is every run body and the workflow env.",
+    "Read finalizer_if, source_if, needs and environment directly rather than inferring them from a passing assertion.",
+    "Confirm finalizer_if IMPLIES source_if. No assertion can decide this; it is why both are pinned as exact strings.",
+    "Re-run eng/ci/official-handoff.test.py after pasting a new digest and confirm the arms that must be red are red."
+  ],
+  "source_if": "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')",
+  "finalizer_if": "startsWith(github.ref, 'refs/tags/v')",
+  "finalizer_if_note": "Must IMPLY source_if, so the privileged job can never be reachable where its dependency was not. Today it is a verbatim disjunct of source_if, which keeps the implication checkable by eye. A condition naming a status-check function, or any condition reachable outside source_if, is refused at review.",
+  "finalizer_permissions": {
+    "contents": "read",
+    "actions": "read",
+    "id-token": "write",
+    "attestations": "write"
+  },
+  "workflow_env": {
+    "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24": true,
+    "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": 1,
+    "DOTNET_NOLOGO": true,
+    "DOTNET_CLI_TELEMETRY_OPTOUT": 1
+  },
+  "unsigned_release_opt_out": "true",
+  "unsigned_release_note": "A committed decision, not a repository variable: an absent variable used to resolve to the permissive value, contradicting the 'a missing secret is NOT taken as consent' refusal both workflows advertise. Both the producing build and the release workflow must carry this exact value. Set it to 'false' in one commit across both the moment a signing certificate is configured; never merely delete it.",
   "steps": [
     "Verify the handoff artifact identity",
     "Download the verified unsigned handoff",
@@ -17,5 +40,10 @@
     "Attest the SBOM against the packages it describes",
     "Upload the official SBOM",
     "Upload the canonical package set"
+  ],
+  "sha256": "b33496ca23f52aa39b87fc60ffb31d1b9614369822090b801d30198f9a9b1341",
+  "superseded_sha256": [
+    "f68097f83f0f27828f9e92626903cdc31474f625964a8f6f26da0adb25d9e9ee",
+    "b1414aef7465b1d138abd480d5343486df01e02af4a8d2b269361d22209394b6"
   ]
 }

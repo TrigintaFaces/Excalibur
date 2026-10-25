@@ -108,7 +108,8 @@ def run(packages_dir, allow_unsigned):
         print("::error::Signing happens in the producing build, before the hash manifest and the "
               "attestation, so that the bytes tested are the bytes signed are the bytes shipped. "
               "Configure the signing certificate there and promote a new build, or set the "
-              "repository variable ALLOW_UNSIGNED_RELEASE=true to publish unsigned deliberately. "
+              "committed ALLOW_UNSIGNED_RELEASE opt-out in the release workflow to 'true' to "
+              "publish unsigned deliberately. "
               "A missing signature is NOT taken as consent to ship unsigned.")
         return EXIT_FAIL
 
@@ -125,7 +126,10 @@ def run(packages_dir, allow_unsigned):
         print("::warning::  %s" % name)
     print("::warning::These carry NO author signature. Consumers still get nuget.org's repository "
           "signature, which the registry applies to everything it serves, but no publisher-level "
-          "guarantee from us. Remove this variable once a certificate is available.")
+          "guarantee from us. Set the committed ALLOW_UNSIGNED_RELEASE opt-out to 'false' in both "
+          "the producing build and the release workflow once a certificate is available. Do not "
+          "merely delete it: an absent opt-out used to resolve permissive, which is the fail-open "
+          "this message exists to warn about.")
     return EXIT_PASS
 
 

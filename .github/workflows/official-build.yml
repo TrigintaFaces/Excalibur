@@ -303,7 +303,19 @@ jobs:
     # What is deliberately NOT narrowed: build-packages still runs on every default-branch push, so a
     # broken pack, validation, hash or attestation is still caught BEFORE a tag exists rather than at
     # release time. Only the protected finalisation moves.
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    #
+    # THE CONDITION IS A SINGLE DISJUNCT OF THE SOURCE JOB'S, AND THAT IS THE WHOLE DESIGN. It must
+    # IMPLY the source condition, so that this job can never be reachable where its dependency was
+    # not. A first attempt added `|| github.event_name == 'workflow_dispatch'`, which broke exactly
+    # that: workflow_dispatch carries no ref restriction, so a manual run on an arbitrary branch made
+    # the source condition false and this one true -- a privileged, credential-holding job asking for
+    # approval on top of a dependency that never ran. Implication is not something a gate can decide
+    # between two expressions, so it is kept decidable BY EYE: this string appears verbatim inside
+    # the source job's condition above, and any replacement must too.
+    #
+    # Manual dispatch still reaches signing, because a dispatch ON A TAG satisfies this. What it no
+    # longer does is reach signing from a branch, where there is nothing to publish.
+    if: startsWith(github.ref, 'refs/tags/v')
     # Signing credentials belong only in this environment. Its actual protection
     # settings must be configured and verified before author signing is enabled.
     environment: package-signing
@@ -315,7 +327,22 @@ jobs:
     outputs:
       version: ${{ steps.receipt.outputs.version }}
     env:
-      ALLOW_UNSIGNED_RELEASE: ${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}
+      # THE UNSIGNED OPT-OUT IS A COMMITTED LITERAL, NOT A REPOSITORY VARIABLE, and the difference is
+      # the whole point. This read `${{ vars.ALLOW_UNSIGNED_RELEASE || 'true' }}`, which made the
+      # ABSENCE of a decision resolve to the permissive one -- while two error messages downstream
+      # promise the opposite in as many words: "A missing secret is NOT taken as consent to ship
+      # unsigned." With a permissive fallback a missing secret was exactly that, so the refusal those
+      # messages describe was unreachable unless somebody explicitly set the variable to false.
+      #
+      # A literal fixes that without changing today's behaviour: shipping unsigned is still permitted,
+      # but now because a commit says so, with an author and a date, reviewable in a diff and pinned
+      # by the promotion contract. A repository variable is none of those -- it is changeable by
+      # anyone with settings access, leaves no history in the tree, and reads as configuration rather
+      # than as the security decision it is.
+      #
+      # FLIP THIS TO 'false' IN THE SAME COMMIT AS release.yml's, the moment a certificate is
+      # configured. The gate holds the two to the same value, so they cannot drift apart.
+      ALLOW_UNSIGNED_RELEASE: 'true'
       HANDOFF_ARTIFACT_ID: ${{ needs.build-packages.outputs.handoff-id }}
       HANDOFF_MANIFEST_SHA256: ${{ needs.build-packages.outputs.manifest-sha256 }}
       RELEASE_CANDIDATE_VERSION: ${{ needs.build-packages.outputs.version }}
@@ -458,7 +485,7 @@ jobs:
           # proceeds.
           if [ "${ALLOW_UNSIGNED_RELEASE:-}" != "true" ]; then
             echo "::error::REFUSE: this build stamps release version ${RELEASE_CANDIDATE_VERSION}, so it is promotable, but signing is not configured and no explicit opt-out is set."
-            echo "::error::Either configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD for this workflow, or set the repository variable ALLOW_UNSIGNED_RELEASE=true to produce a promotable set unsigned deliberately. A missing secret is NOT taken as consent to ship unsigned."
+            echo "::error::Either configure NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD for this workflow, or set the committed ALLOW_UNSIGNED_RELEASE opt-out on this job to 'true' to produce a promotable set unsigned deliberately. A missing secret is NOT taken as consent to ship unsigned; only a committed opt-out is."
             exit 1
           fi
 

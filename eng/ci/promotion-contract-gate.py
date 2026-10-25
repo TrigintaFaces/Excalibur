@@ -101,6 +101,17 @@ class Problem:
     def __str__(self):
         return f"FAIL [{self.assertion}] {self.message}"
 
+    # unittest renders a list of these on failure. Without a repr it prints object addresses,
+    # which is what a real CI failure printed: two findings, neither of them readable.
+    __repr__ = __str__
+
+    def __eq__(self, other):
+        return (isinstance(other, Problem)
+                and (self.assertion, self.message) == (other.assertion, other.message))
+
+    def __hash__(self):
+        return hash((self.assertion, self.message))
+
 
 # ----------------------------------------------------------------------- parsing helpers
 
@@ -214,7 +225,7 @@ def check(workflows):
     split_final = jobs_of(official).get("packages")
     split = split_source is not None and split_final is not None
     if split:
-        problems.extend(check_signing_isolation(official))
+        problems.extend(check_signing_isolation(official, release))
 
     # -- A1: the release workflow cannot rebuild what it publishes -----------------------
     if not release:
@@ -523,7 +534,17 @@ def check(workflows):
     return problems
 
 
-def check_signing_isolation(official):
+def finalizer_contract():
+    """The reviewed privileged-finalizer contract.
+
+    A function rather than an inline read so a test can substitute it and re-pin the digest to a
+    mutated job. That substitution is what makes the other assertions in this family provable: with
+    the pin matching, each mutation must still be caught BY THE ASSERTION IT VIOLATES, instead of
+    every arm going red on the digest and proving nothing about itself."""
+    return json.loads(Path(__file__).with_name("official-finalizer-contract.json").read_text(encoding="utf-8"))
+
+
+def check_signing_isolation(official, release=None):
     """One explicit intra-workflow handoff; downloaded inputs are data, never tools."""
     problems = []
     def require(ok, message):
@@ -533,9 +554,9 @@ def check_signing_isolation(official):
     final = jobs_of(official)["packages"]
     # Deliberate executable allowlist. Updating this contract is a reviewed change,
     # never something CI regenerates to make a changed privileged job pass.
-    contract_path = Path(__file__).with_name("official-finalizer-contract.json")
+    contract = {}
     try:
-        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        contract = finalizer_contract()
         executable = {"job": final, "workflow_env": official.get("env", {}),
                       "workflow_defaults": official.get("defaults", {})}
         digest = hashlib.sha256(json.dumps(executable, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -543,15 +564,70 @@ def check_signing_isolation(official):
     except (OSError, ValueError) as exc:
         require(False, f"cannot read privileged executable contract: {exc}")
     require(official.get("permissions") == {}, "official workflow must deny inherited authority")
+    # The workflow env is INHERITED by the privileged job, so a shell hook planted here executes
+    # inside it with the signing credentials. Pinned, because the digest was the only thing standing
+    # here and a digest mismatch does not tell a reader which key appeared.
+    require(official.get("env") == contract.get("workflow_env"),
+            "inherited workflow environment must be exactly the reviewed set")
     require(source.get("permissions") == {"contents": "read"}, "source execution must have read-only permissions")
-    require(source.get("if") == "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')", "official source must restrict dispatch refs")
+    require(source.get("if") == contract.get("source_if"), "official source must restrict dispatch refs")
     require("secrets." not in str(source), "source execution must not reference secrets")
+    require(not any(step.get("continue-on-error") for step in steps_of(source)),
+            "source steps cannot soften failure")
     require(not attest_steps(source), "source execution must not attest")
     require(needs_of(final) == ["build-packages"], "finalizer must require successful source build")
-    require(not final.get("if") and not final.get("continue-on-error"), "finalizer cannot bypass dependency success")
+    require(not final.get("continue-on-error"), "finalizer cannot soften its own failure")
+    # THE TWO RUN CONDITIONS, PINNED AS EXACT STRINGS AND NOWHERE ELSE.
+    #
+    # This was a blanket ban on any `if` on the finaliser. That ban was not a proxy for the
+    # requirement, it WAS the requirement by construction: with no condition of its own, the
+    # finaliser's reachability was DERIVED from the source's condition, and that one string was
+    # pinned. One predicate, one check. Giving the finaliser its own condition created a second,
+    # independent predicate and checked neither's relation to the other -- and the two promptly
+    # disagreed on a reachable input: `workflow_dispatch` carries no ref restriction, so a dispatch
+    # on an arbitrary branch made the source condition false and the finaliser condition true.
+    #
+    # So the finaliser may carry a condition, but only one written down here by a human, and the
+    # obligation that comes with writing it down is stated at the contract field: the finaliser
+    # condition MUST IMPLY the source condition. Today it is a single disjunct of it, which is
+    # checkable by eye. No gate can decide implication between two expressions in a language with
+    # contexts, case-insensitive functions and short-circuit -- and a substring scan for `always(`
+    # is not that gate. It loses to `ALWAYS()`, to `always ()`, to the same state spelled as a
+    # context (`needs.*.result != 'cancelled'`), and to every condition that names no status
+    # function at all yet still widens reachability -- which is the shape that actually got through.
+    #
+    # An exact comparison cannot be out-enumerated, needs no parser, and inverts the burden: an
+    # expression must be reviewed into the contract to run at all.
+    require(final.get("if") == contract.get("finalizer_if"),
+            "finalizer run condition must be exactly the reviewed one")
+    require(final.get("permissions") == contract.get("finalizer_permissions"),
+            "finalizer authority must be exactly the reviewed set")
     require(final.get("environment") == "package-signing", "finalizer must use the signing environment")
     require(final.get("runs-on") == "ubuntu-latest", "finalizer requires a fresh hosted runner")
     require("secrets." not in str(final.get("env", {})), "signing secrets must be step-scoped")
+    # THE UNSIGNED OPT-OUT, PINNED, AND THE SAME VALUE IN BOTH WORKFLOWS.
+    #
+    # Shipping unsigned is a legitimate decision while no certificate exists. What it must not be is
+    # an AMBIENT one: this read a repository variable with a permissive fallback, so the absence of a
+    # decision resolved to consent -- while the error messages on both sides promise, verbatim, that
+    # "a missing secret is NOT taken as consent to ship unsigned". The refusal they describe could
+    # not be reached. The opt-out is now a committed literal, and pinning it here means weakening it
+    # costs a reviewed contract change rather than a settings click nobody sees.
+    #
+    # Both workflows must carry the same value, because they decide two halves of one question: the
+    # producer decides whether to BUILD an unsigned promotable set, the publisher whether to PUSH
+    # one. release.yml asks a future reader to keep them in step "so the two never disagree" -- an
+    # obligation nothing enforced until now. A disagreement is the expensive case: every release
+    # built unsigned and then refused at the last gate before the push, or the reverse.
+    opt_out = contract.get("unsigned_release_opt_out")
+    require(final.get("env", {}).get("ALLOW_UNSIGNED_RELEASE") == opt_out,
+            "unsigned-release opt-out must be the reviewed committed value")
+    if release is not None:
+        publishers = [job for job in jobs_of(release).values()
+                      if "ALLOW_UNSIGNED_RELEASE" in (job.get("env") or {})]
+        require(bool(publishers), "the release workflow must state its unsigned-release decision")
+        require(all(job["env"]["ALLOW_UNSIGNED_RELEASE"] == opt_out for job in publishers),
+                "producing build and release workflow must agree on the unsigned-release opt-out")
     for step in steps_of(final):
         use, run = step_uses(step), step_run(step)
         if use:
@@ -568,6 +644,14 @@ def check_signing_isolation(official):
         require(settings.get("digest-mismatch") == "error", "handoff digest mismatch must fail")
         require(not any(key in settings for key in ("name", "pattern", "run-id", "repository", "github-token")), "handoff cannot select another run or repository")
     names = [step.get("name") for step in steps_of(final)]
+    # THE REVIEWED STEP LIST, WIRED. The contract carried this array and nothing read it: the only
+    # human-legible description of the privileged job was bound to no assertion, and it had already
+    # drifted out of agreement with the `ordered` subsequence below. A decorative field that reads
+    # like reviewed content is worse than no field, because a reviewer reads it and believes it.
+    # Checking it here is also what turns "a step was added to the privileged job" from an opaque
+    # digest mismatch into a finding that names the step. `ordered` below is a different and weaker
+    # property -- relative order of the steps that must not be reordered -- and both are wanted.
+    require(names == contract.get("steps"), "finalizer steps must be exactly the reviewed list, in order")
     ordered = ["Verify the handoff artifact identity", "Download the verified unsigned handoff",
                "Verify unsigned handoff contents", "Decide whether this build must be signed",
                "Verify signing environment protections", "Sign the shipping packages",
