@@ -342,8 +342,6 @@
 1	src/Excalibur/Excalibur.EventSourcing.SqlServer/DependencyInjection/SqlServerProjectionStoreExtensions.cs	IL2091
 1	src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/SaveSnapshotRequest.cs	IL2026
 1	src/Excalibur/Excalibur.EventSourcing.SqlServer/Requests/SaveSnapshotRequest.cs	IL3050
-3	src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs	IL2026
-3	src/Excalibur/Excalibur.EventSourcing.SqlServer/SqlServerEventStore.cs	IL3050
 1	src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs	IL2026
 1	src/Excalibur/Excalibur.EventSourcing.Sqlite/SqliteEventStore.cs	IL3050
 2	src/Excalibur/Excalibur.EventSourcing/DependencyInjection/AutoSnapshotServiceCollectionExtensions.cs	IL2026
