@@ -244,13 +244,32 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
+		// The boundary must ENCLOSE the handler below, not sit inside it: its Unknown arm only fires for
+		// a fault that ESCAPES, and what lets a post-dispatch fault escape is the !state.Dispatched filter.
+		return await AppendCommitBoundary.ExecuteAsync(
+				state => AppendCoreAsync(state, aggregateId, aggregateType, eventList, expectedVersion, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>Appends inside a commit boundary, which owns the post-dispatch outcome.</summary>
+	private async ValueTask<AppendResult> AppendCoreAsync(
+		AppendCommitBoundary state,
+		string aggregateId,
+		string aggregateType,
+		IReadOnlyCollection<IDomainEvent> eventList,
+		long expectedVersion,
+		CancellationToken cancellationToken)
+	{
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
+
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventList.Count, expectedVersion);
 
 		try
 		{
 			var appendResult = await ExecuteAppendTransactionAsync(
-					aggregateId, aggregateType, eventList, expectedVersion, activity, cancellationToken)
+					state, aggregateId, aggregateType, eventList, expectedVersion, activity, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -269,9 +288,16 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		// a cancelled scope. Everything else -- cancellation, an event type the configured resolver does
 		// not declare, a programming error -- propagates, because a returned failure means "this could
 		// succeed if you try again" and none of those can.
-		catch (Exception ex) when (ex is OracleException or OperationFailedException)
+		// !state.Dispatched IS THE EVIDENCE, and it replaces an argument below that does not hold. The
+		// dispose-and-rollback it describes is real; the CONCLUSION assumed the transaction was still
+		// UNCOMMITTED. If the commit reached the server and its acknowledgement was lost, the rollback
+		// does nothing because there is nothing left to roll back, and the events are durable. Scoping
+		// proves the cleanup ran, never that the commit did not. Reached with no commit dispatched, the
+		// claim holds and the conflict-or-failure question below is the only one left; reached after a
+		// commit was sent, this handler is skipped and the boundary answers Unknown.
+		catch (Exception ex) when (!state.Dispatched && (ex is OracleException or OperationFailedException))
 		{
-			// Nothing was written: the append's transaction and connection are scoped to the method that
+			// SUPERSEDED in its conclusion, kept for its mechanism: the append's transaction and connection are scoped to the method that
 			// raised, so both are disposed -- and an uncommitted transaction rolled back -- while the
 			// exception unwinds, before this body runs. The only question left is whether this append lost
 			// its version precondition to another writer, which is a concurrency conflict, or failed for its
@@ -472,7 +498,13 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		}
 	}
 
+	// Internal fault-injection boundary, mirroring the Postgres and SQL Server seams: a test can lose
+	// the acknowledgement around a REAL commit, which is the only way to reach the post-dispatch arm.
+	internal Func<OracleTransaction, CancellationToken, Task> CommitTransactionAsync { get; init; } =
+		static (transaction, token) => transaction.CommitAsync(token);
+
 	private async ValueTask<AppendResult> ExecuteAppendTransactionAsync(
+		AppendCommitBoundary state,
 		string aggregateId,
 		string aggregateType,
 		IReadOnlyCollection<IDomainEvent> eventList,
@@ -516,7 +548,10 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 				connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 			.ConfigureAwait(false);
 
-		await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+		// Marked BEFORE the commit is sent, because from here on no fault can establish non-commit.
+		state.MarkDispatched();
+		await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+		state.MarkAcknowledged(appended);
 
 		_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
 			eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);

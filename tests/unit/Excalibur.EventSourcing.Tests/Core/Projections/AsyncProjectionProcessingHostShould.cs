@@ -420,12 +420,10 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			// The apply callback signals from INSIDE the batch, before the host has persisted the
 			// checkpoint, so the StopAsync below can cut that write off. Wait for the durable value
 			// while the host is still running; the assertion on it stays after the stop.
-			var deadline = DateTimeOffset.UtcNow + TestTimeouts.Scale(TimeSpan.FromSeconds(10));
-			while (await _checkpointStore.GetCheckpointAsync(checkpointName, CancellationToken.None)
-				.ConfigureAwait(false) != 4L && DateTimeOffset.UtcNow < deadline)
-			{
-				await Task.Delay(10, TestContext.Current.CancellationToken).ConfigureAwait(false);
-			}
+			await WaitHelpers.WaitUntilAsync(
+				async token => await _checkpointStore.GetCheckpointAsync(checkpointName, token).ConfigureAwait(false) == 4L,
+				TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 		}
 		finally
 		{

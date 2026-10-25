@@ -28,10 +28,11 @@ public sealed class SqlServerEventStoreMeasurementShould(SqlServerContainerFixtu
         {
             Environment.SetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING", database.ConnectionString);
             var artifacts = Path.Combine(Path.GetTempPath(), "oz03zn-bdn", Guid.NewGuid().ToString("N"));
-            BenchmarkExecution.Run(typeof(SqlServerEventStoreBenchmarks).Assembly, [
+            var exitCode = BenchmarkExecution.Run(typeof(SqlServerEventStoreBenchmarks).Assembly, [
                 "--filter", "*SqlServerEventStoreBenchmarks*", "--artifacts", artifacts,
                 "--warmupCount", "1", "--iterationCount", "1",
-            ]).ShouldBe(0);
+            ], out var diagnosis);
+            exitCode.ShouldBe(0, diagnosis);
             var report = Directory.GetFiles(Path.Combine(artifacts, "results"), "*-report.csv").ShouldHaveSingleItem();
             var rows = File.ReadAllLines(report);
             rows.Length.ShouldBe(8);

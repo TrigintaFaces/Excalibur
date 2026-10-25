@@ -313,6 +313,10 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		}
 	}
 
+	// Internal fault-injection boundary, the same role as the commit seams on the relational stores:
+	// a test receives the real transaction as a delegate and may run it, skip it, and then throw.
+	internal Func<Func<CancellationToken, Task>, CancellationToken, Task>? RunAppendTransactionInterceptor { get; init; }
+
 	/// <inheritdoc />
 	/// <remarks>
 	/// An append commits as a single Firestore transaction, so it is all-or-nothing. Firestore caps a
@@ -324,6 +328,7 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 	/// <exception cref="EventBatchTooLargeException">
 	/// <paramref name="events"/> contains more events than this store can append atomically.
 	/// </exception>
+	/// <inheritdoc/>
 	public async Task<CloudAppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
@@ -393,6 +398,11 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventsList.Count, expectedVersion);
 
+		// Declared outside the try because the terminal handler needs it: whether a commit was ever
+		// handed to the driver is the only thing that distinguishes "nothing was written" from "we
+		// cannot tell", and a catch cannot see a variable scoped to the try.
+		var dispatched = false;
+
 		try
 		{
 			// Use transaction for optimistic concurrency
@@ -402,7 +412,17 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			var conflictSlotOccupied = false;
 			var currentActualVersion = expectedVersion;
 
-			await _db!.RunTransactionAsync(async transaction =>
+			// DISPATCHED THE MOMENT THE DRIVER IS CALLED, not at a commit we can see. RunTransactionAsync
+			// commits INTERNALLY, so from this line on a commit may have reached the server, and no fault
+			// afterwards can establish non-commit. The flag is local rather than taken from the commit
+			// boundary because this method is public on ICloudNativeEventStore and cannot carry one.
+			dispatched = true;
+
+			// Routed through the interceptor so a test can place a fault on either side of a REAL
+			// transaction. Without it the Unknown arm is reachable in production and unreachable in a
+			// test, which is the shape of a guarantee nothing binds.
+			async Task RunAppendTransactionAsync(CancellationToken token) =>
+				await _db!.RunTransactionAsync(async transaction =>
 			{
 				// Reset per attempt: Firestore re-runs this callback when the transaction conflicts, and a
 				// verdict left over from a failed attempt would outlive the attempt that produced it,
@@ -435,8 +455,13 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				{
 					// THE SLOT IS OCCUPIED. THAT IS NOT THE QUESTION -- the question is BY WHOM.
 					//
-					// Firestore re-runs this callback on six status codes, five of which are lost-acknowledgement
-					// shapes: the commit reached the server and landed, and the response did not come back. On the
+					// The driver re-runs this callback on a set of status codes it chooses, and some of them are
+					// lost-acknowledgement shapes: the commit reached the server and landed, and the response did
+					// not come back. That set is the DRIVER'S, not ours -- RunTransactionAsync below is called with
+					// no TransactionOptions, so the retry codes and the attempt count are library defaults that
+					// nothing here configures or reads. Our own transient list is a separate thing and must not be
+					// quoted as though it were the driver's. The argument needs only that at least one retried code
+					// can follow a landed commit, which Aborted and DeadlineExceeded both can. On the
 					// re-run this slot is occupied by THIS CALL'S OWN EVENT. Testing only .Exists reported that as a
 					// concurrency conflict, and the documented remedy for a conflict is reload-and-retry, which
 					// appends the same business event again at the NEXT version. Deterministic ids cannot prevent
@@ -519,7 +544,16 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				}
 
 				newVersion = version;
-			}, cancellationToken: cancellationToken).ConfigureAwait(false);
+			}, cancellationToken: token).ConfigureAwait(false);
+
+			if (RunAppendTransactionInterceptor is { } intercept)
+			{
+				await intercept(RunAppendTransactionAsync, cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				await RunAppendTransactionAsync(cancellationToken).ConfigureAwait(false);
+			}
 
 			if (alreadyCommittedByUs)
 			{
@@ -598,7 +632,15 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 				messageId,
 				correlationId);
 			_logger.LogError(ex, "Error appending events to stream {StreamId}", streamId);
-			return CloudAppendResult.CreateFailure(ex.Message, 0, ClassifyAppendFailure(ex));
+			// Failed states that nothing was written. Once RunTransactionAsync has been called the driver
+			// may have committed internally, so only the un-dispatched case can support that claim; the
+			// rest is Unknown. This REPLACES the earlier mapping that keyed on the retry classification at
+			// the IEventStore adapter -- that was a proxy for "the driver retried this code", a property
+			// of the client library that nothing here reads, and it also left a post-commit PERMANENT
+			// fault reporting Failed. The flag is the fact the proxy was standing in for.
+			return dispatched
+				? CloudAppendResult.CreateUnknown(ex.Message, 0, ClassifyAppendFailure(ex))
+				: CloudAppendResult.CreateFailure(ex.Message, 0, ClassifyAppendFailure(ex));
 		}
 		finally
 		{
@@ -727,6 +769,17 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloud
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
 		}
 
+		// Unknown is carried across unchanged. The store decides it, not this adapter.
+		//
+		// SUPERSEDED, quoted so anyone who absorbed it recognises it: this branch also matched
+		// "result.FailureKind == MessageFailureKind.Transient", on the argument that a retryable status is
+		// exactly the set where non-commit cannot be established. That argument was wrong in two ways.
+		// The retry set it appealed to belongs to the DRIVER -- RunTransactionAsync is called with no
+		// TransactionOptions, so the codes and attempt count are library defaults nothing here reads --
+		// while the kind is OUR classification, so the test was a proxy for a fact it never measured.
+		// And it left the complementary hole open: a PERMANENT fault arriving after a commit had already
+		// landed still reported Failed. The store now records whether a commit was handed to the driver
+		// at all, which is the fact the proxy was standing in for, so this adapter needs no inference.
 		if (result.Outcome == CloudAppendOutcome.Unknown)
 		{
 			return AppendResult.CreateUnknown(result.ErrorMessage ?? "Append outcome could not be established.");

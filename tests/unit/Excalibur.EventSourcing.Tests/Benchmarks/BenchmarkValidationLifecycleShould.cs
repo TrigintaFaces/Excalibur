@@ -31,10 +31,16 @@ public sealed class BenchmarkValidationLifecycleShould
         var artifacts = Path.Combine(Path.GetTempPath(), "es15-bdn", Guid.NewGuid().ToString("N"));
         var exitCode = BenchmarkExecution.Run(typeof(LifecycleBenchmark).Assembly, [
             "--filter", "*LifecycleBenchmark.Measure*", "--artifacts", artifacts,
-        ]);
+        ], out var diagnosis);
 
-        LifecycleBenchmark.CleanupCalls.ShouldBeGreaterThanOrEqualTo(failOnCleanup == 0 ? 4 : failOnCleanup);
-        exitCode.ShouldBe(expectedExitCode);
+        // The EXIT CODE is asserted first, and the order is deliberate. The cleanup-count assertion used
+        // to come first, so when BenchmarkDotNet declined to run at all the failure read
+        // "CleanupCalls should be >= 4 but was 0" -- a count, with no hint that nothing had executed or
+        // why. The commonest cause is running this suite in DEBUG: BenchmarkDotNet refuses to measure a
+        // non-optimized assembly, and CI always passes --configuration Release. The diagnosis below
+        // carries that reason out of the runner, so the next person reads the cause instead of a zero.
+        exitCode.ShouldBe(expectedExitCode, diagnosis);
+        LifecycleBenchmark.CleanupCalls.ShouldBeGreaterThanOrEqualTo(failOnCleanup == 0 ? 4 : failOnCleanup, diagnosis);
     }
 }
 

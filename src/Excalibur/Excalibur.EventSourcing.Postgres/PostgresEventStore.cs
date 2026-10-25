@@ -414,7 +414,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
 			activity.RecordException(ex);
 			activity.SetOperationResult(EventSourcingTagValues.Failure);
-			return AppendResult.CreateFailure(AppendCommitBoundary.DescribeFailure(ex));
+			return AppendResult.CreateFailure(DescribeAppendFailure(ex));
 		}
 		finally
 		{
@@ -512,15 +512,15 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 						connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 					.ConfigureAwait(false);
 
-				state.Dispatched = true;
+				state.MarkDispatched();
 				await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
-				state.Acknowledged = appended;
+				state.MarkAcknowledged(appended);
 
 				_logger.LogDebug(
 					"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
 					eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
-				return state.Acknowledged;
+				return appended;
 			}
 			catch
 			{
@@ -539,7 +539,7 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 			}
 
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
-			return AppendResult.CreateFailure(AppendCommitBoundary.DescribeFailure(ex));
+			return AppendResult.CreateFailure(DescribeAppendFailure(ex));
 		}
 	}
 
@@ -605,16 +605,43 @@ public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEvent
 				connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 			.ConfigureAwait(false);
 
-		state.Dispatched = true;
+		state.MarkDispatched();
 		await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
-		state.Acknowledged = appended;
+		state.MarkAcknowledged(appended);
 
 		_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
 			eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
 
 		_ = (activity?.SetTag(EventSourcingTags.Version, appended.NextExpectedVersion));
 		activity.SetOperationResult(EventSourcingTagValues.Success);
-		return state.Acknowledged;
+		return appended;
+	}
+
+	/// <summary>Flattens an exception chain into one diagnostic message.</summary>
+	/// <param name="ex">The exception to describe.</param>
+	/// <returns>The joined message chain.</returns>
+	/// <remarks>
+	/// A member rather than its own type on purpose. It used to sit on AppendCommitBoundary, which has
+	/// moved to the shared abstractions and is public surface there -- carrying an exception-message
+	/// formatter on it would export a utility nobody asked for. Giving it a type of its own here instead
+	/// took this class one past the CA1506 coupling limit, measured: zero occurrences at HEAD, one after.
+	/// A private helper on the only class that uses it costs no coupling and needs no suppression.
+	/// </remarks>
+	internal static string DescribeAppendFailure(Exception ex)
+	{
+		ArgumentNullException.ThrowIfNull(ex);
+
+		// Plain concatenation rather than a StringBuilder, and the reason is measurable rather than
+		// stylistic: referencing StringBuilder from this class takes it past the CA1506 coupling limit.
+		// The original code carried a "performance optimization" note for the builder while its own next
+		// sentence said chains are one to three levels deep, which is where concatenation wins anyway.
+		var message = ex.Message;
+		for (var inner = ex.InnerException; inner is not null; inner = inner.InnerException)
+		{
+			message += " -> " + inner.Message;
+		}
+
+		return message;
 	}
 
 	// Internal fault-injection boundary: tests can lose the acknowledgement around a real commit.

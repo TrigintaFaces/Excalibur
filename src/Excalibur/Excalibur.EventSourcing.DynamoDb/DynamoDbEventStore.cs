@@ -257,7 +257,6 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		using var activity = EventSourcingActivitySource.StartLoadActivity(aggregateId, aggregateType);
-
 		try
 		{
 			var streamId = BuildStreamId(aggregateType, aggregateId);
@@ -394,6 +393,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 		}
 	}
 
+	// Internal fault-injection boundary, the same role as the commit seams on the relational stores:
+	// a test receives the real write as a delegate and may run it, skip it, and then throw.
+	internal Func<Func<CancellationToken, Task<CloudAppendResult>>, CancellationToken, Task<CloudAppendResult>>? AppendWriteInterceptor { get; init; }
+
 	/// <inheritdoc />
 	public async Task<CloudAppendResult> AppendAsync(
 		string aggregateId,
@@ -449,6 +452,10 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 
 		LogAppendingEvents(streamId, aggregateType);
 
+
+		// Declared outside the try because the terminal handler needs it, and a catch cannot see a
+		// variable scoped to the try.
+		var dispatched = false;
 		try
 		{
 			// Contiguity + concurrency pre-check — match the SQL/InMemory contract (currentVersion must equal
@@ -490,19 +497,24 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			//
 			// That cost saving is why the removed opt-out existed. It is kept here, where it is honest,
 			// and not extended to multi-event appends, where it traded atomicity for throughput.
-			CloudAppendResult appendResult;
-			if (eventsList.Count > 1)
-			{
-				appendResult = await AppendWithTransactionAsync(
-						streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, cancellationToken)
-					.ConfigureAwait(false);
-			}
-			else
-			{
-				appendResult = await AppendSequentiallyAsync(
-						streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, cancellationToken)
-					.ConfigureAwait(false);
-			}
+			// DISPATCHED THE MOMENT A WRITE IS HANDED TO THE DRIVER. From here on no fault can
+			// establish non-commit: the request may have reached the service and been applied while
+			// its response was lost. The flag is local rather than taken from the commit boundary
+			// because this method is public on ICloudNativeEventStore and cannot carry one.
+			dispatched = true;
+			async Task<CloudAppendResult> PerformAppendWriteAsync(CancellationToken token) =>
+				eventsList.Count > 1
+					? await AppendWithTransactionAsync(
+							streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, token)
+						.ConfigureAwait(false)
+					: await AppendSequentiallyAsync(
+							streamId, aggregateId, aggregateType, partitionKey, eventsList, expectedVersion, token)
+						.ConfigureAwait(false);
+
+			// Routed through the interceptor so a test can place a fault on either side of a REAL write.
+			var appendResult = AppendWriteInterceptor is { } intercept
+				? await intercept(PerformAppendWriteAsync, cancellationToken).ConfigureAwait(false)
+				: await PerformAppendWriteAsync(cancellationToken).ConfigureAwait(false);
 
 			if (appendResult.Success)
 			{
@@ -544,7 +556,13 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			// AWS SDK exception (a leaked provider exception is the substitutability violation). Version
 			// conflicts are already returned above; every other fault returns a failure handled uniformly
 			// across providers.
-			return CloudAppendResult.CreateFailure(ex.Message, requestCharge: 0d, ClassifyAppendFailure(ex));
+			// Failed states that nothing was written, and only the un-dispatched case can support that.
+			// This REPLACES the mapping that keyed on our retry classification at the IEventStore
+			// adapter: that was a proxy for a property of the client library which nothing here reads,
+			// and it left a post-commit PERMANENT fault still reporting Failed.
+			return dispatched
+				? CloudAppendResult.CreateUnknown(ex.Message, requestCharge: 0d, ClassifyAppendFailure(ex))
+				: CloudAppendResult.CreateFailure(ex.Message, requestCharge: 0d, ClassifyAppendFailure(ex));
 		}
 		finally
 		{
@@ -684,6 +702,21 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudN
 			return AppendResult.CreateConcurrencyConflict(expectedVersion, result.NextExpectedVersion);
 		}
 
+		// A TRANSIENT fault joins Unknown here, and must: Failed means "Nothing was written", and this
+		// store cannot establish that. The terminal fault handler is a single catch over the whole
+		// provider call -- no attempt index, no phase -- so it cannot separate a fault that preceded the
+		// commit from a commit that landed while its acknowledgement was lost. IEventStore permits the
+		// Failed assertion only where non-commit is ESTABLISHED, and a retryable status is exactly the
+		// set where it is not: the driver re-runs the callback on those, and the attempt that reaches
+		// this line is the one that had no re-run left to probe with. Unknown is the outcome defined for
+		// that state, and the only one a caller can act on -- reconcile, rather than retry an append that
+		// may already be durable.
+		//
+		// This reads the classification the store already computed instead of re-deriving one. The kind is
+		// a REQUIRED parameter on CloudAppendResult.CreateFailure so that no failure path can omit it, and
+		// it was being discarded at this boundary -- the one place a consumer reads. Using it to DECLINE
+		// certainty is the direction the contract allows: "retry classification does not establish commit
+		// certainty" forbids inferring certainty FROM the kind, not refusing a certainty we do not have.
 		if (result.Outcome == CloudAppendOutcome.Unknown)
 		{
 			return AppendResult.CreateUnknown(result.ErrorMessage ?? "Append outcome could not be established.");

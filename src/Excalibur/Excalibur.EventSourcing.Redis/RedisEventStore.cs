@@ -232,6 +232,10 @@ public sealed partial class RedisEventStore : IEventStore
 		return filtered;
 	}
 
+	// Internal fault-injection boundary, the same role as the commit seams on the relational stores:
+	// a test receives the real script evaluation as a delegate and may run it, skip it, and then throw.
+	internal Func<Func<Task<RedisResult[]?>>, Task<RedisResult[]?>>? ScriptEvaluateInterceptor { get; init; }
+
 	/// <inheritdoc/>
 	public async ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
@@ -252,6 +256,21 @@ public sealed partial class RedisEventStore : IEventStore
 			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
+		// The boundary must ENCLOSE the handler below, not sit inside it: its Unknown arm only fires for
+		// a fault that ESCAPES, and what lets a post-dispatch fault escape is the !state.Dispatched filter.
+		return await AppendCommitBoundary.ExecuteAsync(
+				state => AppendCoreAsync(state, aggregateId, aggregateType, eventList, expectedVersion))
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>Appends inside a commit boundary, which owns the post-dispatch outcome.</summary>
+	private async ValueTask<AppendResult> AppendCoreAsync(
+		AppendCommitBoundary state,
+		string aggregateId,
+		string aggregateType,
+		List<IDomainEvent> eventList,
+		long expectedVersion)
+	{
 		var db = GetDatabase();
 		var streamKey = GetStreamKey(aggregateType, aggregateId);
 
@@ -308,14 +327,33 @@ public sealed partial class RedisEventStore : IEventStore
 
 		try
 		{
-			var result = (RedisResult[]?)await db.ScriptEvaluateAsync(
+			// Marked BEFORE the script is sent. The whole append IS this one evaluation -- Lua runs
+			// atomically on the server -- so once it is dispatched there are exactly two possibilities,
+			// it ran or it did not, and a lost reply cannot tell them apart. That is Unknown by
+			// definition, and it is why this store needs no separate after-failure probe to be HONEST:
+			// there is no partial state for one to measure.
+			state.MarkDispatched();
+
+			async Task<RedisResult[]?> EvaluateAppendScriptAsync() => (RedisResult[]?)await db.ScriptEvaluateAsync(
 				AppendScript,
 				[streamKey, versionKey, GetRetryMarkerKey(streamKey)],
 				args.ToArray()).ConfigureAwait(false);
 
+			// Routed through the interceptor so a test can place a fault on either side of a REAL script
+			// evaluation. Without it the Unknown arm below is reachable in production and unreachable in
+			// a test, which is the shape of a guarantee nothing binds.
+			var result = ScriptEvaluateInterceptor is { } intercept
+				? await intercept(EvaluateAppendScriptAsync).ConfigureAwait(false)
+				: await EvaluateAppendScriptAsync().ConfigureAwait(false);
+
 			if (result == null || result.Length < 2)
 			{
-				return AppendResult.CreateFailure("Unexpected Lua script result.");
+				// NOT Failed: this reply came back FROM a script that ran, so the append may well have
+				// been applied and we simply cannot read the answer. Claiming nothing was written here is
+				// the same falsehood as claiming it after a lost reply.
+				return AppendResult.CreateUnknown(
+					"The append script returned a reply this client could not interpret, so its outcome could "
+					+ "not be established. Reconcile the original operation.");
 			}
 
 			var statusValue = (long)result[0];
@@ -347,14 +385,19 @@ public sealed partial class RedisEventStore : IEventStore
 
 			LogEventsAppended(aggregateId, aggregateType, eventList.Count, committedVersion);
 			// Per-stream version counter only — no store-wide global sequence, so no global first-event position.
-			return recognisedRetry
+			var appended = recognisedRetry
 				? AppendResult.CreateAlreadyCommitted(committedVersion, firstEventPosition: null, lastEventPosition: null)
 				: AppendResult.CreateSuccess(committedVersion, firstEventPosition: null, lastEventPosition: null);
+			state.MarkAcknowledged(appended);
+			return appended;
 		}
 		// Only a provider fault normalizes to a failure result. Cancellation, and any programming error
 		// (a null reference, a bad argument), propagates untouched: the caller asked to stop, or the code is
 		// wrong. Neither is a store outcome, and neither should be retried by a resilience pipeline.
-		catch (RedisException ex)
+		// !state.Dispatched IS THE EVIDENCE. Normalising a provider fault into a RESULT is right and is
+		// unchanged; WHICH result it is was wrong. Failed asserts nothing was written, and once the
+		// script has been sent this handler cannot establish that.
+		catch (RedisException ex) when (!state.Dispatched)
 		{
 			// Liskov (MS-01): a transient Redis fault (connection loss, timeout) is REPORTED as a failed
 			// result — never propagated as a raw RedisException. Version conflicts are returned above; a

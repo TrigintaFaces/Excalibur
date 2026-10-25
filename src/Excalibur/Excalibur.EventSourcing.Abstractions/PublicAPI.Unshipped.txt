@@ -1,1 +1,7 @@
 #nullable enable
+Excalibur.EventSourcing.AppendCommitBoundary
+Excalibur.EventSourcing.AppendCommitBoundary.Acknowledged.get -> Excalibur.EventSourcing.AppendResult?
+Excalibur.EventSourcing.AppendCommitBoundary.Dispatched.get -> bool
+Excalibur.EventSourcing.AppendCommitBoundary.MarkAcknowledged(Excalibur.EventSourcing.AppendResult! result) -> void
+Excalibur.EventSourcing.AppendCommitBoundary.MarkDispatched() -> void
+static Excalibur.EventSourcing.AppendCommitBoundary.ExecuteAsync(System.Func<Excalibur.EventSourcing.AppendCommitBoundary!, System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>>! operation) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>

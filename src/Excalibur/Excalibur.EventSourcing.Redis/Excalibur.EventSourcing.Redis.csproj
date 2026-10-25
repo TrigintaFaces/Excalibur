@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.Redis.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />

@@ -904,7 +904,7 @@ Two moments need the question asked, and they cover different reachable states:
 
 `FirestoreEventStore.cs:432` shows the in-transaction form: the slot after the expected version is read for
 the conflict check anyway, so comparing the stored event identifier against this call's costs no extra round
-trip. `SqlServerEventStore.cs:519` shows the after-failure form.
+trip. `SqlServerEventStore.cs:653` shows the after-failure form.
 
 Where a provider offers its own idempotency primitive, that is used in preference to inferring the answer
 afterwards: `DynamoDbEventStore.cs` presents a deterministic `ClientRequestToken` on `TransactWriteItems`,

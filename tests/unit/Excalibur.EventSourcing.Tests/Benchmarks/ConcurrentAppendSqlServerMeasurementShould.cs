@@ -25,10 +25,11 @@ public sealed class ConcurrentAppendSqlServerMeasurementShould(SqlServerContaine
         {
             Environment.SetEnvironmentVariable("BENCHMARK_SQL_CONNECTIONSTRING", database.ConnectionString);
             var artifacts = Path.Combine(Path.GetTempPath(), "es15-bdn-sql", Guid.NewGuid().ToString("N"));
-            BenchmarkExecution.Run(typeof(SqlServerConcurrentAppendBenchmarks).Assembly, [
+            var exitCode = BenchmarkExecution.Run(typeof(SqlServerConcurrentAppendBenchmarks).Assembly, [
                 "--filter", "*SqlServerConcurrentAppendBenchmarks*", "--artifacts", artifacts,
                 "--warmupCount", "1", "--iterationCount", "1",
-            ]).ShouldBe(0);
+            ], out var diagnosis);
+            exitCode.ShouldBe(0, diagnosis);
         }
         finally
         {

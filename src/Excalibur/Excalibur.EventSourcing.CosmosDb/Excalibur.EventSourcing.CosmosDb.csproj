@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.CosmosDb.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />

@@ -288,6 +288,11 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		}
 	}
 
+	// Internal fault-injection boundary, the same role as the Postgres and SQL Server commit seams:
+	// a test receives the real write as a delegate and may run it, skip it, and then throw -- so the
+	// lost-acknowledgement case is exercised against a write that genuinely landed.
+	internal Func<Func<CancellationToken, Task>, CancellationToken, Task>? WriteEventDocumentsInterceptor { get; init; }
+
 	/// <inheritdoc/>
 	public async ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
@@ -316,6 +321,29 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 				stopwatch.Elapsed);
 			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
+
+		// The boundary must ENCLOSE the terminal catch, not sit inside it: its Unknown arm only fires for
+		// a fault that ESCAPES, and what lets a post-dispatch fault escape is the !state.Dispatched filter.
+		return await AppendCommitBoundary.ExecuteAsync(
+				state => AppendCoreAsync(
+					state, aggregateId, aggregateType, eventList, expectedVersion, correlationId, messageId,
+					stopwatch, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>Appends inside a commit boundary, which owns the post-dispatch outcome.</summary>
+	private async ValueTask<AppendResult> AppendCoreAsync(
+		AppendCommitBoundary state,
+		string aggregateId,
+		string aggregateType,
+		List<IDomainEvent> eventList,
+		long expectedVersion,
+		string? correlationId,
+		string? messageId,
+		ValueStopwatch stopwatch,
+		CancellationToken cancellationToken)
+	{
+		var result = WriteStoreTelemetry.Results.Success;
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
 			aggregateId, aggregateType, eventList.Count, expectedVersion);
@@ -396,16 +424,35 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			// session + transaction so it commits all-or-nothing. A single-event append is atomic on
 			// its own (single-document write), so it uses a plain insert and does not require a
 			// transaction-capable (replica-set) deployment.
+			// Marked BEFORE either write is sent. From here on no fault can establish non-commit: a write
+			// can reach the server and land while its acknowledgement is lost, and the duplicate-key and
+			// version probes above are the only things that can tell us which happened.
+			state.MarkDispatched();
+
+			// Routed through the interceptor so a test can place a fault on either side of a REAL write.
+			// Without it the Unknown arm below is reachable in production and unreachable in a test, which
+			// is the shape of a guarantee nothing binds.
+			if (WriteEventDocumentsInterceptor is { } intercept)
+			{
+				await intercept(WriteEventDocumentsAsync, cancellationToken).ConfigureAwait(false);
+			}
+			else
+			{
+				await WriteEventDocumentsAsync(cancellationToken).ConfigureAwait(false);
+			}
+
+			async Task WriteEventDocumentsAsync(CancellationToken token)
+			{
 			if (documents.Count == 1)
 			{
 				await _eventsCollection!.InsertOneAsync(
 					documents[0],
 					options: null,
-					cancellationToken).ConfigureAwait(false);
+					token).ConfigureAwait(false);
 			}
 			else
 			{
-				using var session = await _client!.StartSessionAsync(cancellationToken: cancellationToken)
+				using var session = await _client!.StartSessionAsync(cancellationToken: token)
 					.ConfigureAwait(false);
 
 				_ = await session.WithTransactionAsync(
@@ -420,7 +467,8 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 							ct).ConfigureAwait(false);
 						return true;
 					},
-					cancellationToken: cancellationToken).ConfigureAwait(false);
+					cancellationToken: token).ConfigureAwait(false);
+			}
 			}
 
 			LogEventsAppended(eventList.Count, aggregateType, aggregateId, version);
@@ -429,7 +477,9 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 			activity.SetOperationResult(EventSourcingTagValues.Success);
 			// The Inc above reserved [firstGlobalSequence .. firstGlobalSequence + count - 1] -- see the
 			// comment at the reservation -- so the last event sits at firstPosition + eventList.Count - 1.
-			return AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1);
+			var appended = AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1);
+			state.MarkAcknowledged(appended);
+			return appended;
 		}
 		catch (MongoBulkWriteException<MongoDbEventDocument> ex)
 			when (ex.WriteErrors.Any(e => e.Code == DuplicateKeyErrorCode))
@@ -487,7 +537,11 @@ public sealed partial class MongoDbEventStore : IEventStore, IEventStoreErasure,
 		// Everything else -- cancellation, an event type the configured resolver does not declare, a
 		// programming error -- propagates, because a returned failure means "this could succeed if you
 		// try again" and none of those can.
-		catch (MongoException ex)
+		// !state.Dispatched IS THE EVIDENCE. Failed states that nothing was written, which this handler
+		// cannot establish once a write has been sent -- the probes above answer the cases they can see,
+		// and an empty read is not proof of rollback (AppendOutcome.cs:61). The filter lets the rest
+		// escape to the boundary, which answers Unknown.
+		catch (MongoException ex) when (!state.Dispatched)
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			using var scope = WriteStoreTelemetry.BeginLogScope(

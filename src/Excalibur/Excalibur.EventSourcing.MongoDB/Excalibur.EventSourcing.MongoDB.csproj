@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Data.MongoDB.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />

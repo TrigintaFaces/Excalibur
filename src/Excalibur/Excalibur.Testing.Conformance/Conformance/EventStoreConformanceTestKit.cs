@@ -706,10 +706,45 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 	}
 
 	/// <summary>
-	/// Verifies that when many appends race at the same expected version, exactly one succeeds and every
-	/// other attempt is rejected as a concurrency conflict — the optimistic-concurrency guarantee under
+	/// Verifies that when many appends race at the same expected version, exactly one commits and the
+	/// stream ends up holding exactly that one write — the optimistic-concurrency guarantee under
 	/// concurrent contention, not merely the sequential wrong-version case.
 	/// </summary>
+	/// <returns>A task representing the asynchronous operation.</returns>
+	/// <remarks>
+	/// <para>
+	/// The verdict is taken from the STREAM, not from how the losers described themselves: after the race
+	/// the stream must hold the seed event plus one winner. A lost commit and a double commit are both
+	/// visible in that count and neither is visible in a result classification.
+	/// </para>
+	/// <para>
+	/// <b>What the count assertion depends on, stated because it is not self-evident.</b> Awaiting all the
+	/// racers quiesces the CALLERS, not the store: a client-side deadline can fire while a commit is in
+	/// flight, so a write may become durable after its own call has returned. The count is decisive anyway
+	/// only because the contested version is a UNIQUE SLOT -- every racer addresses the version the caller
+	/// named, so a late commit collides with the winner and is rejected rather than landing beside it. A
+	/// store that assigns versions at the tail instead of honouring the expected version has no such
+	/// protection and could pass this count while holding a third event a moment later; that store is out
+	/// of this arm's reach and is caught by the uncontended wrong-version arms instead.
+	/// </para>
+	/// <para>
+	/// A losing attempt must report an outcome it can support, and under contention there are two:
+	/// <c>ConcurrencyConflict</c>, which requires having OBSERVED another writer take the version, or
+	/// <c>Unknown</c>, which says the store cannot determine whether its own append committed. Both must
+	/// carry an error message.
+	/// </para>
+	/// <para>
+	/// <c>Failed</c> is refused. It is defined as <i>nothing was written</i> — a positive claim about
+	/// durability — and the append contract permits it only where non-commit is established. A store that
+	/// reaches a terminal fault handler with no attempt index and no phase cannot separate a fault that
+	/// preceded the commit from a commit whose acknowledgement was lost, so it cannot establish it. A kit
+	/// cannot observe whether a store met that precondition either, which is exactly why admitting
+	/// <c>Failed</c> would drop the precondition silently and leave this requirement with nothing to say.
+	/// Refusing it costs a correct provider nothing, since <c>Unknown</c> is true in both reachable states.
+	/// The conflict classification itself is required by the uncontended wrong-version arms, where the
+	/// store has the measurement in hand and the answer is deterministic.
+	/// </para>
+	/// </remarks>
 	public virtual async Task ConcurrentAppend_SameExpectedVersion_OnlyOneShouldSucceed()
 	{
 		var store = await CreateStoreForArmAsync().ConfigureAwait(false);
@@ -740,34 +775,87 @@ public abstract class EventStoreConformanceTestKit : ConformanceTestKit
 
 		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
+		// Built before the first assertion because every assertion below cites it. An earlier revision of
+		// this arm reported only a COUNT, and when it failed on a real provider the reason was not
+		// recoverable from the artifacts at all.
+		var loserReports = string.Join(
+			"; ",
+			results
+				.Where(r => !r.Success)
+				.Select(r => $"[outcome={r.Outcome}, conflict={r.IsConcurrencyConflict}, error={r.ErrorMessage ?? "<none>"}]"));
+
 		// Safety: exactly one racer may win.
 		var successCount = results.Count(r => r.Success);
 		if (successCount != 1)
 		{
 			throw new TestFixtureAssertionException(
-				$"Expected exactly one concurrent append at the same expected version to succeed but {successCount} did.");
+				$"Expected exactly one concurrent append at the same expected version to succeed but {successCount} did. "
+				+ "Zero has two causes and this count does not separate them: no racer committed, or one committed "
+				+ "and was told otherwise because its acknowledgement was lost -- opposite remedies. More than one "
+				+ "means the version is not a unique slot. The outcome of each loser below is what distinguishes "
+				+ $"them. Loser reports: {loserReports}");
 		}
 
-		// Honesty: every loser must be reported as a concurrency conflict — not a silent no-op, a crash,
-		// or a lost write.
-		var conflicts = results.Count(r => !r.Success && r.IsConcurrencyConflict);
-		if (conflicts != concurrentAttempts - 1)
-		{
-			// The COUNT alone is not diagnosable. When this arm failed on a real provider it reported
-			// "0 were" and nothing else, and the provider log was not captured by the runner, so the
-			// reason a loser was not classified as a conflict could not be recovered from the artifacts
-			// at all -- two different mechanisms fit the same number and neither could be ruled out.
-			// The losers' own reports are the evidence, and they are already in hand here; printing
-			// them costs nothing on the passing path and is the whole diagnosis on the failing one.
-			var loserReports = string.Join(
-				"; ",
-				results
-					.Where(r => !r.Success)
-					.Select(r => $"[conflict={r.IsConcurrencyConflict}, error={r.ErrorMessage ?? "<none>"}]"));
 
+		// SAFETY, and the assertion that actually decides this arm: the stream holds the seed plus the
+		// single winner, and nothing else. This is what "exactly one succeeded" has to MEAN in the store,
+		// and it is checked against the store rather than inferred from the result objects -- a lost write
+		// and a double write are both visible here and neither is visible in a classification.
+		var loaded = await store.LoadAsync(
+			aggregateId, DefaultAggregateType, CancellationToken.None).ConfigureAwait(false);
+
+		if (loaded.Count != 2)
+		{
 			throw new TestFixtureAssertionException(
-				$"Expected the other {concurrentAttempts - 1} racers to be concurrency conflicts but {conflicts} were. "
-				+ $"Loser reports: {loserReports}");
+				$"After {concurrentAttempts} appends racing at the same expected version, the stream must hold the "
+				+ $"seed event plus the one winner -- two events -- but holds {loaded.Count}. Fewer means the "
+				+ "winner's commit was lost; more means a loser committed as well and the version is no longer a "
+				+ $"unique slot. Loser reports: {loserReports}");
+		}
+
+		// HONESTY: a loser must report an outcome it can actually support. Two values qualify and the
+		// third does not.
+		//
+		// ConcurrencyConflict says somebody else took the version. A store may only say that having
+		// OBSERVED it -- and it is the one answer that sends the caller to reload-and-retry, which
+		// re-appends the same business event at the NEXT version where no uniqueness key can catch it. So
+		// a loser that never saw the winner must not claim it.
+		//
+		// Unknown says the store cannot determine whether the append committed. Under contention that is
+		// frequently the truth: a provider that aborts a contended attempt at its own lock, or loses the
+		// acknowledgement of a commit that landed, arrives at a terminal fault handler with no attempt
+		// index and no phase, and cannot separate the two.
+		//
+		// Failed is REFUSED, and the reason is the point of this assertion. Failed is not merely a vaguer
+		// word for a failure: it is defined as "Nothing was written", a positive claim about durability,
+		// and IEventStore permits it only where non-commit is ESTABLISHED. A conformance kit cannot
+		// observe whether a store met that precondition -- so admitting Failed would drop the
+		// precondition silently, and dropping it is the only thing that would give this clause nothing to
+		// say. Refusing it costs a correct provider nothing, because Unknown is true in both of the
+		// states a contended loser can be in.
+		//
+		// The CLASSIFICATION of a conflict is still demanded where it is deterministic and the store
+		// genuinely holds the measurement -- four uncontended arms do that:
+		// AppendAsync_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict,
+		// AppendAsync_WithConflict_ShouldReportTheMeasuredVersion,
+		// AppendAsync_WithExpectedVersionBeyondTail_ShouldReturnConcurrencyConflict and
+		// AppendAsync_NonExistentStream_WithWrongExpectedVersion_ShouldReturnConcurrencyConflict. This arm
+		// does not demand it a fifth time, because under contention a store is entitled not to know.
+		var unsupportable = results
+			.Where(r => !r.Success)
+			.Where(r => r.Outcome is not (AppendOutcome.ConcurrencyConflict or AppendOutcome.Unknown)
+				|| string.IsNullOrWhiteSpace(r.ErrorMessage))
+			.ToArray();
+
+		if (unsupportable.Length != 0)
+		{
+			throw new TestFixtureAssertionException(
+				$"{unsupportable.Length} of {concurrentAttempts - 1} losing appends reported an outcome the store "
+				+ "cannot support. A contended loser may report ConcurrencyConflict (it observed another writer "
+				+ "take the version) or Unknown (it cannot determine whether its own append committed), and must "
+				+ "carry an error message. Failed is refused here: it asserts \"nothing was written\", which a "
+				+ "terminal fault handler with no commit evidence cannot establish, and a caller told that does "
+				+ $"not reconcile. Loser reports: {loserReports}");
 		}
 	}
 

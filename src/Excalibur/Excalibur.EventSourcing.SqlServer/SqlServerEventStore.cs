@@ -391,6 +391,24 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			return AppendResult.CreateSuccess(expectedVersion, firstEventPosition: null, lastEventPosition: null);
 		}
 
+		// The boundary must ENCLOSE the catch below, not sit inside it: the Unknown arm only fires for a
+		// fault that ESCAPES, and what lets a post-dispatch fault escape is the !state.Dispatched filter.
+		return await AppendCommitBoundary.ExecuteAsync(
+				state => AppendCoreAsync(state, aggregateId, aggregateType, eventList, expectedVersion, cancellationToken))
+			.ConfigureAwait(false);
+	}
+
+	/// <summary>Appends inside a commit boundary, which owns the post-dispatch outcome.</summary>
+	private async ValueTask<AppendResult> AppendCoreAsync(
+		AppendCommitBoundary state,
+		string aggregateId,
+		string aggregateType,
+		IReadOnlyCollection<IDomainEvent> eventList,
+		long expectedVersion,
+		CancellationToken cancellationToken)
+	{
+		var stopwatch = ValueStopwatch.StartNew();
+		var result = WriteStoreTelemetry.Results.Success;
 		SqlServerOperationContext.Current?.EnterAppend();
 
 		using var activity = EventSourcingActivitySource.StartAppendActivity(
@@ -399,7 +417,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		try
 		{
 			var appendResult = await ExecuteAppendTransactionAsync(
-					aggregateId, aggregateType, eventList, expectedVersion, activity, cancellationToken)
+					state, aggregateId, aggregateType, eventList, expectedVersion, activity, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -418,7 +436,13 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		// a cancelled scope. Everything else -- cancellation, an event type the configured resolver does
 		// not declare, a programming error -- propagates, because a returned failure means "this could
 		// succeed if you try again" and none of those can.
-		catch (Exception ex) when (ex is SqlException or OperationFailedException)
+		// !state.Dispatched IS THE EVIDENCE. Failed states that nothing was written, and the append
+		// contract permits it only where non-commit is established. Reached with no commit dispatched,
+		// that holds. Reached after one, it does not -- and the probe inside the transaction ends in
+		// `throw;` when it cannot find our events, which is NOT proof of rollback (AppendOutcome.cs:61:
+		// "Neither a failed acknowledgement nor an empty recovery read proves rollback."). The filter
+		// lets that case escape to the boundary, which answers Unknown.
+		catch (Exception ex) when (!state.Dispatched && (ex is SqlException or OperationFailedException))
 		{
 			result = WriteStoreTelemetry.Results.Failure;
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
@@ -475,8 +499,15 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		catch (Exception ex)
 		{
 			// Unlike the plain append (which returns a failure result), the transactional path surfaces
-			// the real failure to the caller so the repository can propagate it. The transaction has
-			// already rolled back atomically — neither events nor outbox rows persist.
+			// the real failure to the caller so the repository can propagate it.
+			//
+			// SUPERSEDED, quoted so anyone who absorbed it recognises it: "The transaction has already
+			// rolled back atomically -- neither events nor outbox rows persist." That is the same false
+			// durability claim this store was just corrected for making in an AppendResult, asserted in
+			// prose instead. A commit can reach the server and land while its acknowledgement is lost,
+			// and the rollback below then does nothing because there is nothing left to roll back. The
+			// throw itself is NOT corrected here: it is a separate contract question, because a throw is
+			// reserved for what could never succeed and a transient fault could. Tracked, not fixed.
 			result = WriteStoreTelemetry.Results.Failure;
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
 			activity.RecordException(ex);
@@ -893,7 +924,14 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		}
 	}
 
+	// Internal fault-injection boundary, mirroring the Postgres store: a test can lose the
+	// acknowledgement around a REAL commit, which is the only way to exercise the post-dispatch arm.
+	// Without it the Unknown path is reachable in production and unreachable in a test.
+	internal Func<SqlTransaction, CancellationToken, Task> CommitTransactionAsync { get; init; } =
+		static (transaction, token) => transaction.CommitAsync(token);
+
 	private async ValueTask<AppendResult> ExecuteAppendTransactionAsync(
+		AppendCommitBoundary state,
 		string aggregateId,
 		string aggregateType,
 		IReadOnlyCollection<IDomainEvent> eventList,
@@ -962,7 +1000,10 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				await operation.WriteReceiptAsync(connection, transaction, _schema, _table, CurrentTenantScope.TenantId,
 					aggregateId, aggregateType, appended, cancellationToken).ConfigureAwait(false);
 			}
-			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+			// Marked BEFORE the commit is sent, because from here on no fault can establish non-commit.
+			state.MarkDispatched();
+			await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+			state.MarkAcknowledged(appended);
 
 			_logger.LogDebug("Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
 				eventList.Count, aggregateType, aggregateId, appended.NextExpectedVersion);
