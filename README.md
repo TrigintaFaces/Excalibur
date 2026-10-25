@@ -74,7 +74,7 @@ var app = builder.Build();
 app.MapPost("/orders", async (CreateOrder command, IDispatcher dispatcher, CancellationToken ct) =>
 {
     var result = await dispatcher.DispatchAsync(command, ct);
-    return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.ErrorMessage);
+    return result.Succeeded ? Results.Accepted() : Results.BadRequest(result.ErrorMessage);
 });
 
 app.Run();
@@ -93,6 +93,61 @@ public class CreateOrderHandler : IActionHandler<CreateOrder>
 }
 ```
 
+The hand-written endpoint above is one of three ways to get from an HTTP request to a handler. They mix
+freely in the same application — pick per endpoint.
+
+#### Declarative route registration
+
+`Excalibur.Dispatch.Hosting.AspNetCore` registers the route, binds the wire contract, builds the action and
+maps the result, so the endpoint carries no plumbing. The status code comes from the dispatch result rather
+than from the registration:
+
+```bash
+dotnet add package Excalibur.Dispatch.Hosting.AspNetCore
+```
+
+```csharp
+using Excalibur.Dispatch.Hosting.AspNetCore;
+
+app.MapGroup("/orders")
+   .DispatchPostAction<CreateOrderRequest, CreateOrder>(
+       "/",
+       static (request, _) => new CreateOrder(request.CustomerId, request.Items));
+
+// The wire contract stays a separate type from the action
+public record CreateOrderRequest(string CustomerId, List<string> Items);
+```
+
+`DispatchGetAction`, `DispatchPutAction` and `DispatchPostEvent` are the siblings, and a
+`<TRequest, TAction, TResponse>` overload returns the handler's value as `200 OK`. Every overload takes an
+optional `responseHandler` when you want your own mapping; without one, `ToHttpResult()` maps the result —
+the value on success, `403` on an authorization failure, `400` on validation, `ProblemDetails` when the
+failure carries them, `500` otherwise.
+
+**These overloads bind parameters reflectively and are not Native AOT or trimming safe** — they declare that
+with `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]`. Under AOT, use a hand-written endpoint.
+
+#### Railway-oriented composition
+
+`Map`, `Bind`, `Match` and `Tap` compose over `IMessageResult<T>` — and over `Task<IMessageResult<T>>`, so
+there is no intermediate `await`. Each short-circuits on failure and carries the original `ProblemDetails`
+through, so the success path reads as one expression with no error branches inside it:
+
+```csharp
+app.MapGet("/orders/{id:guid}", async (
+    Guid id, IDispatcher dispatcher, ILogger<Program> logger, CancellationToken ct) =>
+    await dispatcher.DispatchAsync(new GetOrder(id), ct)
+        .Tap(order => logger.LogInformation("Order {OrderId} read", order.Id))
+        .Map(order => new OrderResponse(order.Id, order.Total))
+        .Match(
+            onSuccess: response => Results.Ok(response),
+            onFailure: problem => Results.Problem(problem?.Detail, statusCode: problem?.Status)));
+```
+
+`MapAsync` / `BindAsync` / `TapAsync` / `MatchAsync` take async callbacks; `GetValueOrDefault` and
+`GetValueOrThrow` leave the chain. Full reference:
+[Results and errors](docs-site/docs/core-concepts/results-and-errors.md).
+
 ### 2. Add Excalibur for CQRS + Hosting
 
 Bring in Excalibur when you need aggregates, event stores, or opinionated hosting:
@@ -100,19 +155,29 @@ Bring in Excalibur when you need aggregates, event stores, or opinionated hostin
 ```bash
 dotnet add package Excalibur.Domain
 dotnet add package Excalibur.EventSourcing
-dotnet add package Excalibur.EventSourcing.InMemory
+dotnet add package Excalibur.EventSourcing.SqlServer
 dotnet add package Excalibur.Outbox.SqlServer
 dotnet add package Excalibur.Hosting.Web
 ```
 
 ```csharp
+var connectionString = builder.Configuration.GetConnectionString("Default")!;
+
+builder.Services.AddDispatch(typeof(Program).Assembly);
 builder.Services
-    .AddDispatch(typeof(Program).Assembly)
-    .AddInMemoryEventStore()
-    .AddSqlServerOutboxStore(o => o.ConnectionString = builder.Configuration.GetConnectionString("Default")!);
+    .AddSqlServerEventStore(o => o.ConnectionString = connectionString)
+    .AddSqlServerOutboxStore(o => o.ConnectionString = connectionString);
 ```
 
-You continue to dispatch messages through `IDispatcher`; Excalibur layers domain modeling, persistence, and compliance features on top.
+Other providers register the same `IEventStore` behind the same handlers — Postgres, MongoDB, Cosmos DB,
+DynamoDB, Firestore, Oracle, Redis and SQLite each ship their own package with its own registration
+extension, and the richer compositions go through `AddExcalibur(x => x.AddEventSourcing(...))`.
+
+`Excalibur.EventSourcing.InMemory` (`AddInMemoryEventStore()`) exists for tests and local spikes. It keeps
+nothing across a restart, so it is not a starting point for a deployed application.
+
+You continue to dispatch messages through `IDispatcher`; Excalibur layers domain modeling, persistence, and
+compliance features on top.
 
 ### 3. Run the Samples
 
