@@ -1,7 +1,23 @@
+# Audits the PublicAPI analyzer baselines across the shipping graph. It reports two findings, and
+# they are deliberately enforceable SEPARATELY, because they are not the same kind of defect.
+#
+#   missing baseline PAIR   A packable project with no PublicAPI.Shipped.txt/Unshipped.txt is outside
+#                           the analyzer's reach entirely -- RS0016 cannot fire, so its public surface
+#                           is unguarded. That is wrong on every commit and -Enforce keeps failing it.
+#
+#   PENDING Unshipped rows  New public API lands in Unshipped first; that is the analyzer's design and
+#                           the convention the BCL repositories follow. Rows accumulate through
+#                           development and are promoted into Shipped before a release. Failing a
+#                           routine commit for them punishes the correct workflow, so -EnforcePending-
+#                           Unshipped is turned OFF per-commit and left ON for the tag that publishes.
+#
+# The promotion itself is performed in the development repository before the release is cut; this
+# script only VERIFIES that it happened. It never edits a baseline.
 param(
   [string]$SolutionFilter = "eng/ci/shards/ShippingOnly.slnf",
   [string]$OutDir = "PublicApiBaselineReport",
-  [bool]$Enforce = $true
+  [bool]$Enforce = $true,
+  [bool]$EnforcePendingUnshipped = $true
 )
 
 Set-StrictMode -Version Latest
@@ -120,11 +136,23 @@ if ($missingCount -gt 0) {
 }
 
 if ($pendingCount -gt 0) {
-  Write-Warning "Non-empty PublicAPI.Unshipped.txt detected in shipping projects: $pendingCount"
+  if ($EnforcePendingUnshipped) {
+    Write-Warning "Non-empty PublicAPI.Unshipped.txt detected in shipping projects: $pendingCount"
+  }
+  else {
+    Write-Host "Pending PublicAPI.Unshipped entries in $pendingCount project(s). Not enforced here; promote them before the release tag."
+  }
 }
 
-if (($missingCount -gt 0 -or $pendingCount -gt 0) -and $Enforce) {
-  throw "Public API baseline audit failed."
+$failures = @()
+if ($missingCount -gt 0 -and $Enforce) {
+  $failures += "$missingCount project(s) are missing a PublicAPI baseline pair"
+}
+if ($pendingCount -gt 0 -and $EnforcePendingUnshipped) {
+  $failures += "$pendingCount project(s) have unpromoted PublicAPI.Unshipped entries. Move each entry into that project's PublicAPI.Shipped.txt (and drop the signature a *REMOVED* line names), commit, then re-tag"
+}
+if ($failures.Count -gt 0) {
+  throw "Public API baseline audit failed: $($failures -join '; ')."
 }
 
 Write-Host "Public API baseline audit completed. Report: $summaryPath"

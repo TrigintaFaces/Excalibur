@@ -148,7 +148,10 @@ jobs:
       - name: Run PublicAPI baseline audit
         shell: pwsh
         run: |
-          ./eng/ci/public-api-baseline-audit.ps1 -OutDir artifacts/reports/PublicApiBaselineReport -Enforce $true
+          # Pending Unshipped rows are the analyzer's intended resting place for new public API and
+          # are promoted before a release, so they are REPORTED here and ENFORCED on the release tag.
+          # A missing baseline pair still fails: that project's surface is unguarded by RS0016.
+          ./eng/ci/public-api-baseline-audit.ps1 -OutDir artifacts/reports/PublicApiBaselineReport -Enforce $true -EnforcePendingUnshipped $false
 
       - name: Upload PublicAPI baseline report
         if: always()

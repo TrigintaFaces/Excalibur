@@ -117,6 +117,24 @@ jobs:
             echo "manual dispatch: no tag to reconcile yet; create-release owns tag creation."
           fi
 
+      # THE PUBLIC API SURFACE MUST BE PROMOTED BEFORE IT IS PUBLISHED, and this is the only place
+      # that check belongs. Per-commit CI reports pending PublicAPI.Unshipped rows and does not fail
+      # on them, because Unshipped is where new public API is supposed to sit while it is being
+      # built. A release is the moment that stops being true: once the packages are on nuget.org the
+      # surface is shipped, so a row still sitting in Unshipped means the baseline disagrees with
+      # what consumers now hold, and the next release cannot tell an addition from a regression.
+      #
+      # It runs here -- before restore, build and pack -- deliberately. The promotion has to happen
+      # in the source repository and be committed there (this workflow holds publish
+      # credentials and declares `permissions: {}`; a commit made in the mirror would be overwritten
+      # by the next copy from development). So the remedy is always "go promote, then re-tag", and
+      # a tag cannot be amended -- which makes a one-second refusal before a twenty-minute build
+      # the difference between a cheap mistake and an expensive one.
+      - name: Assert the public API surface is promoted
+        shell: pwsh
+        run: |
+          ./eng/ci/public-api-baseline-audit.ps1 -OutDir artifacts/reports/PublicApiBaselineReport
+
       # Establish the PUBLICATION STATE before any side effect, and classify rather than refuse.
       #
       # An earlier revision of this step refused outright whenever the version was already on NuGet.

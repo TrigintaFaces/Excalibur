@@ -188,7 +188,10 @@ Run-Step 'Public API baseline audit' {
     if (-not (Test-Path $apiScript)) {
         throw "public-api-baseline-audit.ps1 not found at: $apiScript"
     }
-    & $apiScript
+    # Matches the per-commit policy in governance.yml: a missing baseline pair fails, pending
+    # Unshipped rows are reported. The rehearsal runs on every push to main, so enforcing promotion
+    # here would block routine development for a step that belongs on the tag.
+    & $apiScript -EnforcePendingUnshipped $false
     if ($LASTEXITCODE -ne 0) {
         throw "public-api-baseline-audit.ps1 failed (exit code $LASTEXITCODE)"
     }

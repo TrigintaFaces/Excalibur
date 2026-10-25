@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "AOT warning baseline for Excalibur.Dispatch. Only warnings with documented justification may be added. PRs adding entries require explicit justification.",
   "policy": "EVERY entry below is third-party. None is ours. The population was taken from the mirror's own AOT Publish Validation report -- 208 warnings, 0 errors, publish SUCCEEDED -- and parsed with the same attribution the validator uses: 0 of 208 were attributed to an Excalibur assembly. The bar on OUR code is therefore unchanged and still zero. An entry matches on code AND package AND a substring naming the specific member whose reflection could not be proven safe, so a warning from our code, or a DIFFERENT warning from the same dependency, cannot match one of these and will still fail the gate. Do NOT add a wildcard or a package-wide entry: that would delete the only property that makes this file safe to keep. Proven before landing by re-applying the validator's own predicate to the real report: 208 of 208 absorbed, while a synthetic Excalibur-owned warning and a synthetic same-package-different-member warning both stayed unmatched, and no entry carries a substring short enough to act as a wildcard.",
-  "reviewed": "2026-10-04",
+  "reviewed": "2026-10-25",
   "warnings": [
     {
       "code": "IL2070",
@@ -267,6 +267,18 @@
       "package": "Microsoft.Data (third-party)",
       "message_substring": "Microsoft.Data.SqlClient.SqlConnection.CheckGetExtendedUDTInfo(SqlMetaDataPriv,Boolean)",
       "justification": "Fixes for these exact call sites are merged to dotnet/SqlClient main (PRs 4683, 4684, 4688, 4697, 4703) and are NOT in 7.1.0 -- its release notes mention no AOT or trimming work, checked 2026-10-04. Re-check on the first release that carries them and delete these entries rather than renewing them."
+    },
+    {
+      "code": "IL2067",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlAuthenticationProviderManager.CreateAzureAuthenticationProvider(",
+      "justification": "SqlClient resolves an Azure AD authentication provider from a Type at run time -- Activator.CreateInstance, Type.GetConstructor and Type.GetProperty on a type chosen by configuration -- which the trimmer cannot prove safe by construction. The reflection is the dependency's own Azure auth plumbing; there is no AOT-safe alternative under our control and no first-party code is implicated. Publish SUCCEEDED with 0 errors and 0 warnings attributed to an Excalibur assembly. This member was absent from the 2026-10-04 population while the Microsoft.Data.SqlClient pin is unchanged at 7.1.1, so the warning set shifted for a reason outside that pin; the pinned SDK moved to 10.0.402 in the same window and its ILLink is the leading candidate. That correlation is RECORDED AND NOT ESTABLISHED -- the mirror's copy timing cannot be verified from the development repository, so it is an observation rather than a cause."
+    },
+    {
+      "code": "IL2070",
+      "package": "Microsoft.Data (third-party)",
+      "message_substring": "Microsoft.Data.SqlClient.SqlAuthenticationProviderManager.CreateAzureAuthenticationProvider(",
+      "justification": "SqlClient resolves an Azure AD authentication provider from a Type at run time -- Activator.CreateInstance, Type.GetConstructor and Type.GetProperty on a type chosen by configuration -- which the trimmer cannot prove safe by construction. The reflection is the dependency's own Azure auth plumbing; there is no AOT-safe alternative under our control and no first-party code is implicated. Publish SUCCEEDED with 0 errors and 0 warnings attributed to an Excalibur assembly. This member was absent from the 2026-10-04 population while the Microsoft.Data.SqlClient pin is unchanged at 7.1.1, so the warning set shifted for a reason outside that pin; the pinned SDK moved to 10.0.402 in the same window and its ILLink is the leading candidate. That correlation is RECORDED AND NOT ESTABLISHED -- the mirror's copy timing cannot be verified from the development repository, so it is an observation rather than a cause."
     },
     {
       "code": "IL2072",

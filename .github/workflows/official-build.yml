@@ -286,6 +286,24 @@ jobs:
     needs: build-packages
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # TAGS AND MANUAL DISPATCH ONLY, and the reason is the approval rather than the work.
+    #
+    # This job enters a protected environment, so on a repository with required reviewers every
+    # trigger of it asks a human. A push to the default branch publishes nothing -- no step in this
+    # workflow pushes a package anywhere -- and the resulting set is not what a release promotes:
+    # release.yml resolves the official build by SHA *and* ref precisely because a tagged commit has
+    # two successful builds, and only the tag one stamped the release version. So on a branch push the
+    # approval guarded no credential use and no irreversible act.
+    #
+    # The cost of that was not the clicks. An approval that fires on every push and protects nothing
+    # teaches the reviewer to click through it, which spends the credibility of the one approval that
+    # does protect something -- this same gate on a tag. Narrowing the trigger is what keeps the tag
+    # approval worth reading.
+    #
+    # What is deliberately NOT narrowed: build-packages still runs on every default-branch push, so a
+    # broken pack, validation, hash or attestation is still caught BEFORE a tag exists rather than at
+    # release time. Only the protected finalisation moves.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     # Signing credentials belong only in this environment. Its actual protection
     # settings must be configured and verified before author signing is enabled.
     environment: package-signing
@@ -751,6 +769,32 @@ jobs:
             echo "| version | \`${RELEASE_VERSION}\` |"
             echo "| packages | ${result} |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # A SKIPPED finalisation means OPPOSITE things on the two refs, and collapsing them is the
+          # one mistake this block must not make.
+          #
+          # On a branch push the finalisation is skipped BY DESIGN -- see the condition on the packages
+          # job -- so refusing here would trade an approval prompt for a permanently red default
+          # branch, which is worse than the problem it replaced. There is no canonical package set for
+          # such a commit and nothing claims there is: no release can resolve a branch build, because
+          # release.yml selects by tag ref.
+          #
+          # On a TAG a skip is a real failure and stays one. A tag whose finalisation did not run has
+          # no signed, attested package set, and a release that promoted it would publish bytes nobody
+          # approved. That is exactly what the protected environment exists to prevent, so the refusal
+          # below must still fire when the job is skipped on a tag -- including the case where a
+          # reviewer declines the approval, which also surfaces as a skip.
+          case "${GITHUB_REF}" in
+            refs/tags/v*) tagged=1 ;;
+            *)            tagged=0 ;;
+          esac
+
+          if [ "$tagged" -eq 0 ] && [ "$result" = "skipped" ]; then
+            echo "packages finalisation is skipped on ${GITHUB_REF} by design: it enters a protected"
+            echo "environment, publishes nothing, and is not what a release promotes. The packaging"
+            echo "work itself ran in build-packages and its result is above."
+            exit 0
+          fi
 
           if [ "$result" != "success" ]; then
             echo "::error::REFUSE: the official build did not succeed (packages: ${result}). This commit has no canonical package set, and a release must not be able to find one."
