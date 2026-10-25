@@ -411,10 +411,21 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 			CheckpointInterval = 1,
 		});
+		var checkpointName = AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary));
 		await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		try
 		{
 			await applied.Task.WaitAsync(TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+
+			// The apply callback signals from INSIDE the batch, before the host has persisted the
+			// checkpoint, so the StopAsync below can cut that write off. Wait for the durable value
+			// while the host is still running; the assertion on it stays after the stop.
+			var deadline = DateTimeOffset.UtcNow + TestTimeouts.Scale(TimeSpan.FromSeconds(10));
+			while (await _checkpointStore.GetCheckpointAsync(checkpointName, CancellationToken.None)
+				.ConfigureAwait(false) != 4L && DateTimeOffset.UtcNow < deadline)
+			{
+				await Task.Delay(10, TestContext.Current.CancellationToken).ConfigureAwait(false);
+			}
 		}
 		finally
 		{
@@ -435,7 +446,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		batchHighWaterMarks.ShouldAllBe(
 			m => m == 4L,
 			customMessage: "the batch context's position is the page's last event");
-		var checkpoint = await _checkpointStore.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary)), CancellationToken.None)
+		var checkpoint = await _checkpointStore.GetCheckpointAsync(checkpointName, CancellationToken.None)
 			.ConfigureAwait(false);
 		checkpoint.ShouldBe(4L);
 	}

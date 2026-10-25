@@ -18,13 +18,12 @@ public sealed class CSharpSqlStringsShould
     public void DecodeSupportedStringForms(string source) =>
         CSharpSqlStrings.Read(source).ShouldContain("UPDATE {table} SET value = @Value");
 
-    [Fact]
-    public void DecodeRawInterpolatedSql() => CSharpSqlStrings.Read(""""
-        var sql = $"""
-            UPDATE {table}
-            SET value = @Value
-            """;
-        """").ShouldContain("UPDATE {table}\nSET value = @Value");
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void DecodeRawInterpolatedSql(string newLine) => CSharpSqlStrings
+        .Read(string.Join(newLine, "var sql = $\"\"\"", "    UPDATE {table}", "    SET value = @Value", "    \"\"\";"))
+        .ShouldContain(string.Join(newLine, "UPDATE {table}", "SET value = @Value"));
 
     [Fact]
     public void IgnoreCommentsAndCharacterLiterals() =>

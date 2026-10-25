@@ -86,6 +86,7 @@ namespace Excalibur.Dispatch.Samples.CloudEvents
 	/// <summary>
 	/// A domain event representing an order being placed.
 	/// </summary>
+	[MessageName("samples.cloud-events.order-placed")]
 	public sealed record OrderPlacedEvent(
 		Guid OrderId,
 		string CustomerId,

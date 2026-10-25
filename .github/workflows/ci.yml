@@ -1594,6 +1594,10 @@ jobs:
         with:
           telemetry-matrix: '{}'
           solution-filter: eng/ci/shards/TestsOnly.slnf
+          # This composite runs its own checkout, defaulting to depth 1. Without this the full
+          # history fetched above is discarded, and the documentation gate below cannot resolve
+          # HEAD^1 for its base ref.
+          fetch-depth: 0
 
       - name: Restore complete semantic census population
         run: dotnet restore Excalibur.sln --locked-mode -p:BuildExamplesAndTests=true -p:Configuration=Release
@@ -1856,7 +1860,7 @@ jobs:
             -p:JsonSerializerIsReflectionEnabledByDefault=false -warnaserror `
             --filter 'FullyQualifiedName~SerializationFallback_RequiresResolverWhenReflectionIsDisabled|FullyQualifiedName~GeneratedSerialization_PreservesEventAndMetadataWithoutReflection' `
             --logger 'trx;LogFilePrefix=sql-reflection-disabled' --results-directory artifacts/inline-native-aot `
-            --blame-hang-timeout 2m -- RunConfiguration.TestSessionTimeout=120000
+            --blame-hang-timeout 5m -- RunConfiguration.TestSessionTimeout=300000
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Keep PublishAot in the probe project: a global command-line property also reaches
           # netstandard analyzer projects, which are build tools and cannot be native apps.

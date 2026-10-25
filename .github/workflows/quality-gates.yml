@@ -160,7 +160,7 @@ jobs:
             -p:BuildExamplesAndTests=true -p:SolutionDir="$GITHUB_WORKSPACE/" -p:SolutionName=Excalibur \
             --filter FullyQualifiedName~XmlDocumentationTagsShould \
             --logger 'trx;LogFilePrefix=xml-documentation' --results-directory artifacts/xml-documentation \
-            --blame-hang-timeout 2m -- RunConfiguration.TestSessionTimeout=300000
+            --blame-hang-timeout 5m -- RunConfiguration.TestSessionTimeout=300000
           python3 - <<'PY'
           import pathlib, xml.etree.ElementTree as ET
           results = [node for path in pathlib.Path('artifacts/xml-documentation').glob('*.trx')

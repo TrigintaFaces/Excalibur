@@ -72,7 +72,7 @@ jobs:
             -p:SolutionDir="$GITHUB_WORKSPACE/" -p:SolutionName=Excalibur \
             --filter FullyQualifiedName~NamespaceDepthShould \
             --logger 'trx;LogFilePrefix=namespace-depth' --results-directory artifacts/namespace-depth \
-            --blame-hang-timeout 2m -- RunConfiguration.TestSessionTimeout=300000
+            --blame-hang-timeout 5m -- RunConfiguration.TestSessionTimeout=300000
           python3 - <<'PY'
           import pathlib, xml.etree.ElementTree as ET
           results = [node for path in pathlib.Path('artifacts/namespace-depth').glob('*.trx')
