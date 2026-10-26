@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.0-alpha.19] - 2026-10-26
+
 ### Changed (breaking) — a data task's timeout now bounds SILENCE, not duration
 
 `DataProcessingOptions.DispatcherTimeoutMilliseconds` is **removed**. It was a total wall-clock deadline
@@ -3911,7 +3913,9 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.17...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.19...HEAD
+[10.0.0-alpha.19]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.18...v10.0.0-alpha.19
+[10.0.0-alpha.18]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.17...v10.0.0-alpha.18
 [10.0.0-alpha.17]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.16...v10.0.0-alpha.17
 [10.0.0-alpha.16]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.15...v10.0.0-alpha.16
 [10.0.0-alpha.15]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.14...v10.0.0-alpha.15
