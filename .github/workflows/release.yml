@@ -377,7 +377,7 @@ jobs:
 
       - name: Upload flaky quarantine report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-flaky-quarantine-report
           path: artifacts/reports/FlakyQuarantineReport
@@ -478,7 +478,7 @@ jobs:
           ls -lh soak-build-output.tar.gz
 
       - name: Upload build output
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: soak-build-${{ matrix.os }}
           path: soak-build-output.tar.gz
@@ -562,7 +562,7 @@ jobs:
 
       - name: Upload soak test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pre-tag-unit-soak-${{ matrix.os }}
           path: "**/pre-tag-unit-soak-*.trx"
@@ -1018,7 +1018,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Re-publish the SBOM for this release run
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-cyclonedx-sbom
           path: sbom/**
@@ -1026,7 +1026,7 @@ jobs:
           retention-days: 90
 
       - name: Re-publish the canonical package set for this release run
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           # Same name, same path lines as the official build uploaded, so every downstream consumer
           # -- validation, staging, release, publish -- reads exactly what it read before. Moving
@@ -1136,7 +1136,7 @@ jobs:
 
       - name: Upload security results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: security-analysis
           path: security-report.txt
@@ -1766,7 +1766,7 @@ jobs:
 
       - name: Upload the release receipt
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-receipt
           path: |

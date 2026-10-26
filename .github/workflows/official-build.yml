@@ -274,7 +274,7 @@ jobs:
 
       - name: Upload the internal unsigned handoff
         id: handoff
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: official-build-handoff-${{ github.run_id }}-${{ github.run_attempt }}
           path: official-handoff/
@@ -732,7 +732,7 @@ jobs:
           sbom-path: sbom/bom.json
 
       - name: Upload the official SBOM
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           # Same artifact name the release workflow already reads, so moving generation here changes
           # where the SBOM comes from without changing what consumes it.
@@ -742,7 +742,7 @@ jobs:
           retention-days: 90
 
       - name: Upload the canonical package set
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           # Deliberately unsuffixed. An OS or platform suffix is what makes two candidate package
           # sets nameable and therefore pickable; one unsuffixed name means there is exactly one

@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload governance report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: solution-governance-report
           path: |
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload dependency graph report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: package-dependency-report
           path: artifacts/reports/PackageDependencyReport
@@ -124,7 +124,7 @@ jobs:
 
       - name: Preserve package composition evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: governance-package-composition-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -155,7 +155,7 @@ jobs:
 
       - name: Upload PublicAPI baseline report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: public-api-baseline-report
           path: artifacts/reports/PublicApiBaselineReport
@@ -190,7 +190,7 @@ jobs:
 
       - name: Upload transitive bloat report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: transitive-bloat-report
           path: artifacts/reports/TransitiveBloatReport
@@ -240,7 +240,7 @@ jobs:
             -MaxDependencyProjects 180
 
       - name: Upload inventory report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dependency-inventory
           path: artifacts/reports/dependency-inventory.md
@@ -277,7 +277,7 @@ jobs:
 
       - name: Upload specs guard report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: specs-location-violations
           path: artifacts/reports/specs-location-violations-${{ github.run_id }}.md
