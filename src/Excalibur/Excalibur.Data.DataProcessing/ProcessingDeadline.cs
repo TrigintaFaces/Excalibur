@@ -47,7 +47,7 @@ internal sealed class ProcessingDeadline : IDisposable
 	private readonly ITimer _stallTimer;
 	private readonly ITimer? _totalTimer;
 	private readonly TimeSpan _stallTimeout;
-	private bool _disposed;
+	private volatile bool _disposed;
 
 	/// <summary>Arms both clocks for one claimed task.</summary>
 	/// <param name="linkedTo">Tokens the work must also observe — the caller's, and the staleness source.</param>

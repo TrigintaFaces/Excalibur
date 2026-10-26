@@ -99,17 +99,17 @@ internal static class ElasticSearchProjectionClientSettings
 	/// <summary>
 	/// The node set these options address, without the credential used to reach it.
 	/// </summary>
+	/// <param name="options">The options describing the cluster.</param>
+	/// <returns>An ordered, stable, NORMALISED description of the node set.</returns>
 	/// <remarks>
+	/// <para>
 	/// Separate from <see cref="DescribeCluster"/> because two questions need different identities. For
 	/// "can this cluster be reached", the credential is part of the question -- the same nodes under two
 	/// credentials are two separate probes. For "would these two projections write to the same place",
 	/// the credential is irrelevant: two stores on one node set collide in the same index whoever they
 	/// authenticate as, so including the credential there would separate them and miss the collision.
 	/// Derived in one place so the two cannot drift.
-	/// </remarks>
-	/// <param name="options">The options describing the cluster.</param>
-	/// <returns>An ordered, stable, NORMALISED description of the node set.</returns>
-	/// <remarks>
+	/// </para>
 	/// <para>
 	/// NORMALISED, because this value is compared for EQUALITY and a raw consumer string is not safe to
 	/// compare. <c>NodeUri</c> is a <see cref="string"/> that nothing rewrites, so one cluster can be

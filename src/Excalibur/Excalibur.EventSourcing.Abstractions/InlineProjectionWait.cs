@@ -98,7 +98,7 @@ public static class InlineProjectionWait
 
 	private sealed class Scope(int previous) : IDisposable
 	{
-		private bool _disposed;
+		private volatile bool _disposed;
 
 		public void Dispose()
 		{
