@@ -45,17 +45,17 @@ internal sealed class InMemoryIdentityMapStore : IIdentityMapStore
 	{
 		var key = (externalSystem, externalId, aggregateType);
 
-		// If key doesn't exist, add it and return WasCreated=true.
-		// If key exists, return the existing value with WasCreated=false.
+		// If key doesn't exist, add it and return MappingWasCreated=true.
+		// If key exists, return the existing value with MappingWasCreated=false.
 		if (_mappings.TryAdd(key, aggregateId))
 		{
 			return new ValueTask<IdentityBindResult>(
-				new IdentityBindResult(aggregateId, WasCreated: true));
+				new IdentityBindResult(aggregateId, MappingWasCreated: true));
 		}
 
 		var existing = _mappings[key];
 		return new ValueTask<IdentityBindResult>(
-			new IdentityBindResult(existing, WasCreated: false));
+			new IdentityBindResult(existing, MappingWasCreated: false));
 	}
 
 	/// <inheritdoc/>

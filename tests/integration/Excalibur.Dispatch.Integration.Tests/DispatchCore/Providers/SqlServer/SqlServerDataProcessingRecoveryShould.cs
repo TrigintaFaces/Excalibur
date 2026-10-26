@@ -229,7 +229,7 @@ public sealed class SqlServerDataProcessingRecoveryShould(SqlServerCdcContainerF
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 return 0;
             }), services, Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions
-            { SchemaName = "dbo", TableName = "Tasks", DispatcherTimeoutMilliseconds = 50 }),
+            { SchemaName = "dbo", TableName = "Tasks", ProcessingStallTimeout = TimeSpan.FromMilliseconds(50) }),
             NullLogger<DataOrchestrationManager>.Instance);
         await manager.AddDataTaskForRecordTypeAsync("timeout", TestCancellationToken);
         var failure = await Should.ThrowAsync<AggregateException>(async () => await manager.ProcessDataTasksAsync(TestCancellationToken));

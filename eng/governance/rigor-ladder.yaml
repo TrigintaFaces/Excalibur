@@ -58,6 +58,17 @@ seams:
     met: [R1, R2]
     unmet: [R3, R4]
 
+  # NEW SEAM, not a reclassification. The second guarantee in the same package's
+  # ARCHITECTURE.md, declared because the entry above describes dropped error records and
+  # says nothing about where a projection writes. Adding it RAISES the enumerated debt by
+  # two rungs, which is the honest direction: the guarantee existed undeclared before.
+  - name: elasticsearch-projection-index-identity
+    architecture_md: src/Excalibur/Excalibur.Data.ElasticSearch/ARCHITECTURE.md
+    blast_radius: catastrophic
+    why: "Two read models resolving to one index on one cluster overwrite each other wherever their document ids coincide. No error is raised, nothing is logged, and nothing downstream ever learns the read model is wrong."
+    met: [R1, R2]
+    unmet: [R3, R4]
+
   - name: outbox-redis
     architecture_md: src/Excalibur/Excalibur.Outbox.Redis/ARCHITECTURE.md
     blast_radius: catastrophic

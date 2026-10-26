@@ -93,7 +93,7 @@ var result = await identityMap.TryBindAsync(
     "LegacyCore", externalId, "Transaction",
     Guid.NewGuid().ToString(), ct);
 
-if (result.WasCreated)
+if (result.MappingWasCreated)
 {
     // New mapping -- create the aggregate
 }
@@ -184,7 +184,7 @@ public class TransactionCdcHandler : IDataChangeHandler
             "LegacyCore", legacyTxnId, "Transaction",
             Guid.NewGuid().ToString(), ct);
 
-        if (bind.WasCreated)
+        if (bind.MappingWasCreated)
         {
             // First time -- create the Transaction aggregate
             var txn = Transaction.Create(

@@ -564,11 +564,14 @@ public static class DataProcessingServiceCollectionExtensions
     // Construct them explicitly so managed and Native AOT hosts use the same values.
     private static DataProcessingOptions ReadConfiguration(IConfiguration configuration, DataProcessingOptions defaults)
     {
+        ThrowIfRemovedTimeoutKeyPresent(configuration);
+
         return new DataProcessingOptions
         {
             SchemaName = configuration[nameof(DataProcessingOptions.SchemaName)] ?? defaults.SchemaName,
             TableName = configuration[nameof(DataProcessingOptions.TableName)] ?? defaults.TableName,
-            DispatcherTimeoutMilliseconds = ReadInt(configuration, nameof(DataProcessingOptions.DispatcherTimeoutMilliseconds), defaults.DispatcherTimeoutMilliseconds),
+            ProcessingStallTimeout = ReadTimeSpan(configuration, nameof(DataProcessingOptions.ProcessingStallTimeout), defaults.ProcessingStallTimeout),
+            ProcessingTotalTimeout = ReadOptionalTimeSpan(configuration, nameof(DataProcessingOptions.ProcessingTotalTimeout), defaults.ProcessingTotalTimeout),
             MaxAttempts = ReadInt(configuration, nameof(DataProcessingOptions.MaxAttempts), defaults.MaxAttempts),
             QueueSize = ReadInt(configuration, nameof(DataProcessingOptions.QueueSize), defaults.QueueSize),
             ProducerBatchSize = ReadInt(configuration, nameof(DataProcessingOptions.ProducerBatchSize), defaults.ProducerBatchSize),
@@ -578,6 +581,39 @@ public static class DataProcessingServiceCollectionExtensions
 
     private static int ReadInt(IConfiguration configuration, string key, int fallback) =>
         configuration[key] is { } value ? int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture) : fallback;
+
+    private static TimeSpan ReadTimeSpan(IConfiguration configuration, string key, TimeSpan fallback) =>
+        configuration[key] is { } value ? TimeSpan.Parse(value, CultureInfo.InvariantCulture) : fallback;
+
+    private static TimeSpan? ReadOptionalTimeSpan(IConfiguration configuration, string key, TimeSpan? fallback) =>
+        configuration[key] is { } value
+            ? string.IsNullOrWhiteSpace(value) ? null : TimeSpan.Parse(value, CultureInfo.InvariantCulture)
+            : fallback;
+
+    /// <summary>Refuses a configuration still carrying the removed total-deadline key.</summary>
+    /// <remarks>
+    /// A renamed configuration key is the one breaking change a binder CANNOT report: an unknown key is
+    /// silently ignored, so a consumer who set a large deadline would quietly inherit the new default and
+    /// discover it as a production timeout. The removal is loud here or it is invisible.
+    /// </remarks>
+    private static void ThrowIfRemovedTimeoutKeyPresent(IConfiguration configuration)
+    {
+        const string Removed = "DispatcherTimeoutMilliseconds";
+        if (configuration[Removed] is null)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"'{Removed}' has been removed and is still present in configuration. It was a TOTAL wall-clock "
+            + "deadline on a task whose size the framework does not control, so any task with enough records "
+            + "failed regardless of how fast each record was. Replace it with "
+            + $"'{nameof(DataProcessingOptions.ProcessingStallTimeout)}', which bounds how long the task may "
+            + "make NO PROGRESS and is restarted on every checkpointed record (format: \"hh:mm:ss\"). If you "
+            + "genuinely need an absolute cap as well, set "
+            + $"'{nameof(DataProcessingOptions.ProcessingTotalTimeout)}' -- but note it re-introduces the "
+            + "failure mode the removal was for.");
+    }
 
     private static void RegisterSuppliedOptions(IServiceCollection services, DataProcessingOptions configuration)
     {
@@ -603,7 +639,8 @@ public static class DataProcessingServiceCollectionExtensions
             {
                 SchemaName = supplied.SchemaName,
                 TableName = supplied.TableName,
-                DispatcherTimeoutMilliseconds = supplied.DispatcherTimeoutMilliseconds,
+                ProcessingStallTimeout = supplied.ProcessingStallTimeout,
+                ProcessingTotalTimeout = supplied.ProcessingTotalTimeout,
                 MaxAttempts = supplied.MaxAttempts,
                 QueueSize = supplied.QueueSize,
                 ProducerBatchSize = supplied.ProducerBatchSize,

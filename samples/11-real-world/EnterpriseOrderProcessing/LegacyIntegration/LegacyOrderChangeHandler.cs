@@ -78,12 +78,18 @@ public sealed class LegacyOrderChangeHandler : IDataChangeHandler
 		var quantity = ExtractInt(changeEvent, "quantity") ?? 1;
 		var unitPrice = ExtractDecimal(changeEvent, "unit_price") ?? 0m;
 
-		// 1. Idempotent order binding -- prevents duplicate aggregates from replayed CDC events
-		var bindResult = await _identityMap.TryBindAsync(
-			"LegacyERP", legacyOrderId, "Order",
-			Guid.NewGuid().ToString(), cancellationToken).ConfigureAwait(false);
+		// 1. Have we already imported this legacy order? RESOLVE, do not bind.
+		//
+		// Binding here would reserve an id BEFORE the order exists, and the two writes are not atomic. If
+		// the dispatch below never completes -- a crash, a cancellation, a validation failure -- the
+		// mapping is committed and the order is not, so every later change event for this legacy order
+		// takes the "already imported" branch and skips an import that never happened. Nothing downstream
+		// ever learns. Asking whether a mapping EXISTS has no such window.
+		var existingOrderId = await _identityMap
+			.ResolveAsync<Guid>("LegacyERP", legacyOrderId, "Order", cancellationToken)
+			.ConfigureAwait(false);
 
-		if (!bindResult.WasCreated)
+		if (existingOrderId is not null)
 		{
 			_logger.LogDebug(
 				"Order already imported for legacy order {LegacyOrderId} -- skipping",
@@ -111,7 +117,19 @@ public sealed class LegacyOrderChangeHandler : IDataChangeHandler
 
 		// 3. Dispatch through the full pipeline (validation + resilience + handler)
 		var context = DispatchContextInitializer.CreateDefaultContext(_dispatcher.ServiceProvider!);
-		await _dispatcher.DispatchAsync<CreateOrderCommand, Guid>(command, context, cancellationToken).ConfigureAwait(false);
+		var orderId = await _dispatcher
+			.DispatchAsync<CreateOrderCommand, Guid>(command, context, cancellationToken)
+			.ConfigureAwait(false);
+
+		// 4. Record the mapping ONLY NOW, and to the id the order actually has.
+		//
+		// Ordering is the whole point. If this process dies before this line, no mapping is written and
+		// the next delivery re-imports -- a duplicate ATTEMPT, which the command handler must be
+		// idempotent against and which is recoverable. A mapping written first strands the import
+		// permanently instead, and that is not recoverable without an operator.
+		await _identityMap
+			.BindAsync("LegacyERP", legacyOrderId, "Order", orderId, cancellationToken)
+			.ConfigureAwait(false);
 	}
 
 	private static string? ExtractString(DataChangeEvent changeEvent, string columnName)

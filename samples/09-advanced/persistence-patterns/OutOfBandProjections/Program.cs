@@ -105,10 +105,7 @@ var events = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
 {
     (new OrderPlaced
     {
-        EventId = Guid.NewGuid().ToString(),
-        AggregateId = "order-001",
-        Version = 1,
-        OccurredAt = DateTimeOffset.UtcNow,
+        OrderId = "order-001",
         CustomerId = "cust-100",
         CustomerName = "Alice",
         TotalAmount = 250.00m,
@@ -116,10 +113,7 @@ var events = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
     }, 1),
     (new OrderPlaced
     {
-        EventId = Guid.NewGuid().ToString(),
-        AggregateId = "order-002",
-        Version = 1,
-        OccurredAt = DateTimeOffset.UtcNow,
+        OrderId = "order-002",
         CustomerId = "cust-200",
         CustomerName = "Bob",
         TotalAmount = 175.50m,
@@ -127,10 +121,7 @@ var events = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
     }, 2),
     (new OrderPlaced
     {
-        EventId = Guid.NewGuid().ToString(),
-        AggregateId = "order-003",
-        Version = 1,
-        OccurredAt = DateTimeOffset.UtcNow,
+        OrderId = "order-003",
         CustomerId = "cust-300",
         CustomerName = "Charlie",
         TotalAmount = 420.00m,
@@ -138,10 +129,7 @@ var events = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
     }, 3),
     (new OrderPlaced
     {
-        EventId = Guid.NewGuid().ToString(),
-        AggregateId = "order-004",
-        Version = 1,
-        OccurredAt = DateTimeOffset.UtcNow,
+        OrderId = "order-004",
         CustomerId = "cust-400",
         CustomerName = "Diana",
         TotalAmount = 89.99m,
@@ -176,10 +164,7 @@ var batchEvents = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
 {
     (new OrderPlaced
     {
-        EventId = Guid.NewGuid().ToString(),
-        AggregateId = "order-005",
-        Version = 1,
-        OccurredAt = DateTimeOffset.UtcNow,
+        OrderId = "order-005",
         CustomerId = "cust-500",
         CustomerName = "Eve",
         TotalAmount = 330.00m,
@@ -187,10 +172,7 @@ var batchEvents = new (Excalibur.Dispatch.IDomainEvent Event, long Position)[]
     }, 5),
     (new OrderPlaced
     {
-        EventId = Guid.NewGuid().ToString(),
-        AggregateId = "order-006",
-        Version = 1,
-        OccurredAt = DateTimeOffset.UtcNow,
+        OrderId = "order-006",
         CustomerId = "cust-600",
         CustomerName = "Frank",
         TotalAmount = 1200.00m,

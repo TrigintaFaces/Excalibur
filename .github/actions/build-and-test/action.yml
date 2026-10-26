@@ -151,7 +151,7 @@ runs:
 
     - name: Preserve embedded integration routing evidence
       if: always() && runner.os == 'Linux' && startsWith(inputs.solution-filter, 'eng/ci/shards/UnitTests-')
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: trait-routing-${{ inputs.results-prefix }}
         path: TestResults/trait-routing
@@ -208,7 +208,7 @@ runs:
 
     - name: Preserve required-test control evidence
       if: always() && (inputs.results-prefix == 'unit-tests-core' || inputs.results-prefix == 'unit-tests-windows-deterministic' || inputs.results-prefix == 'unit-tests-macos-deterministic')
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: required-discovery-controls-${{ inputs.results-prefix }}
         path: |
@@ -280,7 +280,7 @@ runs:
 
     - name: Preserve NuGet cache restore observation
       if: always() && steps.cache-observation.outputs.id != ''
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: ci-cache-${{ github.run_id }}-${{ github.run_attempt }}-${{ steps.cache-observation.outputs.id }}
         path: ${{ steps.cache-observation.outputs.path }}

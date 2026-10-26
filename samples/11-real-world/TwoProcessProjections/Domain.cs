@@ -15,22 +15,16 @@ namespace Excalibur.Examples.TwoProcessProjections;
 /// silently orphan history. Choose it once; rename the type later with <c>[MessageNameAlias]</c>.
 /// </remarks>
 [MessageName("Sample.TwoProcessProjections.OrderPlaced")]
-public sealed record OrderPlaced : IDomainEvent
+public sealed record OrderPlaced : DomainEvent
 {
-	/// <inheritdoc />
-	public string EventId { get; init; } = Guid.NewGuid().ToString();
-
-	/// <inheritdoc />
-	public string AggregateId { get; init; } = string.Empty;
-
-	/// <inheritdoc />
-	public long Version { get; init; }
-
-	/// <inheritdoc />
-	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-
-	/// <inheritdoc />
-	public IDictionary<string, object>? Metadata { get; init; }
+	/// <summary>Gets the order this event belongs to.</summary>
+	/// <remarks>
+	/// The order id is the event's OWN business data. A domain event carries no aggregate id and no
+	/// stream version: the aggregate id is a parameter to the event store, and the version is assigned
+	/// by the store at append time and read back on <c>StoredEvent.Version</c>. Deriving
+	/// <c>DomainEvent</c> supplies <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c>.
+	/// </remarks>
+	public string OrderId { get; init; } = string.Empty;
 
 	/// <summary>Gets the customer the order belongs to.</summary>
 	public string CustomerId { get; init; } = string.Empty;
@@ -41,22 +35,10 @@ public sealed record OrderPlaced : IDomainEvent
 
 /// <summary>A line added to an existing order.</summary>
 [MessageName("Sample.TwoProcessProjections.OrderLineAdded")]
-public sealed record OrderLineAdded : IDomainEvent
+public sealed record OrderLineAdded : DomainEvent
 {
-	/// <inheritdoc />
-	public string EventId { get; init; } = Guid.NewGuid().ToString();
-
-	/// <inheritdoc />
-	public string AggregateId { get; init; } = string.Empty;
-
-	/// <inheritdoc />
-	public long Version { get; init; }
-
-	/// <inheritdoc />
-	public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-
-	/// <inheritdoc />
-	public IDictionary<string, object>? Metadata { get; init; }
+	/// <summary>Gets the order this event belongs to.</summary>
+	public string OrderId { get; init; } = string.Empty;
 
 	/// <summary>Gets the product added.</summary>
 	public string Sku { get; init; } = string.Empty;
@@ -82,7 +64,7 @@ public sealed class Order : AggregateRoot
 	public static Order Place(string orderId, string customerId, decimal amount)
 	{
 		var order = new Order();
-		order.RaiseEvent(new OrderPlaced { AggregateId = orderId, CustomerId = customerId, Amount = amount });
+		order.RaiseEvent(new OrderPlaced { OrderId = orderId, CustomerId = customerId, Amount = amount });
 		return order;
 	}
 
@@ -90,7 +72,7 @@ public sealed class Order : AggregateRoot
 	/// <param name="sku">The product.</param>
 	/// <param name="amount">The line amount.</param>
 	public void AddLine(string sku, decimal amount) =>
-		RaiseEvent(new OrderLineAdded { AggregateId = Id, Sku = sku, Amount = amount });
+		RaiseEvent(new OrderLineAdded { OrderId = Id, Sku = sku, Amount = amount });
 
 	/// <inheritdoc />
 	protected override bool ApplyEventInternal(IDomainEvent @event)
@@ -98,7 +80,7 @@ public sealed class Order : AggregateRoot
 		switch (@event)
 		{
 			case OrderPlaced placed:
-				Id = placed.AggregateId;
+				Id = placed.OrderId;
 				CustomerId = placed.CustomerId;
 				Total = placed.Amount;
 				return true;

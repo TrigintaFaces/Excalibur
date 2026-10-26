@@ -28,10 +28,19 @@ public sealed class ElasticSearchProjectionIndexOptions
 	/// Gets or sets the index name override for this projection store.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// When set, replaces the projection type name in the index naming convention.
 	/// The full index name becomes <c>{IndexPrefix}-{IndexName}</c> when both are set,
 	/// or just <c>{IndexName}</c> when <see cref="IndexPrefix"/> is empty.
 	/// When not set, the default <c>{IndexPrefix}-{projectionTypeName}</c> convention applies.
+	/// </para>
+	/// <para>
+	/// The default uses the projection's SIMPLE type name, so two read models with the same simple
+	/// name in different namespaces resolve to one index and would overwrite each other wherever
+	/// their document ids coincide. That composition is refused at start-up, naming both types, so it
+	/// cannot reach production silently — set this property (or a distinct <see cref="IndexPrefix"/>)
+	/// on at least one of them.
+	/// </para>
 	/// </remarks>
 	/// <value>Defaults to <see langword="null"/> (uses projection type name).</value>
 	public string? IndexName { get; set; }
@@ -90,11 +99,35 @@ public sealed class ElasticSearchProjectionIndexOptions
 
 	/// <summary>Gets or sets whether a projection page becomes searchable before its checkpoint advances.</summary>
 	/// <remarks>
+	/// <para>
 	/// Defaults to false. The processor refreshes this index once after the page's folds, including
 	/// folds skipped because another writer already applied them. Individual writes retain their normal
 	/// refresh policy, avoiding one wait_for refresh interval per document. Use this option for
-	/// request-driven or background projection pages; use WaitForSearchVisibilityOnWrite for direct writes
-	/// that must become searchable before the individual write returns.
+	/// request-driven or background projection pages; use <see cref="WaitForSearchVisibilityOnWrite"/>
+	/// for direct writes that must become searchable before the individual write returns.
+	/// </para>
+	/// <para>
+	/// SET IT PER PROJECTION, NOT ON A SHARED CONFIGURATION. It puts a full index refresh on the write
+	/// path of whichever projections it covers, and a refresh is the most expensive thing on that path
+	/// -- so a shared registration applies it to read models nobody reads synchronously and charges
+	/// them for a guarantee they do not use.
+	/// </para>
+	/// <para>
+	/// THE COST IS PER PAGE, AND A PAGE IS NOT ALWAYS A BATCH. "Once per page" is cheap against a page
+	/// of several hundred events and is the same price as per-document when a page holds one. That is
+	/// not hypothetical: an INLINE projection advances event by event, because each save waits for the
+	/// cursor to reach the position it just committed -- so on the inline path this option costs one
+	/// index refresh per event, and the batch size configured on the processor does not change it.
+	/// Where that path is driven by a bulk writer such as a change-data-capture backfill, the refresh
+	/// becomes the throughput limit for the whole job rather than a tax on one request.
+	/// </para>
+	/// <para>
+	/// Enable it where a request writes and then SEARCHES for its own write, which is the case this
+	/// option exists for. Where a projection is filled by a background writer and queried later, the
+	/// index's own <see cref="RefreshInterval"/> already bounds how stale a search can be, and that is
+	/// the guarantee such a reader needs. Note that a get-by-id read is realtime either way; only
+	/// search is affected.
+	/// </para>
 	/// </remarks>
 	public bool EnsureSearchVisibilityOnProjectionCheckpoint { get; set; }
 

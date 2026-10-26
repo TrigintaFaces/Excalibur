@@ -593,18 +593,19 @@ Implement policies and procedures to protect ePHI from improper alteration or de
 
 ```csharp
 // Optimistic concurrency via event sourcing
+[MessageName("Contoso.Clinical.DiagnosisUpdated")]
+public sealed record DiagnosisUpdatedEvent(string PatientId, string NewDiagnosis) : DomainEvent;
+
 public class Patient : AggregateRoot
 {
     public void UpdateDiagnosis(string newDiagnosis)
     {
-        // Event versioning prevents concurrent updates
-        RaiseEvent(new DiagnosisUpdatedEvent
-        {
-            AggregateId = this.Id,
-            Version = this.Version + 1,  // Concurrency control
-            NewDiagnosis = newDiagnosis,
-            UpdatedAt = DateTime.UtcNow
-        });
+        // The event carries clinical data only. It does not carry a stream version, and must not:
+        // the version is assigned by the event store at append time, and concurrency is enforced
+        // there against the expected version the repository passes to AppendAsync. A version set on
+        // the payload would be a number the writer chose, which is the opposite of a concurrency
+        // check. OccurredAt and EventId come from DomainEvent.
+        RaiseEvent(new DiagnosisUpdatedEvent(this.Id, newDiagnosis));
     }
 }
 ```

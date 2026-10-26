@@ -40,9 +40,25 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SubscriptionCheckpointsDefinitions' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE [dbo].[SubscriptionCheckpointsDefinitions] (
+        -- The name may be anything the consumer chooses, so it is NVARCHAR. The hash is a SHA-256
+        -- rendered as uppercase hex, which is ASCII, so it is VARCHAR. The two columns are typed
+        -- DIFFERENTLY ON PURPOSE and the difference is easy to lose when transcribing this table.
         SubscriptionName NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
+
+        -- CHECKED BY CHARACTER COUNT AND ALPHABET, NOT BY BYTE LENGTH. DATALENGTH would be the
+        -- natural way to write this and it is a trap: it counts BYTES, so it reads 64 for a VARCHAR
+        -- hash and 128 for the identical hash in an NVARCHAR column. A consumer who retypes this
+        -- column as NVARCHAR -- the obvious thing to do when the column above it is NVARCHAR -- then
+        -- gets a table that can never accept a row, and learns of it as a CHECK violation at host
+        -- start, naming the constraint and nothing about the cause. LEN is character-based, so this
+        -- holds whichever of the two types the column ends up with.
+        --
+        -- The alphabet half makes the check the real contract rather than a length coincidence: the
+        -- store refuses anything that is not 64 uppercase hex characters before it ever reaches SQL,
+        -- and this says the same thing in the one place that survives a hand-written migration. The
+        -- binary collation is what makes the lower-case range reject rather than fold.
         DefinitionHash VARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
-            CHECK (DATALENGTH(DefinitionHash) = 64)
+            CHECK (LEN(DefinitionHash) = 64 AND DefinitionHash NOT LIKE '%[^0-9A-F]%')
     );
 END;
 GO

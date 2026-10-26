@@ -18,10 +18,10 @@ public sealed class DataProcessingOptionsValidationShould : UnitTestBase
 	[InlineData(0)]
 	[InlineData(-1)]
 	[InlineData(-100)]
-	public void Throw_WhenDispatcherTimeoutMilliseconds_IsZeroOrNegative(int invalidValue)
+	public void Throw_WhenProcessingStallTimeout_IsZeroOrNegative(int invalidValue)
 	{
 		Should.Throw<ArgumentOutOfRangeException>(() =>
-			new DataProcessingOptions { DispatcherTimeoutMilliseconds = invalidValue });
+			new DataProcessingOptions { ProcessingStallTimeout = TimeSpan.FromMilliseconds(invalidValue) });
 	}
 
 	[Theory]
@@ -81,7 +81,7 @@ public sealed class DataProcessingOptionsValidationShould : UnitTestBase
 		var config = new DataProcessingOptions
 		{
 			TableName = "CustomTable",
-			DispatcherTimeoutMilliseconds = 1,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(1),
 			MaxAttempts = 1,
 			QueueSize = 1,
 			ProducerBatchSize = 1,
@@ -90,7 +90,7 @@ public sealed class DataProcessingOptionsValidationShould : UnitTestBase
 
 		// Assert — minimum valid values accepted
 		config.TableName.ShouldBe("CustomTable");
-		config.DispatcherTimeoutMilliseconds.ShouldBe(1);
+		config.ProcessingStallTimeout.ShouldBe(TimeSpan.FromMilliseconds(1));
 		config.MaxAttempts.ShouldBe(1);
 		config.QueueSize.ShouldBe(1);
 		config.ProducerBatchSize.ShouldBe(1);

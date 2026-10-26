@@ -80,7 +80,7 @@ var result = await identityMap.TryBindAsync(
     Guid.NewGuid().ToString(),
     ct);
 
-if (result.WasCreated)
+if (result.MappingWasCreated)
 {
     // First time seeing this transaction -- create aggregate
     var txn = Transaction.Create(Guid.Parse(result.AggregateId), ...);

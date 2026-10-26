@@ -15,10 +15,12 @@ Excalibur.Data.DataProcessing.DataProcessingOptions
 Excalibur.Data.DataProcessing.DataProcessingOptions.ConsumerBatchSize.get -> int
 Excalibur.Data.DataProcessing.DataProcessingOptions.ConsumerBatchSize.init -> void
 Excalibur.Data.DataProcessing.DataProcessingOptions.DataProcessingOptions() -> void
-Excalibur.Data.DataProcessing.DataProcessingOptions.DispatcherTimeoutMilliseconds.get -> int
-Excalibur.Data.DataProcessing.DataProcessingOptions.DispatcherTimeoutMilliseconds.init -> void
 Excalibur.Data.DataProcessing.DataProcessingOptions.MaxAttempts.get -> int
 Excalibur.Data.DataProcessing.DataProcessingOptions.MaxAttempts.init -> void
+Excalibur.Data.DataProcessing.DataProcessingOptions.ProcessingStallTimeout.get -> System.TimeSpan
+Excalibur.Data.DataProcessing.DataProcessingOptions.ProcessingStallTimeout.init -> void
+Excalibur.Data.DataProcessing.DataProcessingOptions.ProcessingTotalTimeout.get -> System.TimeSpan?
+Excalibur.Data.DataProcessing.DataProcessingOptions.ProcessingTotalTimeout.init -> void
 Excalibur.Data.DataProcessing.DataProcessingOptions.ProducerBatchSize.get -> int
 Excalibur.Data.DataProcessing.DataProcessingOptions.ProducerBatchSize.init -> void
 Excalibur.Data.DataProcessing.DataProcessingOptions.QualifiedTableName.get -> string!
@@ -128,7 +130,6 @@ Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensio
 abstract Excalibur.Data.DataProcessing.DataProcessor<TRecord>.FetchBatchAsync(string? cursor, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.DataProcessing.CursorFetchResult<TRecord>!>!
 const Excalibur.Data.DataProcessing.DataProcessingKeys.OrchestrationConnection = "Excalibur.DataProcessing.Orchestration" -> string!
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultConsumerBatchSize = 10 -> int
-const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultDispatcherTimeout = 60000 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultMaxAttempts = 3 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultProducerBatchSize = 100 -> int
 const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultQueueSize = 5000 -> int
@@ -150,5 +151,6 @@ static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionE
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.AddRecordHandler<THandler, TRecord>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionPath) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionPath) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.EnableDataProcessingBackgroundService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DataProcessing.Processing.DataProcessingHostedServiceOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static readonly Excalibur.Data.DataProcessing.DataProcessorDefaults.ProcessingStallTimeout -> System.TimeSpan
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.RunAsync(long completedCount, string? processedCursor, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!

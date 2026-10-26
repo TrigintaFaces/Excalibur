@@ -161,17 +161,22 @@ dotnet add package Excalibur.Hosting.Web
 ```
 
 ```csharp
+using Excalibur.EventSourcing.SqlServer;
+using Excalibur.Outbox.SqlServer;
+
 var connectionString = builder.Configuration.GetConnectionString("Default")!;
 
 builder.Services.AddDispatch(typeof(Program).Assembly);
-builder.Services
-    .AddSqlServerEventStore(o => o.ConnectionString = connectionString)
-    .AddSqlServerOutboxStore(o => o.ConnectionString = connectionString);
+builder.Services.AddExcalibur(x => x
+    .AddEventSourcing(es => es.UseSqlServer(sql => sql.ConnectionString(connectionString)))
+    .AddOutbox(outbox => outbox.UseSqlServer(sql => sql.ConnectionString(connectionString))));
 ```
 
-Other providers register the same `IEventStore` behind the same handlers — Postgres, MongoDB, Cosmos DB,
-DynamoDB, Firestore, Oracle, Redis and SQLite each ship their own package with its own registration
-extension, and the richer compositions go through `AddExcalibur(x => x.AddEventSourcing(...))`.
+Changing provider is one word. Install that provider's package and replace `UseSqlServer` with
+`UsePostgres`, `UseOracle`, `UseMongoDB`, `UseCosmosDb`, `UseDynamoDb`, `UseFirestore`, `UseRedis` or
+`UseSqlite` — every provider offers the same call, and the outbox builder adds `UseElasticSearch` and
+`UseMarten`. Some providers place that extension in their own namespace rather than
+`Microsoft.Extensions.DependencyInjection`, so follow the `using` your chosen package declares.
 
 `Excalibur.EventSourcing.InMemory` (`AddInMemoryEventStore()`) exists for tests and local spikes. It keeps
 nothing across a restart, so it is not a starting point for a deployed application.

@@ -10,6 +10,7 @@ using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -46,6 +47,7 @@ public static class ElasticSearchProjectionStoreExtensions
 		// produces that key -- and refusing the case where two different types produce the same one.
 		var optionsName = ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>();
 		ClaimOptionsName(services, optionsName, typeof(TProjection));
+		WireIndexIdentityValidation(services);
 		_ = services.Configure(optionsName, configureOptions);
 		WireOptionsValidation(services, optionsName);
 
@@ -140,6 +142,7 @@ public static class ElasticSearchProjectionStoreExtensions
 		// produces that key -- and refusing the case where two different types produce the same one.
 		var optionsName = ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>();
 		ClaimOptionsName(services, optionsName, typeof(TProjection));
+		WireIndexIdentityValidation(services);
 		_ = services.Configure(optionsName, configureOptions);
 
 		// Recorded AFTER the consumer's action, so it cannot be cleared by one: this path always supplies
@@ -332,6 +335,24 @@ public static class ElasticSearchProjectionStoreExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<ElasticSearchProjectionStoreOptions>,
 				ElasticSearchProjectionStoreOptionsValidator>());
+	}
+
+	/// <summary>
+	/// Registers the start-up check that refuses two projections resolving to one Elasticsearch index.
+	/// </summary>
+	/// <remarks>
+	/// Idempotent through <c>TryAddEnumerable</c>, so every registration may call it and one instance is
+	/// added. Both service types are registered for the reason the sibling gates in this framework
+	/// register both: a host reaches the check as a hosted service at start, and a consumer who builds a
+	/// provider without ever starting a host reaches it through <c>ValidateStartupGates()</c>. Omitting
+	/// either leaves the check inert for that half of the consumers.
+	/// </remarks>
+	private static void WireIndexIdentityValidation(IServiceCollection services)
+	{
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ElasticSearchProjectionIndexIdentityValidator>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IHostedService, ElasticSearchProjectionIndexIdentityValidator>());
 	}
 
 	/// <summary>Records registered full type identities for host diagnostics.</summary>

@@ -49,8 +49,10 @@ public static class ElasticSearchProjectionIndexConvention
 	/// </para>
 	/// <para>
 	/// The full type name isolates settings for projections with the same simple name in different
-	/// namespaces. This bucket identity is separate from index naming: configure distinct index names
-	/// for those projections when they share a cluster.
+	/// namespaces. This bucket identity is separate from index naming, which defaults to the SIMPLE
+	/// name and therefore does collide for such a pair — so configure distinct index names for those
+	/// projections when they share a cluster. Failing to is refused at start-up rather than silently
+	/// pointing two read models at one index.
 	/// </para>
 	/// </remarks>
 	public static string GetOptionsName<TProjection>()

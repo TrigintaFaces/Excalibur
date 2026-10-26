@@ -25,7 +25,7 @@ internal static class DataProcessingSmoke
             ["Processing:SchemaName"] = "Smoke", ["Processing:TableName"] = "Tasks",
             ["Processing:QueueSize"] = "321", ["Processing:ProducerBatchSize"] = "12",
             ["Processing:ConsumerBatchSize"] = "3", ["Processing:MaxAttempts"] = "7",
-            ["Processing:DispatcherTimeoutMilliseconds"] = "1234",
+            ["Processing:ProcessingStallTimeout"] = "00:00:01.234",
         }).Build();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -50,7 +50,7 @@ internal static class DataProcessingSmoke
         var options = provider.GetRequiredService<IOptions<DataProcessingOptions>>().Value;
         if (options.SchemaName != "Smoke" || options.TableName != "Tasks" || options.QueueSize != 321 ||
             options.ProducerBatchSize != 12 || options.ConsumerBatchSize != 3 || options.MaxAttempts != 7 ||
-            options.DispatcherTimeoutMilliseconds != 1234)
+            options.ProcessingStallTimeout != TimeSpan.FromMilliseconds(1234))
         {
             throw new InvalidOperationException("Native configuration ignored an immutable DataProcessing option.");
         }

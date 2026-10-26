@@ -119,7 +119,15 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 		.KeyedBy<ProductStockAdded>(e => e.Category.ToUpperInvariant())
 		.KeyedBy<ProductStockRemoved>(e => e.Category.ToUpperInvariant())
 		.KeyedBy<ProductDiscontinued>(e => e.Category.ToUpperInvariant())
-		.When<ProductCreated>((proj, e) =>
+		// VERSION IS ASSIGNED, NOT INCREMENTED, and here it is the GLOBAL POSITION rather than a
+		// committed aggregate version. This row is keyed by category, so many product streams write to
+		// it and there is no single aggregate whose version it could name -- the global position is
+		// monotonic across all of them, which is the meaningful answer for a multi-stream row.
+		// (ProductCatalogProjection above is keyed by product, one stream per row, so its DI-resolved
+		// handlers assign ProjectionHandlerContext.CommittedVersion instead.) Incrementing would count
+		// folds rather than name a version, and the two diverge the moment a row is rebuilt or starts
+		// from a mid-stream position.
+		.When<ProductCreated>((proj, e, ctx) =>
 		{
 			var productId = e.ProductId.ToString();
 			proj.CategoryName = e.Category;
@@ -140,17 +148,17 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			RecalculatePriceStats(proj);
 			RecalculateInventoryValue(proj);
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version++;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
-		.When<ProductPriceChanged>((proj, e) =>
+		.When<ProductPriceChanged>((proj, e, ctx) =>
 		{
 			proj.ProductPrices[e.ProductId.ToString()] = e.NewPrice;
 			RecalculatePriceStats(proj);
 			RecalculateInventoryValue(proj);
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version++;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
-		.When<ProductStockAdded>((proj, e) =>
+		.When<ProductStockAdded>((proj, e, ctx) =>
 		{
 			var productId = e.ProductId.ToString();
 			var oldStock = proj.ProductStocks.GetValueOrDefault(productId, 0);
@@ -171,9 +179,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 			RecalculateInventoryValue(proj);
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version++;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
-		.When<ProductStockRemoved>((proj, e) =>
+		.When<ProductStockRemoved>((proj, e, ctx) =>
 		{
 			var productId = e.ProductId.ToString();
 			var oldStock = proj.ProductStocks.GetValueOrDefault(productId, 0);
@@ -194,9 +202,9 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 
 			RecalculateInventoryValue(proj);
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version++;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		})
-		.When<ProductDiscontinued>((proj, e) =>
+		.When<ProductDiscontinued>((proj, e, ctx) =>
 		{
 			var productId = e.ProductId.ToString();
 			var stock = proj.ProductStocks.GetValueOrDefault(productId, 0);
@@ -215,7 +223,7 @@ services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 			RecalculatePriceStats(proj);
 			RecalculateInventoryValue(proj);
 			proj.LastModified = DateTimeOffset.UtcNow;
-			proj.Version++;
+			proj.Version = ctx.GlobalPosition ?? proj.Version;
 		}));
 	// The Async category summary needs an explicit driver. The Inline catalog does not.
 	// This registers the Async processor, applying committed events in

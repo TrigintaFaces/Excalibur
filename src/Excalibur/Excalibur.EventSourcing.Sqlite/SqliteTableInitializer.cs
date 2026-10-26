@@ -192,7 +192,8 @@ internal static class SqliteTableInitializer
 		);
 		CREATE TABLE IF NOT EXISTS [{table}Definitions] (
 			SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
-			DefinitionHash TEXT NOT NULL COLLATE BINARY CHECK (length(DefinitionHash) = 64)
+			DefinitionHash TEXT NOT NULL COLLATE BINARY
+				CHECK (length(DefinitionHash) = 64 AND DefinitionHash NOT GLOB '*[^0-9A-F]*')
 		);
 		""";
 

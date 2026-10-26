@@ -12,7 +12,7 @@ namespace Excalibur.Data.Tests.DataProcessing;
 /// <summary>
 /// Unit tests for the cross-property <see cref="IValidateOptions{DataProcessingOptions}"/>
 /// validator (DataProcessingOptionsValidator) added in Sprint 662.
-/// Tests ProducerBatchSize/ConsumerBatchSize vs QueueSize and DispatcherTimeout range constraints.
+/// Tests ProducerBatchSize/ConsumerBatchSize vs QueueSize and ProcessingStallTimeout range constraints.
 /// </summary>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Core)]
@@ -43,7 +43,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 100,
 			ProducerBatchSize = 101,
 			ConsumerBatchSize = 10,
-			DispatcherTimeoutMilliseconds = 5000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(5000),
 		};
 
 		// Act
@@ -63,7 +63,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 100,
 			ProducerBatchSize = 100,
 			ConsumerBatchSize = 10,
-			DispatcherTimeoutMilliseconds = 5000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(5000),
 		};
 
 		// Act
@@ -84,7 +84,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 50,
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 51,
-			DispatcherTimeoutMilliseconds = 5000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(5000),
 		};
 
 		// Act
@@ -104,7 +104,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 50,
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 50,
-			DispatcherTimeoutMilliseconds = 5000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(5000),
 		};
 
 		// Act
@@ -114,10 +114,10 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 		result.Succeeded.ShouldBeTrue();
 	}
 
-	// --- DispatcherTimeout below minimum (1000ms) ---
+	// --- ProcessingStallTimeout below minimum (1s) ---
 
 	[Fact]
-	public void Fail_WhenDispatcherTimeout_BelowMinimum()
+	public void Fail_WhenProcessingStallTimeout_BelowMinimum()
 	{
 		// Arrange
 		var options = new DataProcessingOptions
@@ -125,7 +125,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 100,
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 10,
-			DispatcherTimeoutMilliseconds = 999,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(999),
 		};
 
 		// Act
@@ -133,11 +133,11 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("DispatcherTimeoutMilliseconds");
+		result.FailureMessage.ShouldContain("ProcessingStallTimeout");
 	}
 
 	[Fact]
-	public void Succeed_WhenDispatcherTimeout_EqualsMinimum()
+	public void Succeed_WhenProcessingStallTimeout_EqualsMinimum()
 	{
 		// Arrange -- boundary: exactly 1000 is valid
 		var options = new DataProcessingOptions
@@ -145,7 +145,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 100,
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 10,
-			DispatcherTimeoutMilliseconds = 1000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(1000),
 		};
 
 		// Act
@@ -155,10 +155,10 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 		result.Succeeded.ShouldBeTrue();
 	}
 
-	// --- DispatcherTimeout above maximum (3600000ms) ---
+	// --- ProcessingStallTimeout above maximum (1h) ---
 
 	[Fact]
-	public void Fail_WhenDispatcherTimeout_AboveMaximum()
+	public void Fail_WhenProcessingStallTimeout_AboveMaximum()
 	{
 		// Arrange
 		var options = new DataProcessingOptions
@@ -166,7 +166,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 100,
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 10,
-			DispatcherTimeoutMilliseconds = 3_600_001,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(3_600_001),
 		};
 
 		// Act
@@ -174,11 +174,11 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 
 		// Assert
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain("DispatcherTimeoutMilliseconds");
+		result.FailureMessage.ShouldContain("ProcessingStallTimeout");
 	}
 
 	[Fact]
-	public void Succeed_WhenDispatcherTimeout_EqualsMaximum()
+	public void Succeed_WhenProcessingStallTimeout_EqualsMaximum()
 	{
 		// Arrange -- boundary: exactly 3600000 is valid
 		var options = new DataProcessingOptions
@@ -186,7 +186,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 100,
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 10,
-			DispatcherTimeoutMilliseconds = 3_600_000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(3_600_000),
 		};
 
 		// Act
@@ -222,7 +222,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 			QueueSize = 10,
 			ProducerBatchSize = 20,
 			ConsumerBatchSize = 30,
-			DispatcherTimeoutMilliseconds = 500,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(500),
 		};
 
 		// Act
@@ -232,7 +232,7 @@ public sealed class DataProcessingOptionsValidatorShould : UnitTestBase
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain("ProducerBatchSize");
 		result.FailureMessage.ShouldContain("ConsumerBatchSize");
-		result.FailureMessage.ShouldContain("DispatcherTimeoutMilliseconds");
+		result.FailureMessage.ShouldContain("ProcessingStallTimeout");
 	}
 
 	// --- Validator registered on ALL registration paths (blocking fix from T.12 review) ---

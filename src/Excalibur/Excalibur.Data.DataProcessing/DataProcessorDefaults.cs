@@ -24,9 +24,13 @@ public static class DataProcessorDefaults
 	public const string DataProcessorDefaultTableName = "DataTaskRequests";
 
 	/// <summary>
-	/// Default dispatcher timeout in milliseconds.
+	/// Default time a claimed task may make no progress before it is cancelled.
 	/// </summary>
-	public const int DataProcessorDefaultDispatcherTimeout = 60000;
+	/// <remarks>
+	/// Measures SILENCE, not duration — it is restarted on every checkpointed record, so this is how long
+	/// a task may be stuck, never how long it may take.
+	/// </remarks>
+	public static readonly TimeSpan ProcessingStallTimeout = TimeSpan.FromSeconds(60);
 
 	/// <summary>
 	/// Default maximum number of processing attempts.

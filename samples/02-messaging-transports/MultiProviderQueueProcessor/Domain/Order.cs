@@ -44,7 +44,7 @@ public sealed class Order : AggregateRoot
 		var order = new Order();
 		order.RaiseEvent(new OrderCreatedEvent
 		{
-			AggregateId = orderId,
+			OrderId = orderId,
 			CustomerId = customerId,
 			TotalAmount = totalAmount,
 			Currency = currency,
@@ -64,7 +64,7 @@ public sealed class Order : AggregateRoot
 
 		RaiseEvent(new OrderItemAddedEvent
 		{
-			AggregateId = Id,
+			OrderId = Id,
 			ProductId = productId,
 			ProductName = productName,
 			Quantity = quantity,
@@ -87,7 +87,7 @@ public sealed class Order : AggregateRoot
 			throw new InvalidOperationException("Cannot submit an empty order");
 		}
 
-		RaiseEvent(new OrderSubmittedEvent { AggregateId = Id, SubmittedAt = DateTime.UtcNow, });
+		RaiseEvent(new OrderSubmittedEvent { OrderId = Id, SubmittedAt = DateTime.UtcNow, });
 	}
 
 	/// <summary>
@@ -102,7 +102,7 @@ public sealed class Order : AggregateRoot
 
 		RaiseEvent(new OrderShippedEvent
 		{
-			AggregateId = Id,
+			OrderId = Id,
 			TrackingNumber = trackingNumber,
 			Carrier = carrier,
 			ShippedAt = DateTime.UtcNow,
@@ -119,7 +119,7 @@ public sealed class Order : AggregateRoot
 			throw new InvalidOperationException($"Cannot cancel order in {Status} status");
 		}
 
-		RaiseEvent(new OrderCancelledEvent { AggregateId = Id, Reason = reason, CancelledAt = DateTime.UtcNow, });
+		RaiseEvent(new OrderCancelledEvent { OrderId = Id, Reason = reason, CancelledAt = DateTime.UtcNow, });
 	}
 
 	/// <inheritdoc />
@@ -141,7 +141,7 @@ public sealed class Order : AggregateRoot
 
 	private void Apply(OrderCreatedEvent e)
 	{
-		Id = e.AggregateId;
+		Id = e.OrderId;
 		CustomerId = e.CustomerId;
 		TotalAmount = e.TotalAmount;
 		Currency = e.Currency;

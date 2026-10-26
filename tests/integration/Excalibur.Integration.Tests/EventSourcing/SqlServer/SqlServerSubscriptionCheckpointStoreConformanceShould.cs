@@ -150,7 +150,12 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 				AND schema_id = SCHEMA_ID('{_fixture.SchemaName}'))
 			CREATE TABLE [{_fixture.SchemaName}].[{CheckpointTable}Definitions] (
 				SubscriptionName NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
+				-- CARRIES THE SHIPPED CHECK. This fixture omitted it, so the conformance run exercised
+				-- a table shape no consumer has: a store writing a malformed hash would have passed
+				-- here and failed against the real schema. Keep it identical to
+				-- Scripts/004_CreateSubscriptionCheckpointSchema.sql.
 				DefinitionHash VARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
+					CHECK (LEN(DefinitionHash) = 64 AND DefinitionHash NOT LIKE '%[^0-9A-F]%')
 			);
 			""";
 

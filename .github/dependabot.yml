@@ -105,8 +105,41 @@ updates:
         patterns: ["*"]
 
   # GitHub Actions updates
+  #
+  # ⚠ A ROOT ENTRY SCANS .github/workflows AND NOTHING ELSE. Composite actions under
+  # .github/actions/** are a separate scan target and need an entry naming each directory, or they
+  # are silently left behind: the workflow files move to the new pin, the composite actions they CALL
+  # stay on the old one, and the repository ends up running two versions of the same action with no
+  # error anywhere. Measured 2026-10-26 on the public mirror: a Dependabot bump of
+  # actions/upload-artifact touched 17 workflow files and zero of the 5 call sites inside
+  # .github/actions, so merging it would have been a partial upgrade that looked complete.
+  #
+  # Each composite action directory listed below must exist. When one is added or renamed, add or
+  # rename its entry here too -- there is no glob, and a missing entry fails silent rather than loud.
   - package-ecosystem: "github-actions"
     directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/build-and-test"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/setup-dotnet-build"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -126,12 +159,26 @@ updates:
   # graph behind and the locked-mode restore in official-build.yml fails with NU1004 (measured
   # 2026-10-08: 10.0.400 -> 10.0.401 moved Microsoft.NET.ILLink.Tasks and failed on 192 projects).
   #
-  # Three things must land WITH the version bump, and none of them is automatable here:
-  #   1. the hard-coded pin in .github/workflows/official-build.yml — the only setup-dotnet call site
-  #      that names a version instead of reading global.json
-  #   2. every packages.lock.json, regenerated under the NEW SDK (~193 files)
+  # Things that must land WITH the version bump, and none of them is automatable here. Corrected
+  # 2026-10-26 while performing the 10.0.402 -> 10.0.403 bump: item 1 below was already stale and a
+  # gate input was missing, so this list is what was actually required, measured.
+  #   1. every packages.lock.json, regenerated under the NEW SDK: `dotnet restore Excalibur.sln
+  #      -p:BuildExamplesAndTests=true --force-evaluate`. Measured on 10.0.403: 193 files, 3 lines
+  #      each, all of it Microsoft.NET.ILLink.Tasks 10.0.13 -> 10.0.14. Verify with the same restore
+  #      under --locked-mode, which is what CI runs.
+  #   2. eng/ci/inline-native-aot-known-diagnostics.json -> properties.NETCoreSdkVersion. THIS IS A
+  #      GATE INPUT, not provenance: eng/ci/inline-native-aot-verdict.py compares the evaluated
+  #      properties against this baseline and RAISES on any difference, so a bump that misses it
+  #      fails the native-AOT verdict with a message about properties rather than about the SDK.
   #   3. eng/ci/aot-warning-baseline.json — ILLink rides the SDK unpinned, so a bump moves the
-  #      trimmer; this is the one step that can surface real findings rather than mechanical churn
+  #      trimmer; this is the one step that can surface real findings rather than mechanical churn.
+  #      Re-measuring it needs a Native AOT publish, so it does not fall out of a normal build. The
+  #      SDK version also appears in two justification strings in that file: those are a historical
+  #      record of an observation and are NOT updated by a later bump.
+  #
+  # NOT on this list, though it used to be: .github/workflows/official-build.yml. It reads
+  # `global-json-file: global.json` and names no version, so nothing there needs editing. Re-check
+  # before trusting that, but do not go hunting for a pin that is no longer there.
   #
   # Do NOT resolve the red by loosening rollForward. See the comment on
   # RestorePackagesWithLockFile in Directory.Build.props for why "disable" is correct here.

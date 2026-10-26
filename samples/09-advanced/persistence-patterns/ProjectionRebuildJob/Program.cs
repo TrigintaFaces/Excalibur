@@ -80,14 +80,10 @@ await host.RunAsync();
 // ============================================================================
 
 [MessageName("Contoso.Orders.OrderPlaced")]
-public sealed record OrderPlaced(string OrderId, string AggregateId, decimal Amount, string Region)
-    : IDomainEvent
-{
-    public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public long Version { get; init; }
-    public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public IDictionary<string, object>? Metadata { get; init; }
-}
+// The second parameter held a CUSTOMER id while being named for the aggregate. A domain event
+// carries no aggregate id -- the store takes it as a parameter -- so it is named for what it holds.
+public sealed record OrderPlaced(string OrderId, string CustomerId, decimal Amount, string Region)
+    : DomainEvent;
 
 // ============================================================================
 // Materialized View
@@ -139,11 +135,11 @@ public sealed class SeedEventsService(
 
         var events = new List<IDomainEvent>
         {
-            new OrderPlaced("ord-1", "customer-1", 99.95m, "US-West") { Version = 0 },
-            new OrderPlaced("ord-2", "customer-1", 149.99m, "US-East") { Version = 1 },
-            new OrderPlaced("ord-3", "customer-2", 29.95m, "EU-West") { Version = 0 },
-            new OrderPlaced("ord-4", "customer-2", 199.99m, "US-West") { Version = 1 },
-            new OrderPlaced("ord-5", "customer-3", 59.99m, "EU-West") { Version = 0 },
+            new OrderPlaced("ord-1", "customer-1", 99.95m, "US-West"),
+            new OrderPlaced("ord-2", "customer-1", 149.99m, "US-East"),
+            new OrderPlaced("ord-3", "customer-2", 29.95m, "EU-West"),
+            new OrderPlaced("ord-4", "customer-2", 199.99m, "US-West"),
+            new OrderPlaced("ord-5", "customer-3", 59.99m, "EU-West"),
         };
 
         await eventStore.AppendAsync("customer-1", "Customer", events.Take(2).ToList(), -1, cancellationToken);

@@ -366,7 +366,8 @@ builder.Services.AddRecordHandler<CustomerMigrationHandler, CustomerRecord>(
 
 | `MaxAttempts` | `int` | 3 | Maximum retry attempts per data task |
 
-| `DispatcherTimeoutMilliseconds` | `int` | 60000 | Timeout for a dispatcher to process tasks (ms) |
+| `ProcessingStallTimeout` | `TimeSpan` | `00:01:00` | How long a task may make NO PROGRESS before it is cancelled. Restarted on every checkpointed record. |
+| `ProcessingTotalTimeout` | `TimeSpan?` | `null` | Optional absolute cap on one task, regardless of progress. |
 
 
 
@@ -396,7 +397,7 @@ All numeric properties require values > 0 (enforced by `[Range(1, int.MaxValue)]
 
     "MaxAttempts": 3,
 
-    "DispatcherTimeoutMilliseconds": 60000
+    "ProcessingStallTimeout": "00:01:00"
 
   }
 
@@ -422,7 +423,8 @@ An `IValidateOptions<DataProcessingOptions>` validator enforces inter-property c
 
 | `ConsumerBatchSize` must not exceed `QueueSize` | Prevents impossible dequeue sizes |
 
-| `DispatcherTimeoutMilliseconds` must be 1,000–3,600,000 | Enforces 1 second to 1 hour range |
+| `ProcessingStallTimeout` must be 1 second to 1 hour | Bounds the stall budget |
+| `ProcessingTotalTimeout` must not be below `ProcessingStallTimeout` | A cap under the stall budget can never be satisfied |
 
 
 
@@ -848,7 +850,7 @@ public interface IRecordHandler<in TRecord>
 
 | Batch sizes | Set `ProducerBatchSize` and `ConsumerBatchSize` at or below `QueueSize` (validated at startup) |
 
-| Timeouts | Keep `DispatcherTimeoutMilliseconds` at 1000ms or above; default 60s is suitable for most cases |
+| Timeouts | `ProcessingStallTimeout` bounds SILENCE, not duration — a task that keeps completing records is never cancelled by it, so the default 60s suits batches of any size. Leave `ProcessingTotalTimeout` unset unless you have a specific runaway to bound. |
 
 | Error handling | Orchestration DB calls are automatically retried when `Excalibur.Data.SqlServer` is registered; implement domain-level retry in `IRecordHandler<T>.ProcessAsync`; `MaxAttempts` controls task-level retries |
 
@@ -1400,7 +1402,7 @@ The SQL Server orchestrator requires a factory that returns a new, closed connec
 
 A lost database session fences subsequent task-state writes. It cannot undo external handler effects already underway. Handlers must remain idempotent and tolerate replay and, after connection loss, overlapping external effects. All workers must use the ownership-aware implementation; older workers do not honor these locks. Drain tasks outside ambient transactions; enqueue may participate in a business transaction.
 
-`DispatcherTimeoutMilliseconds` requests cancellation for each claimed task, including scope cleanup. Cancellation is cooperative: a handler that ignores it can delay completion. The manager joins processing before releasing ownership. An observed timeout consumes a failed attempt; host cancellation does not. `Attempts` counts observed failures, not process crashes. `CompletedCount` counts successful processing attempts and may include replayed records, rather than distinct records.
+`ProcessingStallTimeout` bounds how long a claimed task may make NO PROGRESS, not how long it may take: it restarts every time the task durably accounts for a record, so a large batch does not fail merely for being large. A total wall-clock deadline cannot distinguish a wedged task from a healthy one with a lot to do — under one there is always a record count above which the task fails regardless of per-record speed. Set `ProcessingTotalTimeout` only if you need an absolute cap as well. Cancellation requests a stop, including scope cleanup. Cancellation is cooperative: a handler that ignores it can delay completion. The manager joins processing before releasing ownership. An observed timeout consumes a failed attempt; host cancellation does not. `Attempts` counts observed failures, not process crashes. `CompletedCount` counts successful processing attempts and may include replayed records, rather than distinct records.
 
 Repeated failed hosted cycles degrade health and become unhealthy at `UnhealthyThreshold`; a successful cycle resets the failure streak. Exceeding shutdown drain time reports the service as stopped and unhealthy even if noncooperative work has not yet finished.
 

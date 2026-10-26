@@ -33,7 +33,7 @@ var result = await identityMap.TryBindAsync(
     "LegacyCore", legacyOrderId, "Order",
     newOrderId.ToString(), cancellationToken);
 
-if (result.WasCreated)
+if (result.MappingWasCreated)
 {
     // New aggregate -- proceed with creation
 }

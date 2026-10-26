@@ -67,7 +67,7 @@ public sealed class BankAccountAggregate : AggregateRoot
 
 		RaiseEvent(new AccountOpenedEvent
 		{
-			AggregateId = accountId,
+			AccountId = accountId,
 			HolderName = holderName,
 			InitialDeposit = initialDeposit
 		});
@@ -89,7 +89,7 @@ public sealed class BankAccountAggregate : AggregateRoot
 			throw new ArgumentOutOfRangeException(nameof(amount), "Deposit amount must be positive.");
 		}
 
-		RaiseEvent(new FundsDepositedEvent { Amount = amount });
+		RaiseEvent(new FundsDepositedEvent { AccountId = Id, Amount = amount });
 	}
 
 	/// <summary>
@@ -113,7 +113,7 @@ public sealed class BankAccountAggregate : AggregateRoot
 			throw new InvalidOperationException($"Insufficient funds. Balance: {Balance}, Requested: {amount}");
 		}
 
-		RaiseEvent(new FundsWithdrawnEvent { Amount = amount });
+		RaiseEvent(new FundsWithdrawnEvent { AccountId = Id, Amount = amount });
 	}
 
 	/// <inheritdoc />
@@ -127,7 +127,7 @@ public sealed class BankAccountAggregate : AggregateRoot
 
 	private bool Apply(AccountOpenedEvent e)
 	{
-		Id = e.AggregateId;
+		Id = e.AccountId;
 		HolderName = e.HolderName;
 		Balance = e.InitialDeposit;
 		IsOpen = true;

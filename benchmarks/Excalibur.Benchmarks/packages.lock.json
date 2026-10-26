@@ -549,6 +549,17 @@
           "Microsoft.Extensions.Options": "[10.0.13, )"
         }
       },
+      "excalibur.data.identitymap": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Abstractions": "[10.0.13, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.13, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )",
+          "Microsoft.Extensions.Options": "[10.0.13, )"
+        }
+      },
       "excalibur.data.inmemory": {
         "type": "Project",
         "dependencies": {
@@ -687,6 +698,7 @@
         "dependencies": {
           "Excalibur.Compliance": "[1.0.0, )",
           "Excalibur.Compliance.Abstractions": "[1.0.0, )",
+          "Excalibur.Data.IdentityMap": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.LeaderElection.Abstractions": "[1.0.0, )",
           "Excalibur.EventSourcing.Abstractions": "[1.0.0, )",

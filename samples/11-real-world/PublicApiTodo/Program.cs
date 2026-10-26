@@ -160,6 +160,11 @@ todos.MapPost("/{id:guid}/complete", async (Guid id, IDispatcher dispatcher, ISe
 	{
 		projection.IsCompleted = true;
 		projection.CompletedAt = DateTimeOffset.UtcNow;
+
+		// A REVISION COUNT, because this read model is written by hand here rather than folded from
+		// events, and no event version reaches this endpoint. Do not carry this line into an event
+		// sourced projection: one that implements IProjection<TKey> assigns the version of the event
+		// it folds, and incrementing there counts folds instead of naming a version.
 		projection.Version++;
 		await store.UpsertAsync(id.ToString(), projection, ct).ConfigureAwait(false);
 	}

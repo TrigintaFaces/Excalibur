@@ -17,7 +17,7 @@ namespace Excalibur.Data.DataProcessing;
 /// <list type="bullet">
 /// <item><description><see cref="DataProcessingOptions.ProducerBatchSize"/> must not exceed <see cref="DataProcessingOptions.QueueSize"/></description></item>
 /// <item><description><see cref="DataProcessingOptions.ConsumerBatchSize"/> must not exceed <see cref="DataProcessingOptions.QueueSize"/></description></item>
-/// <item><description><see cref="DataProcessingOptions.DispatcherTimeoutMilliseconds"/> must be between 1000 and 3600000 (1s to 1hr)</description></item>
+/// <item><description><see cref="DataProcessingOptions.ProcessingStallTimeout"/> must be between 1 second and 1 hour</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -26,12 +26,12 @@ internal sealed class DataProcessingOptionsValidator : IValidateOptions<DataProc
 	/// <summary>
 	/// Minimum dispatcher timeout in milliseconds (1 second).
 	/// </summary>
-	internal const int MinDispatcherTimeoutMs = 1_000;
+	internal static readonly TimeSpan MinProcessingStallTimeout = TimeSpan.FromSeconds(1);
 
 	/// <summary>
 	/// Maximum dispatcher timeout in milliseconds (1 hour).
 	/// </summary>
-	internal const int MaxDispatcherTimeoutMs = 3_600_000;
+	internal static readonly TimeSpan MaxProcessingStallTimeout = TimeSpan.FromHours(1);
 
 	/// <inheritdoc/>
 	public ValidateOptionsResult Validate(string? name, DataProcessingOptions options)
@@ -64,11 +64,22 @@ internal sealed class DataProcessingOptionsValidator : IValidateOptions<DataProc
 				$"ConsumerBatchSize ({options.ConsumerBatchSize}) must not exceed QueueSize ({options.QueueSize}).");
 		}
 
-		if (options.DispatcherTimeoutMilliseconds is < MinDispatcherTimeoutMs or > MaxDispatcherTimeoutMs)
+		if (options.ProcessingStallTimeout < MinProcessingStallTimeout
+			|| options.ProcessingStallTimeout > MaxProcessingStallTimeout)
 		{
 			failures.Add(
-				$"DispatcherTimeoutMilliseconds ({options.DispatcherTimeoutMilliseconds}) must be between " +
-				$"{MinDispatcherTimeoutMs} and {MaxDispatcherTimeoutMs}.");
+				$"ProcessingStallTimeout ({options.ProcessingStallTimeout}) must be between " +
+				$"{MinProcessingStallTimeout} and {MaxProcessingStallTimeout}.");
+		}
+
+		// A total budget BELOW the stall timeout can never be satisfied: the task would be cancelled by the
+		// cap before the stall clock could even expire once, so every task fails and the message blames the
+		// cap rather than the misconfiguration.
+		if (options.ProcessingTotalTimeout is { } totalBudget && totalBudget < options.ProcessingStallTimeout)
+		{
+			failures.Add(
+				$"ProcessingTotalTimeout ({totalBudget}) must not be less than " +
+				$"ProcessingStallTimeout ({options.ProcessingStallTimeout}).");
 		}
 
 		return failures.Count > 0

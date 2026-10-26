@@ -25,6 +25,7 @@ internal sealed class ElasticSearchTenantProjectionStoreResolver<TProjection>
 {
 	private readonly ITenantShardMap _shardMap;
 	private readonly ILoggerFactory _loggerFactory;
+	private readonly IOptionsMonitor<ElasticSearchProjectionStoreOptions> _registeredOptions;
 	private readonly ConcurrentDictionary<string, IProjectionStore<TProjection>> _storeCache = new(StringComparer.Ordinal);
 
 	internal ElasticSearchTenantProjectionStoreResolver(
@@ -38,6 +39,11 @@ internal sealed class ElasticSearchTenantProjectionStoreResolver<TProjection>
 
 		_shardMap = shardMap;
 		_loggerFactory = loggerFactory;
+
+		// Held, not merely null-checked. This parameter was required and then assigned to nothing, so
+		// every per-shard store was built from a bare options object and the projection's registered
+		// settings -- its index NAME above all -- never reached it.
+		_registeredOptions = defaultOptions;
 	}
 
 	/// <inheritdoc />
@@ -49,14 +55,16 @@ internal sealed class ElasticSearchTenantProjectionStoreResolver<TProjection>
 
 	private IProjectionStore<TProjection> CreateStore(ShardInfo shardInfo)
 	{
-		// Build per-shard options with tenant's index prefix
+		// Build per-shard options from the projection's REGISTERED options, replacing only the shard's
+		// own coordinates. Starting from a bare options object instead would drop the index name, the
+		// credential, the replica and shard counts, the refresh interval and the mapping convention --
+		// and dropping the index name re-creates the shared-index collision that two read models were
+		// given distinct names to avoid.
 		var indexPrefix = shardInfo.RequireCoordinate(shardInfo.IndexPrefix, nameof(ShardInfo.IndexPrefix));
 		var nodeUri = shardInfo.RequireCoordinate(shardInfo.ConnectionString, nameof(ShardInfo.ConnectionString));
-		var perShardOptions = new ElasticSearchProjectionStoreOptions
-		{
-			NodeUri = nodeUri,
-			Index = { IndexPrefix = indexPrefix },
-		};
+		var perShardOptions = _registeredOptions
+			.Get(ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>())
+			.CloneForShard(nodeUri, indexPrefix);
 
 		var optionsMonitor = new StaticOptionsMonitor<ElasticSearchProjectionStoreOptions>(perShardOptions);
 

@@ -142,24 +142,13 @@ public sealed class SystemMetricsProjection(
 // ============================================================================
 
 [MessageName("Contoso.Orders.OrderPlaced")]
-public sealed record OrderPlaced(string OrderId, string AggregateId, decimal Amount)
-    : IDomainEvent
-{
-    public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public long Version { get; init; }
-    public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public IDictionary<string, object>? Metadata { get; init; }
-}
+// The second parameter held a CUSTOMER id while being named for the aggregate. A domain event
+// carries no aggregate id at all -- the store takes it as a parameter -- so it is named for what it
+// holds. DomainEvent supplies EventId, OccurredAt and Metadata; the store assigns the version.
+public sealed record OrderPlaced(string OrderId, string CustomerId, decimal Amount) : DomainEvent;
 
 [MessageName("Contoso.Payments.PaymentReceived")]
-public sealed record PaymentReceived(string PaymentId, string AggregateId, decimal Amount)
-    : IDomainEvent
-{
-    public string EventId { get; init; } = Guid.NewGuid().ToString();
-    public long Version { get; init; }
-    public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
-    public IDictionary<string, object>? Metadata { get; init; }
-}
+public sealed record PaymentReceived(string PaymentId, string CustomerId, decimal Amount) : DomainEvent;
 
 // ============================================================================
 // Event Generator — Produces events for the host to consume
@@ -186,8 +175,8 @@ public sealed class EventGeneratorService(
 
             var events = new List<IDomainEvent>
             {
-                new OrderPlaced($"ord-{_orderCount}", customerId, amount) { Version = _orderCount - 1 },
-                new PaymentReceived($"pay-{_orderCount}", customerId, amount) { Version = _orderCount },
+                new OrderPlaced($"ord-{_orderCount}", customerId, amount),
+                new PaymentReceived($"pay-{_orderCount}", customerId, amount),
             };
 
             await eventStore.AppendAsync(

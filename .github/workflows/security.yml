@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload SAST log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sast-build
           path: sast-build.log
@@ -105,7 +105,7 @@ jobs:
 
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: gitleaks-report
           path: gitleaks.sarif
@@ -155,7 +155,7 @@ jobs:
           python3 eng/ci/validate-sbom.py --source eng/ci/shards/ShippingOnly.slnf --bom artifacts/sbom/bom.json
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cyclonedx-sbom
           path: artifacts/sbom/bom.json
@@ -381,7 +381,7 @@ jobs:
           }
 
       - name: Upload dependency audit
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dependency-audit
           path: artifacts/reports/DependencyAuditReport
@@ -447,7 +447,7 @@ jobs:
 
       - name: Upload OSS metadata report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: oss-metadata-report
           path: artifacts/reports/OssMetadataReport/oss-metadata.json

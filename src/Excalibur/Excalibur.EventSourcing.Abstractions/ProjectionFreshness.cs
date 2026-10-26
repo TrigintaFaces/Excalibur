@@ -7,11 +7,12 @@ namespace Excalibur.EventSourcing;
 /// What a consistent read can say about how current the projection it returned was.
 /// </summary>
 /// <remarks>
-/// <b>Three states, not a <see cref="bool"/>, and the third is why.</b> "No consistency was asked for"
-/// and "consistency was asked for and could not be confirmed in time" mean opposite things to a caller —
-/// the first is an ordinary read, the second is a warning that the data may predate their own write — and
-/// a boolean would force them to share a value. A type that cannot express the difference makes every
-/// producer pick one of the two and be wrong about the other.
+/// <b>Four states, not a <see cref="bool"/>, and the last three are why.</b> "No consistency was asked
+/// for", "consistency was asked for and could not be confirmed in time", and "the caller deliberately
+/// deferred the wait and has taken on catching the projection up" mean different things to a caller — an
+/// ordinary read, a warning that the data may predate their own write, and a receipt for a choice they
+/// made — and a boolean would force them to share a value. A type that cannot express the difference makes
+/// every producer pick one and be wrong about the others.
 /// </remarks>
 public enum ProjectionFreshness
 {
@@ -38,4 +39,20 @@ public enum ProjectionFreshness
 	/// stale data rather than fail" choice the awkward one.
 	/// </remarks>
 	BoundExpired = 2,
+
+	/// <summary>
+	/// The caller suppressed the wait with <see cref="InlineProjectionWait.Suppress"/>, so none was
+	/// performed. The events are committed; the projection has not been advanced by this save and the
+	/// caller has taken on advancing it.
+	/// </summary>
+	/// <remarks>
+	/// Distinct from <see cref="NotRequested"/> on purpose, and the distinction is the point of the value.
+	/// <see cref="NotRequested"/> means nothing was owed — there was no token, no inline projection, or no
+	/// projection fed by these events — so there is nothing outstanding and nobody owes a follow-up.
+	/// <c>Deferred</c> means a wait WAS owed and was deliberately skipped, which leaves an obligation on
+	/// the caller to drive <see cref="IProjectionProcessor.ProcessPendingAsync"/> once the batch is done.
+	/// Collapsing the two would make a suppressed batch that never calls it indistinguishable from an
+	/// ordinary save with nothing pending, which is the one reading that loses data visibility silently.
+	/// </remarks>
+	Deferred = 3,
 }

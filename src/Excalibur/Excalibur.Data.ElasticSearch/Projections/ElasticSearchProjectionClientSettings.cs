@@ -97,6 +97,68 @@ internal static class ElasticSearchProjectionClientSettings
 	}
 
 	/// <summary>
+	/// The node set these options address, without the credential used to reach it.
+	/// </summary>
+	/// <remarks>
+	/// Separate from <see cref="DescribeCluster"/> because two questions need different identities. For
+	/// "can this cluster be reached", the credential is part of the question -- the same nodes under two
+	/// credentials are two separate probes. For "would these two projections write to the same place",
+	/// the credential is irrelevant: two stores on one node set collide in the same index whoever they
+	/// authenticate as, so including the credential there would separate them and miss the collision.
+	/// Derived in one place so the two cannot drift.
+	/// </remarks>
+	/// <param name="options">The options describing the cluster.</param>
+	/// <returns>An ordered, stable, NORMALISED description of the node set.</returns>
+	/// <remarks>
+	/// <para>
+	/// NORMALISED, because this value is compared for EQUALITY and a raw consumer string is not safe to
+	/// compare. <c>NodeUri</c> is a <see cref="string"/> that nothing rewrites, so one cluster can be
+	/// spelled several ways -- a trailing slash, an upper-case host, or the same address supplied through
+	/// <c>NodeUris</c> on one projection and <c>NodeUri</c> on another. Comparing those raw would read as
+	/// two clusters, and anything keyed on this value would then treat two stores on ONE cluster as
+	/// unable to affect each other. That is the silent direction, so the spellings are folded here.
+	/// </para>
+	/// <para>
+	/// Scheme, host and port are compared, and so is the path, because a node behind a reverse proxy is
+	/// distinguished by its base path -- only a TRAILING slash is insignificant. An address that will not
+	/// parse is folded by case and whitespace instead of being dropped, so an unparseable pair still
+	/// GROUPS rather than separating: where normalisation is uncertain, the conservative answer is "these
+	/// might be the same cluster".
+	/// </para>
+	/// </remarks>
+	internal static string DescribeClusterNodes(ElasticSearchProjectionStoreOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+
+		var nodes = options.NodeUris is { Count: > 0 } uris
+			? uris.Select(static u => NormaliseNode(u?.ToString()))
+			: [NormaliseNode(options.NodeUri)];
+
+		return string.Join(
+			", ",
+			nodes.Where(static n => n.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+	}
+
+	/// <summary>One node address, reduced to the form two spellings of the same node share.</summary>
+	/// <param name="value">The address as the consumer supplied it.</param>
+	/// <returns>The normalised address, or an empty string when none was supplied.</returns>
+	private static string NormaliseNode(string? value)
+	{
+		if (string.IsNullOrWhiteSpace(value))
+		{
+			return string.Empty;
+		}
+
+		var trimmed = value.Trim();
+
+		// Uri lower-cases the scheme and a DNS host for us; the port is resolved to the scheme's default
+		// when absent, so "http://es" and "http://es:80" agree. Only the trailing slash is left to drop.
+		return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+			? $"{uri.Scheme}://{uri.Host}:{uri.Port}{uri.AbsolutePath.TrimEnd('/')}"
+			: trimmed.ToLowerInvariant();
+	}
+
+	/// <summary>
 	/// Describes the cluster these options address, for grouping probes and for error messages.
 	/// </summary>
 	/// <param name="options">The projection-store options describing the cluster.</param>
@@ -112,9 +174,7 @@ internal static class ElasticSearchProjectionClientSettings
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		var nodes = options.NodeUris is { Count: > 0 } uris
-			? string.Join(", ", uris.Select(static u => u.ToString()).OrderBy(static u => u, StringComparer.Ordinal))
-			: options.NodeUri;
+		var nodes = DescribeClusterNodes(options);
 
 		var credential = !string.IsNullOrWhiteSpace(options.Auth.ApiKey)
 			? "api-key"

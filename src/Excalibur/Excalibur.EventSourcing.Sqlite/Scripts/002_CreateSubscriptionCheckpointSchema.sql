@@ -28,5 +28,11 @@ CREATE TABLE IF NOT EXISTS [SubscriptionCheckpoints] (
 -- Immutable work-set binding, separate from the nullable/absent checkpoint state.
 CREATE TABLE IF NOT EXISTS [SubscriptionCheckpointsDefinitions] (
     SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
-    DefinitionHash TEXT NOT NULL COLLATE BINARY CHECK (length(DefinitionHash) = 64)
+    -- Character count AND alphabet, matching the SQL Server table. length() is already
+    -- character-based here, so the byte/character trap that the other provider's DATALENGTH
+    -- carries does not exist -- but the alphabet half is the actual contract (the store refuses
+    -- anything that is not 64 uppercase hex characters before it reaches SQL), and both providers
+    -- should say the same thing. GLOB is case-sensitive, so the lower-case range rejects.
+    DefinitionHash TEXT NOT NULL COLLATE BINARY
+        CHECK (length(DefinitionHash) = 64 AND DefinitionHash NOT GLOB '*[^0-9A-F]*')
 );

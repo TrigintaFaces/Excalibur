@@ -17,6 +17,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking) — a data task's timeout now bounds SILENCE, not duration
+
+`DataProcessingOptions.DispatcherTimeoutMilliseconds` is **removed**. It was a total wall-clock deadline
+armed once when a claimed task began, so a task was cancelled for taking too long even while it was
+steadily completing records. That makes the failure a function of how much work the task has rather than
+whether it is healthy: under a total deadline there is always a record count above which the task fails
+regardless of per-record speed, and making each record faster only moves the count.
+
+Two options replace it, and they describe different faults:
+
+| option | type | default | bounds |
+| --- | --- | --- | --- |
+| `ProcessingStallTimeout` | `TimeSpan` | `00:01:00` | how long the task may make **no progress**; restarted on every checkpointed record |
+| `ProcessingTotalTimeout` | `TimeSpan?` | `null` | an absolute cap regardless of progress — opt-in, because it re-introduces the behaviour above |
+
+A task that keeps completing records is never cancelled by the stall clock; a task that goes quiet is
+cancelled sooner than the old deadline would have managed. Work already checkpointed is kept and the task
+resumes from it. The two clocks are reported separately, so a failure message names which one fired and
+what to change.
+
+`DataProcessorDefaults.DataProcessorDefaultDispatcherTimeout` is removed in favour of
+`DataProcessorDefaults.ProcessingStallTimeout`.
+
+**Configuration carrying the removed key is refused at start-up** with the replacement named. A renamed
+configuration key is the one breaking change a binder cannot report — an unknown key is ignored — so a
+host that set a large deadline would otherwise inherit the new default silently and discover it in
+production. See the migration note: *A data task's timeout bounds silence, not duration*.
+
+### Changed (breaking) — `IdentityBindResult.WasCreated` is renamed `MappingWasCreated`
+
+The value and its meaning are unchanged. The name read as "the aggregate was created" and reports only
+that a **mapping** was created, which is a different store answering a different question — and code that
+used it as an insert-versus-update discriminator failed permanently once anything interrupted between the
+bind and the append. See the migration note: *An identity binding is a reservation*. The flag remains
+correct for telling a first sighting from a repeat, and for metrics and logging.
+
+### Added — an escape hatch for bulk writers feeding inline projections
+
+`InlineProjectionWait.Suppress()` suspends the read-your-write wait an inline projection performs on every
+save, for a writer that will drive the projection cursor itself once at the end of its batch — a
+change-data-capture backfill, an import, a replay. Inside the scope a save still commits durably; only the
+foreground wait is skipped, and the save reports the new `ProjectionFreshness.Deferred` so a deferred wait
+cannot be mistaken for a confirmed one. The caller then drives `IProjectionProcessor.ProcessPendingAsync`
+once for the batch.
+
+This matters because an inline projection advances event by event, so any per-page cost on the projection
+store becomes a per-event cost — a store configured to make each page searchable before its checkpoint
+advances performs one index refresh per event, and on a bulk path that refresh becomes the throughput
+limit for the whole job. The post-commit warning now names that cost and this escape hatch.
+
+Do not wrap a request handler in the scope: code inside it that reads a projection will not observe its
+own write.
+
+### Added — resolve an externally-identified aggregate without a torn-write window
+
+`IIdentityMapStore.CreateOrUpdateAsync` resolves an external identifier to its aggregate, creates the
+aggregate when no event stream exists for it yet, applies the caller's change and saves — in one call.
+
+An identity binding and an event stream are two writes to two stores with nothing atomic between them, so
+`IdentityBindResult.WasCreated` answers *"did I win the race to reserve this id"* and never *"does a stream
+exist"*. Code branching on it as an insert-versus-update discriminator is wrong in one direction and
+permanently: if anything interrupts between the bind and the append, the mapping is committed, the stream
+never arrives, and every later call takes the already-exists branch and either throws or silently does
+nothing for that identifier forever. The new operation decides by asking the store that owns the answer, so
+a torn reservation heals on the next call. `WasCreated` remains correct for what it reports — telling a
+first sighting from a repeat.
+
+### Fixed — Dapper `DateOnly`/`TimeOnly` values no longer depend on the host's culture
+
+The SQL Server type handlers defaulted to the ambient culture when a provider handed a date or time over as
+text, so the same stored value could parse differently on two hosts. They now default to
+`CultureInfo.InvariantCulture`, and a value in no accepted form is refused by the handler's own exception
+rather than escaping as a `FormatException` from inside Dapper. Registration also removes the built-in type
+maps that were shadowing the handlers, which is why a registered handler could appear to be ignored.
+
+### Fixed — the subscription checkpoint definition-hash constraint rejected valid hashes
+
+The `CHECK` constraint validated byte length, which counts two bytes per character for an `NVARCHAR`
+column and therefore rejected every correctly-formed 64-character hash. It now validates character length
+and hexadecimal content.
+
+### Fixed — two projections resolving to one Elasticsearch index are refused at start-up
+
+The default index name uses a projection's simple type name, so two read models with the same simple name
+in different namespaces resolved to one index and overwrote each other wherever their document ids
+coincided. That composition now fails at start-up, naming both types and the property to set.
+
+
+## [10.0.0-alpha.18] - 2026-10-25
+
 ### Restored — durable Inline projections in API, Jobs, or both
 
 `.Inline()` again configures foreground projection completion and automatic recovery in a single host.

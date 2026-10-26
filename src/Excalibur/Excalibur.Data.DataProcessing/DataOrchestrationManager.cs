@@ -225,10 +225,21 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 
 	private async Task ProcessClaimedRequestAsync(SqlDataTaskClaim claim, DataTaskRequest request, CancellationToken cancellationToken)
 	{
+		var options = _configuration.Value;
+		var stallTimeout = options.ProcessingStallTimeout;
+
 		using var stale = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		using var deadlineStop = new CancellationTokenSource();
-		using var processing = CancellationTokenSource.CreateLinkedTokenSource(stale.Token);
-		var deadline = CancelAtDeadlineAsync(processing, request, deadlineStop.Token);
+
+		// Both clocks, and the only thing that can say which fired. See ProcessingDeadline for why the
+		// stall budget measures silence rather than duration.
+		// The error observer is load-bearing: a consumer's cancellation registration is arbitrary code that
+		// may throw, and it must be reported HERE rather than escaping on a timer thread unobserved.
+		using var deadline = new ProcessingDeadline(
+			stallTimeout,
+			options.ProcessingTotalTimeout,
+			callbackError => LogProcessingDataTaskError(request.RecordType, request.Attempts + 1, callbackError),
+			clock: null,
+			stale.Token);
 		try
 		{
 			if (!_processorRegistry.TryGetFactory(request.RecordType, out var factory))
@@ -248,11 +259,16 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 							await stale.CancelAsync().ConfigureAwait(false);
 							stale.Token.ThrowIfCancellationRequested();
 						}
-					}, processing.Token).ConfigureAwait(false);
+
+						// A record was durably accounted for. That is progress, so the stall clock restarts.
+						deadline.RecordProgress();
+					}, deadline.Token).ConfigureAwait(false);
 			}
-			await deadlineStop.CancelAsync().ConfigureAwait(false);
-			await deadline.ConfigureAwait(false);
-			processing.Token.ThrowIfCancellationRequested();
+
+			// Disarm before the post-check, so a timer that fires between the processor returning and this
+			// line cannot report a task that FINISHED as one that stalled.
+			deadline.Disarm();
+			deadline.Token.ThrowIfCancellationRequested();
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
@@ -266,9 +282,20 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 		catch (Exception ex)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			var failure = processing.IsCancellationRequested
-				? new TimeoutException($"Data task '{request.DataTaskId}' exceeded its configured processing timeout.", ex)
-				: ex;
+			// NAME WHICH CLOCK FIRED. "Timed out" alone sent operators after the per-record cost when the
+			// actual fault was a budget that could not be satisfied at any speed.
+			var failure = deadline.Classify() switch
+			{
+				ProcessingDeadlineOutcome.TotalBudgetExceeded => new TimeoutException(
+					$"Data task '{request.DataTaskId}' exceeded its total processing budget of "
+					+ $"{options.ProcessingTotalTimeout}. It may still have been making progress; this cap is "
+					+ "absolute. Raise or clear DataProcessingOptions.ProcessingTotalTimeout.", ex),
+				ProcessingDeadlineOutcome.Stalled => new TimeoutException(
+					$"Data task '{request.DataTaskId}' made no progress for {stallTimeout}. Work already "
+					+ "checkpointed is kept and the task resumes from it. This is a stall, not slowness -- "
+					+ "a task that keeps completing records is never cancelled by this clock.", ex),
+				_ => ex,
+			};
 			try
 			{
 				await claim.UpdateAttemptsAsync(checked(request.Attempts + 1), cancellationToken).ConfigureAwait(false);
@@ -280,37 +307,9 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			throw;
 		}
 
-		finally
-		{
-			await deadlineStop.CancelAsync().ConfigureAwait(false);
-			await deadline.ConfigureAwait(false);
-		}
-
 		// Completed work is retryable if cleanup fails; do not charge another processing failure.
 		cancellationToken.ThrowIfCancellationRequested();
 		try { await claim.DeleteAsync(cancellationToken).ConfigureAwait(false); }
 		catch (Exception ex) { LogDeleteTaskFailed(request.DataTaskId, ex); throw; }
 	}
-
-	private async Task CancelAtDeadlineAsync(CancellationTokenSource processing, DataTaskRequest request, CancellationToken stop)
-	{
-		try
-		{
-			await Task.Delay(TimeSpan.FromMilliseconds(_configuration.Value.DispatcherTimeoutMilliseconds), stop).ConfigureAwait(false);
-		}
-		catch (OperationCanceledException) when (stop.IsCancellationRequested)
-		{
-			return;
-		}
-		try
-		{
-			await processing.CancelAsync().ConfigureAwait(false);
-		}
-		catch (Exception callbackError)
-		{
-			// Observe user cancellation callbacks on this task, never on a timer thread.
-			LogProcessingDataTaskError(request.RecordType, request.Attempts + 1, callbackError);
-		}
-	}
-
 }

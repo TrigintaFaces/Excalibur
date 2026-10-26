@@ -48,6 +48,28 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 	/// <param name="additionalTypeHandlers"> The additional type handlers to register with Dapper. Handlers must inherit from <see cref="SqlMapper.TypeHandler{T}" />. </param>
 	private static void ConfigureDapper(IEnumerable<SqlMapper.ITypeHandler> additionalTypeHandlers)
 	{
+		// REMOVED BEFORE REGISTERED, AND THE ORDER IS THE WHOLE POINT. Dapper ships BUILT-IN type maps
+		// for DateOnly and TimeOnly, and a built-in map WINS over a registered TypeHandler<T>: the
+		// generated materialiser casts the provider's value straight to the destination type and never
+		// calls the handler at all. The handlers below are correct and fully tested in isolation, and
+		// without these four lines they are dead code.
+		//
+		// What that looks like in production is a column whose provider value is a string -- a date
+		// stored as VARCHAR, or any provider that hands dates back as text -- failing with
+		// "Unable to cast object of type 'System.String' to type 'System.DateOnly'", wrapped in a
+		// Dapper "Error parsing column N" whose reported column name and value are frequently not the
+		// offending ones. A date that arrives as a real DateTime keeps working, so this surfaces on one
+		// query and not its neighbours, long after the registration everyone would look at first.
+		//
+		// RemoveTypeMap only clears the built-in mapping; it does not touch the handler registry, so the
+		// AddTypeHandler calls below then own both directions -- Parse on the way out, SetValue on the
+		// way in. Dapper's own DateOnly/TimeOnly support has been added, withdrawn and reinstated across
+		// 2.1.x releases, so this does not assume a particular version's default: it states ours.
+		SqlMapper.RemoveTypeMap(typeof(DateOnly));
+		SqlMapper.RemoveTypeMap(typeof(DateOnly?));
+		SqlMapper.RemoveTypeMap(typeof(TimeOnly));
+		SqlMapper.RemoveTypeMap(typeof(TimeOnly?));
+
 		SqlMapper.AddTypeHandler(new MoneyTypeHandler());
 		SqlMapper.AddTypeHandler(new NullableMoneyTypeHandler());
 		SqlMapper.AddTypeHandler(new NullableDateOnlyTypeHandler());

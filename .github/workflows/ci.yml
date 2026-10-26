@@ -249,7 +249,7 @@ jobs:
       # Upload diagnostics and hashes only. These PR packages are never promotion artifacts.
       - name: Retain reproducibility evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: reproducibility-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/reproducibility-evidence
@@ -387,7 +387,7 @@ jobs:
 
       - name: Upload build output for inspection
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: docs-build-output
           path: docs-site/build-output.txt
@@ -440,7 +440,7 @@ jobs:
 
       - name: Upload smoke test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-smoke
           path: |
@@ -478,7 +478,7 @@ jobs:
 
       - name: Upload shard coverage report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: unit-shard-coverage-report
           path: artifacts/reports/UnitShardReport
@@ -533,7 +533,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-unit-${{ matrix.shard.name }}
           path: |
@@ -548,7 +548,7 @@ jobs:
         # coverage regression rather than as the test failure it actually is. Its sibling step above
         # already uploads results unconditionally, for the same reason.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
           # ** , not * . These two legs run through the required-evidence invocation plan, so a
@@ -605,7 +605,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-unit-async-risk-${{ matrix.shard.name }}
           path: |
@@ -620,7 +620,7 @@ jobs:
         # async-risk shards carry roughly a quarter of the data behind a blocking floor. A tolerated
         # failure must not be able to move a number that blocks.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
           # ** , not * . These two legs run through the required-evidence invocation plan, so a
@@ -691,7 +691,7 @@ jobs:
           ./eng/ci/validate-shard-results.ps1 -TrxDir AggregatedTrx -ExpectedAssemblies $expected -Enforce $true -MinExpectedAssemblies 40 -OutDir artifacts/reports/ShardAggregation
       - name: Upload aggregation report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: unit-shard-aggregation-report
           path: artifacts/reports/ShardAggregation/*.json
@@ -765,7 +765,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-unit-windows-deterministic
           path: |
@@ -800,7 +800,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-unit-windows-async-risk
           path: |
@@ -836,7 +836,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-unit-macos-deterministic
           path: |
@@ -869,7 +869,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-unit-macos-async-risk
           path: |
@@ -1185,7 +1185,7 @@ jobs:
 
       - name: Upload container diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: container-diagnostics-${{ matrix.shard.name }}
           path: container-diagnostics/**
@@ -1442,7 +1442,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-integration-${{ matrix.shard.name }}
           path: |
@@ -1452,7 +1452,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: code-coverage-integration-${{ matrix.shard.name }}
           path: TestResults/**/coverage.cobertura.xml
@@ -1505,7 +1505,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-functional
           path: |
@@ -1515,7 +1515,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: code-coverage-functional
           path: TestResults/*/coverage.cobertura.xml
@@ -1556,7 +1556,7 @@ jobs:
 
       - name: Upload contract test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-contract
           path: |
@@ -1566,7 +1566,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: code-coverage-contract
           path: TestResults/*/coverage.cobertura.xml
@@ -1618,7 +1618,7 @@ jobs:
 
       - name: Upload semantic policy evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: semantic-repository-policy-evidence
           path: |
@@ -1641,7 +1641,7 @@ jobs:
 
       - name: Upload architecture test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-architecture
           path: |
@@ -1651,7 +1651,7 @@ jobs:
 
       - name: Upload code coverage
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: code-coverage-architecture
           path: TestResults/*/coverage.cobertura.xml
@@ -1678,7 +1678,7 @@ jobs:
 
       - name: Upload quarantine governance report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: flaky-quarantine-report
           path: artifacts/reports/FlakyQuarantineReport
@@ -1752,7 +1752,7 @@ jobs:
 
       - name: Upload quarantined test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-results-flaky-quarantine
           path: |
@@ -1793,7 +1793,7 @@ jobs:
           ./eng/ci/serialization-boundary-audit.ps1 -OutDir artifacts/reports/SerializationBoundaryReport
       - name: Upload serialization boundary report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: serialization-boundary-report
           path: artifacts/reports/SerializationBoundaryReport
@@ -1822,7 +1822,7 @@ jobs:
           Write-Host "::notice::AOT build analysis exited with code $exitCode (report-only, not failing build)"
       - name: Upload trim/AOT audit
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: aot-build-analysis
           path: artifacts/reports/AotBuildAnalysis
@@ -1898,7 +1898,7 @@ jobs:
           exit $verdictExit
       - name: Preserve strict native publish diagnostics
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: inline-native-aot-windows
           path: |
@@ -2071,7 +2071,7 @@ jobs:
 
       - name: Upload conformance results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: transport-conformance-results
           path: |
@@ -2249,7 +2249,7 @@ jobs:
         run: |
           ./eng/ci/pack-report.ps1 -OutDir artifacts/reports/PackReport
       - name: Upload pack report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pack-report
           path: artifacts/reports/PackReport
@@ -2573,7 +2573,7 @@ jobs:
 
       - name: Upload build output on failure
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: aot-sample-build-output
           path: aot-build-output.txt

@@ -80,21 +80,19 @@ public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
 ### Step 3: Full Excalibur with Aggregates
 
 ```csharp
-// Domain event as part of aggregate
-public record OrderCreatedEvent(
+// Domain event as part of aggregate.
+//
+// A domain event carries ONLY its own business data. It has no aggregate id, no stream
+// version and no event-type property: the aggregate id is a parameter to the event store,
+// the version is assigned by the store at append time and read back on StoredEvent.Version,
+// and the name the event is stored under comes from the required [MessageName] attribute.
+// Deriving DomainEvent supplies EventId, OccurredAt and Metadata.
+[MessageName("Contoso.Orders.OrderCreated")]
+public sealed record OrderCreatedEvent(
     Guid OrderId,
     string ProductId,
     int Quantity,
-    DateTimeOffset CreatedAt) : IDomainEvent
-{
-    public Guid Id => OrderId;
-    public Guid AggregateId => OrderId;
-    public int Version { get; init; }
-    public DateTimeOffset OccurredAt => CreatedAt;
-    public string EventType => nameof(OrderCreatedEvent);
-    public IReadOnlyDictionary<string, object> Metadata { get; init; } =
-        new Dictionary<string, object>();
-}
+    DateTimeOffset CreatedAt) : DomainEvent;
 
 // Aggregate root with event sourcing
 public class Order : AggregateRoot

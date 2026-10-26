@@ -4,10 +4,11 @@
 // ============================================================================
 // S2: Event Sourcing Domain Events
 // ============================================================================
-// These domain events implement IDomainEvent for event store compatibility.
-// Each event carries EventId, AggregateId, Version, and OccurredAt as its own properties; the
-// aggregate sets AggregateId when it raises the event. The authoritative stream position lives in
-// the persistence envelope, not on the event payload.
+// These domain events derive from DomainEvent, which supplies EventId, OccurredAt and Metadata.
+// Each event carries only its own business data -- including AccountId, which is the account's
+// identity as a domain field. An event has no aggregate id and no stream version of its own: the
+// aggregate id is a parameter to the event store, and the version is assigned by the store at
+// append time and read back on StoredEvent.Version.
 // ============================================================================
 
 using Excalibur.Dispatch;
@@ -18,29 +19,16 @@ namespace Excalibur.Dispatch.Aot.Sample.EventSourcing;
 /// Raised when a new bank account is opened.
 /// </summary>
 [MessageName("Contoso.Banking.AccountOpenedEvent")]
-public sealed record AccountOpenedEvent : IDomainEvent
+public sealed record AccountOpenedEvent : DomainEvent
 {
-	/// <inheritdoc />
-	public string EventId { get; set; } = Guid.NewGuid().ToString();
-
-	/// <summary>
-	/// Gets or sets the aggregate identifier this event belongs to. A sample-local convenience on the
-	/// event; the authoritative stream identity lives in the persistence envelope.
-	/// </summary>
-	public string AggregateId { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the stream position for this event. A sample-local convenience; the authoritative
-	/// version lives in the persistence envelope.
-	/// </summary>
-	public long Version { get; set; }
-
-	/// <inheritdoc />
-	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
-
-
-	/// <inheritdoc />
-	public IDictionary<string, object>? Metadata { get; set; }
+	/// <summary>Gets the account this event belongs to — the event's own business data.</summary>
+	/// <remarks>
+	/// A domain event carries no aggregate id and no stream version. The aggregate id is a parameter
+	/// to the event store; the version is assigned by the store at append time and read back on
+	/// <c>StoredEvent.Version</c>. <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c> are
+	/// inherited from <c>DomainEvent</c>.
+	/// </remarks>
+	public required string AccountId { get; init; }
 
 	/// <summary>
 	/// Gets or sets the account holder name.
@@ -57,29 +45,16 @@ public sealed record AccountOpenedEvent : IDomainEvent
 /// Raised when funds are deposited into an account.
 /// </summary>
 [MessageName("Contoso.Banking.FundsDepositedEvent")]
-public sealed record FundsDepositedEvent : IDomainEvent
+public sealed record FundsDepositedEvent : DomainEvent
 {
-	/// <inheritdoc />
-	public string EventId { get; set; } = Guid.NewGuid().ToString();
-
-	/// <summary>
-	/// Gets or sets the aggregate identifier this event belongs to. A sample-local convenience on the
-	/// event; the authoritative stream identity lives in the persistence envelope.
-	/// </summary>
-	public string AggregateId { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the stream position for this event. A sample-local convenience; the authoritative
-	/// version lives in the persistence envelope.
-	/// </summary>
-	public long Version { get; set; }
-
-	/// <inheritdoc />
-	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
-
-
-	/// <inheritdoc />
-	public IDictionary<string, object>? Metadata { get; set; }
+	/// <summary>Gets the account this event belongs to — the event's own business data.</summary>
+	/// <remarks>
+	/// A domain event carries no aggregate id and no stream version. The aggregate id is a parameter
+	/// to the event store; the version is assigned by the store at append time and read back on
+	/// <c>StoredEvent.Version</c>. <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c> are
+	/// inherited from <c>DomainEvent</c>.
+	/// </remarks>
+	public required string AccountId { get; init; }
 
 	/// <summary>
 	/// Gets or sets the deposit amount.
@@ -91,29 +66,16 @@ public sealed record FundsDepositedEvent : IDomainEvent
 /// Raised when funds are withdrawn from an account.
 /// </summary>
 [MessageName("Contoso.Banking.FundsWithdrawnEvent")]
-public sealed record FundsWithdrawnEvent : IDomainEvent
+public sealed record FundsWithdrawnEvent : DomainEvent
 {
-	/// <inheritdoc />
-	public string EventId { get; set; } = Guid.NewGuid().ToString();
-
-	/// <summary>
-	/// Gets or sets the aggregate identifier this event belongs to. A sample-local convenience on the
-	/// event; the authoritative stream identity lives in the persistence envelope.
-	/// </summary>
-	public string AggregateId { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the stream position for this event. A sample-local convenience; the authoritative
-	/// version lives in the persistence envelope.
-	/// </summary>
-	public long Version { get; set; }
-
-	/// <inheritdoc />
-	public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
-
-
-	/// <inheritdoc />
-	public IDictionary<string, object>? Metadata { get; set; }
+	/// <summary>Gets the account this event belongs to — the event's own business data.</summary>
+	/// <remarks>
+	/// A domain event carries no aggregate id and no stream version. The aggregate id is a parameter
+	/// to the event store; the version is assigned by the store at append time and read back on
+	/// <c>StoredEvent.Version</c>. <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c> are
+	/// inherited from <c>DomainEvent</c>.
+	/// </remarks>
+	public required string AccountId { get; init; }
 
 	/// <summary>
 	/// Gets or sets the withdrawal amount.

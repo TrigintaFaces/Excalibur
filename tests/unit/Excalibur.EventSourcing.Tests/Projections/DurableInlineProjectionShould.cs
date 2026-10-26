@@ -93,6 +93,67 @@ public sealed class DurableInlineProjectionShould
 		(await fixture.Store.GetByIdAsync("row", CancellationToken.None)).ShouldNotBeNull().Count.ShouldBe(1);
 	}
 
+	/// <summary>
+	/// A bulk writer can decline the inline wait for a block of saves, and is TOLD it declined.
+	/// </summary>
+	/// <remarks>
+	/// The wait exists so a request can search for its own write. A backfill has no such reader, and
+	/// pays the whole cost per record because the consumer is sequential. Suppressing it must not look
+	/// like success: the result says Deferred, which is neither Fresh nor NotRequested.
+	/// </remarks>
+	[Fact]
+	public async Task DeferTheInlineFoldInsideASuppressionScope()
+	{
+		var fixture = new Pipeline(1);
+		await using var provider = fixture.CreateProvider();
+
+		ProjectionFreshness freshness;
+		using (InlineProjectionWait.Suppress())
+		{
+			freshness = await Notify(provider, 1);
+		}
+
+		freshness.ShouldBe(ProjectionFreshness.Deferred,
+			"a suppressed wait must report that it did not wait, never that the read model is current");
+		fixture.Writes.ShouldBe(0, "the save must not fold inline while the wait is suppressed");
+	}
+
+	/// <summary>LIVENESS. Outside the scope the guarantee is unchanged.</summary>
+	[Fact]
+	public async Task StillWaitForTheInlineFoldOutsideASuppressionScope()
+	{
+		var fixture = new Pipeline(1);
+		await using var provider = fixture.CreateProvider();
+
+		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Fresh);
+		(await fixture.Store.GetByIdAsync("row", CancellationToken.None)).ShouldNotBeNull().Count.ShouldBe(1);
+	}
+
+	/// <summary>
+	/// The scope restores what it found, so a suppression cannot leak past its block and silently
+	/// disarm the guarantee for everything that follows.
+	/// </summary>
+	[Fact]
+	public async Task RestoreTheAmbientWaitWhenTheScopeEnds()
+	{
+		var fixture = new Pipeline(1);
+		await using var provider = fixture.CreateProvider();
+
+		using (InlineProjectionWait.Suppress())
+		{
+			using (InlineProjectionWait.Suppress())
+			{
+				(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Deferred);
+			}
+
+			(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Deferred,
+				"the inner scope must restore the OUTER suppression, not clear suppression entirely");
+		}
+
+		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Fresh,
+			"once every scope has ended the wait is in force again");
+	}
+
 	[Fact]
 	public async Task RecoverCommittedWorkOnHostStartupWithoutAnotherSave()
 	{

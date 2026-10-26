@@ -91,6 +91,59 @@ public sealed class ElasticSearchProjectionStoreOptions
 	internal bool ClientSuppliedByRegistration { get; set; }
 
 	/// <summary>
+	/// Copies these options for one shard, replacing only the shard's own coordinates.
+	/// </summary>
+	/// <param name="nodeUri">The shard's node address, which replaces the configured cluster.</param>
+	/// <param name="indexPrefix">The shard's index prefix.</param>
+	/// <returns>A new options instance carrying every other configured value.</returns>
+	/// <remarks>
+	/// <para>
+	/// WHY THIS LIVES HERE, beside the properties it copies. A shard store used to be built from a
+	/// freshly-constructed options object carrying nothing but these two coordinates, which silently
+	/// dropped every other registered setting -- the index NAME most damagingly, because two read models
+	/// that had been given distinct names to keep them apart went back to sharing one index per shard.
+	/// It also dropped replica and shard counts, the refresh interval, the search-visibility flags, the
+	/// mapping convention and the credential. A copy written next to the declarations is one a new
+	/// property's author can see; one written in the sharding package is not.
+	/// </para>
+	/// <para>
+	/// <c>NodeUris</c> is cleared deliberately: it takes precedence over <c>NodeUri</c>, so leaving a
+	/// configured cluster's node list in place would send every shard back to the default cluster and the
+	/// shard's own address would never be used.
+	/// </para>
+	/// </remarks>
+	internal ElasticSearchProjectionStoreOptions CloneForShard(string nodeUri, string indexPrefix) => new()
+	{
+		// The shard's own coordinates.
+		NodeUri = nodeUri,
+		NodeUris = null,
+
+		// Everything else the consumer configured, carried across.
+		SourceTypeInfoResolver = SourceTypeInfoResolver,
+		ConnectionPoolType = ConnectionPoolType,
+		RequestTimeoutSeconds = RequestTimeoutSeconds,
+		EnableDebugMode = EnableDebugMode,
+		Auth = new ElasticSearchProjectionAuthOptions
+		{
+			ApiKey = Auth.ApiKey,
+			Username = Auth.Username,
+			Password = Auth.Password,
+		},
+		Index = new ElasticSearchProjectionIndexOptions
+		{
+			IndexPrefix = indexPrefix,
+			IndexName = Index.IndexName,
+			NumberOfShards = Index.NumberOfShards,
+			NumberOfReplicas = Index.NumberOfReplicas,
+			CreateIndexOnInitialize = Index.CreateIndexOnInitialize,
+			RefreshInterval = Index.RefreshInterval,
+			WaitForSearchVisibilityOnWrite = Index.WaitForSearchVisibilityOnWrite,
+			EnsureSearchVisibilityOnProjectionCheckpoint = Index.EnsureSearchVisibilityOnProjectionCheckpoint,
+			IndexMappingConvention = Index.IndexMappingConvention,
+		},
+	};
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>

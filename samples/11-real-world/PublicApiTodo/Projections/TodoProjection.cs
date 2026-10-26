@@ -23,7 +23,16 @@ public sealed class TodoProjection
 	/// <summary>Gets or sets when the todo was completed.</summary>
 	public DateTimeOffset? CompletedAt { get; set; }
 
-	/// <summary>Gets or sets the aggregate version at last update.</summary>
+	/// <summary>Gets or sets this row's revision count.</summary>
+	/// <remarks>
+	/// A COUNT OF WRITES, not an aggregate version, and the distinction matters if you copy this
+	/// sample. This read model is maintained by hand from the endpoints below rather than folded from
+	/// events, so no event version reaches it — the endpoints hold a command result that carries the
+	/// id and nothing about the stream. An event-sourced projection does the opposite: it implements
+	/// <c>IProjection&lt;TKey&gt;</c> and ASSIGNS the version of the event it is folding, because a
+	/// count of writes and the version a row reflects are different numbers. See the projections
+	/// sample under <c>samples/09-advanced/persistence-patterns</c> for that shape.
+	/// </remarks>
 	public long Version { get; set; }
 
 	/// <summary>

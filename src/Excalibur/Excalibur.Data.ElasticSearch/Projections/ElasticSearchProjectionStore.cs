@@ -70,6 +70,15 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// </summary>
 	internal static readonly string OptionsName = ElasticSearchProjectionIndexConvention.GetOptionsName<TProjection>();
 
+	/// <summary>The index this store actually writes to, as resolved in its constructor.</summary>
+	/// <remarks>
+	/// Internal, and here so a test can assert the start-up index-identity check keys on the SAME string
+	/// this store will use. Without it a test can only compare the check against its own arithmetic,
+	/// which stays green if the two ever diverge -- and a divergence makes the check certify a
+	/// composition that does collide.
+	/// </remarks>
+	internal string ResolvedIndexName => _indexName;
+
 	private readonly ElasticSearchProjectionStoreOptions _options;
 	private readonly ILogger<ElasticSearchProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;

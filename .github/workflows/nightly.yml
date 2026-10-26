@@ -80,7 +80,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nightly-unit-${{ matrix.shard.name }}
           path: TestResults/*.trx
@@ -168,7 +168,7 @@ jobs:
 
       - name: Preserve nightly failure-control evidence
         if: always() && matrix.shard.name == 'dispatch'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nightly-integration-failure-controls
           path: |
@@ -242,7 +242,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nightly-integration-${{ matrix.shard.name }}
           path: TestResults/nightly-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard.name }}/**
@@ -305,7 +305,7 @@ jobs:
 
       - name: Preserve package composition evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: package-composition-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -346,7 +346,7 @@ jobs:
 
       - name: Upload dependency audit
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nightly-dependency-audit
           path: artifacts/reports/DependencyAuditReport
@@ -459,7 +459,7 @@ jobs:
 
       - name: Upload flake report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: flake-report
           path: flake-report.md
@@ -523,7 +523,7 @@ jobs:
 
       - name: Upload SLI measurement evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ci-sli-evidence
           path: ci-sli-evidence.json
@@ -534,7 +534,7 @@ jobs:
       # widening it to push to the default branch is a permissions decision, not a reporting one.
       - name: Upload SLI history series
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ci-sli-history
           path: eng/ci/ci-sli-history.jsonl
@@ -543,7 +543,7 @@ jobs:
 
       - name: Upload SLI report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ci-sli-report
           path: ci-sli.md

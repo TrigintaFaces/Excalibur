@@ -7,7 +7,7 @@
     "System.Configuration.ConfigurationManager": "9.0.18"
   },
   "properties": {
-    "NETCoreSdkVersion": "10.0.402",
+    "NETCoreSdkVersion": "10.0.403",
     "RuntimeIdentifier": "win-x64",
     "PublishAot": "true",
     "TreatWarningsAsErrors": "true",

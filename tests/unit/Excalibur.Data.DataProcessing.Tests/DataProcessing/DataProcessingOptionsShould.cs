@@ -18,7 +18,7 @@ public sealed class DataProcessingOptionsShould : UnitTestBase
 		config.SchemaName.ShouldBe("DataProcessor");
 		config.TableName.ShouldBe("DataTaskRequests");
 		config.QualifiedTableName.ShouldBe("[DataProcessor].[DataTaskRequests]");
-		config.DispatcherTimeoutMilliseconds.ShouldBe(60000);
+		config.ProcessingStallTimeout.ShouldBe(TimeSpan.FromMilliseconds(60000));
 		config.MaxAttempts.ShouldBe(3);
 		config.QueueSize.ShouldBe(5000);
 		config.ProducerBatchSize.ShouldBe(100);
@@ -54,16 +54,16 @@ public sealed class DataProcessingOptionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void DispatcherTimeoutMilliseconds_CanBeCustomized()
+	public void ProcessingStallTimeout_CanBeCustomized()
 	{
 		// Arrange & Act
 		var config = new DataProcessingOptions
 		{
-			DispatcherTimeoutMilliseconds = 10000
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(10000)
 		};
 
 		// Assert
-		config.DispatcherTimeoutMilliseconds.ShouldBe(10000);
+		config.ProcessingStallTimeout.ShouldBe(TimeSpan.FromMilliseconds(10000));
 	}
 
 	[Fact]

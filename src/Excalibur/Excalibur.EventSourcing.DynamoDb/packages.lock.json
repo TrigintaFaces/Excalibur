@@ -69,9 +69,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.13, )",
-        "resolved": "10.0.13",
-        "contentHash": "40yrBMsLEcjixBR4G+FiUaBPvxXIPSKJ2OgSrbOZcmSDBda4Sb0k7BWrfDpIvn3IvvDzwOL/tEPa6gDQfh6aRw=="
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
       },
       "MinVer": {
         "type": "Direct",
@@ -365,6 +365,17 @@
           "Microsoft.Extensions.Options.DataAnnotations": "[10.0.13, )"
         }
       },
+      "excalibur.data.identitymap": {
+        "type": "Project",
+        "dependencies": {
+          "Excalibur.Dispatch.Abstractions": "[1.0.0, )",
+          "Excalibur.Hosting": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Abstractions": "[10.0.13, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.13, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.13, )",
+          "Microsoft.Extensions.Options": "[10.0.13, )"
+        }
+      },
       "excalibur.dispatch": {
         "type": "Project",
         "dependencies": {
@@ -447,6 +458,7 @@
         "dependencies": {
           "Excalibur.Compliance": "[1.0.0, )",
           "Excalibur.Compliance.Abstractions": "[1.0.0, )",
+          "Excalibur.Data.IdentityMap": "[1.0.0, )",
           "Excalibur.Dispatch": "[1.0.0, )",
           "Excalibur.Dispatch.LeaderElection.Abstractions": "[1.0.0, )",
           "Excalibur.EventSourcing.Abstractions": "[1.0.0, )",

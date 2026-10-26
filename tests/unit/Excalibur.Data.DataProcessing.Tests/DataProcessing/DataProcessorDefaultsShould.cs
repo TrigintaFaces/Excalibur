@@ -26,9 +26,9 @@ public sealed class DataProcessorDefaultsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveExpectedDefaultDispatcherTimeout()
+	public void HaveExpectedDefaultProcessingStallTimeout()
 	{
-		DataProcessorDefaults.DataProcessorDefaultDispatcherTimeout.ShouldBe(60000);
+		DataProcessorDefaults.ProcessingStallTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 	}
 
 	[Fact]

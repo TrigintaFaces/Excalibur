@@ -97,6 +97,28 @@ consistency, and it touches no stored data — but it changes what a read return
   write won, both reported success, and the losing fold's events stayed durable and permanently absent
   from the read model. **Hosts already using `.Async()` with the host registered are unaffected.**
 
+One change renames a property whose old name invited a defect that does not self-heal:
+
+- **[An identity binding is a reservation](identity-binding-is-a-reservation.md)** --
+  `IdentityBindResult.WasCreated` becomes `MappingWasCreated`. The value is unchanged; it reports that a
+  **mapping** was created, never that an aggregate exists. Code using it as an insert-versus-update
+  discriminator fails permanently once anything interrupts between the bind and the append: the mapping is
+  committed, the stream never arrives, and every later call takes the update branch and finds nothing.
+  Branch on whether the **stream** exists, or use the new `CreateOrUpdateAsync`, which removes the branch.
+  The flag stays correct for metrics and logging.
+
+One change removes a configuration key, and a host that still sets it is refused at start-up:
+
+- **[A data task's timeout bounds silence, not duration](data-task-timeout-bounds-silence.md)** --
+  `DispatcherTimeoutMilliseconds` is removed. It was a total wall-clock deadline armed once per claimed
+  task, so a task was cancelled for having a lot to do rather than for being stuck: there was always a
+  record count above which it failed regardless of per-record speed. `ProcessingStallTimeout` bounds how
+  long a task may make **no progress** and is restarted on every checkpointed record, so a task that keeps
+  completing records is never cancelled by it. **If you raised the old value to accommodate large batches,
+  delete it and take the default** -- that is the case that no longer fails. `ProcessingTotalTimeout` is an
+  opt-in absolute cap and re-introduces the old behaviour deliberately; leave it unset unless you have a
+  runaway to bound.
+
 One change is a compile-level break in code that reads an append's returned version, and it touches no
 stored data:
 

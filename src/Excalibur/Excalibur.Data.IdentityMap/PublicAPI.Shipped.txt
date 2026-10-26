@@ -17,9 +17,9 @@ Excalibur.Data.IdentityMap.IIdentityMapStore.UnbindAsync(string! externalSystem,
 Excalibur.Data.IdentityMap.IdentityBindResult
 Excalibur.Data.IdentityMap.IdentityBindResult.AggregateId.get -> string!
 Excalibur.Data.IdentityMap.IdentityBindResult.AggregateId.init -> void
-Excalibur.Data.IdentityMap.IdentityBindResult.IdentityBindResult(string! AggregateId, bool WasCreated) -> void
-Excalibur.Data.IdentityMap.IdentityBindResult.WasCreated.get -> bool
-Excalibur.Data.IdentityMap.IdentityBindResult.WasCreated.init -> void
+Excalibur.Data.IdentityMap.IdentityBindResult.IdentityBindResult(string! AggregateId, bool MappingWasCreated) -> void
+Excalibur.Data.IdentityMap.IdentityBindResult.MappingWasCreated.get -> bool
+Excalibur.Data.IdentityMap.IdentityBindResult.MappingWasCreated.init -> void
 Excalibur.Data.IdentityMap.IdentityMapOptions
 Excalibur.Data.IdentityMap.IdentityMapOptions.DefaultExternalSystem.get -> string?
 Excalibur.Data.IdentityMap.IdentityMapOptions.DefaultExternalSystem.set -> void

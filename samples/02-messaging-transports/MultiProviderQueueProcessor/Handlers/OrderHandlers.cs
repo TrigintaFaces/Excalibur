@@ -18,11 +18,11 @@ public sealed class OrderCreatedHandler(
 	{
 		logger.LogInformation(
 			"Processing OrderCreatedEvent for order {OrderId}, customer {CustomerId}",
-			@event.AggregateId,
+			@event.OrderId,
 			@event.CustomerId);
 
 		await projectionUpdater.CreateOrderProjectionAsync(
-			@event.AggregateId,
+			@event.OrderId,
 			@event.CustomerId,
 			@event.TotalAmount,
 			@event.Currency,
@@ -41,11 +41,11 @@ public sealed class OrderItemAddedHandler(
 	{
 		logger.LogInformation(
 			"Processing OrderItemAddedEvent for order {OrderId}, product {ProductId}",
-			@event.AggregateId,
+			@event.OrderId,
 			@event.ProductId);
 
 		await projectionUpdater.AddOrderItemAsync(
-			@event.AggregateId,
+			@event.OrderId,
 			@event.ProductId,
 			@event.ProductName,
 			@event.Quantity,
@@ -65,10 +65,10 @@ public sealed class OrderSubmittedHandler(
 	{
 		logger.LogInformation(
 			"Processing OrderSubmittedEvent for order {OrderId}",
-			@event.AggregateId);
+			@event.OrderId);
 
 		await projectionUpdater.UpdateOrderStatusAsync(
-			@event.AggregateId,
+			@event.OrderId,
 			"Submitted",
 			cancellationToken);
 	}
@@ -85,11 +85,11 @@ public sealed class OrderShippedHandler(
 	{
 		logger.LogInformation(
 			"Processing OrderShippedEvent for order {OrderId}, tracking {TrackingNumber}",
-			@event.AggregateId,
+			@event.OrderId,
 			@event.TrackingNumber);
 
 		await projectionUpdater.MarkOrderShippedAsync(
-			@event.AggregateId,
+			@event.OrderId,
 			@event.TrackingNumber,
 			@event.Carrier,
 			cancellationToken);
@@ -107,11 +107,11 @@ public sealed class OrderCancelledHandler(
 	{
 		logger.LogInformation(
 			"Processing OrderCancelledEvent for order {OrderId}, reason: {Reason}",
-			@event.AggregateId,
+			@event.OrderId,
 			@event.Reason);
 
 		await projectionUpdater.MarkOrderCancelledAsync(
-			@event.AggregateId,
+			@event.OrderId,
 			@event.Reason,
 			cancellationToken);
 	}

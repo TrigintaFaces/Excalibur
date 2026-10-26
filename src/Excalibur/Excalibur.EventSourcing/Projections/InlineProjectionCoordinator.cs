@@ -164,6 +164,20 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 				context.AggregateId);
 			return ProjectionFreshness.BoundExpired;
 		}
+
+		// A BULK WRITER OPTED OUT OF THE PER-SAVE WAIT. Checked before the host is touched, because
+		// reaching the host is most of what suppression exists to avoid: the point of a batch is that it
+		// does not pay a per-record coordination cost, and computing the required set would pay one.
+		//
+		// The cost of checking this early is that a save feeding NO inline projection reports Deferred
+		// rather than NotRequested inside a scope. That over-states the obligation -- it tells the caller
+		// to drive the cursor when this particular save gave it nothing to do -- and over-stating is the
+		// safe direction: the caller already owes that one call for the batch as a whole.
+		if (InlineProjectionWait.IsSuppressed)
+		{
+			return ProjectionFreshness.Deferred;
+		}
+
 		using var bound = new CancellationTokenSource(_notificationOptions.Value.PostCommitTimeout, _clock);
 		Task<ProjectionProcessingResult>? work = null;
         var processing = false;
@@ -239,7 +253,12 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 
 			_logger.LogWarning(
 				"Inline projections did not reach position {Position} for aggregate {AggregateId} within the "
-				+ "post-commit budget. The events are committed; the read model is behind. Do not repeat the command.",
+				+ "post-commit budget. The events are committed; the read model is behind. Do not repeat the command. "
+				+ "If this is a bulk writer rather than a request, the per-save wait is the wrong price: an inline "
+				+ "projection advances one event at a time, so any per-page cost on the projection store becomes a "
+				+ "per-event cost -- a store set to make each page searchable before its checkpoint advances will "
+				+ "perform one index refresh per event. Wrap the batch in InlineProjectionWait.Suppress() and call "
+				+ "IProjectionProcessor.ProcessPendingAsync once when it finishes.",
 				context.GlobalPosition.Value, context.AggregateId);
 			return ProjectionFreshness.BoundExpired;
 		}

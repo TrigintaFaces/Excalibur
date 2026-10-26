@@ -142,6 +142,11 @@ public class GetOrderHandlerTests
 
 The `Excalibur.Testing` package provides a fluent Given-When-Then API for testing aggregates.
 
+A domain event carries only its own business data — no aggregate id and no stream version. So the
+events you hand to `Given(...)` identify their subject the same way the production ones do, through a
+field of their own (`OrderId` below). The aggregate id is a parameter to the event store, and the
+version is assigned by the store at append time. See [domain events](../event-sourcing/domain-events.md).
+
 ### Basic Aggregate Testing
 
 ```csharp ignore
@@ -167,7 +172,7 @@ public class OrderAggregateTests
         new AggregateTestFixture<OrderAggregate>()
             .Given(new OrderCreatedEvent
             {
-                AggregateId = "order-123",
+                OrderId = "order-123",
                 CustomerId = "customer-456",
                 Amount = 99.99m
             })
@@ -182,8 +187,8 @@ public class OrderAggregateTests
     {
         new AggregateTestFixture<OrderAggregate>()
             .Given(
-                new OrderCreatedEvent { AggregateId = "order-123" },
-                new OrderShippedEvent { AggregateId = "order-123" })
+                new OrderCreatedEvent { OrderId = "order-123" },
+                new OrderShippedEvent { OrderId = "order-123" })
             .When(order => order.Ship("tracking-999"))
             .ShouldThrow<InvalidOperationException>("already shipped");
     }
@@ -193,8 +198,8 @@ public class OrderAggregateTests
     {
         new AggregateTestFixture<OrderAggregate>()
             .Given(
-                new OrderCreatedEvent { AggregateId = "order-123" },
-                new OrderShippedEvent { AggregateId = "order-123" })
+                new OrderCreatedEvent { OrderId = "order-123" },
+                new OrderShippedEvent { OrderId = "order-123" })
             .When(order => order.Cancel("customer request"))
             .Then()
             .ShouldRaiseNoEvents(); // Cannot cancel shipped orders
@@ -209,7 +214,7 @@ public class OrderAggregateTests
 public void AddItem_MultipleItems_CalculatesTotalCorrectly()
 {
     new AggregateTestFixture<OrderAggregate>()
-        .Given(new OrderCreatedEvent { AggregateId = "order-123" })
+        .Given(new OrderCreatedEvent { OrderId = "order-123" })
         .When(order =>
         {
             order.AddItem("product-1", 2, 10.00m);
@@ -345,7 +350,7 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         var aggregateId = Guid.NewGuid().ToString();
         var events = new[]
         {
-            new OrderCreatedEvent { AggregateId = aggregateId, Version = 1 }
+            new OrderCreatedEvent { OrderId = aggregateId }
         };
 
         // Act
@@ -353,8 +358,12 @@ public class SqlServerIntegrationTests : IAsyncLifetime
         var loaded = await eventStore.LoadAsync(aggregateId, CancellationToken.None);
 
         // Assert
+        // LoadAsync returns StoredEvent records -- the envelope the store wrote, not the
+        // deserialized event. Assert on the envelope: the version the store assigned, and the
+        // stored name, which comes from the event's [MessageName] attribute.
         loaded.ShouldHaveSingleItem();
-        loaded[0].ShouldBeOfType<OrderCreatedEvent>();
+        loaded[0].AggregateId.ShouldBe(aggregateId);
+        loaded[0].Version.ShouldBe(1);
     }
 }
 ```

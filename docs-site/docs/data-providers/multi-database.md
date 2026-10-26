@@ -272,7 +272,7 @@ builder.Services.AddRecordHandler<MyHandler, MyRecord>(builder.Configuration, "D
 The `IConfiguration` overloads use `OptionsBuilder<T>.BindConfiguration()` with `ValidateDataAnnotations` and `ValidateOnStart` for fail-fast startup validation. A cross-property `IValidateOptions<DataProcessingOptions>` validator also enforces:
 - `ProducerBatchSize` must not exceed `QueueSize`
 - `ConsumerBatchSize` must not exceed `QueueSize`
-- `DispatcherTimeoutMilliseconds` must be between 1,000ms and 3,600,000ms
+- `ProcessingStallTimeout` must be between 1 second and 1 hour (it bounds how long a task may make no progress, not how long it may take)
 
 ```json
 {
@@ -282,7 +282,7 @@ The `IConfiguration` overloads use `OptionsBuilder<T>.BindConfiguration()` with 
     "ProducerBatchSize": 50,
     "ConsumerBatchSize": 20,
     "MaxAttempts": 3,
-    "DispatcherTimeoutMilliseconds": 60000
+    "ProcessingStallTimeout": "00:01:00"
   }
 }
 ```
@@ -388,7 +388,7 @@ public class InventorySnapshotProcessor : DataProcessor<InventoryRecord>
     "ProducerBatchSize": 100,
     "ConsumerBatchSize": 10,
     "MaxAttempts": 3,
-    "DispatcherTimeoutMilliseconds": 60000
+    "ProcessingStallTimeout": "00:01:00"
   }
 }
 ```

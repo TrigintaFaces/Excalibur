@@ -98,7 +98,13 @@ public sealed class CdcChangeHandler : IDataChangeHandler
 
 		var customerId = Guid.Parse(bindResult.AggregateId);
 
-		if (!bindResult.WasCreated)
+		// THE BINDING IS A RESERVATION, NOT PROOF THE AGGREGATE EXISTS. bindResult.MappingWasCreated says
+		// only that this call won the race to reserve the id -- the mapping and the event stream are
+		// two writes to two stores with nothing atomic between them. If an earlier run was interrupted
+		// between the two, the mapping is committed and the stream never arrived; branching on the flag
+		// would skip the insert forever and this entity would never be imported, silently. Ask the
+		// store that actually owns the answer.
+		if (await _customerRepository.ExistsAsync(customerId, cancellationToken).ConfigureAwait(false))
 		{
 			_logger.LogDebug(
 				"Customer {CustomerId} already exists for external ID {ExternalId} -- skipping insert",

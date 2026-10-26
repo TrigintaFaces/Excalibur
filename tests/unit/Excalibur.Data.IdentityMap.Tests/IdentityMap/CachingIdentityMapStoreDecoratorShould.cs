@@ -123,7 +123,7 @@ public sealed class CachingIdentityMapStoreDecoratorShould : IDisposable
 	{
 		var result = await _sut.TryBindAsync("SAP", "EXT-001", "Order", "AGG-001", CancellationToken.None);
 
-		result.WasCreated.ShouldBeTrue();
+		result.MappingWasCreated.ShouldBeTrue();
 		var cached = await _cache.GetStringAsync("idmap:SAP:Order:EXT-001");
 		cached.ShouldBe("AGG-001");
 	}
@@ -135,7 +135,7 @@ public sealed class CachingIdentityMapStoreDecoratorShould : IDisposable
 
 		var result = await _sut.TryBindAsync("SAP", "EXT-001", "Order", "AGG-NEW", CancellationToken.None);
 
-		result.WasCreated.ShouldBeFalse();
+		result.MappingWasCreated.ShouldBeFalse();
 		result.AggregateId.ShouldBe("AGG-001");
 	}
 

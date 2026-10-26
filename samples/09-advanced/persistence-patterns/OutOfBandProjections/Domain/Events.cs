@@ -9,13 +9,16 @@ namespace OutOfBandProjections.Domain;
 /// Raised when a new order is placed.
 /// </summary>
 [MessageName("Contoso.Orders.OrderPlaced")]
-public sealed record OrderPlaced : IDomainEvent
+public sealed record OrderPlaced : DomainEvent
 {
-    public required string EventId { get; init; }
-    public required string AggregateId { get; init; }
-    public required long Version { get; init; }
-    public required DateTimeOffset OccurredAt { get; init; }
-    public IDictionary<string, object>? Metadata { get; init; }
+    /// <summary>Gets the order this event belongs to — the event's own business data.</summary>
+    /// <remarks>
+    /// A domain event carries no aggregate id and no stream version. The aggregate id is a parameter
+    /// to the event store; the version is assigned by the store at append time and read back on
+    /// <c>StoredEvent.Version</c>. <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c> come from
+    /// <c>DomainEvent</c>.
+    /// </remarks>
+    public required string OrderId { get; init; }
 
     public required string CustomerId { get; init; }
     public required string CustomerName { get; init; }
@@ -27,13 +30,16 @@ public sealed record OrderPlaced : IDomainEvent
 /// Raised when an order is shipped.
 /// </summary>
 [MessageName("Contoso.Orders.OrderShipped")]
-public sealed record OrderShipped : IDomainEvent
+public sealed record OrderShipped : DomainEvent
 {
-    public required string EventId { get; init; }
-    public required string AggregateId { get; init; }
-    public required long Version { get; init; }
-    public required DateTimeOffset OccurredAt { get; init; }
-    public IDictionary<string, object>? Metadata { get; init; }
+    /// <summary>Gets the order this event belongs to — the event's own business data.</summary>
+    /// <remarks>
+    /// A domain event carries no aggregate id and no stream version. The aggregate id is a parameter
+    /// to the event store; the version is assigned by the store at append time and read back on
+    /// <c>StoredEvent.Version</c>. <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c> come from
+    /// <c>DomainEvent</c>.
+    /// </remarks>
+    public required string OrderId { get; init; }
 
     public required string Carrier { get; init; }
     public required string TrackingNumber { get; init; }
@@ -43,13 +49,16 @@ public sealed record OrderShipped : IDomainEvent
 /// Raised when an order is cancelled.
 /// </summary>
 [MessageName("Contoso.Orders.OrderCancelled")]
-public sealed record OrderCancelled : IDomainEvent
+public sealed record OrderCancelled : DomainEvent
 {
-    public required string EventId { get; init; }
-    public required string AggregateId { get; init; }
-    public required long Version { get; init; }
-    public required DateTimeOffset OccurredAt { get; init; }
-    public IDictionary<string, object>? Metadata { get; init; }
+    /// <summary>Gets the order this event belongs to — the event's own business data.</summary>
+    /// <remarks>
+    /// A domain event carries no aggregate id and no stream version. The aggregate id is a parameter
+    /// to the event store; the version is assigned by the store at append time and read back on
+    /// <c>StoredEvent.Version</c>. <c>EventId</c>, <c>OccurredAt</c> and <c>Metadata</c> come from
+    /// <c>DomainEvent</c>.
+    /// </remarks>
+    public required string OrderId { get; init; }
 
     public required string Reason { get; init; }
 }

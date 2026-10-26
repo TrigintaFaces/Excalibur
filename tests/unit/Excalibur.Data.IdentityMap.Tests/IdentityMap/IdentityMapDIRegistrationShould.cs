@@ -172,7 +172,7 @@ public sealed class IdentityMapDIRegistrationShould
 	}
 
 	[Fact]
-	public void IdentityBindResult_DifferOnWasCreated()
+	public void IdentityBindResult_DifferOnMappingWasCreated()
 	{
 		var result1 = new IdentityBindResult("AGG-001", true);
 		var result2 = new IdentityBindResult("AGG-001", false);

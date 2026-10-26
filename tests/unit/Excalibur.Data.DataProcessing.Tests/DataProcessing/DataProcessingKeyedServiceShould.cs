@@ -351,7 +351,7 @@ public sealed class DataProcessingKeyedServiceShould : UnitTestBase
 	public void DataProcessingOptions_RangeAttributes_ThrowOnZero()
 	{
 		Should.Throw<ArgumentOutOfRangeException>(() =>
-			new DataProcessingOptions { DispatcherTimeoutMilliseconds = 0 });
+			new DataProcessingOptions { ProcessingStallTimeout = TimeSpan.FromMilliseconds(0) });
 
 		Should.Throw<ArgumentOutOfRangeException>(() =>
 			new DataProcessingOptions { MaxAttempts = 0 });
@@ -373,7 +373,7 @@ public sealed class DataProcessingKeyedServiceShould : UnitTestBase
 		var config = new DataProcessingOptions
 		{
 			TableName = "CustomTable",
-			DispatcherTimeoutMilliseconds = 30000,
+			ProcessingStallTimeout = TimeSpan.FromMilliseconds(30000),
 			MaxAttempts = 5,
 			QueueSize = 1000,
 			ProducerBatchSize = 200,
@@ -382,7 +382,7 @@ public sealed class DataProcessingKeyedServiceShould : UnitTestBase
 
 		// Assert
 		config.TableName.ShouldBe("CustomTable");
-		config.DispatcherTimeoutMilliseconds.ShouldBe(30000);
+		config.ProcessingStallTimeout.ShouldBe(TimeSpan.FromMilliseconds(30000));
 		config.MaxAttempts.ShouldBe(5);
 		config.QueueSize.ShouldBe(1000);
 		config.ProducerBatchSize.ShouldBe(200);

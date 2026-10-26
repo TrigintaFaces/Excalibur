@@ -98,7 +98,7 @@ public sealed class IdentityMapStoreExtensionsShould
 		var id = Guid.NewGuid();
 		var result = await _store.TryBindAsync("SAP", "EXT-001", "Order", id, CancellationToken.None);
 
-		result.WasCreated.ShouldBeTrue();
+		result.MappingWasCreated.ShouldBeTrue();
 		result.AggregateId.ShouldBe(id.ToString());
 	}
 
