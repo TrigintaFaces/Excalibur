@@ -38,7 +38,7 @@ public sealed class ProcessingStallTimeoutShould
 
 		for (var i = 0; i < 8; i++)
 		{
-			await Task.Delay(Stall / 4, TestContext.Current.CancellationToken);
+			await Task.Delay(Stall / 4, TestContext.Current.CancellationToken); // delay-ok: the interval IS the semantic -- it must be shorter than the budget so progress re-arms it
 			deadline.RecordProgress();
 		}
 
@@ -54,7 +54,7 @@ public sealed class ProcessingStallTimeoutShould
 		// SAFETY. Without this arm, a deadline that simply never arms passes the arm above.
 		using var deadline = new ProcessingDeadline(Stall, totalTimeout: null, _ => { });
 
-		await Task.Delay(Stall * 3, TestContext.Current.CancellationToken);
+		await Task.Delay(Stall * 3, TestContext.Current.CancellationToken); // delay-ok: the duration IS the semantic -- it must exceed the stall budget for the clock to fire
 
 		deadline.Token.IsCancellationRequested.ShouldBeTrue("a task that made no progress must cancel");
 		deadline.Classify().ShouldBe(ProcessingDeadlineOutcome.Stalled);
@@ -68,7 +68,7 @@ public sealed class ProcessingStallTimeoutShould
 		using var deadline = new ProcessingDeadline(Stall, totalTimeout: null, _ => { });
 		deadline.Disarm();
 
-		await Task.Delay(Stall * 3, TestContext.Current.CancellationToken);
+		await Task.Delay(Stall * 3, TestContext.Current.CancellationToken); // delay-ok: the duration IS the semantic -- it must exceed the stall budget for the clock to fire
 
 		deadline.Token.IsCancellationRequested.ShouldBeFalse(
 			"disarming must cancel the pending deadline without cancelling the work");
@@ -84,7 +84,7 @@ public sealed class ProcessingStallTimeoutShould
 
 		for (var i = 0; i < 6; i++)
 		{
-			await Task.Delay(Stall / 2, TestContext.Current.CancellationToken);
+			await Task.Delay(Stall / 2, TestContext.Current.CancellationToken); // delay-ok: the interval IS the semantic -- progress throughout, while the total cap accrues
 			deadline.RecordProgress();
 		}
 
@@ -143,7 +143,7 @@ public sealed class ProcessingStallTimeoutShould
 	}
 
 	[Fact]
-	public async Task ObserveAConsumerCancellationCallbackThatThROWS()
+	public async Task ObserveAConsumerCancellationCallbackThatThrows()
 	{
 		// REGRESSION. The deadline cancels on a TIMER THREAD, and cancellation callbacks run on whichever
 		// thread cancels -- so a consumer registration that throws escapes as an unhandled background
@@ -155,7 +155,7 @@ public sealed class ProcessingStallTimeoutShould
 		using var registration = deadline.Token.Register(
 			() => throw new InvalidOperationException("Cancellation callback failed"));
 
-		await Task.Delay(Stall * 3, TestContext.Current.CancellationToken);
+		await Task.Delay(Stall * 3, TestContext.Current.CancellationToken); // delay-ok: the duration IS the semantic -- it must exceed the stall budget for the clock to fire
 
 		deadline.Token.IsCancellationRequested.ShouldBeTrue("cancellation must still succeed");
 		observed.ShouldNotBeNull("a throwing consumer callback must be REPORTED, never left unobserved");

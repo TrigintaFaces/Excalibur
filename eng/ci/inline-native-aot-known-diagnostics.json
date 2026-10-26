@@ -2,8 +2,8 @@
   "reason": "User accepted the official SqlClient native-AOT limitation for this alpha on 2026-10-24. Full SQL Server-to-Elasticsearch Native AOT is not certified. Track official upstream resolution: https://github.com/dotnet/SqlClient/issues/1947",
   "packages": {
     "Microsoft.Data.SqlClient": "7.1.1",
-    "Microsoft.DotNet.ILCompiler": "10.0.13",
-    "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.13",
+    "Microsoft.DotNet.ILCompiler": "10.0.14",
+    "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.14",
     "System.Configuration.ConfigurationManager": "9.0.18"
   },
   "properties": {
