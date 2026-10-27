@@ -31,10 +31,9 @@ public sealed class ElasticSearchProjectionManagementOptionsValidator : IValidat
 		{
 			failures.Add("RetryPolicy delays must be non-negative.");
 		}
-		if (options.RetryPolicy.Enabled && (!double.IsFinite(options.RetryPolicy.JitterFactor) || options.RetryPolicy.JitterFactor is < 0 or > 1))
-		{
-			failures.Add("RetryPolicy.JitterFactor must be finite and between 0 and 1.");
-		}
+		// The JitterFactor range check is removed with the property it validated. It rejected a magnitude
+		// outside [0, 1] for a symmetric band that is gone; UseJitter is a boolean and has no invalid value,
+		// so there is nothing left here to reject.
 
 		// IndexPrefix must not be empty
 		if (string.IsNullOrWhiteSpace(options.IndexPrefix))

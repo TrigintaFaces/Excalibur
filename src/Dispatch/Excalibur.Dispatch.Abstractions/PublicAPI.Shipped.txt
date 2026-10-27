@@ -3090,6 +3090,7 @@ static Excalibur.Dispatch.SegmentedKey.Compose(string! first, string! second) ->
 static Excalibur.Dispatch.SegmentedKey.Compose(string! first, string! second, string! third) -> string!
 static Excalibur.Dispatch.SegmentedKey.Escape(string! value) -> string!
 static Excalibur.Dispatch.SegmentedKey.Split(string! key, int count) -> string![]!
+static Excalibur.Dispatch.SegmentedKey.TryCompose(System.Span<char> destination, out int charsWritten, string! first, string! second, string! third) -> bool
 static Excalibur.Dispatch.SegmentedKey.Unescape(string! value) -> string!
 static Excalibur.Dispatch.Serialization.SerializableAuthorizationResult.Authorized() -> Excalibur.Dispatch.Serialization.SerializableAuthorizationResult!
 static Excalibur.Dispatch.Serialization.SerializableAuthorizationResult.Unauthorized(string! reason) -> Excalibur.Dispatch.Serialization.SerializableAuthorizationResult!

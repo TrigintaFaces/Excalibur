@@ -121,22 +121,11 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		attempts.ShouldBe(3);
 	}
 
-	[Fact]
-	public void KeepZeroDelayAndCapPositiveDelayAtVeryHighAttemptCounts()
-	{
-		ProjectionErrorPersistenceRetry.CalculateDelay(new ProjectionRetryOptions
-		{
-			BaseDelay = TimeSpan.Zero, MaxDelay = TimeSpan.FromSeconds(30),
-		}, int.MaxValue, 0.5).ShouldBe(TimeSpan.Zero);
-		ProjectionErrorPersistenceRetry.CalculateDelay(new ProjectionRetryOptions
-		{
-			BaseDelay = TimeSpan.FromSeconds(1), MaxDelay = TimeSpan.FromSeconds(30),
-		}, int.MaxValue, 0.5).ShouldBe(TimeSpan.FromSeconds(30));
-		ProjectionErrorPersistenceRetry.CalculateDelay(new ProjectionRetryOptions
-		{
-			BaseDelay = TimeSpan.FromSeconds(1), MaxDelay = TimeSpan.FromSeconds(30), JitterFactor = 1,
-		}, int.MaxValue, 0).ShouldBe(TimeSpan.Zero);
-	}
+	// KeepZeroDelayAndCapPositiveDelayAtVeryHighAttemptCounts is DELETED with the pure function it drove.
+	// Its subject was CalculateDelay(settings, attempt, sample) -- a hand-rolled delay generator that had
+	// to apply its own ceiling because Polly ignores MaxDelay when a generator is supplied, which the
+	// method's own comment conceded. The generator is gone, MaxDelay is live on the strategy, and the
+	// overflow-at-int.MaxValue case it probed belongs to the dependency now.
 
 	[Fact]
 	public async Task PropagateCancellationDuringFirstWriteWithoutRetrying()
@@ -308,27 +297,70 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		endpoint.Writes.Single().Path.ShouldStartWith(explicitOverride ? "/custom-errors/_create/" : "/legacy-errors/_create/");
 	}
 
-	[Theory]
-	[InlineData(true, 0, 0.0, 800)]
-	[InlineData(true, 0, 1.0, 1200)]
-	[InlineData(true, 1, 0.5, 2000)]
-	[InlineData(true, 10, 1.0, 2500)]
-	[InlineData(false, 10, 0.5, 1000)]
-	public void HonorJitterMagnitudeBackoffAndCap(bool exponential, int attempt, double sample, int milliseconds)
+	// HonorJitterMagnitudeBackoffAndCap is DELETED, not relaxed. It was a Theory asserting an EXACT
+	// millisecond figure per (attempt, sample) pair -- 800 for sample 0.0, 1200 for sample 1.0 against a
+	// one-second base -- which is the symmetric band formula 1 + f*(2r-1) written out as a table. The
+	// formula was the requirement, so correct behaviour could not satisfy it, and there is no weaker
+	// version of it that still says anything: once the strategy owns the schedule, the delay for a given
+	// attempt is not a figure this suite can predict. What replaced its useful half -- that the cap is
+	// honoured and a zero base delay stays zero -- is asserted through the pipeline rather than through a
+	// pure function that no longer exists.
+
+	[Fact]
+	public async Task RandomiseRetryDelaysWhenUseJitterIsEnabled()
 	{
-		ProjectionErrorPersistenceRetry.CalculateDelay(new ProjectionRetryOptions
+		// THE ARM THAT BINDS THE JITTER WIRING, and it did not exist. Measured before writing it:
+		// hardcoding BOTH ElasticSearch UseJitter wirings to false passed all 2,003 arms in this project.
+		// The retry schedule's randomisation was entirely unbound -- the strategy could have been built with
+		// jitter permanently disabled and nothing here would have noticed.
+		//
+		// The reason is the harness, not an oversight in any one arm: Build defaults BaseDelay and MaxDelay
+		// to zero, so every other arm runs with a nominal delay of zero, where a randomised delay and an
+		// un-randomised one are both zero. A test that cannot distinguish them cannot detect the wiring.
+		//
+		// Asserts on the rendered OnRetry message rather than a parsed figure: the message embeds the
+		// scheduled delay, so with jitter live the set of distinct messages grows, and with jitter off every
+		// run renders the identical nominal and the set stays at one. That makes the assertion independent
+		// of the distribution, which is the dependency's business and may change between its versions.
+		var messages = new HashSet<string>(StringComparer.Ordinal);
+
+		for (var run = 0; run < 25 && messages.Count < 2; run++)
 		{
-			BaseDelay = TimeSpan.FromSeconds(1), MaxDelay = TimeSpan.FromMilliseconds(2500),
-			UseExponentialBackoff = exponential, JitterFactor = 0.2,
-		}, attempt, sample).ShouldBe(TimeSpan.FromMilliseconds(milliseconds));
+			using var endpoint = new RecordingEndpoint((attempt, _) => attempt == 1 ? (503, "{}") : (409, "{}"));
+			using var provider = Build(
+				endpoint,
+				enabled: true,
+				attempts: 3,
+				baseDelay: "00:00:00.0200000",
+				maxDelay: "00:00:01",
+				useJitter: true);
+
+			await provider.GetRequiredService<IProjectionErrorHandler>().HandleProjectionErrorAsync(Context(), CancellationToken.None);
+
+			foreach (var entry in endpoint.Logs.Entries)
+			{
+				if (entry.Message.StartsWith("Retrying projection error persistence", StringComparison.Ordinal))
+				{
+					_ = messages.Add(entry.Message);
+				}
+			}
+		}
+
+		messages.Count.ShouldBeGreaterThan(
+			1,
+			"every sampled retry scheduled an identical delay, so the configured jitter is not reaching the "
+			+ "retry strategy; a hardcoded UseJitter = false produces exactly this result");
 	}
 
 	[Fact]
-	public void RejectInvalidDelayAndNonFiniteJitter()
+	public void RejectANegativeDelay()
 	{
+		// Renamed from RejectInvalidDelayAndNonFiniteJitter. Its second assertion passed
+		// JitterFactor = double.NaN and required the validator to fail; that property is gone, and a
+		// boolean has no non-finite value to reject, so the assertion went with it. The delay check is
+		// the half that still has a subject.
 		var validator = new ElasticSearchProjectionManagementOptionsValidator();
 		validator.Validate(null, new ElasticSearchProjectionManagementOptions { RetryPolicy = new ProjectionRetryOptions { BaseDelay = TimeSpan.FromSeconds(-1) } }).Failed.ShouldBeTrue();
-		validator.Validate(null, new ElasticSearchProjectionManagementOptions { RetryPolicy = new ProjectionRetryOptions { JitterFactor = double.NaN } }).Failed.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -499,7 +531,33 @@ public sealed class ProjectionErrorPersistenceRetryShould
 		ProjectionType = "orders", OperationType = "Index", IndexName = "orders", DocumentId = documentId, Exception = new InvalidOperationException("failed"),
 	};
 
-	private static ServiceProvider Build(RecordingEndpoint endpoint, bool enabled, int attempts, bool explicitOverride = true, bool legacy = false)
+	/// <summary>
+	/// Builds the provider under test.
+	/// </summary>
+	/// <param name="endpoint">The recording endpoint.</param>
+	/// <param name="enabled">Whether the retry policy is enabled.</param>
+	/// <param name="attempts">The attempt budget.</param>
+	/// <param name="explicitOverride">Whether the explicit management section wins.</param>
+	/// <param name="legacy">Whether the legacy section is populated.</param>
+	/// <param name="baseDelay">
+	/// The base delay. Defaults to zero so the overwhelming majority of these arms, which are about write
+	/// semantics rather than timing, cost no wall-clock time. <b>A zero base delay is also why the jitter
+	/// wiring was unbound:</b> with a nominal of zero, a randomised delay and an un-randomised one are both
+	/// zero, so hardcoding the jitter switch off passed all 2,003 arms in this project. Any arm asserting
+	/// anything about jitter has to pass a non-zero value here.
+	/// </param>
+	/// <param name="maxDelay">The ceiling. Must exceed <paramref name="baseDelay" /> to leave jitter room.</param>
+	/// <param name="useJitter">Whether delays are randomised.</param>
+	/// <returns>The provider.</returns>
+	private static ServiceProvider Build(
+		RecordingEndpoint endpoint,
+		bool enabled,
+		int attempts,
+		bool explicitOverride = true,
+		bool legacy = false,
+		string baseDelay = "00:00:00",
+		string maxDelay = "00:00:00",
+		bool useJitter = false)
 	{
 		var values = new Dictionary<string, string?>
 		{
@@ -507,9 +565,9 @@ public sealed class ProjectionErrorPersistenceRetryShould
 			["ElasticSearch:ProjectionManagement:RetryPolicy:Enabled"] = enabled.ToString(),
 			["ElasticSearch:ProjectionManagement:RetryPolicy:MaxIndexAttempts"] = attempts.ToString(),
 			["ElasticSearch:ProjectionManagement:RetryPolicy:MaxBulkAttempts"] = attempts.ToString(),
-			["ElasticSearch:ProjectionManagement:RetryPolicy:BaseDelay"] = "00:00:00",
-			["ElasticSearch:ProjectionManagement:RetryPolicy:MaxDelay"] = "00:00:00",
-			["ElasticSearch:ProjectionManagement:RetryPolicy:JitterFactor"] = "0",
+			["ElasticSearch:ProjectionManagement:RetryPolicy:BaseDelay"] = baseDelay,
+			["ElasticSearch:ProjectionManagement:RetryPolicy:MaxDelay"] = maxDelay,
+			["ElasticSearch:ProjectionManagement:RetryPolicy:UseJitter"] = useJitter.ToString(),
 		};
 		if (legacy)
 		{

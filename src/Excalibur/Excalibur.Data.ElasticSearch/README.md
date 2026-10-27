@@ -304,7 +304,7 @@ services.Configure<ElasticsearchConfigurationOptions>(options =>
             BaseDelay = TimeSpan.FromMilliseconds(100),
             MaxDelay = TimeSpan.FromSeconds(30),
             UseExponentialBackoff = true,
-            JitterFactor = 0.1
+            UseJitter = true
         }
     };
 });

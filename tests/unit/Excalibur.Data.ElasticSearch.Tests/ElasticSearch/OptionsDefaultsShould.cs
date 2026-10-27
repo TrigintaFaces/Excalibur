@@ -30,7 +30,7 @@ public sealed class OptionsDefaultsShould
 		options.MaxAttempts.ShouldBe(3);
 		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
-		options.JitterFactor.ShouldBe(0.1);
+		options.UseJitter.ShouldBeTrue();
 		options.UseExponentialBackoff.ShouldBeTrue();
 	}
 
@@ -80,7 +80,7 @@ public sealed class OptionsDefaultsShould
 		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
 		options.UseExponentialBackoff.ShouldBeTrue();
-		options.JitterFactor.ShouldBe(0.2);
+		options.UseJitter.ShouldBeTrue();
 	}
 
 	[Fact]

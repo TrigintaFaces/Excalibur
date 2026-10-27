@@ -92,12 +92,15 @@ internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 			throw new ArgumentOutOfRangeException(nameof(attempt), Resources.ExponentialBackoffCalculator_AttemptMustBeAtLeastOne);
 		}
 
+		// No jitter switch to set any more: the shared helper computes the nominal delay and nothing else,
+		// so this type cannot accidentally acquire randomisation. It used to pass UseJitter = false here,
+		// and that one assignment was the only thing keeping the symmetric band out of the
+		// IBackoffCalculator family -- an invariant held by remembering rather than by construction.
 		var parameters = new BackoffParameters
 		{
 			BaseDelay = _baseDelay,
 			MaxDelay = _maxDelay,
 			Multiplier = _multiplier,
-			UseJitter = false,
 		};
 
 		return ExponentialBackoff.Calculate(attempt, in parameters);

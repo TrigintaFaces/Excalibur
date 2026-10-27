@@ -37,7 +37,7 @@ public sealed class ElasticsearchResiliencePipelineShould
 				BaseDelay = TimeSpan.Zero,
 				MaxDelay = TimeSpan.Zero,
 				UseExponentialBackoff = false,
-				JitterFactor = 0,
+				UseJitter = false,
 			},
 			CircuitBreaker = new ElasticsearchCircuitBreakerOptions
 			{

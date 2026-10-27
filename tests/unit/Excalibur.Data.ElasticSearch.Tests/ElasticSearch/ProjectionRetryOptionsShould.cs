@@ -20,7 +20,7 @@ public sealed class ProjectionRetryOptionsShould
 		sut.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		sut.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
 		sut.UseExponentialBackoff.ShouldBeTrue();
-		sut.JitterFactor.ShouldBe(0.2);
+		sut.UseJitter.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -34,7 +34,7 @@ public sealed class ProjectionRetryOptionsShould
 			BaseDelay = TimeSpan.FromSeconds(2),
 			MaxDelay = TimeSpan.FromMinutes(1),
 			UseExponentialBackoff = false,
-			JitterFactor = 0.5,
+			UseJitter = false,
 		};
 
 		sut.Enabled.ShouldBeFalse();
@@ -43,6 +43,6 @@ public sealed class ProjectionRetryOptionsShould
 		sut.BaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
 		sut.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		sut.UseExponentialBackoff.ShouldBeFalse();
-		sut.JitterFactor.ShouldBe(0.5);
+		sut.UseJitter.ShouldBeFalse();
 	}
 }

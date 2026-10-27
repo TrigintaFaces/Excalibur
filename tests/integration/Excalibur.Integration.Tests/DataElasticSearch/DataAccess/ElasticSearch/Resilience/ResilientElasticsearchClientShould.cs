@@ -380,7 +380,7 @@ public sealed class ResilientElasticsearchClientShould : IDisposable
 						BaseDelay = TimeSpan.FromMilliseconds(100),
 						MaxDelay = TimeSpan.FromSeconds(5),
 						UseExponentialBackoff = true,
-						JitterFactor = 0.1,
+						UseJitter = true,
 					},
 				CircuitBreaker =
 					new ElasticsearchCircuitBreakerOptions

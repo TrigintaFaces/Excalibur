@@ -3,6 +3,7 @@
 
 
 using Excalibur.Data.SqlServer.Diagnostics;
+using Excalibur.Dispatch.Resilience;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -98,9 +99,49 @@ public partial class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 		};
 
 	/// <summary>
+	/// The retry schedule: two seconds, doubling, capped at thirty, with full jitter below the cap.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The framework's own calculator rather than a sixth hand-rolled formula.</b> The provider here used
+	/// to compute <c>TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) + Random.Shared.Next(0, 100)
+	/// milliseconds</c>. That adds at most 100ms to a delay measured in seconds -- about 5% at the first
+	/// retry and 1.25% at the third -- so two hosts that failed in the same instant retried within a tenth
+	/// of a second of each other, every time. It was a rounding error wearing the word jitter. It was also
+	/// one-sided, so it could only make a client slower, never spread the herd, and it had no ceiling at
+	/// all: the schedule was bounded only by the retry count.
+	/// </para>
+	/// <para>
+	/// Polly's own <c>UseJitter</c> is not reachable from here. This type returns
+	/// <see cref="IAsyncPolicy" /> -- the Polly v7 API -- which has no jitter switch, because in v7 the
+	/// jitter IS the sleep-duration provider, so something must compute it. Rather than invent a
+	/// distribution, it delegates to the single implementation the framework already has, which caps first
+	/// and randomises below the capped value. Moving this type to Polly v8's <c>ResiliencePipeline</c> would
+	/// let the dependency own the schedule outright, but <see cref="IDataAccessPolicyFactory" /> is public
+	/// and returns <see cref="IAsyncPolicy" />, so that is a public break across five packages and twelve
+	/// call sites -- a separate decision, deliberately not taken here.
+	/// </para>
+	/// <para>
+	/// The nominal ladder is unchanged. Polly v7 passes a 1-based attempt, and a two-second base doubling
+	/// gives 2s, 4s, 8s across the three retries exactly as before. The thirty-second ceiling does not bind
+	/// at three retries; it is a real bound that starts mattering if the budget grows, which is why it is
+	/// stated rather than left implicit at infinity.
+	/// </para>
+	/// </remarks>
+	internal static readonly IBackoffCalculator RetrySchedule = BackoffCalculatorFactory.Create(
+		BackoffStrategy.Exponential,
+		new BackoffParameters
+		{
+			BaseDelay = TimeSpan.FromSeconds(2),
+			MaxDelay = TimeSpan.FromSeconds(30),
+			Multiplier = 2.0,
+		},
+		useJitter: true);
+
+	/// <summary>
 	/// Creates a wait and retry policy for handling transient SQL Server failures.
 	/// </summary>
-	/// <returns> An asynchronous retry policy with exponential backoff. </returns>
+	/// <returns> An asynchronous retry policy with exponential backoff and full jitter. </returns>
 	private IAsyncPolicy CreateWaitAndRetryPolicy() =>
 		Policy
 			.Handle<SqlException>(IsTransientSqlException)
@@ -108,13 +149,7 @@ public partial class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 			.Or<InvalidOperationException>(ex => ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
 			.WaitAndRetryAsync(
 				retryCount: 3,
-				sleepDurationProvider: retryAttempt =>
-
-					// Jitter for retry backoff doesn't require cryptographic randomness - it's for load distribution, not security
-					// Do not use insecure randomness
-#pragma warning disable CA5394
-					TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 100)),
-#pragma warning restore CA5394
+				sleepDurationProvider: RetrySchedule.CalculateDelay,
 				onRetry: (outcome, timespan, retryCount, context) =>
 					LogSqlOperationRetry(retryCount, timespan.TotalMilliseconds));
 

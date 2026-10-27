@@ -9,9 +9,9 @@ namespace Excalibur.Dispatch.Resilience;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>This interface states its contract because two implementations once disagreed about it.</b> The
-/// in-box calculators threw for a non-positive attempt while the Polly adapter returned
-/// <see cref="TimeSpan.Zero" />; the adapter refused a zero base delay that the in-box calculators
+/// <b>This interface states its contract because two implementations once disagreed about it.</b> Some
+/// calculators threw for a non-positive attempt while another returned
+/// <see cref="TimeSpan.Zero" />; one refused a zero base delay that the others
 /// accepted. Both were defensible against a specification that said nothing, and a consumer swapping one
 /// for the other -- which is the advertised purpose of this seam -- got a different answer to the same
 /// call. The contract below is what makes them substitutable. An implementation that does not satisfy it
@@ -43,13 +43,29 @@ public interface IBackoffCalculator
 	/// which throws there instead -- on the failure path, which is the worst place to surface it.
 	/// </para>
 	/// <para>
-	/// <b>Jitter is bounded, not specified.</b> When an implementation randomises the delay, the result
-	/// MUST lie within <c>[0, nominal]</c>, where nominal is the delay the configured
-	/// <see cref="BackoffStrategy" /> prescribes for this attempt. The DISTRIBUTION within that interval is
-	/// deliberately implementation-defined: the in-box calculator samples uniformly, while Polly uses its
-	/// own decorrelated algorithm, and requiring them to agree exactly would mean reimplementing a
-	/// first-party algorithm in a package that must not depend on it. What a caller may rely on is the
-	/// bound, and the bound is what a conformance test asserts.
+	/// <b>Jitter has a FLOOR and a CEILING, and the nominal delay is not part of either.</b> When an
+	/// implementation randomises, then over repeated calls at a fixed <paramref name="attempt" /> the
+	/// delay MUST take a value below half the configured maximum with positive probability, and MUST be
+	/// independent of every other caller's delay. The DISTRIBUTION between those bounds is deliberately
+	/// implementation-defined.
+	/// </para>
+	/// <para>
+	/// <b>The floor is the clause that carries the meaning, and the earlier contract omitted it.</b> This
+	/// paragraph used to require the delay to lie within <c>[0, nominal]</c> -- the nominal being what the
+	/// strategy prescribes for the attempt. That was wrong twice over. It is UNOBSERVABLE: a caller holds
+	/// this interface and has no operation that yields the nominal, so it could not check the one thing it
+	/// was told to rely on. And a ceiling alone is satisfied completely by returning the nominal unchanged,
+	/// which is to say by applying no jitter at all -- so the old clause permitted an implementation that
+	/// decorrelates nothing while appearing conformant. Sampling down toward zero is the entire purpose:
+	/// two callers that failed together must not retry together.
+	/// </para>
+	/// <para>
+	/// <b>A symmetric band around the nominal is therefore NOT a valid implementation of this interface</b>,
+	/// which is deliberate. A band adds noise without decorrelating -- its mass sits near the nominal, so
+	/// clients stay clustered -- and when the nominal ladder grows past the configured maximum, a band that
+	/// is capped AFTER randomisation collapses to exactly the maximum with probability one, taking the
+	/// jitter to zero precisely during the sustained outage that jitter exists for. An implementation MUST
+	/// cap FIRST and randomise below the capped value.
 	/// </para>
 	/// <para>
 	/// <b>Statelessness.</b> The delay MUST be a function of <paramref name="attempt" /> and the

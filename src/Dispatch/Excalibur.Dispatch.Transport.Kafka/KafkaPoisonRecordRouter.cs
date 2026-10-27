@@ -57,14 +57,22 @@ internal sealed partial class KafkaPoisonRecordRouter
 	/// How a retryable dead-letter failure is paced, so a dead-letter topic that is merely not provisioned
 	/// yet is retried at a bounded rate rather than at poll speed.
 	/// </summary>
-	private static readonly BackoffParameters RetryPacing = new()
-	{
-		BaseDelay = TimeSpan.FromMilliseconds(250),
-		MaxDelay = TimeSpan.FromSeconds(5),
-		Multiplier = 2.0,
-		UseJitter = true,
-		JitterFactor = 0.2,
-	};
+	/// <remarks>
+	/// Built once, as a calculator rather than a bare parameter set, because jitter must be applied BELOW
+	/// the capped delay. This schedule reaches its 5s ceiling at attempt 6, and the previous
+	/// randomise-then-cap ordering meant every sampled value from that attempt onward exceeded the cap and
+	/// was clamped to exactly 5s -- so every partition in every instance paced in lockstep, with the jitter
+	/// gone precisely during the sustained fault it exists to spread.
+	/// </remarks>
+	private static readonly IBackoffCalculator RetryPacing = BackoffCalculatorFactory.Create(
+		BackoffStrategy.Exponential,
+		new BackoffParameters
+		{
+			BaseDelay = TimeSpan.FromMilliseconds(250),
+			MaxDelay = TimeSpan.FromSeconds(5),
+			Multiplier = 2.0,
+		},
+		useJitter: true);
 
 	private readonly IDeadLetterQueueManager? _deadLetter;
 	private readonly string _source;
@@ -160,7 +168,7 @@ internal sealed partial class KafkaPoisonRecordRouter
 				LogDeadLetterFailed(_source, record.Partition.Value, record.Offset.Value, ex);
 
 				var attempt = _consecutiveFailures.AddOrUpdate(record.TopicPartition, 1, static (_, count) => count + 1);
-				await Task.Delay(ExponentialBackoff.Calculate(attempt, RetryPacing), _timeProvider, cancellationToken)
+				await Task.Delay(RetryPacing.CalculateDelay(attempt), _timeProvider, cancellationToken)
 					.ConfigureAwait(false);
 
 				throw;

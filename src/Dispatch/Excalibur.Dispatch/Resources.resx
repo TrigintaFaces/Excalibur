@@ -228,9 +228,6 @@
   <data name="ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne" xml:space="preserve">
     <value>Multiplier must be at least 1.0.</value>
   </data>
-  <data name="ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne" xml:space="preserve">
-    <value>Jitter factor must be between 0.0 and 1.0.</value>
-  </data>
   <data name="LinearBackoffCalculator_MaxDelayCannotBeNegative" xml:space="preserve">
     <value>Max delay cannot be negative.</value>
   </data>
@@ -248,9 +245,6 @@
   </data>
   <data name="JitteredBackoffCalculator_InnerCalculatorRequired" xml:space="preserve">
     <value>Inner backoff calculator is required.</value>
-  </data>
-  <data name="JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne" xml:space="preserve">
-    <value>Jitter factor must be between 0.0 and 1.0.</value>
   </data>
   <data name="BackoffCalculatorFactory_UnknownBackoffStrategy" xml:space="preserve">
     <value>Unknown backoff strategy.</value>

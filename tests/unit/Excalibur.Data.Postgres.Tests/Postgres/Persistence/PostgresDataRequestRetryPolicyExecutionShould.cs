@@ -21,15 +21,30 @@ namespace Excalibur.Data.Tests.Postgres.Persistence;
 /// These pin the observable contract of the retry execution path - how many times the request is actually invoked, the backoff
 /// schedule, which exception surfaces when the budget is exhausted, the success path, and which failures are classified transient -
 /// independently of which mechanism drives it. Backoff is scheduled against an injected <see cref="FakeTimeProvider" />, so the
-/// schedule is asserted without elapsing wall-clock time. Unlike its Redis and MongoDB siblings this policy adds jitter to every
-/// delay, so the schedule is asserted as the exponential value plus the documented jitter band rather than an exact figure.
+/// schedule is asserted without elapsing wall-clock time.
+/// </remarks>
+/// <remarks>
+/// <para>
+/// <b>The per-attempt delay is no longer assertable as a figure, and that is the point of the change these
+/// arms were rewritten for.</b> This policy used to supply Polly with a custom delay generator computing
+/// <c>base * 2^(attempt-1)</c> plus <c>Random.Shared.NextDouble() * 0.1</c> applied as <c>delay * (1 + f)</c>.
+/// That jitter was ONE-SIDED: every value sat at or above the nominal, so no client ever retried sooner than
+/// configured. It could not decorrelate anything -- hosts that failed together stayed clustered at the lower
+/// bound of the band -- it only made each of them slower.
+/// </para>
+/// <para>
+/// The old arms asserted exactly that shape, with <c>ShouldBeInRange(nominal, nominal * 1.1)</c>, so a delay
+/// shorter than the nominal FAILED the suite. The shape was the requirement, and correct two-sided jitter
+/// could not satisfy it. They are rewritten to assert the bounds the strategy actually guarantees, plus a
+/// separate arm for the property the old shape made impossible.
+/// </para>
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Data)]
 public sealed class PostgresDataRequestRetryPolicyExecutionShould : UnitTestBase
 {
-	/// <summary>The upper bound of the policy's 10% jitter, as a multiplier on the exponential delay.</summary>
-	private const double JitterCeiling = 1.1d;
+	/// <summary>The ceiling the strategy caps every delay at, from PostgresPersistenceResilienceOptions' default.</summary>
+	private const double MaxDelayMs = 30_000d;
 
 	[Theory]
 	[InlineData(0, 1)]
@@ -53,18 +68,18 @@ public sealed class PostgresDataRequestRetryPolicyExecutionShould : UnitTestBase
 		var clock = new FakeTimeProvider();
 		var logger = new CapturingLogger();
 
-		// Base delay 1000ms, budget 3: 1000, 2000, 4000 - each raised by up to 10% jitter.
+		// Base delay 1000ms, budget 3: the nominal ladder is 1000, 2000, 4000, and jitter spreads each one.
 		var policy = CreatePolicy(maxRetryAttempts: 3, logger, clock, baseDelayMilliseconds: 1_000);
 		var request = DataRequest.AlwaysThrowing(TransientNpgsqlFailure);
 
 		_ = await Should.ThrowAsync<NpgsqlException>(DriveAsync(policy, request, clock));
 
-		double[] exponential = [1_000d, 2_000d, 4_000d];
-		logger.RetryDelaysMilliseconds.Count.ShouldBe(exponential.Length);
+		logger.RetryDelaysMilliseconds.Count.ShouldBe(3);
 
-		for (var i = 0; i < exponential.Length; i++)
+		foreach (var delay in logger.RetryDelaysMilliseconds)
 		{
-			logger.RetryDelaysMilliseconds[i].ShouldBeInRange(exponential[i], exponential[i] * JitterCeiling);
+			delay.ShouldBeGreaterThan(0d, "a retry must actually wait");
+			delay.ShouldBeLessThanOrEqualTo(MaxDelayMs, "the configured ceiling is a real bound");
 		}
 	}
 
@@ -80,13 +95,52 @@ public sealed class PostgresDataRequestRetryPolicyExecutionShould : UnitTestBase
 
 		_ = await Should.ThrowAsync<NpgsqlException>(DriveAsync(policy, request, clock));
 
-		double[] exponential = [250d, 500d];
-		logger.RetryDelaysMilliseconds.Count.ShouldBe(exponential.Length);
+		logger.RetryDelaysMilliseconds.Count.ShouldBe(2);
 
-		for (var i = 0; i < exponential.Length; i++)
+		foreach (var delay in logger.RetryDelaysMilliseconds)
 		{
-			logger.RetryDelaysMilliseconds[i].ShouldBeInRange(exponential[i], exponential[i] * JitterCeiling);
+			delay.ShouldBeGreaterThan(0d, "a retry must actually wait");
+			delay.ShouldBeLessThanOrEqualTo(MaxDelayMs, "the configured ceiling is a real bound");
 		}
+	}
+
+	[Fact]
+	public async Task ApplyJitterThatCanSHORTENADelay_NotOnlyLengthenIt()
+	{
+		// THE RED-DETECTING ARM for the one-sided-jitter fix, and the property the deleted
+		// ShouldBeInRange(nominal, nominal * 1.1) assertions made unsatisfiable by construction.
+		//
+		// The old generator computed delay * (1 + Random.Shared.NextDouble() * 0.1), so the delay was
+		// ALWAYS >= nominal. Hosts that failed together retried together at the bottom of that band; the
+		// jitter bought latency and no decorrelation. Two-sided jitter must be able to land below the
+		// nominal, which is what actually separates two clients in the same instant.
+		//
+		// Sampled over many runs rather than one: each run yields three delays and the clock is faked, so
+		// 40 runs cost no wall-clock time and give 120 samples. A single run would make this arm
+		// probabilistic, which the determinism rule forbids; at 120 samples the chance of seeing no delay
+		// below its nominal is negligible for any jitter worth the name, while the OLD implementation
+		// fails it with probability one at every sample.
+		var nominal = new[] { 1_000d, 2_000d, 4_000d };
+		var sawShorterThanNominal = false;
+
+		for (var run = 0; run < 40 && !sawShorterThanNominal; run++)
+		{
+			var clock = new FakeTimeProvider();
+			var logger = new CapturingLogger();
+			var policy = CreatePolicy(maxRetryAttempts: 3, logger, clock, baseDelayMilliseconds: 1_000);
+			var request = DataRequest.AlwaysThrowing(TransientNpgsqlFailure);
+
+			_ = await Should.ThrowAsync<NpgsqlException>(DriveAsync(policy, request, clock));
+
+			for (var i = 0; i < logger.RetryDelaysMilliseconds.Count && !sawShorterThanNominal; i++)
+			{
+				sawShorterThanNominal = logger.RetryDelaysMilliseconds[i] < nominal[i];
+			}
+		}
+
+		sawShorterThanNominal.ShouldBeTrue(
+			"over 120 sampled delays none fell below its nominal value; jitter that can only add delay "
+			+ "does not decorrelate clients that failed together, it just makes each of them slower");
 	}
 
 	[Fact]

@@ -275,7 +275,7 @@ Direct `ProjectionErrorHandler` construction still accepts `ElasticsearchConfigu
         "BaseDelay": "00:00:01",
         "MaxDelay": "00:00:30",
         "UseExponentialBackoff": true,
-        "JitterFactor": 0.2
+        "UseJitter": true
       }
     }
   }

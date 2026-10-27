@@ -3012,18 +3012,15 @@ Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.Rent(Excalibur.Dispatch.IDi
 Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.RentCount.get -> long
 Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.ReturnCount.get -> long
 Excalibur.Dispatch.Pooling.MessageContextPoolAdapter.ReturnToPool(Excalibur.Dispatch.IMessageContext! context) -> void
+Excalibur.Dispatch.Resilience.BackoffCalculatorFactory
 Excalibur.Dispatch.Resilience.BackoffParameters
 Excalibur.Dispatch.Resilience.BackoffParameters.BackoffParameters() -> void
 Excalibur.Dispatch.Resilience.BackoffParameters.BaseDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Resilience.BackoffParameters.BaseDelay.init -> void
-Excalibur.Dispatch.Resilience.BackoffParameters.JitterFactor.get -> double
-Excalibur.Dispatch.Resilience.BackoffParameters.JitterFactor.init -> void
 Excalibur.Dispatch.Resilience.BackoffParameters.MaxDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Resilience.BackoffParameters.MaxDelay.init -> void
 Excalibur.Dispatch.Resilience.BackoffParameters.Multiplier.get -> double
 Excalibur.Dispatch.Resilience.BackoffParameters.Multiplier.init -> void
-Excalibur.Dispatch.Resilience.BackoffParameters.UseJitter.get -> bool
-Excalibur.Dispatch.Resilience.BackoffParameters.UseJitter.init -> void
 Excalibur.Dispatch.Resilience.BackoffStrategy
 Excalibur.Dispatch.Resilience.BackoffStrategy.Constant = 0 -> Excalibur.Dispatch.Resilience.BackoffStrategy
 Excalibur.Dispatch.Resilience.BackoffStrategy.Exponential = 2 -> Excalibur.Dispatch.Resilience.BackoffStrategy
@@ -4289,6 +4286,8 @@ static Excalibur.Dispatch.Options.Serialization.DispatchJsonSerializerOptions.Ap
 static Excalibur.Dispatch.Options.Serialization.DispatchJsonSerializerOptions.Default.get -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Dispatch.Options.Serialization.DispatchJsonSerializerOptions.Web.get -> System.Text.Json.JsonSerializerOptions!
 static Excalibur.Dispatch.Performance.CacheFreezeStatus.Unfrozen.get -> Excalibur.Dispatch.Performance.CacheFreezeStatus!
+static Excalibur.Dispatch.Resilience.BackoffCalculatorFactory.Create(Excalibur.Dispatch.Resilience.BackoffStrategy strategy, Excalibur.Dispatch.Options.Resilience.RetryOptions! options) -> Excalibur.Dispatch.Resilience.IBackoffCalculator!
+static Excalibur.Dispatch.Resilience.BackoffCalculatorFactory.Create(Excalibur.Dispatch.Resilience.BackoffStrategy strategy, in Excalibur.Dispatch.Resilience.BackoffParameters parameters, bool useJitter) -> Excalibur.Dispatch.Resilience.IBackoffCalculator!
 static Excalibur.Dispatch.Resilience.ExponentialBackoff.Calculate(int attempt, in Excalibur.Dispatch.Resilience.BackoffParameters parameters) -> System.TimeSpan
 static Excalibur.Dispatch.Routing.Builder.TransportRoutingBuilderExtensions.RouteAll(this Excalibur.Dispatch.Routing.Builder.ITransportRoutingBuilder! builder, string! transportName, params System.Type![]! messageTypes) -> Excalibur.Dispatch.Routing.Builder.ITransportRoutingBuilder!
 static Excalibur.Dispatch.Serialization.CompositeAotJsonSerializer.CreateWithAllProviders() -> Excalibur.Dispatch.Serialization.CompositeAotJsonSerializer!

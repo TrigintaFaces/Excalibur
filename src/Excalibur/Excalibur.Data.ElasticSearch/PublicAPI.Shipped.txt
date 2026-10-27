@@ -54,14 +54,14 @@ Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.BaseDelay.init -> v
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.ElasticSearchRetryPolicyOptions() -> void
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.Enabled.get -> bool
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.Enabled.init -> void
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.JitterFactor.get -> double
-Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.JitterFactor.init -> void
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxAttempts.get -> int
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxAttempts.init -> void
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxDelay.get -> System.TimeSpan
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.MaxDelay.init -> void
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseExponentialBackoff.get -> bool
 Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseExponentialBackoff.init -> void
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseJitter.get -> bool
+Excalibur.Data.ElasticSearch.ElasticSearchRetryPolicyOptions.UseJitter.init -> void
 Excalibur.Data.ElasticSearch.ElasticsearchCircuitBreakerOptions
 Excalibur.Data.ElasticSearch.ElasticsearchCircuitBreakerOptions.BreakDuration.get -> System.TimeSpan
 Excalibur.Data.ElasticSearch.ElasticsearchCircuitBreakerOptions.BreakDuration.init -> void
@@ -831,8 +831,6 @@ Excalibur.Data.ElasticSearch.ProjectionRetryOptions.BaseDelay.get -> System.Time
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.BaseDelay.init -> void
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.Enabled.get -> bool
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.Enabled.init -> void
-Excalibur.Data.ElasticSearch.ProjectionRetryOptions.JitterFactor.get -> double
-Excalibur.Data.ElasticSearch.ProjectionRetryOptions.JitterFactor.init -> void
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.MaxBulkAttempts.get -> int
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.MaxBulkAttempts.init -> void
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.MaxDelay.get -> System.TimeSpan
@@ -842,6 +840,8 @@ Excalibur.Data.ElasticSearch.ProjectionRetryOptions.MaxIndexAttempts.init -> voi
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.ProjectionRetryOptions() -> void
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.UseExponentialBackoff.get -> bool
 Excalibur.Data.ElasticSearch.ProjectionRetryOptions.UseExponentialBackoff.init -> void
+Excalibur.Data.ElasticSearch.ProjectionRetryOptions.UseJitter.get -> bool
+Excalibur.Data.ElasticSearch.ProjectionRetryOptions.UseJitter.init -> void
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext.BulkOperationErrorContext() -> void
 Excalibur.Data.ElasticSearch.Projections.BulkOperationErrorContext.Failures.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Data.ElasticSearch.Projections.BulkOperationFailure!>!

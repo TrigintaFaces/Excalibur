@@ -185,16 +185,21 @@ internal sealed partial class KafkaDeadLetterQueueManager : IDeadLetterQueueMana
 					if (reprocessDelay > TimeSpan.Zero && _retryOptions.UseExponentialBackoff)
 					{
 						var backoffAttempt = Math.Max(1, dlqMessage.DeliveryAttempts);
-						reprocessDelay = ExponentialBackoff.Calculate(backoffAttempt, new BackoffParameters
-						{
-							BaseDelay = _retryOptions.RetryDelay,
-							MaxDelay = _retryOptions.MaxRetryDelay,
-							Multiplier = _retryOptions.BackoffMultiplier,
-							UseJitter = _retryOptions.UseJitter,
 
-							// KafkaRetryOptions exposes no jitter-factor field; use a sensible default.
-							JitterFactor = 0.2,
-						});
+						// A calculator rather than the pure function, because jitter has to be sampled below
+						// the capped delay. The old call randomised first and capped afterwards, which drove
+						// the delay to exactly MaxRetryDelay once the ladder passed the ceiling -- removing
+						// the decorrelation at the attempt counts where a backlog is actually being drained.
+						// The jitter factor this used to pass is gone with the band it scaled.
+						reprocessDelay = BackoffCalculatorFactory.Create(
+							BackoffStrategy.Exponential,
+							new BackoffParameters
+							{
+								BaseDelay = _retryOptions.RetryDelay,
+								MaxDelay = _retryOptions.MaxRetryDelay,
+								Multiplier = _retryOptions.BackoffMultiplier,
+							},
+							_retryOptions.UseJitter).CalculateDelay(backoffAttempt);
 					}
 
 					if (reprocessDelay > TimeSpan.Zero)

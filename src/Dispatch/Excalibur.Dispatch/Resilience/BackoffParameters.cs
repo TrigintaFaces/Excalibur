@@ -14,8 +14,14 @@ namespace Excalibur.Dispatch.Resilience;
 /// to the stateless calculator.
 /// </para>
 /// <para>
-/// The delay produced is <c>min(BaseDelay * Multiplier^(attempt-1), MaxDelay)</c>, with optional symmetric jitter
-/// applied when <see cref="UseJitter" /> is <see langword="true" /> and <see cref="JitterFactor" /> is greater than zero.
+/// The delay produced is exactly <c>min(BaseDelay * Multiplier^(attempt-1), MaxDelay)</c>.
+/// </para>
+/// <para>
+/// <b>This type names the growth law and nothing else.</b> It previously carried a <c>UseJitter</c> flag and
+/// a <c>JitterFactor</c>, which made randomisation selectable from a value type and gave this package a
+/// second jitter implementation with a different distribution from the calculator's. Randomness is now
+/// chosen by WHICH CALCULATOR YOU CONSTRUCT -- see <see cref="BackoffCalculatorFactory" /> -- so a
+/// jitter band has no spelling on the public surface rather than merely being discouraged.
 /// </para>
 /// </remarks>
 public readonly record struct BackoffParameters
@@ -37,16 +43,4 @@ public readonly record struct BackoffParameters
 	/// </summary>
 	/// <value>The exponential base; values below <c>1.0</c> are clamped up to <c>1.0</c> by the calculator.</value>
 	public double Multiplier { get; init; }
-
-	/// <summary>
-	/// Gets a value indicating whether symmetric random jitter is applied to the computed delay.
-	/// </summary>
-	/// <value><see langword="true" /> to randomize delays to avoid thundering-herd synchronization; otherwise, <see langword="false" />.</value>
-	public bool UseJitter { get; init; }
-
-	/// <summary>
-	/// Gets the jitter factor (proportion of the delay) used when <see cref="UseJitter" /> is enabled.
-	/// </summary>
-	/// <value>A non-negative fraction; the delay is randomized within <c>±(delay × JitterFactor)</c>.</value>
-	public double JitterFactor { get; init; }
 }

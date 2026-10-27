@@ -50,7 +50,7 @@ public sealed class ResilientElasticsearchClientTimeoutShould
 					BaseDelay = TimeSpan.Zero,
 					MaxDelay = TimeSpan.Zero,
 					UseExponentialBackoff = false,
-					JitterFactor = 0,
+					UseJitter = false,
 				},
 				CircuitBreaker = new ElasticsearchCircuitBreakerOptions
 				{

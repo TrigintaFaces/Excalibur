@@ -11,10 +11,35 @@ namespace Excalibur.Dispatch.Tests.Resilience;
 /// (AwsSqs / AzureServiceBus / GooglePubSub / Kafka).
 /// </summary>
 /// <remarks>
-/// Asserts the SA/Frontend-pinned contract (msg 18077/18078): for given <see cref="BackoffParameters" /> the delay
-/// grows geometrically by <c>Multiplier</c>, caps at <c>MaxDelay</c>, is deterministic when <c>UseJitter == false</c>,
-/// and varies strictly within <c>±(delay × JitterFactor)</c> bounds when <c>UseJitter == true</c>. The function is
-/// pure and total — it never throws and never returns a negative delay (inputs are clamped, not rejected).
+/// Asserts the contract: for given <see cref="BackoffParameters" /> the delay grows geometrically by
+/// <c>Multiplier</c>, caps at <c>MaxDelay</c>, and is ALWAYS deterministic. The function is pure and total —
+/// same inputs, same output, it never throws and never returns a negative delay (inputs are clamped, not
+/// rejected).
+/// </remarks>
+/// <remarks>
+/// <para>
+/// <b>Every jitter arm that used to live here has been deleted, and the deletions are the point.</b> This
+/// function no longer randomises at all. The arms that went, and why none of them could simply be relaxed:
+/// </para>
+/// <list type="bullet">
+/// <item><c>KeepJitteredDelayWithinSymmetricBounds</c> asserted <c>[320, 480]</c> for a nominal of 400 — it
+/// encoded the symmetric band as the REQUIREMENT, so correct behaviour failed it. It could not be widened
+/// into correctness; the widened version is <c>NeverExceedMaxDelay_AcrossManyAttempts</c>, already here.</item>
+/// <item><c>NeverExceedMaxDelay_EvenWithPositiveJitter</c> set base == max == 5000 and asserted only
+/// <c>&lt;= 5000</c> — which a constant 5000 satisfies perfectly. It certified the clip-after-jitter
+/// degeneracy it looked like it was guarding against.</item>
+/// <item><c>IgnoreJitterFactor_WhenJitterDisabled</c> built both of its operands with identical arguments
+/// and neither passed a jitter factor, so it asserted <c>f(x) == f(x)</c> and could never fail.</item>
+/// <item><c>ProduceVaryingDelays_WhenJitterEnabled</c> required more than ten distinct values, which the
+/// band satisfied too, so it never discriminated between the band and anything else.</item>
+/// <item><c>NeverReturnNegativeDelay_WithAggressiveJitter</c> is subsumed by
+/// <c>ReturnNonNegativeDelay_ForZeroBaseDelay</c> and the unconditional determinism arm.</item>
+/// </list>
+/// <para>
+/// Jitter is now the calculator's job and is bound by the conformance suite over
+/// <c>IBackoffCalculator</c>, which asserts the property that actually matters — that the delay reaches the
+/// LOW end of its interval — rather than only an upper bound a no-op would satisfy.
+/// </para>
 /// </remarks>
 [Trait(TraitNames.Category, TestCategories.Unit)]
 [Trait(TraitNames.Component, TestComponents.Resilience)]
@@ -23,16 +48,12 @@ public sealed class ExponentialBackoffShould
 	private static BackoffParameters Params(
 		double baseMs = 100,
 		double maxMs = 30_000,
-		double multiplier = 2.0,
-		bool useJitter = false,
-		double jitterFactor = 0.2) =>
+		double multiplier = 2.0) =>
 		new()
 		{
 			BaseDelay = TimeSpan.FromMilliseconds(baseMs),
 			MaxDelay = TimeSpan.FromMilliseconds(maxMs),
 			Multiplier = multiplier,
-			UseJitter = useJitter,
-			JitterFactor = jitterFactor,
 		};
 
 	// ---- Happy path: geometric growth (deterministic, UseJitter = false) ----
@@ -136,12 +157,18 @@ public sealed class ExponentialBackoffShould
 		result.TotalMilliseconds.ShouldBe(60_000, tolerance: 0.0001);
 	}
 
-	// ---- Determinism (UseJitter = false) ----
+	// ---- Determinism: now UNCONDITIONAL ----
 
 	[Fact]
-	public void BeDeterministic_WhenJitterDisabled()
+	public void BeDeterministic_Always()
 	{
-		var parameters = Params(baseMs: 100, multiplier: 2.0, useJitter: false);
+		// STRENGTHENED, not merely kept. This used to be BeDeterministic_WhenJitterDisabled and was
+		// conditional on a UseJitter flag that no longer exists -- so a caller had to know which flag
+		// state they were in before they could rely on the result. Determinism is now a property of the
+		// function, which is what lets its documentation claim purity honestly: the method called
+		// Random.Shared while the docs said "pure and total", and a caller who believed the docs and
+		// cached a delay got a value the next call would not reproduce.
+		var parameters = Params(baseMs: 100, multiplier: 2.0);
 
 		var first = ExponentialBackoff.Calculate(4, parameters);
 
@@ -152,70 +179,18 @@ public sealed class ExponentialBackoffShould
 	}
 
 	[Fact]
-	public void IgnoreJitterFactor_WhenJitterDisabled()
+	public void BeDeterministic_EvenWhereTheNominalLadderExceedsTheCap()
 	{
-		// Same schedule, jitter off, but a large JitterFactor — must have zero effect.
-		var noJitter = Params(baseMs: 100, multiplier: 2.0, useJitter: false);
-		var withFactorButDisabled = Params(baseMs: 100, multiplier: 2.0, useJitter: false);
+		// The regime the deleted NeverExceedMaxDelay_EvenWithPositiveJitter was blind to. It set
+		// base == max and asserted only "<= max", which a constant satisfies -- so it passed while the
+		// band it was guarding had collapsed to exactly max with probability one. Here the constant IS
+		// the correct answer, because this function does not randomise; the arm that proves randomisation
+		// survives the cap lives on the calculator, where the randomisation now is.
+		var parameters = Params(baseMs: 250, maxMs: 5_000, multiplier: 2.0);
 
-		ExponentialBackoff.Calculate(3, withFactorButDisabled).ShouldBe(ExponentialBackoff.Calculate(3, noJitter));
-	}
-
-	// ---- Jitter (UseJitter = true): bounded + varies ----
-
-	[Fact]
-	public void KeepJitteredDelayWithinSymmetricBounds()
-	{
-		// attempt 3, base 100, multiplier 2 => nominal 400ms; jitter ±20% => [320, 480], capped at MaxDelay.
-		var parameters = Params(baseMs: 100, maxMs: 1_000_000, multiplier: 2.0, useJitter: true);
-		const double nominal = 400;
-		const double lower = nominal * 0.8;
-		const double upper = nominal * 1.2;
-
-		for (var i = 0; i < 1_000; i++)
+		for (var attempt = 6; attempt <= 12; attempt++)
 		{
-			var ms = ExponentialBackoff.Calculate(3, parameters).TotalMilliseconds;
-
-			ms.ShouldBeGreaterThanOrEqualTo(lower - 0.0001);
-			ms.ShouldBeLessThanOrEqualTo(upper + 0.0001);
+			ExponentialBackoff.Calculate(attempt, parameters).TotalMilliseconds.ShouldBe(5_000, tolerance: 0.0001);
 		}
-	}
-
-	[Fact]
-	public void NeverExceedMaxDelay_EvenWithPositiveJitter()
-	{
-		// Nominal delay sits exactly at the cap; positive jitter must still be clamped to MaxDelay.
-		var parameters = Params(baseMs: 5_000, maxMs: 5_000, multiplier: 2.0, useJitter: true);
-
-		for (var i = 0; i < 1_000; i++)
-		{
-			ExponentialBackoff.Calculate(2, parameters).TotalMilliseconds.ShouldBeLessThanOrEqualTo(5_000 + 0.0001);
-		}
-	}
-
-	[Fact]
-	public void NeverReturnNegativeDelay_WithAggressiveJitter()
-	{
-		var parameters = Params(baseMs: 100, maxMs: 1_000_000, multiplier: 2.0, useJitter: true);
-
-		for (var i = 0; i < 1_000; i++)
-		{
-			ExponentialBackoff.Calculate(2, parameters).ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
-		}
-	}
-
-	[Fact]
-	public void ProduceVaryingDelays_WhenJitterEnabled()
-	{
-		var parameters = Params(baseMs: 1_000, maxMs: 1_000_000, multiplier: 2.0, useJitter: true);
-
-		var observed = new HashSet<double>();
-		for (var i = 0; i < 200; i++)
-		{
-			_ = observed.Add(ExponentialBackoff.Calculate(3, parameters).TotalMilliseconds);
-		}
-
-		// A non-degenerate random jitter must yield many distinct values, not a single constant.
-		observed.Count.ShouldBeGreaterThan(10);
 	}
 }

@@ -58,10 +58,18 @@ public sealed class ProjectionRetryOptions
 	public bool UseExponentialBackoff { get; init; } = true;
 
 	/// <summary>
-	/// Gets the fractional jitter magnitude from 0 to 1; delays vary by plus or minus this fraction and are capped by MaxDelay.
+	/// Gets a value indicating whether retry delays are randomized to decorrelate concurrent clients.
 	/// </summary>
 	/// <value>
-	/// The jitter factor for retry delays.
+	/// <see langword="true" /> to randomize each delay; otherwise <see langword="false" />. Defaults to
+	/// <see langword="true" />.
 	/// </value>
-	public double JitterFactor { get; init; } = 0.2;
+	/// <remarks>
+	/// Replaces a <c>JitterFactor</c> double that scaled a symmetric band -- delays varied by plus or minus
+	/// the fraction around the nominal. A band keeps its mass near the nominal, so clients that failed in
+	/// the same instant stayed clustered and retried together; the randomisation added noise without
+	/// decorrelating anything, which is the only reason to apply it. The strategy now uses the resilience
+	/// pipeline's own jitter, which reaches the low end of the interval.
+	/// </remarks>
+	public bool UseJitter { get; init; } = true;
 }

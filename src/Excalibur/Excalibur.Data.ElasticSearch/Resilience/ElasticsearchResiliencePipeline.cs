@@ -54,7 +54,7 @@ internal sealed class ElasticsearchResiliencePipeline
 				BackoffType = settings.Retry.UseExponentialBackoff
 					? DelayBackoffType.Exponential
 					: DelayBackoffType.Constant,
-				UseJitter = settings.Retry.JitterFactor > 0,
+				UseJitter = settings.Retry.UseJitter,
 				ShouldHandle = new PredicateBuilder().Handle<Exception>(IsTransient),
 			});
 		}

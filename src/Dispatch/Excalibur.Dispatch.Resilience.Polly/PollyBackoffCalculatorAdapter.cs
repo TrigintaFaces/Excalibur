@@ -15,9 +15,28 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This adapter bridges Polly's backoff generation capabilities (including decorrelated jitter
-/// backoff V2) with Dispatch's zero-dependency backoff abstraction. Use this when you want
-/// Polly's proven backoff strategies, especially the decorrelated jitter algorithm.
+/// This adapter maps Polly's <see cref="DelayBackoffType" /> vocabulary onto Dispatch's
+/// <see cref="IBackoffCalculator" /> seam, so a consumer who has chosen the Polly package selects a growth
+/// law by the same name Polly uses.
+/// </para>
+/// <para>
+/// <b>It computes the delays itself, and that is forced rather than preferred.</b> Polly exposes no public
+/// API that yields the delay for an arbitrary attempt: the computation lives in
+/// <c>Polly.Retry.RetryHelper</c>, which is <see langword="internal" /> (verified against
+/// Polly.Core 8.6.6 assembly metadata -- it is absent from <c>GetExportedTypes()</c>), and a Polly delay
+/// otherwise exists only inside a running pipeline's retry loop. An <see cref="IBackoffCalculator" /> is
+/// asked "what delay for attempt N" with no execution in flight, so there is nothing to delegate to.
+/// </para>
+/// <para>
+/// <b>Consequently the jitter here is AWS full jitter, NOT Polly's DecorrelatedJitterBackoffV2.</b> This
+/// used to be documented the other way round, which was false in a way no test could catch: Polly's own
+/// XML documents DecorrelatedJitterBackoffV2 as distributing between 0 and roughly 1.5 to 2 times the
+/// nominal delay, whereas this samples uniformly over <c>[0, nominal]</c>. Both reach the low end, which is
+/// the property <see cref="IBackoffCalculator" /> actually requires; they are not the same distribution,
+/// and claiming Polly's algorithm while shipping another is the kind of divergence this seam exists to
+/// prevent. The retry EXECUTION path in this package -- <c>PollyRetryPolicyAdapter</c> -- does use a real
+/// <c>RetryStrategyOptions</c> with Polly's own <c>UseJitter</c>, so a consumer who wants Polly's exact
+/// distribution gets it there.
 /// </para>
 /// <para>
 /// For consumers who don't need Polly's strategies, the core package provides
@@ -26,16 +45,11 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// </remarks>
 internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 {
-	// Constants for decorrelated jitter algorithm (from Polly's implementation)
-
 	private readonly DelayBackoffType _backoffType;
 	private readonly TimeSpan _baseDelay;
 	private readonly TimeSpan _maxDelay;
 	private readonly bool _useJitter;
 	private readonly double _factor;
-
-	// Track previous delay for decorrelated jitter
-	private readonly Lock _lock = new();
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PollyBackoffCalculatorAdapter"/> class
@@ -87,19 +101,24 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 	}
 
 	/// <summary>
-	/// Creates a new instance using Polly's decorrelated jitter backoff V2 strategy.
+	/// Creates an exponential calculator with full jitter applied.
 	/// </summary>
-	/// <param name="medianFirstRetryDelay">The median delay for the first retry.</param>
+	/// <param name="firstRetryDelay">The delay for the first retry, before jitter.</param>
 	/// <param name="maxDelay">The maximum delay cap.</param>
-	/// <returns>A new adapter configured with decorrelated jitter backoff.</returns>
+	/// <returns>A new adapter configured for exponential growth with full jitter.</returns>
 	/// <remarks>
-	/// This is the recommended strategy from Polly for production use. It provides
-	/// decorrelated delays that help prevent thundering herd problems.
+	/// <b>Renamed from <c>CreateDecorrelatedJitter</c>, which it never was.</b> That name and its
+	/// documentation promised Polly's DecorrelatedJitterBackoffV2 and returned this -- AWS full jitter,
+	/// uniform over <c>[0, nominal]</c>, computed here. Polly's algorithm is unreachable from outside
+	/// Polly; see the remarks on the type. The parameter was also called <c>medianFirstRetryDelay</c>,
+	/// which described the decorrelated algorithm's median-seeking behaviour rather than what this
+	/// computes: full jitter over an exponential ladder has a MEAN of half the nominal, not a median at
+	/// it, so a caller sizing their first retry from that name got half what they asked for.
 	/// </remarks>
-	public static PollyBackoffCalculatorAdapter CreateDecorrelatedJitter(
-		TimeSpan medianFirstRetryDelay,
+	public static PollyBackoffCalculatorAdapter CreateJitteredExponential(
+		TimeSpan firstRetryDelay,
 		TimeSpan maxDelay) =>
-		new(DelayBackoffType.Exponential, medianFirstRetryDelay, maxDelay, true);
+		new(DelayBackoffType.Exponential, firstRetryDelay, maxDelay, true);
 
 	/// <inheritdoc />
 	/// <remarks>
@@ -149,11 +168,9 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 			yield break;
 		}
 
-		// Reset state for fresh sequence
-		lock (_lock)
-		{
-		}
-
+		// No state to reset. This used to acquire a lock here and clear the previous-delay field that the
+		// decorrelated-jitter path threaded forward; that path is gone and the calculator is stateless, so
+		// what remained was an empty lock block -- an acquire and release that guarded nothing.
 		for (var i = 1; i <= retryCount; i++)
 		{
 			yield return CalculateDelay(i);

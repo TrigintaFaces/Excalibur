@@ -20,10 +20,12 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// Postgres-specific implementation of DataRequest retry policy that handles Postgres transient failures and provides appropriate retry logic.
 /// </summary>
 /// <remarks>
-/// Attempt sequencing, backoff and the terminal rethrow are owned by a Polly <see cref="ResiliencePipeline" />; this type contributes
-/// only the Postgres-specific policy - which exceptions are transient (<see cref="ShouldRetry(Exception)" />) and how long to wait
-/// (<see cref="CalculateDelay(int)" />). Delays are scheduled through an injected <see cref="TimeProvider" /> so the backoff schedule
-/// is observable in a test without elapsing wall-clock time.
+/// Attempt sequencing, backoff, jitter, the ceiling and the terminal rethrow are all owned by a Polly
+/// <see cref="ResiliencePipeline" />; this type contributes only the Postgres-specific policy - which exceptions are
+/// transient (<see cref="ShouldRetry(Exception)" />). It used to contribute the delay as well, through a
+/// custom delay generator; that generator is gone and the schedule is now configured on the strategy, so
+/// nothing here re-implements what the dependency already provides. Delays are scheduled through an injected
+/// <see cref="TimeProvider" /> so the backoff schedule is observable in a test without elapsing wall-clock time.
 /// </remarks>
 internal sealed class PostgresDataRequestRetryPolicy : IRelationalDataRequestRetryPolicy
 {
@@ -154,42 +156,6 @@ internal sealed class PostgresDataRequestRetryPolicy : IRelationalDataRequestRet
 	/// <value> The ceiling on any single backoff delay. </value>
 	private TimeSpan MaxRetryDelay => TimeSpan.FromMilliseconds(_options.Resilience.MaxRetryDelayMilliseconds);
 
-	/// <summary>
-	/// Calculates the delay for the specified retry attempt using exponential backoff, bounded by the
-	/// configured ceiling.
-	/// </summary>
-	/// <param name="attempt"> The retry attempt number (1-based). </param>
-	/// <returns> The delay to wait before retrying, never exceeding <see cref="MaxRetryDelay" />. </returns>
-	/// <remarks>
-	/// <para>
-	/// The ceiling is applied here, to the value this method returns, rather than through the retry
-	/// strategy's own ceiling: that one is documented to be ignored for delays produced by a delay
-	/// generator, and this policy uses a generator so that the schedule stays the configured base grown
-	/// exponentially. Setting it there would compile, read as a bound, and cap nothing.
-	/// </para>
-	/// <para>
-	/// Composed with a minimum, so the ceiling can only ever tighten the wait. Relaxing it is not
-	/// something an ordinary edit can express - it requires turning the minimum into a maximum.
-	/// </para>
-	/// </remarks>
-	private TimeSpan CalculateDelay(int attempt)
-	{
-		// Exponential backoff with jitter
-		var exponentialDelay = TimeSpan.FromMilliseconds(
-			BaseRetryDelay.TotalMilliseconds * Math.Pow(2, attempt - 1));
-
-		// Add some jitter to prevent thundering herd
-		// CA5394: Random used for retry jitter, not cryptographic purposes
-#pragma warning disable CA5394
-		var jitter = Random.Shared.NextDouble() * 0.1; // 10% jitter
-#pragma warning restore CA5394
-		var jitterAmount = TimeSpan.FromMilliseconds(exponentialDelay.TotalMilliseconds * jitter);
-
-		// The bound covers the jittered value, so the returned delay never exceeds the ceiling at all -
-		// not the ceiling plus a jitter margin.
-		var delay = exponentialDelay.Add(jitterAmount);
-		return delay < MaxRetryDelay ? delay : MaxRetryDelay;
-	}
 
 	/// <summary>
 	/// Builds the retry pipeline that owns attempt sequencing, backoff scheduling and the terminal rethrow.
@@ -211,8 +177,24 @@ internal sealed class PostgresDataRequestRetryPolicy : IRelationalDataRequestRet
 				MaxRetryAttempts = MaxRetryAttempts,
 				ShouldHandle = args => ValueTask.FromResult(args.Outcome.Exception is { } exception && ShouldRetry(exception)),
 
-				// AttemptNumber is 0-based on the first failure, so the delay for that failure is CalculateDelay(1).
-				DelayGenerator = args => ValueTask.FromResult<TimeSpan?>(CalculateDelay(args.AttemptNumber + 1)),
+				// The schedule is Polly's, not ours. This used to supply a DelayGenerator computing
+				// BaseRetryDelay * 2^(attempt-1) plus a hand-rolled jitter, which forced the method to
+				// re-implement the ceiling as well -- MaxDelay is documented to be ignored when a generator
+				// is present, so the generator had to cap its own output. Dropping the generator makes
+				// MaxDelay live and hands the growth law, the jitter and the cap to the dependency this
+				// package already carries. Exponential here is Delay * 2^AttemptNumber with AttemptNumber
+				// 0-based, which is the same ladder the generator produced.
+				//
+				// UseJitter replaces jitter that only ever ADDED: the old factor was
+				// Random.Shared.NextDouble() * 0.1 applied as delay * (1 + f), so every value sat at or
+				// above the nominal and nothing ever retried sooner than configured. That spreads no herd
+				// -- clients that failed together stayed clustered at the lower bound -- it only made them
+				// slower. Polly's jitter reaches the low end of the interval, which is the property jitter
+				// exists for.
+				BackoffType = DelayBackoffType.Exponential,
+				Delay = BaseRetryDelay,
+				MaxDelay = MaxRetryDelay,
+				UseJitter = true,
 				OnRetry = args =>
 				{
 					var exception = args.Outcome.Exception!;

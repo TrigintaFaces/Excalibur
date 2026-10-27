@@ -34,10 +34,20 @@ public sealed class ElasticSearchRetryPolicyOptions
 	public TimeSpan MaxDelay { get; init; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
-	/// Gets the jitter factor for randomizing retry delays.
+	/// Gets a value indicating whether retry delays are randomized to decorrelate concurrent clients.
 	/// </summary>
-	/// <value> A <see cref="double" /> between 0.0 and 1.0 representing the jitter factor. Defaults to 0.1. </value>
-	public double JitterFactor { get; init; } = 0.1;
+	/// <value>
+	/// <see langword="true" /> to randomize each delay; otherwise <see langword="false" />. Defaults to
+	/// <see langword="true" />.
+	/// </value>
+	/// <remarks>
+	/// Replaces a <c>JitterFactor</c> double that scaled a symmetric band. The retry strategy this feeds
+	/// never applied that band: it passed <c>JitterFactor &gt; 0</c> as a boolean to the resilience
+	/// pipeline's own jitter switch and discarded the magnitude entirely, so every value from 0.01 to 1.0
+	/// produced exactly the same behaviour and only zero differed. The knob advertised a precision it did
+	/// not have; this names the one bit that was ever read.
+	/// </remarks>
+	public bool UseJitter { get; init; } = true;
 
 	/// <summary>
 	/// Gets a value indicating whether to use exponential backoff for retry delays.

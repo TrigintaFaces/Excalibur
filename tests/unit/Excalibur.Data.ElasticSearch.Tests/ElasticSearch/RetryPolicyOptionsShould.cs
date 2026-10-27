@@ -18,7 +18,7 @@ public sealed class ElasticSearchRetryPolicyOptionsShould
 		sut.MaxAttempts.ShouldBe(3);
 		sut.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		sut.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
-		sut.JitterFactor.ShouldBe(0.1);
+		sut.UseJitter.ShouldBeTrue();
 		sut.UseExponentialBackoff.ShouldBeTrue();
 	}
 
@@ -31,7 +31,7 @@ public sealed class ElasticSearchRetryPolicyOptionsShould
 			MaxAttempts = 5,
 			BaseDelay = TimeSpan.FromSeconds(2),
 			MaxDelay = TimeSpan.FromMinutes(1),
-			JitterFactor = 0.3,
+			UseJitter = false,
 			UseExponentialBackoff = false,
 		};
 
@@ -39,7 +39,7 @@ public sealed class ElasticSearchRetryPolicyOptionsShould
 		sut.MaxAttempts.ShouldBe(5);
 		sut.BaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
 		sut.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
-		sut.JitterFactor.ShouldBe(0.3);
+		sut.UseJitter.ShouldBeFalse();
 		sut.UseExponentialBackoff.ShouldBeFalse();
 	}
 }

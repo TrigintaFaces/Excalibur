@@ -123,10 +123,8 @@ internal static class ProjectionErrorPersistenceRetry
 		{
 			throw new ArgumentOutOfRangeException(nameof(settings), "Retry delays must be non-negative.");
 		}
-		if (!double.IsFinite(settings.JitterFactor) || settings.JitterFactor is < 0 or > 1)
-		{
-			throw new ArgumentOutOfRangeException(nameof(settings), "JitterFactor must be finite and between 0 and 1.");
-		}
+		// The JitterFactor range check is gone with the property. It validated the magnitude of a symmetric
+		// band that no longer exists; a boolean has no invalid value to reject.
 
 		if (maxAttempts > 1)
 		{
@@ -141,7 +139,17 @@ internal static class ProjectionErrorPersistenceRetry
 				// withdrawn caller stops the write here and nothing downstream can override that.
 				ShouldHandle = args => ValueTask.FromResult(!args.Context.CancellationToken.IsCancellationRequested &&
 					(args.Outcome.Exception is not null || args.Outcome.Result)),
-				DelayGenerator = args => ValueTask.FromResult<TimeSpan?>(CalculateDelay(settings, args.AttemptNumber, Random.Shared.NextDouble())),
+				// The schedule is the strategy's, not ours. This supplied a DelayGenerator computing
+				// base * 2^attempt scaled by a symmetric band, 1 + f*(2r-1). A band keeps its mass near the
+				// nominal, so hosts that failed in the same instant stayed clustered and retried together
+				// -- noise without decorrelation. The generator also forced the cap to be reimplemented,
+				// which its own comment conceded: "Custom Polly delay generators must apply their own cap."
+				// Dropping it makes MaxDelay live and hands growth, jitter and ceiling to the dependency
+				// this package already carries.
+				BackoffType = settings.UseExponentialBackoff ? DelayBackoffType.Exponential : DelayBackoffType.Constant,
+				Delay = settings.BaseDelay,
+				MaxDelay = settings.MaxDelay,
+				UseJitter = settings.UseJitter,
 				OnRetry = args =>
 				{
 					logger.LogWarning("Retrying projection error persistence {Operation}: attempt {Attempt}/{MaxAttempts} after {RetryDelay}",
@@ -153,16 +161,4 @@ internal static class ProjectionErrorPersistenceRetry
 		return builder.Build();
 	}
 
-	internal static TimeSpan CalculateDelay(ProjectionRetryOptions settings, int attemptNumber, double sample)
-	{
-		var jitter = 1 + (settings.JitterFactor * ((2 * sample) - 1));
-		if (settings.BaseDelay == TimeSpan.Zero || jitter <= 0)
-		{
-			return TimeSpan.Zero;
-		}
-		var multiplier = settings.UseExponentialBackoff ? Math.Pow(2, attemptNumber) : 1;
-		var ticks = settings.BaseDelay.Ticks * multiplier * jitter;
-		// Custom Polly delay generators must apply their own cap. Also avoid an overflowing double-to-long cast.
-		return ticks >= settings.MaxDelay.Ticks ? settings.MaxDelay : TimeSpan.FromTicks((long)ticks);
-	}
 }

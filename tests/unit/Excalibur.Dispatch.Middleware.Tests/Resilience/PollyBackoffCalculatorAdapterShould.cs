@@ -104,13 +104,13 @@ public sealed class PollyBackoffCalculatorAdapterShould
 
 	#endregion Constructor Tests
 
-	#region CreateDecorrelatedJitter Factory Tests
+	#region CreateJitteredExponential Factory Tests
 
 	[Fact]
-	public void CreateDecorrelatedJitterWithValidParameters()
+	public void CreateJitteredExponentialWithValidParameters()
 	{
 		// Act
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
+		var calculator = PollyBackoffCalculatorAdapter.CreateJitteredExponential(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30));
 
@@ -119,10 +119,10 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	}
 
 	[Fact]
-	public void DecorrelatedJitterProducePositiveDelays()
+	public void JitteredExponentialProducePositiveDelays()
 	{
 		// Arrange
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
+		var calculator = PollyBackoffCalculatorAdapter.CreateJitteredExponential(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30));
 
@@ -134,7 +134,7 @@ public sealed class PollyBackoffCalculatorAdapterShould
 		}
 	}
 
-	#endregion CreateDecorrelatedJitter Factory Tests
+	#endregion CreateJitteredExponential Factory Tests
 
 	#region Constant Backoff Tests
 
@@ -431,7 +431,7 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	public void ResetPreviousDelayOnNewSequence()
 	{
 		// Arrange
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
+		var calculator = PollyBackoffCalculatorAdapter.CreateJitteredExponential(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30));
 
@@ -447,13 +447,13 @@ public sealed class PollyBackoffCalculatorAdapterShould
 
 	#endregion GenerateDelays Tests
 
-	#region Decorrelated Jitter V2 Tests
+	#region Full Jitter Tests
 
 	[Fact]
-	public void DecorrelatedJitterProducesVariedDelays()
+	public void JitteredExponentialProducesVariedDelays()
 	{
 		// Arrange
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
+		var calculator = PollyBackoffCalculatorAdapter.CreateJitteredExponential(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30));
 
@@ -472,11 +472,11 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	}
 
 	[Fact]
-	public void DecorrelatedJitterRespectsMaxDelay()
+	public void JitteredExponentialRespectsMaxDelay()
 	{
 		// Arrange
 		var maxDelay = TimeSpan.FromMilliseconds(500);
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
+		var calculator = PollyBackoffCalculatorAdapter.CreateJitteredExponential(
 			TimeSpan.FromMilliseconds(100),
 			maxDelay);
 
@@ -489,7 +489,7 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	}
 
 
-	#endregion Decorrelated Jitter V2 Tests
+	#endregion Full Jitter Tests
 
 	#region Thread Safety Tests
 
@@ -497,7 +497,7 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	public async Task HandleConcurrentCalculateDelayCalls()
 	{
 		// Arrange
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
+		var calculator = PollyBackoffCalculatorAdapter.CreateJitteredExponential(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30));
 
