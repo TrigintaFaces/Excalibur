@@ -194,7 +194,7 @@ internal sealed class PostgresDataRequestRetryPolicy : IRelationalDataRequestRet
 				BackoffType = DelayBackoffType.Exponential,
 				Delay = BaseRetryDelay,
 				MaxDelay = MaxRetryDelay,
-				UseJitter = true,
+				UseJitter = _options.Resilience.UseJitter,
 				OnRetry = args =>
 				{
 					var exception = args.Outcome.Exception!;

@@ -352,7 +352,15 @@ public sealed class PostgresDataRequestRetryPolicyExecutionShould : UnitTestBase
 
 		// Eight attempts grown from a second: unbounded, the schedule reaches 128s, so the ceiling has
 		// something to bind on, and the run still settles inside the simulated budget below.
-		var policy = CreatePolicy(maxRetryAttempts: 8, logger, clock, baseDelayMilliseconds: 1_000);
+		//
+		// JITTER OFF, deliberately, and this is the whole point of the arm. The non-vacuity assertion at
+		// the end requires the capped delay to EQUAL the ceiling, which is a property of an un-randomised
+		// schedule: with jitter the delay is sampled BELOW the cap, so the equality held only when the
+		// sample happened to clamp. That made this arm intermittent rather than wrong -- it passed roughly
+		// three runs in four, so a local green looked like evidence and the mirror found it. The ceiling
+		// and the randomisation are separate properties and are now asserted separately: this arm owns the
+		// cap, ApplyJitterThatCanSHORTENADelay_NotOnlyLengthenIt owns the randomisation.
+		var policy = CreatePolicy(maxRetryAttempts: 8, logger, clock, baseDelayMilliseconds: 1_000, useJitter: false);
 
 		await DriveToExhaustionAsync(policy, clock).ConfigureAwait(true);
 
@@ -368,6 +376,30 @@ public sealed class PostgresDataRequestRetryPolicyExecutionShould : UnitTestBase
 		// Non-vacuity: a cap that never bound would leave the arm above passing for the wrong reason.
 		// A second doubled seven times is 128s, so the tail of this schedule is values the cap brought down.
 		logger.RetryDelaysMilliseconds[^1].ShouldBe(DelayCeiling.TotalMilliseconds);
+	}
+
+	[Fact]
+	public async Task CapEveryDelayAtTheCeilingWithJitterOnToo()
+	{
+		// The same ceiling, with randomisation live -- the configuration consumers actually get by default.
+		// The equality above is unavailable here by construction, so this asserts only what jitter leaves
+		// true: the cap is still a hard bound. Keeping both arms means turning the ceiling off cannot be
+		// hidden by the jitter-off arm, and turning jitter off cannot be hidden by this one.
+		var clock = new FakeTimeProvider();
+		var logger = new CapturingLogger();
+
+		var policy = CreatePolicy(maxRetryAttempts: 8, logger, clock, baseDelayMilliseconds: 1_000, useJitter: true);
+
+		await DriveToExhaustionAsync(policy, clock).ConfigureAwait(true);
+
+		logger.RetryDelaysMilliseconds.Count.ShouldBe(8);
+		foreach (var delay in logger.RetryDelaysMilliseconds)
+		{
+			delay.ShouldBeLessThanOrEqualTo(
+				DelayCeiling.TotalMilliseconds,
+				"No single backoff delay may exceed the ceiling, jitter included. Observed (ms): "
+				+ string.Join(", ", logger.RetryDelaysMilliseconds));
+		}
 	}
 
 	[Fact]
@@ -423,11 +455,13 @@ public sealed class PostgresDataRequestRetryPolicyExecutionShould : UnitTestBase
 		int maxRetryAttempts,
 		ILogger logger,
 		TimeProvider timeProvider,
-		int baseDelayMilliseconds = 1_000)
+		int baseDelayMilliseconds = 1_000,
+		bool useJitter = true)
 	{
 		var options = new PostgresPersistenceOptions();
 		options.Resilience.MaxRetryAttempts = maxRetryAttempts;
 		options.Resilience.RetryDelayMilliseconds = baseDelayMilliseconds;
+		options.Resilience.UseJitter = useJitter;
 
 		return new PostgresDataRequestRetryPolicy(options, logger, timeProvider);
 	}

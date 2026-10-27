@@ -164,6 +164,8 @@ Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.MaxRetr
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.PostgresPersistenceResilienceOptions() -> void
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.RetryDelayMilliseconds.get -> int
 Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.RetryDelayMilliseconds.set -> void
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.UseJitter.get -> bool
+Excalibur.Data.Postgres.Persistence.PostgresPersistenceResilienceOptions.UseJitter.set -> void
 Excalibur.Data.Postgres.Persistence.PostgresStatementOptions
 Excalibur.Data.Postgres.Persistence.PostgresStatementOptions.AutoPrepareMinUsages.get -> int
 Excalibur.Data.Postgres.Persistence.PostgresStatementOptions.AutoPrepareMinUsages.set -> void

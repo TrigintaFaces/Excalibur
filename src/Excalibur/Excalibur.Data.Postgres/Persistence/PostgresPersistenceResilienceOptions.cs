@@ -59,6 +59,31 @@ public sealed class PostgresPersistenceResilienceOptions
 	public int MaxRetryDelayMilliseconds { get; set; } = 30000;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether retry delays are randomized to decorrelate concurrent clients.
+	/// </summary>
+	/// <value>
+	/// <see langword="true" /> to randomize each delay below its capped nominal value; otherwise
+	/// <see langword="false" /> for a deterministic schedule. Defaults to <see langword="true" />.
+	/// </value>
+	/// <remarks>
+	/// <para>
+	/// Randomisation is on by default because two hosts that fail in the same instant must not retry in
+	/// the same instant; a deterministic schedule guarantees they do.
+	/// </para>
+	/// <para>
+	/// It is settable because a deterministic schedule is genuinely wanted in two cases: a test that
+	/// asserts an exact delay, and an operator who needs reproducible pacing while diagnosing a fault.
+	/// The provider previously hardcoded randomisation on, which left neither case expressible -- and the
+	/// first of them is how this option came to exist, because an existing arm proving the ceiling
+	/// actually binds asserted the capped delay EQUALS the ceiling, which is true only when no jitter is
+	/// applied. With jitter forced on, that arm passed only when the sampled value happened to clamp, so
+	/// it became intermittent rather than wrong: the worst failure mode of the two, because a green run
+	/// looked like evidence.
+	/// </para>
+	/// </remarks>
+	public bool UseJitter { get; set; } = true;
+
+	/// <summary>
 	/// Validates these options and throws when they describe a retry schedule the provider cannot honour.
 	/// </summary>
 	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
