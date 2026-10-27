@@ -407,7 +407,6 @@ public sealed class RetryMiddlewareShould
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10),
 			BackoffStrategy = BackoffStrategy.Exponential,
-			JitterFactor = 0.5,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
@@ -432,28 +431,7 @@ public sealed class RetryMiddlewareShould
 		attemptCount.ShouldBe(3);
 	}
 
-	[Fact]
-	public void HaveDefaultJitterFactorOfTenPercent()
-	{
-		// Arrange
-		var options = new RetryOptions();
 
-		// Assert
-		options.JitterFactor.ShouldBe(0.1);
-	}
-
-	[Fact]
-	public void SupportCustomJitterFactor()
-	{
-		// Arrange
-		var options = new RetryOptions
-		{
-			JitterFactor = 0.25,
-		};
-
-		// Assert
-		options.JitterFactor.ShouldBe(0.25);
-	}
 
 	#endregion Exponential With Jitter Strategy Tests
 

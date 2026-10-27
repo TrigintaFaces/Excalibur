@@ -49,12 +49,6 @@ public sealed class RetryAttribute : Attribute
 	public BackoffStrategy BackoffStrategy { get; set; } = BackoffStrategy.Exponential;
 
 	/// <summary>
-	/// Gets or sets the jitter factor for randomizing retry delays.
-	/// </summary>
-	/// <value>Default is 0.1 (10% jitter).</value>
-	public double JitterFactor { get; set; } = 0.1;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to use jitter.
 	/// </summary>
 	/// <value>

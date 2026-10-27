@@ -61,7 +61,6 @@ public sealed class ResilienceOptionsShould
 		options.MaxDelay.ShouldBe(TimeSpan.FromSeconds(30));
 		options.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 		options.BackoffMultiplier.ShouldBe(2.0);
-		options.JitterFactor.ShouldBe(0.1);
 		options.UseJitter.ShouldBeFalse();
 		options.RetryableExceptions.ShouldNotBeNull();
 		options.RetryableExceptions.ShouldBeEmpty();
@@ -92,7 +91,6 @@ public sealed class ResilienceOptionsShould
 			MaxDelay = TimeSpan.FromMinutes(1),
 			BackoffStrategy = BackoffStrategy.Linear,
 			BackoffMultiplier = 1.5,
-			JitterFactor = 0.2,
 			UseJitter = false,
 		};
 
@@ -102,7 +100,6 @@ public sealed class ResilienceOptionsShould
 		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.BackoffStrategy.ShouldBe(BackoffStrategy.Linear);
 		options.BackoffMultiplier.ShouldBe(1.5);
-		options.JitterFactor.ShouldBe(0.2);
 		options.UseJitter.ShouldBeFalse();
 	}
 

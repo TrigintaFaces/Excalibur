@@ -252,10 +252,6 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 	}
 
 	/// <summary>
-	/// Checks whether any wildcard grant matches the specified request scope.
-	/// Iterates the pre-sorted wildcard list; the first match is the most specific.
-	/// </summary>
-	/// <summary>
 	/// Probes the exact-match index without composing a key string.
 	/// </summary>
 	/// <param name="tenant">The tenant term.</param>
@@ -286,6 +282,10 @@ public sealed class AuthorizationPolicy : IAuthorizationPolicy
 			: _exactGrants.ContainsKey(SegmentedKey.Compose(tenant, type, qualifier));
 	}
 
+	/// <summary>
+	/// Checks whether any wildcard grant matches the specified request scope.
+	/// Iterates the pre-sorted wildcard list; the first match is the most specific.
+	/// </summary>
 	private bool HasWildcardMatch(string requestTenant, string requestType, string requestQualifier)
 	{
 		foreach (var scope in _wildcardGrants)

@@ -54,12 +54,6 @@ public sealed class RetryOptions
 	public double BackoffMultiplier { get; set; } = 2.0;
 
 	/// <summary>
-	/// Gets or sets the jitter factor for randomizing retry delays.
-	/// </summary>
-	/// <value>Default is 0.1 (10% jitter).</value>
-	public double JitterFactor { get; set; } = 0.1;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to add jitter to retry delays.
 	/// </summary>
 	/// <remarks>

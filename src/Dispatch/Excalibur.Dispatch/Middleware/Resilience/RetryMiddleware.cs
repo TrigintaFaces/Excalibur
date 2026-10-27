@@ -91,7 +91,6 @@ public sealed partial class RetryMiddleware(IOptions<RetryOptions> options, ITel
 				BaseDelay = TimeSpan.FromMilliseconds(attr.BaseDelayMs),
 				MaxDelay = TimeSpan.FromMilliseconds(attr.MaxDelayMs),
 				BackoffStrategy = attr.BackoffStrategy,
-				JitterFactor = attr.JitterFactor,
 				UseJitter = attr.UseJitter
 			};
 

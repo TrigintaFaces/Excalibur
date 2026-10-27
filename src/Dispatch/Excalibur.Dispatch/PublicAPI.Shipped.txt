@@ -2667,8 +2667,6 @@ Excalibur.Dispatch.Options.Resilience.RetryAttribute.BackoffStrategy.get -> Exca
 Excalibur.Dispatch.Options.Resilience.RetryAttribute.BackoffStrategy.set -> void
 Excalibur.Dispatch.Options.Resilience.RetryAttribute.BaseDelayMs.get -> int
 Excalibur.Dispatch.Options.Resilience.RetryAttribute.BaseDelayMs.set -> void
-Excalibur.Dispatch.Options.Resilience.RetryAttribute.JitterFactor.get -> double
-Excalibur.Dispatch.Options.Resilience.RetryAttribute.JitterFactor.set -> void
 Excalibur.Dispatch.Options.Resilience.RetryAttribute.MaxDelayMs.get -> int
 Excalibur.Dispatch.Options.Resilience.RetryAttribute.MaxDelayMs.set -> void
 Excalibur.Dispatch.Options.Resilience.RetryAttribute.MaxRetryAttempts.get -> int
@@ -2683,8 +2681,6 @@ Excalibur.Dispatch.Options.Resilience.RetryOptions.BackoffStrategy.get -> Excali
 Excalibur.Dispatch.Options.Resilience.RetryOptions.BackoffStrategy.set -> void
 Excalibur.Dispatch.Options.Resilience.RetryOptions.BaseDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Resilience.RetryOptions.BaseDelay.set -> void
-Excalibur.Dispatch.Options.Resilience.RetryOptions.JitterFactor.get -> double
-Excalibur.Dispatch.Options.Resilience.RetryOptions.JitterFactor.set -> void
 Excalibur.Dispatch.Options.Resilience.RetryOptions.MaxDelay.get -> System.TimeSpan
 Excalibur.Dispatch.Options.Resilience.RetryOptions.MaxDelay.set -> void
 Excalibur.Dispatch.Options.Resilience.RetryOptions.MaxRetryAttempts.get -> int

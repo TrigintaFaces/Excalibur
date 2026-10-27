@@ -69,15 +69,6 @@ public sealed class RetryOptionsShould
 		options.BackoffMultiplier.ShouldBe(2.0);
 	}
 
-	[Fact]
-	public void Default_JitterFactorIsPointOne()
-	{
-		// Arrange & Act
-		var options = new RetryOptions();
-
-		// Assert
-		options.JitterFactor.ShouldBe(0.1);
-	}
 
 	[Fact]
 	public void Default_UseJitterIsTrue()
@@ -286,31 +277,7 @@ public sealed class RetryOptionsShould
 		options.BackoffMultiplier.ShouldBe(0);
 	}
 
-	[Fact]
-	public void JitterFactor_CanBeSet()
-	{
-		// Arrange
-		var options = new RetryOptions();
 
-		// Act
-		options.JitterFactor = 0.25;
-
-		// Assert
-		options.JitterFactor.ShouldBe(0.25);
-	}
-
-	[Fact]
-	public void JitterFactor_CanBeSetToZero()
-	{
-		// Arrange
-		var options = new RetryOptions();
-
-		// Act
-		options.JitterFactor = 0;
-
-		// Assert
-		options.JitterFactor.ShouldBe(0);
-	}
 
 	[Fact]
 	public void UseJitter_CanBeSetToFalse()
@@ -443,7 +410,6 @@ public sealed class RetryOptionsShould
 			MaxDelay = TimeSpan.FromMinutes(2),
 			BackoffStrategy = BackoffStrategy.Linear,
 			BackoffMultiplier = 1.5,
-			JitterFactor = 0.2,
 			UseJitter = false,
 		};
 
@@ -453,7 +419,6 @@ public sealed class RetryOptionsShould
 		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(2));
 		options.BackoffStrategy.ShouldBe(BackoffStrategy.Linear);
 		options.BackoffMultiplier.ShouldBe(1.5);
-		options.JitterFactor.ShouldBe(0.2);
 		options.UseJitter.ShouldBeFalse();
 	}
 

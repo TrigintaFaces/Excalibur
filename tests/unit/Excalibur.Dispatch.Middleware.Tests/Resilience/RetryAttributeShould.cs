@@ -24,7 +24,6 @@ public sealed class RetryAttributeShould : UnitTestBase
 		attribute.BaseDelayMs.ShouldBe(1000);
 		attribute.MaxDelayMs.ShouldBe(30000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
-		attribute.JitterFactor.ShouldBe(0.1);
 		attribute.UseJitter.ShouldBeFalse();
 	}
 
@@ -88,15 +87,6 @@ public sealed class RetryAttributeShould : UnitTestBase
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 	}
 
-	[Fact]
-	public void JitterFactor_CanBeCustomized()
-	{
-		// Arrange & Act
-		var attribute = new RetryAttribute { JitterFactor = 0.25 };
-
-		// Assert
-		attribute.JitterFactor.ShouldBe(0.25);
-	}
 
 	[Fact]
 	public void UseJitter_CanBeDisabled()

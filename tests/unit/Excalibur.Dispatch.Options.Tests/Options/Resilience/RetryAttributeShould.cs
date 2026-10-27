@@ -53,15 +53,6 @@ public sealed class RetryAttributeShould
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 	}
 
-	[Fact]
-	public void HaveDefaultJitterFactorOfPointOne()
-	{
-		// Arrange & Act
-		var attribute = new RetryAttribute();
-
-		// Assert
-		attribute.JitterFactor.ShouldBe(0.1);
-	}
 
 	[Fact]
 	public void HaveUseJitterDisabledByDefault()
@@ -141,24 +132,6 @@ public sealed class RetryAttributeShould
 		attribute.BackoffStrategy.ShouldBe(strategy);
 	}
 
-	[Theory]
-	[InlineData(0.0)]
-	[InlineData(0.05)]
-	[InlineData(0.1)]
-	[InlineData(0.25)]
-	[InlineData(0.5)]
-	[InlineData(1.0)]
-	public void AllowSettingJitterFactor(double jitterFactor)
-	{
-		// Arrange
-		var attribute = new RetryAttribute();
-
-		// Act
-		attribute.JitterFactor = jitterFactor;
-
-		// Assert
-		attribute.JitterFactor.ShouldBe(jitterFactor);
-	}
 
 	[Fact]
 	public void AllowSettingUseJitter()
@@ -235,7 +208,6 @@ public sealed class RetryAttributeShould
 			BaseDelayMs = 500,
 			MaxDelayMs = 60000,
 			BackoffStrategy = BackoffStrategy.Linear,
-			JitterFactor = 0.2,
 			UseJitter = false,
 		};
 
@@ -244,7 +216,6 @@ public sealed class RetryAttributeShould
 		attribute.BaseDelayMs.ShouldBe(500);
 		attribute.MaxDelayMs.ShouldBe(60000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Linear);
-		attribute.JitterFactor.ShouldBe(0.2);
 		attribute.UseJitter.ShouldBeFalse();
 	}
 
@@ -274,18 +245,6 @@ public sealed class RetryAttributeShould
 		attribute.BaseDelayMs.ShouldBe(0);
 	}
 
-	[Fact]
-	public void AllowNegativeJitterFactor()
-	{
-		// Arrange - Negative values might not make logical sense but property allows it
-		var attribute = new RetryAttribute();
-
-		// Act
-		attribute.JitterFactor = -0.5;
-
-		// Assert
-		attribute.JitterFactor.ShouldBe(-0.5);
-	}
 
 	[Fact]
 	public void SimulateTypicalAggressiveRetryConfiguration()
@@ -297,7 +256,6 @@ public sealed class RetryAttributeShould
 			BaseDelayMs = 100,
 			MaxDelayMs = 5000,
 			BackoffStrategy = BackoffStrategy.Exponential,
-			JitterFactor = 0.25,
 			UseJitter = true,
 		};
 
@@ -306,7 +264,6 @@ public sealed class RetryAttributeShould
 		attribute.BaseDelayMs.ShouldBe(100);
 		attribute.MaxDelayMs.ShouldBe(5000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
-		attribute.JitterFactor.ShouldBe(0.25);
 		attribute.UseJitter.ShouldBeTrue("the arm sets it explicitly; this is not the default");
 	}
 

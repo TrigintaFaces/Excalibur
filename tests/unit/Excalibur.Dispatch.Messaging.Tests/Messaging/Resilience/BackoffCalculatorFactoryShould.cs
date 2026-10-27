@@ -18,7 +18,6 @@ public sealed class BackoffCalculatorFactoryShould
 		BaseDelay = TimeSpan.FromSeconds(1),
 		MaxDelay = TimeSpan.FromMinutes(5),
 		BackoffMultiplier = 2.0,
-		JitterFactor = 0.1,
 	};
 
 	[Fact]

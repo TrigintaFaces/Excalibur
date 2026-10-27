@@ -41,6 +41,16 @@ undetectable runtime substitution into a build failure that names the line.
 If you need a curve outside the three — Fibonacci growth, a ladder read from configuration — implement
 `IBackoffCalculator` and register it. That is the same escape hatch as Polly's own `DelayGenerator`.
 
+### Removed (breaking) — `JitterFactor`, which no longer configures anything
+
+`RetryOptions.JitterFactor` and `RetryAttribute.JitterFactor` are **removed**. A jitter *factor* is only
+meaningful for a band around the nominal delay; full jitter samples the whole interval `[0, nominal]` and
+has nothing to scale. Delete the property from any options object or `[Retry]` attribute — it was the knob
+by which the old implementation could be configured into not decorrelating at all.
+
+`BackoffParameters.JitterFactor` is unchanged. It is still read by `ExponentialBackoff.Calculate`, the
+shared pure function the transports call directly, which retains its own band-jitter branch.
+
 ### Changed (breaking) — `UseJitter` now works, and defaults to `false`
 
 `RetryOptions.UseJitter` and `RetryAttribute.UseJitter` **default to `false`**, matching Polly's
