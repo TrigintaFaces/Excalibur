@@ -261,4 +261,114 @@ public static class SegmentedKey
 
 		return parts;
 	}
+
+	/// <summary>
+	/// Composes three terms into a caller-supplied buffer, producing the same key as
+	/// <see cref="Compose(string, string, string)" /> without allocating a string.
+	/// </summary>
+	/// <param name="destination">The buffer to write the composed key into.</param>
+	/// <param name="charsWritten">
+	/// When this method returns <see langword="true" />, the number of characters written to
+	/// <paramref name="destination" />; otherwise, zero.
+	/// </param>
+	/// <param name="first">The first term.</param>
+	/// <param name="second">The second term.</param>
+	/// <param name="third">The third term.</param>
+	/// <returns>
+	/// <see langword="true" /> if the composed key fitted in <paramref name="destination" />; otherwise,
+	/// <see langword="false" />, with nothing written.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Why this exists.</b> The string-returning overload is the right shape when the key is going to be
+	/// stored. It is the wrong shape when the key is composed only to probe a dictionary and then dropped,
+	/// which is what an authorization check does on the dispatch path for every authorized message -- there
+	/// the composed string is garbage before the call returns. Paired with
+	/// <c>Dictionary&lt;string, T&gt;.GetAlternateLookup&lt;ReadOnlySpan&lt;char&gt;&gt;()</c> this turns a
+	/// per-check allocation into a stack write.
+	/// </para>
+	/// <para>
+	/// <b>It is the same encoding, not a second one, and that is the whole point of it living here.</b> The
+	/// escaping is identical to <see cref="Escape" /> -- '%' and ':' encoded in ONE pass, so no ordering
+	/// exists for a later edit to get wrong -- so a key composed through this method and one composed
+	/// through <see cref="Compose(string, string, string)" /> are equal character for character. A caller
+	/// that probed with one and stored with the other would still find its row. Composing the key a second
+	/// way, in the caller, is what this method exists to prevent.
+	/// </para>
+	/// <para>
+	/// Returning <see langword="false" /> rather than throwing is deliberate: a buffer too small is an
+	/// ordinary outcome for a stack buffer sized for the common case, and the caller's fallback is simply
+	/// the allocating overload. It is not an error, so it is not an exception.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="System.ArgumentNullException">
+	/// <paramref name="first" />, <paramref name="second" /> or <paramref name="third" /> is
+	/// <see langword="null" />.
+	/// </exception>
+	public static bool TryCompose(
+		Span<char> destination, out int charsWritten, string first, string second, string third)
+	{
+		ArgumentNullException.ThrowIfNull(first);
+		ArgumentNullException.ThrowIfNull(second);
+		ArgumentNullException.ThrowIfNull(third);
+
+		charsWritten = 0;
+		var at = 0;
+
+		if (!TryWriteEscaped(destination, ref at, first)
+			|| !TryWriteSeparator(destination, ref at)
+			|| !TryWriteEscaped(destination, ref at, second)
+			|| !TryWriteSeparator(destination, ref at)
+			|| !TryWriteEscaped(destination, ref at, third))
+		{
+			return false;
+		}
+
+		charsWritten = at;
+		return true;
+	}
+
+	private static bool TryWriteSeparator(Span<char> destination, ref int at)
+	{
+		if (at >= destination.Length)
+		{
+			return false;
+		}
+
+		destination[at++] = Separator;
+		return true;
+	}
+
+	private static bool TryWriteEscaped(Span<char> destination, ref int at, string value)
+	{
+		// ONE PASS, mirroring Escape exactly -- see the comment there. Each character is encoded once, so
+		// there is no "escape '%' before ':'" ordering here either.
+		foreach (var c in value)
+		{
+			switch (c)
+			{
+				case EscapeChar:
+				case Separator:
+					if (at + 3 > destination.Length)
+					{
+						return false;
+					}
+
+					destination[at++] = EscapeChar;
+					destination[at++] = c == EscapeChar ? '2' : '3';
+					destination[at++] = c == EscapeChar ? '5' : 'A';
+					break;
+				default:
+					if (at >= destination.Length)
+					{
+						return false;
+					}
+
+					destination[at++] = c;
+					break;
+			}
+		}
+
+		return true;
+	}
 }

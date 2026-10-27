@@ -86,7 +86,7 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Assert
-		options.UseJitter.ShouldBeTrue();
+		options.UseJitter.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -228,10 +228,10 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Act
-		options.BackoffStrategy = BackoffStrategy.Fixed;
+		options.BackoffStrategy = BackoffStrategy.Constant;
 
 		// Assert
-		options.BackoffStrategy.ShouldBe(BackoffStrategy.Fixed);
+		options.BackoffStrategy.ShouldBe(BackoffStrategy.Constant);
 	}
 
 	[Fact]
@@ -254,10 +254,10 @@ public sealed class RetryOptionsShould
 		var options = new RetryOptions();
 
 		// Act
-		options.BackoffStrategy = BackoffStrategy.ExponentialWithJitter;
+		options.BackoffStrategy = BackoffStrategy.Exponential;
 
 		// Assert
-		options.BackoffStrategy.ShouldBe(BackoffStrategy.ExponentialWithJitter);
+		options.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 	}
 
 	[Fact]

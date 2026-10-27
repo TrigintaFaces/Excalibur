@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Diagnostics;
 
 using Excalibur.A3.Authorization;
 
@@ -273,90 +272,12 @@ public class ConditionExpressionSpikeShould
         _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs).ShouldBeTrue();
     }
 
-    // === Performance Validation (Stopwatch, not BenchmarkDotNet -- spike only) ===
-    // Thresholds calibrated at 50% of dev-machine throughput to avoid flaky CI failures
-    // under shared-runner load (observed: ~10-55us on CI vs ~2-10us on dev machine).
-    // See BenchmarkRegressionShould for the same calibration philosophy.
-
-    [Fact]
-    public void PerformanceGate_OneComparison_Under100Microseconds()
-    {
-        var node = ConditionExpressionParser.Parse("subject.Role == 'admin'");
-
-        // Warm up
-        for (var i = 0; i < 1000; i++)
-        {
-            _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs);
-        }
-
-        // Measure
-        const int iterations = 100_000;
-        var sw = Stopwatch.StartNew();
-        for (var i = 0; i < iterations; i++)
-        {
-            _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs);
-        }
-
-        sw.Stop();
-
-        var avgMicroseconds = sw.Elapsed.TotalMicroseconds / iterations;
-        avgMicroseconds.ShouldBeLessThan(100.0,
-            $"1-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <100us)");
-    }
-
-    [Fact]
-    public void PerformanceGate_ThreeComparisons_Under100Microseconds()
-    {
-        var node = ConditionExpressionParser.Parse(
-            "subject.Role == 'admin' AND resource.Amount > 10000 AND action.Name == 'approve'");
-
-        // Warm up
-        for (var i = 0; i < 1000; i++)
-        {
-            _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs);
-        }
-
-        // Measure
-        const int iterations = 100_000;
-        var sw = Stopwatch.StartNew();
-        for (var i = 0; i < iterations; i++)
-        {
-            _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs);
-        }
-
-        sw.Stop();
-
-        var avgMicroseconds = sw.Elapsed.TotalMicroseconds / iterations;
-        avgMicroseconds.ShouldBeLessThan(100.0,
-            $"3-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <100us)");
-    }
-
-    [Fact]
-    public void PerformanceGate_FiveComparisons_Under150Microseconds()
-    {
-        var node = ConditionExpressionParser.Parse(
-            "subject.Role == 'admin' AND resource.Amount > 10000 AND action.Name == 'approve' AND subject.Department == 'Engineering' AND resource.Type == 'Order'");
-
-        // Warm up
-        for (var i = 0; i < 1000; i++)
-        {
-            _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs);
-        }
-
-        // Measure
-        const int iterations = 100_000;
-        var sw = Stopwatch.StartNew();
-        for (var i = 0; i < iterations; i++)
-        {
-            _evaluator.Evaluate(node, SubjectAttrs, ActionAttrs, ResourceAttrs);
-        }
-
-        sw.Stop();
-
-        var avgMicroseconds = sw.Elapsed.TotalMicroseconds / iterations;
-        avgMicroseconds.ShouldBeLessThan(150.0,
-            $"5-comparison evaluation took {avgMicroseconds:F3}us avg (gate: <150us)");
-    }
+    // The three Stopwatch performance gates that used to sit here were removed. They asserted
+    // microseconds per call in a unit suite, which measures the runner as much as the code: this
+    // file's own note recorded 10-55us on CI against 2-10us on a dev machine and called them
+    // "spike only". Their coverage already existed, tighter and in the right instrument --
+    // Evaluate_1_Comparison, Evaluate_3_Comparisons and Evaluate_5_Comparisons in
+    // benchmarks/Excalibur.Benchmarks/Authorization/ConditionExpressionBenchmarks.cs, gated at <10us.
 
     [Fact]
     public void ParseOnceEvaluateMany_ConsistentResults()

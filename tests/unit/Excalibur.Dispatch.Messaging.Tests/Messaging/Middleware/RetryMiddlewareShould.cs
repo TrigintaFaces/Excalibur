@@ -80,7 +80,7 @@ public sealed class RetryMiddlewareShould
 		{
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
@@ -116,7 +116,7 @@ public sealed class RetryMiddlewareShould
 		{
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromSeconds(10),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
@@ -170,7 +170,7 @@ public sealed class RetryMiddlewareShould
 		{
 			MaxRetryAttempts = 2,
 			BaseDelay = TimeSpan.FromMilliseconds(50),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
@@ -406,7 +406,7 @@ public sealed class RetryMiddlewareShould
 		{
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10),
-			BackoffStrategy = BackoffStrategy.ExponentialWithJitter,
+			BackoffStrategy = BackoffStrategy.Exponential,
 			JitterFactor = 0.5,
 		};
 		var middleware = CreateMiddleware(options);
@@ -1241,7 +1241,7 @@ public sealed class RetryMiddlewareShould
 		{
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(1),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
@@ -1278,7 +1278,7 @@ public sealed class RetryMiddlewareShould
 		{
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(1),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();

@@ -62,7 +62,7 @@ public sealed class ResilienceOptionsShould
 		options.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 		options.BackoffMultiplier.ShouldBe(2.0);
 		options.JitterFactor.ShouldBe(0.1);
-		options.UseJitter.ShouldBeTrue();
+		options.UseJitter.ShouldBeFalse();
 		options.RetryableExceptions.ShouldNotBeNull();
 		options.RetryableExceptions.ShouldBeEmpty();
 		options.NonRetryableExceptions.ShouldNotBeNull();
@@ -126,22 +126,19 @@ public sealed class ResilienceOptionsShould
 	public void BackoffStrategy_HaveExpectedValues()
 	{
 		// Assert
-		BackoffStrategy.Fixed.ShouldBe((BackoffStrategy)0);
+		BackoffStrategy.Constant.ShouldBe((BackoffStrategy)0);
 		BackoffStrategy.Linear.ShouldBe((BackoffStrategy)1);
 		BackoffStrategy.Exponential.ShouldBe((BackoffStrategy)2);
-		BackoffStrategy.ExponentialWithJitter.ShouldBe((BackoffStrategy)3);
-		BackoffStrategy.Fibonacci.ShouldBe((BackoffStrategy)4);
 	}
 
 	[Fact]
-	public void BackoffStrategy_HaveSevenValues()
+	public void BackoffStrategy_HaveThreeValues()
 	{
 		// Act
 		var values = Enum.GetValues<BackoffStrategy>();
 
 		// Assert — seven values since DecorrelatedJitter (=6) was added alongside FullJitter (=5).
-		values.Length.ShouldBe(7);
-		Enum.IsDefined(BackoffStrategy.FullJitter).ShouldBeTrue();
+		values.Length.ShouldBe(3);
 	}
 
 

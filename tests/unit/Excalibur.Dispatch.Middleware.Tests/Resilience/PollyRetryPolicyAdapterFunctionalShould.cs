@@ -127,7 +127,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		{
 			MaxRetryAttempts = 3,
 			BaseDelay = TimeSpan.FromMilliseconds(10),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 			UseJitter = false,
 		};
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));
@@ -155,7 +155,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		{
 			MaxRetryAttempts = 2,
 			BaseDelay = TimeSpan.FromMilliseconds(5),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 			UseJitter = false,
 		};
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));
@@ -178,7 +178,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		{
 			MaxRetryAttempts = 5,
 			BaseDelay = TimeSpan.FromMilliseconds(5),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 			UseJitter = false,
 			ShouldRetry = ex => ex is TimeoutException, // Only retry timeouts
 		};
@@ -202,7 +202,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		{
 			MaxRetryAttempts = 2,
 			BaseDelay = TimeSpan.FromMilliseconds(5),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 			UseJitter = false,
 		};
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));
@@ -305,7 +305,7 @@ public sealed class PollyRetryPolicyAdapterFunctionalShould
 		{
 			MaxRetryAttempts = 10,
 			BaseDelay = TimeSpan.FromSeconds(30), // Very long delay
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 			UseJitter = false,
 		};
 		var adapter = new PollyRetryPolicyAdapter(Opt(options));

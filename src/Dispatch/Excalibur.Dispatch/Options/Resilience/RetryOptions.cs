@@ -63,11 +63,26 @@ public sealed class RetryOptions
 	/// Gets or sets a value indicating whether to add jitter to retry delays.
 	/// </summary>
 	/// <remarks>
-	/// Jitter helps prevent thundering herd scenarios where many clients
-	/// retry simultaneously after a failure.
+	/// <para>
+	/// Jitter prevents the thundering herd: clients that failed together would otherwise retry together.
+	/// When enabled, the delay is sampled uniformly from zero up to the value the configured
+	/// <see cref="BackoffStrategy" /> prescribes, so it never exceeds that value and may be well below it.
+	/// Sampling the low end is the property that decorrelates clients; a band around the nominal delay
+	/// adds noise without spreading them.
+	/// </para>
+	/// <para>
+	/// <b>Applies to every strategy.</b> It used to be read by only one of them while the others decided
+	/// jitter for themselves, so a configuration could request jitter and silently receive none. It is now
+	/// the single switch, and <see cref="BackoffStrategy" /> names only the growth law.
+	/// </para>
+	/// <para>
+	/// Defaults to <see langword="false" />, which is the default Polly's own
+	/// <c>RetryStrategyOptions.UseJitter</c> uses. Jitter is worth enabling for any workload where several
+	/// instances can fail at the same moment.
+	/// </para>
 	/// </remarks>
-	/// <value><see langword="true"/> to randomize retry delays; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
-	public bool UseJitter { get; set; } = true;
+	/// <value><see langword="true"/> to randomize retry delays; otherwise, <see langword="false"/>. Default is <see langword="false"/>.</value>
+	public bool UseJitter { get; set; }
 
 	/// <summary>
 	/// Gets the exception types that should trigger retries.

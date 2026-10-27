@@ -20,7 +20,7 @@ public sealed class PollyRetryOptionsShould : UnitTestBase
 		options.MaxRetryAttempts.ShouldBe(3);
 		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 		options.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
-		options.UseJitter.ShouldBeTrue();
+		options.UseJitter.ShouldBeFalse();
 		options.ShouldRetry.ShouldBeNull();
 	}
 
@@ -70,10 +70,10 @@ public sealed class PollyRetryOptionsShould : UnitTestBase
 		var options = new PollyRetryOptions();
 
 		// Act
-		options.BackoffStrategy = BackoffStrategy.Fixed;
+		options.BackoffStrategy = BackoffStrategy.Constant;
 
 		// Assert
-		options.BackoffStrategy.ShouldBe(BackoffStrategy.Fixed);
+		options.BackoffStrategy.ShouldBe(BackoffStrategy.Constant);
 	}
 
 	[Fact]

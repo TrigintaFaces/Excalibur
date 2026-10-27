@@ -43,7 +43,7 @@ public sealed class BackoffCalculatorsShould
     public void ExponentialBackoff_IncreasesExponentially()
     {
         var sut = new ExponentialBackoffCalculator(
-            TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(30), enableJitter: false);
+            TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(30));
 
         var delay1 = sut.CalculateDelay(1);
         var delay2 = sut.CalculateDelay(2);
@@ -62,7 +62,7 @@ public sealed class BackoffCalculatorsShould
     public void Factory_CreatesFixedCalculator()
     {
         var options = new RetryOptions { BaseDelay = TimeSpan.FromSeconds(1) };
-        var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.Fixed, options);
+        var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.Constant, options);
 
         calculator.ShouldBeOfType<FixedBackoffCalculator>();
     }
@@ -89,7 +89,7 @@ public sealed class BackoffCalculatorsShould
     public void Factory_CreatesExponentialWithJitterCalculator()
     {
         var options = new RetryOptions { BaseDelay = TimeSpan.FromSeconds(1) };
-        var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.ExponentialWithJitter, options);
+        var calculator = BackoffCalculatorFactory.Create(BackoffStrategy.Exponential, options);
 
         // Should return an exponential calculator (with jitter added externally)
         calculator.ShouldNotBeNull();

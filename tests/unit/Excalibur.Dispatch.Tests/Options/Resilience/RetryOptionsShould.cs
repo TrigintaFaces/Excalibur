@@ -18,7 +18,7 @@ public sealed class RetryOptionsShould
         options.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
         options.BackoffMultiplier.ShouldBe(2.0);
         options.JitterFactor.ShouldBe(0.1);
-        options.UseJitter.ShouldBeTrue();
+        options.UseJitter.ShouldBeFalse();
     }
 
     [Fact]

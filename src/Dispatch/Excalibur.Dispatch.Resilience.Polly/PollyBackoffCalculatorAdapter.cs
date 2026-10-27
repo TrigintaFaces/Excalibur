@@ -27,8 +27,6 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 {
 	// Constants for decorrelated jitter algorithm (from Polly's implementation)
-	private const double RpScalingFactor = 1.0 / 1.4;
-	private const double Multiplier = 2.0;
 
 	private readonly DelayBackoffType _backoffType;
 	private readonly TimeSpan _baseDelay;
@@ -37,7 +35,6 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 	private readonly double _factor;
 
 	// Track previous delay for decorrelated jitter
-	private TimeSpan _previousDelay;
 	private readonly Lock _lock = new();
 
 	/// <summary>
@@ -64,18 +61,15 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 		bool useJitter = true,
 		double factor = 2.0)
 	{
-		if (baseDelay <= TimeSpan.Zero)
+		// NEGATIVE is refused; ZERO is not. This adapter used to reject baseDelay == 0 and reject
+		// maxDelay < baseDelay, neither of which any in-box calculator rejects -- so a configuration that
+		// started fine without this package threw at startup with it. Strengthening a precondition breaks
+		// substitutability, which is the entire purpose of this seam.
+		if (baseDelay < TimeSpan.Zero)
 		{
 			throw new ArgumentOutOfRangeException(
 					nameof(baseDelay),
 					Resources.PollyBackoffCalculatorAdapter_BaseDelayMustBePositive);
-		}
-
-		if (maxDelay < baseDelay)
-		{
-			throw new ArgumentOutOfRangeException(
-					nameof(maxDelay),
-					Resources.PollyBackoffCalculatorAdapter_MaxDelayMustBeGreaterOrEqualBaseDelay);
 		}
 
 		if (factor <= 0)
@@ -90,7 +84,6 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 		_maxDelay = maxDelay;
 		_useJitter = useJitter;
 		_factor = factor;
-		_previousDelay = TimeSpan.Zero;
 	}
 
 	/// <summary>
@@ -115,37 +108,33 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 	/// </remarks>
 	public TimeSpan CalculateDelay(int attempt)
 	{
-		if (attempt <= 0)
+		// THROWS rather than returning zero, per IBackoffCalculator's contract. This adapter previously
+		// returned TimeSpan.Zero here while every in-box calculator threw -- so the same off-by-one gave
+		// a caller an immediate no-backoff retry through this implementation and an exception through the
+		// others, for the same interface. A zero delay and an invalid argument are different facts.
+		if (attempt < 1)
 		{
-			return TimeSpan.Zero;
+			throw new ArgumentOutOfRangeException(
+				nameof(attempt), Resources.PollyBackoffCalculatorAdapter_AttemptMustBeAtLeastOne);
 		}
 
-		TimeSpan delay;
-
-		if (_useJitter && _backoffType == DelayBackoffType.Exponential)
+		// EXHAUSTIVE over Polly's enum, with no silent default. The previous `_ =>` arm quietly computed
+		// an exponential delay for anything unmapped, which is how three of this framework's strategies
+		// were reinterpreted without a word.
+		var nominal = _backoffType switch
 		{
-			// Use decorrelated jitter V2 algorithm (same as Polly v8 internal)
-			delay = CalculateDecorrelatedJitterDelay(attempt);
-		}
-		else
-		{
-			delay = _backoffType switch
-			{
-				DelayBackoffType.Constant => _baseDelay,
-				DelayBackoffType.Linear => TimeSpan.FromTicks(_baseDelay.Ticks * attempt),
-				DelayBackoffType.Exponential => CalculateExponentialDelay(attempt),
-				_ => CalculateExponentialDelay(attempt),
-			};
+			DelayBackoffType.Constant => _baseDelay,
+			DelayBackoffType.Linear => TimeSpan.FromTicks(_baseDelay.Ticks * attempt),
+			DelayBackoffType.Exponential => CalculateExponentialDelay(attempt),
+			_ => throw new ArgumentOutOfRangeException(
+				nameof(attempt), _backoffType, Resources.PollyBackoffCalculatorAdapter_UnknownBackoffType),
+		};
 
-			// Apply simple jitter if enabled and not using decorrelated
-			if (_useJitter)
-			{
-				delay = ApplySimpleJitter(delay);
-			}
-		}
+		// Cap FIRST, then randomise below the capped value, so jitter samples within [0, nominal] as the
+		// contract requires rather than being clipped afterwards.
+		var capped = nominal > _maxDelay ? _maxDelay : nominal;
 
-		// Cap at maximum delay
-		return delay > _maxDelay ? _maxDelay : delay;
+		return _useJitter ? ApplyFullJitter(capped) : capped;
 	}
 
 	/// <summary>
@@ -163,7 +152,6 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 		// Reset state for fresh sequence
 		lock (_lock)
 		{
-			_previousDelay = TimeSpan.Zero;
 		}
 
 		for (var i = 1; i <= retryCount; i++)
@@ -187,56 +175,36 @@ internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 		return TimeSpan.FromTicks(delayTicks);
 	}
 
-	/// <summary>
-	/// Implements Polly's decorrelated jitter V2 algorithm.
-	/// This provides smoother, more evenly distributed delays than simple jitter.
-	/// </summary>
-	private TimeSpan CalculateDecorrelatedJitterDelay(int attempt)
+
+	/// <summary>Samples uniformly from zero up to <paramref name="delay" /> -- AWS "full jitter".</summary>
+	/// <param name="delay">The nominal delay to randomise below.</param>
+	/// <returns>A delay in <c>[0, delay)</c>.</returns>
+	/// <remarks>
+	/// This used to sample <c>[0.5 x delay, delay]</c> while its own comment called that "full jitter
+	/// (0.5 to 1.0 of delay) - AWS recommended approach". It is neither: AWS full jitter is uniform over
+	/// <c>[0, delay]</c>, and a band that can never sample the low end does not decorrelate clients that
+	/// failed together -- which is the only reason to apply jitter. The old form also made
+	/// <see cref="BackoffStrategy.Constant" /> non-constant in one direction only, so a configured fixed
+	/// interval was systematically faster than configured rather than merely noisier.
+	/// </remarks>
+	private static TimeSpan ApplyFullJitter(TimeSpan delay) =>
+		TimeSpan.FromTicks((long)(delay.Ticks * NextJitterSample()));
+
+	/// <summary>Returns a value in <c>[0, 1)</c> for jitter.</summary>
+	/// <returns>The sample.</returns>
+	/// <remarks>
+	/// Deliberately NOT a cryptographic generator. This method previously called
+	/// <c>RandomNumberGenerator.Fill</c> for eight bytes per retry, commented "for better distribution".
+	/// A CSPRNG is not better distributed than <see cref="Random.Shared" /> for this purpose -- both are
+	/// uniform -- it is merely slower, and it spends entropy on the retry path, which is exactly where
+	/// cost compounds with load. A retry delay is not secret and no attacker gains from predicting it;
+	/// the security rules reserve a CSPRNG for key, token, salt, IV and nonce material. The in-box
+	/// calculators always used Random.Shared and were right to.
+	/// </remarks>
+	private static double NextJitterSample()
 	{
-		lock (_lock)
-		{
-			// Calculate target delay for this attempt
-			var targetDelay = _baseDelay.TotalMilliseconds * Math.Pow(Multiplier, attempt - 1);
-
-			// Apply the decorrelated jitter formula
-			// This uses the random point (RP) approach from the Polly team's research.
-			// attempt == 1 starts a NEW retry sequence, so the threaded state resets to base:
-			// this calculator is registered as a singleton, and without the reset one message's
-			// first retry would be computed from an unrelated earlier message's last delay.
-			// Matches DecorrelatedJitterBackoffCalculator, which documents the same behaviour.
-			var previousMs = attempt == 1 ? 0d : _previousDelay.TotalMilliseconds;
-			var rpDelay = previousMs == 0
-				? _baseDelay.TotalMilliseconds
-				: previousMs * RpScalingFactor;
-
-			// Random component with cryptographically secure random
-			var randomFactor = GetSecureRandomDouble();
-			var jitteredDelay = rpDelay + ((targetDelay - rpDelay) * randomFactor);
-
-			// Ensure minimum delay
-			jitteredDelay = Math.Max(jitteredDelay, _baseDelay.TotalMilliseconds * 0.5);
-
-			var result = TimeSpan.FromMilliseconds(jitteredDelay);
-			_previousDelay = result;
-
-			return result;
-		}
-	}
-
-	[SuppressMessage("Security", "CA5394:Do not use insecure randomness", Justification = "Used for backoff jitter timing, not security purposes.")]
-	private static TimeSpan ApplySimpleJitter(TimeSpan delay)
-	{
-		// Apply full jitter (0.5 to 1.0 of delay) - AWS recommended approach
-		var jitterFactor = 0.5 + (Random.Shared.NextDouble() * 0.5);
-		return TimeSpan.FromTicks((long)(delay.Ticks * jitterFactor));
-	}
-
-	private static double GetSecureRandomDouble()
-	{
-		// Use cryptographically secure random for better distribution
-		Span<byte> bytes = stackalloc byte[8];
-		RandomNumberGenerator.Fill(bytes);
-		var value = BitConverter.ToUInt64(bytes) >> 11; // 53 bits for double precision
-		return value / (double)(1UL << 53);
+#pragma warning disable CA5394 // a retry delay is not secret; the rationale is in the remarks above
+		return Random.Shared.NextDouble();
+#pragma warning restore CA5394
 	}
 }

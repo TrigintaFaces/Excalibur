@@ -25,7 +25,7 @@ public sealed class RetryAttributeShould : UnitTestBase
 		attribute.MaxDelayMs.ShouldBe(30000);
 		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 		attribute.JitterFactor.ShouldBe(0.1);
-		attribute.UseJitter.ShouldBeTrue();
+		attribute.UseJitter.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -62,10 +62,10 @@ public sealed class RetryAttributeShould : UnitTestBase
 	public void BackoffStrategy_CanBeChangedToFixed()
 	{
 		// Arrange & Act
-		var attribute = new RetryAttribute { BackoffStrategy = BackoffStrategy.Fixed };
+		var attribute = new RetryAttribute { BackoffStrategy = BackoffStrategy.Constant };
 
 		// Assert
-		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Fixed);
+		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Constant);
 	}
 
 	[Fact]
@@ -82,10 +82,10 @@ public sealed class RetryAttributeShould : UnitTestBase
 	public void BackoffStrategy_CanBeChangedToExponentialWithJitter()
 	{
 		// Arrange & Act
-		var attribute = new RetryAttribute { BackoffStrategy = BackoffStrategy.ExponentialWithJitter };
+		var attribute = new RetryAttribute { BackoffStrategy = BackoffStrategy.Exponential };
 
 		// Assert
-		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.ExponentialWithJitter);
+		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 	}
 
 	[Fact]

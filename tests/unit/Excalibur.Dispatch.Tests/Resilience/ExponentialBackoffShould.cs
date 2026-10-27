@@ -155,8 +155,8 @@ public sealed class ExponentialBackoffShould
 	public void IgnoreJitterFactor_WhenJitterDisabled()
 	{
 		// Same schedule, jitter off, but a large JitterFactor — must have zero effect.
-		var noJitter = Params(baseMs: 100, multiplier: 2.0, useJitter: false, jitterFactor: 0.0);
-		var withFactorButDisabled = Params(baseMs: 100, multiplier: 2.0, useJitter: false, jitterFactor: 0.9);
+		var noJitter = Params(baseMs: 100, multiplier: 2.0, useJitter: false);
+		var withFactorButDisabled = Params(baseMs: 100, multiplier: 2.0, useJitter: false);
 
 		ExponentialBackoff.Calculate(3, withFactorButDisabled).ShouldBe(ExponentialBackoff.Calculate(3, noJitter));
 	}
@@ -167,7 +167,7 @@ public sealed class ExponentialBackoffShould
 	public void KeepJitteredDelayWithinSymmetricBounds()
 	{
 		// attempt 3, base 100, multiplier 2 => nominal 400ms; jitter ±20% => [320, 480], capped at MaxDelay.
-		var parameters = Params(baseMs: 100, maxMs: 1_000_000, multiplier: 2.0, useJitter: true, jitterFactor: 0.2);
+		var parameters = Params(baseMs: 100, maxMs: 1_000_000, multiplier: 2.0, useJitter: true);
 		const double nominal = 400;
 		const double lower = nominal * 0.8;
 		const double upper = nominal * 1.2;
@@ -185,7 +185,7 @@ public sealed class ExponentialBackoffShould
 	public void NeverExceedMaxDelay_EvenWithPositiveJitter()
 	{
 		// Nominal delay sits exactly at the cap; positive jitter must still be clamped to MaxDelay.
-		var parameters = Params(baseMs: 5_000, maxMs: 5_000, multiplier: 2.0, useJitter: true, jitterFactor: 0.5);
+		var parameters = Params(baseMs: 5_000, maxMs: 5_000, multiplier: 2.0, useJitter: true);
 
 		for (var i = 0; i < 1_000; i++)
 		{
@@ -196,7 +196,7 @@ public sealed class ExponentialBackoffShould
 	[Fact]
 	public void NeverReturnNegativeDelay_WithAggressiveJitter()
 	{
-		var parameters = Params(baseMs: 100, maxMs: 1_000_000, multiplier: 2.0, useJitter: true, jitterFactor: 1.0);
+		var parameters = Params(baseMs: 100, maxMs: 1_000_000, multiplier: 2.0, useJitter: true);
 
 		for (var i = 0; i < 1_000; i++)
 		{
@@ -207,7 +207,7 @@ public sealed class ExponentialBackoffShould
 	[Fact]
 	public void ProduceVaryingDelays_WhenJitterEnabled()
 	{
-		var parameters = Params(baseMs: 1_000, maxMs: 1_000_000, multiplier: 2.0, useJitter: true, jitterFactor: 0.5);
+		var parameters = Params(baseMs: 1_000, maxMs: 1_000_000, multiplier: 2.0, useJitter: true);
 
 		var observed = new HashSet<double>();
 		for (var i = 0; i < 200; i++)

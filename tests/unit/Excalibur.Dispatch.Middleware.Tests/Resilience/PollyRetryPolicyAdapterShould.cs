@@ -278,10 +278,9 @@ public sealed class PollyRetryPolicyAdapterShould : UnitTestBase
 	#region Backoff Strategy Tests
 
 	[Theory]
-	[InlineData(BackoffStrategy.Fixed)]
+	[InlineData(BackoffStrategy.Constant)]
 	[InlineData(BackoffStrategy.Linear)]
 	[InlineData(BackoffStrategy.Exponential)]
-	[InlineData(BackoffStrategy.Fibonacci)]
 	public async Task ExecuteAsync_WithDifferentBackoffStrategies_ExecutesCorrectly(BackoffStrategy strategy)
 	{
 		// Arrange

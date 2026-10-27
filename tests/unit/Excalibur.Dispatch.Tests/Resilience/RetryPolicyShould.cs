@@ -395,23 +395,12 @@ public sealed class RetryPolicyShould : UnitTestBase
 		delay.TotalMilliseconds.ShouldBe(123.0);
 	}
 
-	[Fact]
-	public void BackoffPerformanceOverhead_MinimalComputation()
-	{
-		// Arrange
-		var calculator = new ExponentialBackoffCalculator(baseDelayMs: 100);
-		var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-		// Act
-		for (var i = 0; i < 1000; i++)
-		{
-			_ = calculator.CalculateDelay(i % 10);
-		}
-		stopwatch.Stop();
-
-		// Assert - allow reasonable CI jitter while still enforcing low overhead.
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(25);
-	}
+	// A performance arm used to sit here. It asserted that 1,000 CalculateDelay calls finished
+	// inside 25ms -- against the PRIVATE STUB declared at the bottom of this file, not against the
+	// framework. It exercised no production code, so no assertion about its cost meant anything. The
+	// real ExponentialBackoffCalculator is covered in
+	// Messaging/Resilience/ExponentialBackoffCalculatorShould, where the real type is reachable, and
+	// the allocation invariant now lives there.
 
 	#endregion Backoff Calculation Tests (10 tests)
 

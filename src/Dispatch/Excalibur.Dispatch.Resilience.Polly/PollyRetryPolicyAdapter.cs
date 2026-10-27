@@ -50,17 +50,18 @@ public sealed partial class PollyRetryPolicyAdapter : IRetryPolicy
 			{
 				MaxRetryAttempts = _options.MaxRetryAttempts,
 				Delay = _options.BaseDelay,
+				// Exhaustive, no default arm -- see the matching mapping in
+				// DispatchBuilderResilienceExtensions for why a `_ =>` here is a silent-substitution bug
+				// rather than a safe fallback.
 				BackoffType = _options.BackoffStrategy switch
 				{
+					BackoffStrategy.Constant => DelayBackoffType.Constant,
 					BackoffStrategy.Linear => DelayBackoffType.Linear,
 					BackoffStrategy.Exponential => DelayBackoffType.Exponential,
-					BackoffStrategy.Fixed => DelayBackoffType.Constant,
-					// Preserve the legacy FullJitter selector using Polly's exponential jitter strategy.
-					// Polly uses DecorrelatedJitterBackoffV2 here, rather than a separate full-jitter algorithm.
-					BackoffStrategy.FullJitter => DelayBackoffType.Exponential,
-					_ => DelayBackoffType.Exponential,
+					_ => throw new InvalidOperationException(
+						Resources.PollyRetryPolicyAdapter_UnknownBackoffStrategy),
 				},
-				UseJitter = _options.UseJitter || _options.BackoffStrategy == BackoffStrategy.FullJitter,
+				UseJitter = _options.UseJitter,
 
 				// The cap a consumer configures. Without this, an exponential strategy grows unbounded:
 				// PollyRetryOptions.MaxDelay defaults to one minute, and every consumer of this adapter

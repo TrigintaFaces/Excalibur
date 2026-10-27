@@ -33,7 +33,7 @@ public sealed class RetryBackoffLadderShould
 	[Fact]
 	public void GrowFixedDelaysNotAtAll()
 	{
-		var calc = BackoffCalculatorFactory.Create(BackoffStrategy.Fixed, Options());
+		var calc = BackoffCalculatorFactory.Create(BackoffStrategy.Constant, Options());
 
 		Enumerable.Range(1, 4).Select(a => calc.CalculateDelay(a).TotalMilliseconds)
 			.ShouldBe([100d, 100d, 100d, 100d]);
@@ -59,13 +59,9 @@ public sealed class RetryBackoffLadderShould
 	}
 
 	[Theory]
-	[InlineData(BackoffStrategy.Fixed)]
+	[InlineData(BackoffStrategy.Constant)]
 	[InlineData(BackoffStrategy.Linear)]
 	[InlineData(BackoffStrategy.Exponential)]
-	[InlineData(BackoffStrategy.ExponentialWithJitter)]
-	[InlineData(BackoffStrategy.Fibonacci)]
-	[InlineData(BackoffStrategy.FullJitter)]
-	[InlineData(BackoffStrategy.DecorrelatedJitter)]
 	public void AcceptAZeroDelayAsRetryImmediately(BackoffStrategy strategy)
 	{
 		// Zero is a legal configuration -- "retry without waiting" -- and every strategy must honour it
@@ -99,14 +95,6 @@ public sealed class RetryBackoffLadderShould
 			.ShouldBe([100d, 200d, 400d, 800d]);
 	}
 
-	[Fact]
-	public void GrowFibonacciDelaysAlongTheSequence()
-	{
-		var calc = BackoffCalculatorFactory.Create(BackoffStrategy.Fibonacci, Options());
-
-		Enumerable.Range(1, 6).Select(a => calc.CalculateDelay(a).TotalMilliseconds)
-			.ShouldBe([100d, 100d, 200d, 300d, 500d, 800d]);
-	}
 
 	[Fact]
 	public void NeverExceedTheConfiguredMaximum()

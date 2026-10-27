@@ -64,13 +64,13 @@ public sealed class RetryAttributeShould
 	}
 
 	[Fact]
-	public void HaveUseJitterEnabledByDefault()
+	public void HaveUseJitterDisabledByDefault()
 	{
 		// Arrange & Act
 		var attribute = new RetryAttribute();
 
 		// Assert
-		attribute.UseJitter.ShouldBeTrue();
+		attribute.UseJitter.ShouldBeFalse();
 	}
 
 	[Theory]
@@ -126,10 +126,9 @@ public sealed class RetryAttributeShould
 	}
 
 	[Theory]
-	[InlineData(BackoffStrategy.Fixed)]
+	[InlineData(BackoffStrategy.Constant)]
 	[InlineData(BackoffStrategy.Linear)]
 	[InlineData(BackoffStrategy.Exponential)]
-	[InlineData(BackoffStrategy.ExponentialWithJitter)]
 	public void AllowSettingBackoffStrategy(BackoffStrategy strategy)
 	{
 		// Arrange
@@ -297,7 +296,7 @@ public sealed class RetryAttributeShould
 			MaxRetryAttempts = 10,
 			BaseDelayMs = 100,
 			MaxDelayMs = 5000,
-			BackoffStrategy = BackoffStrategy.ExponentialWithJitter,
+			BackoffStrategy = BackoffStrategy.Exponential,
 			JitterFactor = 0.25,
 			UseJitter = true,
 		};
@@ -306,9 +305,9 @@ public sealed class RetryAttributeShould
 		attribute.MaxRetryAttempts.ShouldBe(10);
 		attribute.BaseDelayMs.ShouldBe(100);
 		attribute.MaxDelayMs.ShouldBe(5000);
-		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.ExponentialWithJitter);
+		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Exponential);
 		attribute.JitterFactor.ShouldBe(0.25);
-		attribute.UseJitter.ShouldBeTrue();
+		attribute.UseJitter.ShouldBeTrue("the arm sets it explicitly; this is not the default");
 	}
 
 	[Fact]
@@ -320,7 +319,7 @@ public sealed class RetryAttributeShould
 			MaxRetryAttempts = 2,
 			BaseDelayMs = 5000,
 			MaxDelayMs = 10000,
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 			UseJitter = false,
 		};
 
@@ -328,7 +327,7 @@ public sealed class RetryAttributeShould
 		attribute.MaxRetryAttempts.ShouldBe(2);
 		attribute.BaseDelayMs.ShouldBe(5000);
 		attribute.MaxDelayMs.ShouldBe(10000);
-		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Fixed);
+		attribute.BackoffStrategy.ShouldBe(BackoffStrategy.Constant);
 		attribute.UseJitter.ShouldBeFalse();
 	}
 

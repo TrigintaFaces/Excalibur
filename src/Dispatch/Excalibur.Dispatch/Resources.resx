@@ -246,15 +246,6 @@
   <data name="FixedBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
     <value>Attempt must be at least 1.</value>
   </data>
-  <data name="FibonacciBackoffCalculator_BaseDelayCannotBeNegative" xml:space="preserve">
-    <value>Base delay cannot be negative.</value>
-  </data>
-  <data name="FibonacciBackoffCalculator_MaxDelayCannotBeNegative" xml:space="preserve">
-    <value>Max delay cannot be negative.</value>
-  </data>
-  <data name="FibonacciBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
-    <value>Attempt must be at least 1.</value>
-  </data>
   <data name="JitteredBackoffCalculator_InnerCalculatorRequired" xml:space="preserve">
     <value>Inner backoff calculator is required.</value>
   </data>

@@ -185,4 +185,85 @@ public sealed class SegmentedKeyShould
 		shifted.ShouldNotBe(plain);
 		SegmentedKey.Split(shifted, 4).ShouldBe([userId, tenantId, grantType, qualifier]);
 	}
+
+	[Theory]
+	[InlineData("tenant-1", "Activity", "Namespace25.Action")]
+	[InlineData("acme", "eu:order", "42")]
+	[InlineData("a:b", "c%d", "e:f%g")]
+	[InlineData("%", ":", "%3A")]
+	[InlineData("", "", "")]
+	[InlineData("plain", "plain", "plain")]
+	[InlineData("::::", "%%%%", "a::b%%c")]
+	public void Compose_into_a_span_exactly_as_it_composes_into_a_string(
+		string first, string second, string third)
+	{
+		// THE LOAD-BEARING PROPERTY, and the reason the span overload is safe to use on a lookup path. A
+		// key is WRITTEN with the string composer and PROBED with the span one. If the two encodings ever
+		// diverged by a single character, a grant a user genuinely holds would stop being found -- an
+		// authorization failure that looks like a missing grant, with nothing to point at.
+		var expected = SegmentedKey.Compose(first, second, third);
+
+		Span<char> buffer = stackalloc char[256];
+		var fitted = SegmentedKey.TryCompose(buffer, out var written, first, second, third);
+
+		fitted.ShouldBeTrue("256 characters is ample for this fixture");
+		buffer[..written].ToString().ShouldBe(expected);
+	}
+
+	[Fact]
+	public void Refuse_a_buffer_too_small_rather_than_truncate_the_key()
+	{
+		// A truncated key is the dangerous outcome: it is a well-formed string that addresses a DIFFERENT
+		// identity, so a probe with it could match another tenant's row. Refusing is the only safe answer,
+		// and the caller's fallback is the allocating composer.
+		var expected = SegmentedKey.Compose("tenant-1", "Activity", "Namespace25.Action");
+
+		Span<char> tooSmall = stackalloc char[expected.Length - 1];
+		var fitted = SegmentedKey.TryCompose(
+			tooSmall, out var written, "tenant-1", "Activity", "Namespace25.Action");
+
+		fitted.ShouldBeFalse();
+		written.ShouldBe(0, "a refused compose reports nothing written, so no caller can read a partial key");
+	}
+
+	[Fact]
+	public void Refuse_a_buffer_that_cannot_hold_a_three_character_escape()
+	{
+		// The boundary the escape introduces: a term ending in ':' needs THREE characters for its final
+		// character, so a buffer with one or two to spare must refuse rather than write a partial "%3".
+		var expected = SegmentedKey.Compose("a", "b", "c:");
+
+		// Allocated once and sliced, rather than per iteration -- a stackalloc inside a loop accumulates
+		// for the whole method and the analyzer is right to refuse it.
+		Span<char> buffer = stackalloc char[expected.Length];
+
+		for (var shortfall = 1; shortfall <= 2; shortfall++)
+		{
+			SegmentedKey.TryCompose(buffer[..(expected.Length - shortfall)], out var written, "a", "b", "c:")
+				.ShouldBeFalse($"a buffer {shortfall} character(s) short must refuse");
+			written.ShouldBe(0);
+		}
+	}
+
+	[Fact]
+	public void Compose_into_a_span_without_allocating()
+	{
+		// The whole point of the overload. Byte counts come from the runtime's own accounting, so this is
+		// exact and machine-independent; a string composed on this path would show up immediately.
+		Span<char> buffer = stackalloc char[256];
+
+		for (var i = 0; i < 200; i++)
+		{
+			_ = SegmentedKey.TryCompose(buffer, out _, "tenant-1", "Activity", "Namespace25.Action");
+		}
+
+		var before = GC.GetAllocatedBytesForCurrentThread();
+		for (var i = 0; i < 1_000; i++)
+		{
+			_ = SegmentedKey.TryCompose(buffer, out _, "tenant-1", "Activity", "Namespace25.Action");
+		}
+
+		(GC.GetAllocatedBytesForCurrentThread() - before).ShouldBe(
+			0, "TryCompose must not allocate; that is the only reason it exists over Compose");
+	}
 }

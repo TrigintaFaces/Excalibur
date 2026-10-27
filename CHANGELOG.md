@@ -19,6 +19,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [10.0.0-alpha.19] - 2026-10-26
 
+### Changed (breaking) — `BackoffStrategy` names three growth laws; jitter is a separate switch
+
+Seven members become three, matching Polly's `DelayBackoffType` one-to-one:
+
+| before | after |
+|---|---|
+| `Fixed` | **`Constant`** — renamed to match Polly's vocabulary |
+| `Linear` | `Linear` |
+| `Exponential` | `Exponential` |
+| `ExponentialWithJitter` | `Exponential` + `UseJitter = true` |
+| `FullJitter` | any strategy + `UseJitter = true` |
+| `DecorrelatedJitter` | any strategy + `UseJitter = true` |
+| `Fibonacci` | **removed** — implement `IBackoffCalculator` and register it |
+
+**Why the members are deleted rather than remapped.** A removed member is a compile error you fix once;
+a remapped one is a silent behaviour change you may never notice. Three of these were already being
+silently reinterpreted as plain `Exponential` by the Polly adapter, so deleting them converts an
+undetectable runtime substitution into a build failure that names the line.
+
+If you need a curve outside the three — Fibonacci growth, a ladder read from configuration — implement
+`IBackoffCalculator` and register it. That is the same escape hatch as Polly's own `DelayGenerator`.
+
+### Changed (breaking) — `UseJitter` now works, and defaults to `false`
+
+`RetryOptions.UseJitter` and `RetryAttribute.UseJitter` **default to `false`**, matching Polly's
+`RetryStrategyOptions.UseJitter`. They previously defaulted to `true` **and were ignored**: the
+`Exponential` arm of the backoff factory hardcoded jitter off, so the out-of-box configuration requested
+jitter and received none, while the same configuration through the Polly package did apply it. Two public
+options described one concept and the default silently discarded one of them.
+
+`UseJitter` is now the single jitter switch and applies to every strategy. **Default retry timing is
+unchanged** — it was effectively un-jittered before and is explicitly un-jittered now. If you were
+relying on the documented default to supply jitter, you were not getting it; set `UseJitter = true`.
+
+**Jitter is now full jitter**: uniform over `[0, nominal]`, where nominal is the delay the strategy
+prescribes. It was a symmetric band around the nominal, which added noise without decorrelating — two
+clients that failed together still retried together — and could exceed the configured maximum. Sampling
+down to zero is the property that spreads a thundering herd.
+
+### Fixed — a configured strategy is no longer silently replaced
+
+`BackoffStrategy.Fibonacci` (and, less visibly, `ExponentialWithJitter` and `DecorrelatedJitter`) fell
+through a `_ =>` arm in both Polly adapters and became plain exponential — no error, no warning, no log,
+on the failure path. Both mappings are now exhaustive with no default arm, so an unmapped value is
+refused and a future member is a compile error until somebody maps it deliberately.
+
+### Fixed — `IBackoffCalculator` states its contract, and both implementations obey it
+
+The interface previously specified nothing, so the two implementations disagreed:
+
+- a non-positive `attempt` **throws** `ArgumentOutOfRangeException` everywhere. The Polly adapter
+  returned `TimeSpan.Zero`, turning a caller's off-by-one into an immediate retry with no backoff.
+- a **zero** `baseDelay` is accepted everywhere. The Polly adapter rejected it, and rejected
+  `maxDelay < baseDelay`, so a configuration that started without the package threw at startup with it.
+- the delay is non-negative and never exceeds the configured maximum; overflow clamps rather than wraps.
+- jitter, when enabled, lies within `[0, nominal]`. The distribution is implementation-defined, because
+  a Polly-free package cannot reimplement Polly's algorithm — the bound is what callers may rely on.
+
+A test named `PollyAdapterBehavioralEquivalenceShould` had recorded the first of these as a "known
+behavioral difference". It now asserts that both implementations agree.
+
+### Fixed — retry jitter no longer consumes cryptographic entropy
+
+The Polly adapter drew jitter from `RandomNumberGenerator.Fill` — eight bytes of CSPRNG per retry,
+commented "for better distribution". It is not better distributed, only slower, and a retry delay is not
+secret. It now uses `Random.Shared`, as the in-box calculators always did.
+
+Also fixed in that adapter: a helper documented as "full jitter (0.5 to 1.0 of delay) - AWS recommended"
+sampled `[0.5 x delay, delay]`, which is half jitter. Reachable by default for `Constant` and `Linear`,
+it made a configured constant interval systematically *faster* than configured.
+
+
+### Changed (breaking) — `PolicyResult` is a value type, and an authorization check no longer allocates
+
+`AuthorizationPolicy.Evaluate` returns `PolicyResult`, which was a `sealed record` and is now a
+`readonly struct`. An authorization check runs on the dispatch path for every authorized message, and the
+result exists only long enough for the caller to read one field, so a per-check heap allocation bought
+nothing. **If you hold a `PolicyResult` in a field, pass it to something expecting `object`, or compare it
+to `null`, that code changes**: it is no longer a reference type. Construction, property access,
+`==`/`!=`, `Equals` and `with` are unchanged.
+
+`PolicyResult.IsAuthorized` is no longer settable; it is **derived** from `HasActivityGrant` and
+`HasResourceGrant`. Previously all three were independent, so `IsAuthorized = false` alongside
+`HasActivityGrant = true` was expressible — a result asserting both that a grant exists and that the
+caller is unauthorized. Nothing could reject it, because the inconsistency was in the data rather than in
+any code path. Remove `IsAuthorized` from any object initializer; the value you were setting is now
+computed from the grants you set beside it.
+
+### Added — an allocation-free segmented-key composer
+
+- `SegmentedKey.TryCompose(Span<char>, out int, string, string, string)` composes a segmented key into a
+  caller-supplied buffer, producing the same characters as `Compose` without allocating a string. It
+  returns `false` rather than throwing when the buffer is too small, so a stack buffer sized for the
+  common case has an ordinary fallback. Intended for composing a key only to probe a dictionary — pair it
+  with `Dictionary<string, T>.GetAlternateLookup<ReadOnlySpan<char>>()`.
+
+### Performance — authorization checks allocate zero bytes
+
+Three allocations per authorization check are removed. Measured with
+`GC.GetAllocatedBytesForCurrentThread` over 1,000 calls, per call:
+
+| path | before | after |
+|---|---|---|
+| exact or wildcard grant check | 96 B | **0 B** |
+| denied check, policy holding 50 exact grants | 10,400 B | **0 B** |
+
+The first was a key string composed for every dictionary probe and discarded immediately; it is now
+composed into a stack buffer and looked up by span. The second, and much the larger, was the
+activity-group check — reached by every **denied** check, after exact and wildcard both miss — which
+walked every exact grant and parsed each key into a scope on every call, so its cost grew with the number
+of grants a user held. Those scopes are now partitioned once when the policy is built, from the same parse
+that already decides which index each grant belongs in.
+
+The 24 bytes of the old `PolicyResult` were sometimes removed by the runtime and sometimes not: the result
+does not escape, so escape analysis can stack-allocate it, but only after the method reaches tier-1. As a
+struct there is no allocation to eliminate, so zero no longer depends on when the optimiser arrives.
+
 ### Changed (breaking) — a data task's timeout now bounds SILENCE, not duration
 
 `DataProcessingOptions.DispatcherTimeoutMilliseconds` is **removed**. It was a total wall-clock deadline

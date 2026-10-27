@@ -24,7 +24,7 @@ public sealed class BackoffCalculatorFactoryShould
 	[Fact]
 	public void CreateFixedCalculatorForFixedStrategy()
 	{
-		var result = BackoffCalculatorFactory.Create(BackoffStrategy.Fixed, CreateDefaultOptions());
+		var result = BackoffCalculatorFactory.Create(BackoffStrategy.Constant, CreateDefaultOptions());
 
 		result.ShouldBeOfType<FixedBackoffCalculator>();
 	}
@@ -48,7 +48,7 @@ public sealed class BackoffCalculatorFactoryShould
 	[Fact]
 	public void CreateExponentialWithJitterCalculatorForJitterStrategy()
 	{
-		var result = BackoffCalculatorFactory.Create(BackoffStrategy.ExponentialWithJitter, CreateDefaultOptions());
+		var result = BackoffCalculatorFactory.Create(BackoffStrategy.Exponential, CreateDefaultOptions());
 
 		result.ShouldBeOfType<ExponentialBackoffCalculator>();
 	}
@@ -64,7 +64,7 @@ public sealed class BackoffCalculatorFactoryShould
 	public void ThrowForNullOptionsWithBackoffStrategy()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			BackoffCalculatorFactory.Create(BackoffStrategy.Fixed, null!));
+			BackoffCalculatorFactory.Create(BackoffStrategy.Constant, null!));
 	}
 
 }

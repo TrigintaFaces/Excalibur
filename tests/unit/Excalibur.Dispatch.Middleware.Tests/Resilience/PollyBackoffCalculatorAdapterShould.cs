@@ -28,14 +28,16 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	}
 
 	[Fact]
-	public void ThrowArgumentOutOfRangeForZeroBaseDelay()
+	public void AcceptAZeroBaseDelayAsTheInBoxCalculatorsDo()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
-			new PollyBackoffCalculatorAdapter(
-				DelayBackoffType.Exponential,
-				TimeSpan.Zero,
-				TimeSpan.FromSeconds(30)));
+		// INVERTED DELIBERATELY. This arm used to assert that a zero base delay THROWS. No in-box
+		// calculator rejects zero -- they reject only a negative -- so the adapter was strengthening a
+		// precondition, and a configuration that started fine without the Polly package threw at startup
+		// with it. Strengthening a precondition breaks substitutability, which is the purpose of the seam.
+		var calculator = new PollyBackoffCalculatorAdapter(
+			DelayBackoffType.Exponential, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+
+		calculator.CalculateDelay(1).ShouldBe(TimeSpan.Zero, "a zero base delay yields a zero delay, not an exception");
 	}
 
 	[Fact]
@@ -50,14 +52,15 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	}
 
 	[Fact]
-	public void ThrowArgumentOutOfRangeForMaxDelayLessThanBaseDelay()
+	public void AcceptAMaxDelayBelowTheBaseDelayAsTheInBoxCalculatorsDo()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentOutOfRangeException>(() =>
-			new PollyBackoffCalculatorAdapter(
-				DelayBackoffType.Exponential,
-				TimeSpan.FromSeconds(10),
-				TimeSpan.FromSeconds(5)));
+		// Also inverted. No in-box calculator compares maxDelay against baseDelay, so refusing the
+		// combination here was a precondition only this implementation had. The cap simply wins, which is
+		// what the contract promises: the result never exceeds the configured maximum.
+		var calculator = new PollyBackoffCalculatorAdapter(
+			DelayBackoffType.Exponential, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5), useJitter: false);
+
+		calculator.CalculateDelay(1).ShouldBe(TimeSpan.FromSeconds(5), "the maximum caps a larger base delay");
 	}
 
 	[Fact]
@@ -173,8 +176,14 @@ public sealed class PollyBackoffCalculatorAdapterShould
 			delays.Add(calculator.CalculateDelay(1));
 		}
 
-		// Assert - jitter should produce varying delays within bounds
-		delays.All(d => d >= TimeSpan.FromMilliseconds(500) && d <= baseDelay).ShouldBeTrue();
+		// FULL jitter: uniform over [0, nominal). The old lower bound of 500ms encoded half jitter --
+		// [0.5 x delay, delay] -- which the implementation's own comment mislabelled "full jitter (AWS
+		// recommended)". It is not: AWS full jitter is uniform over [0, delay], and a band that can never
+		// sample the low end does not decorrelate clients that failed together. Asserting a lower bound
+		// above zero here would re-pin the defect.
+		delays.All(d => d >= TimeSpan.Zero && d <= baseDelay).ShouldBeTrue("full jitter stays within [0, nominal]");
+		delays.Any(d => d < TimeSpan.FromMilliseconds(500)).ShouldBeTrue(
+			"over 100 samples at least one must fall in the lower half, which is the half that decorrelates");
 	}
 
 	#endregion Constant Backoff Tests
@@ -220,10 +229,10 @@ public sealed class PollyBackoffCalculatorAdapterShould
 		}
 
 		var expectedMax = TimeSpan.FromMilliseconds(200);
-		var expectedMin = TimeSpan.FromMilliseconds(100); // 50% jitter
 
-		// Assert - jitter should produce varying delays
-		delays.All(d => d >= expectedMin && d <= expectedMax).ShouldBeTrue();
+		// Full jitter over the linear nominal: [0, baseDelay x attempt]. See the constant-backoff arm for
+		// why the lower bound is zero rather than half the nominal.
+		delays.All(d => d >= TimeSpan.Zero && d <= expectedMax).ShouldBeTrue("full jitter stays within [0, nominal]");
 	}
 
 	#endregion Linear Backoff Tests
@@ -316,29 +325,22 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	#region Edge Case Tests
 
 	[Fact]
-	public void ReturnZeroDelayForZeroAttempt()
+	public void RefuseAZeroAttempt()
 	{
-		// Arrange
+		// Was ReturnZeroDelayForZeroAttempt, asserting TimeSpan.Zero. IBackoffCalculator now requires a
+		// throw: a zero delay and an invalid argument are different facts, and returning the former for
+		// the latter turns a caller's off-by-one into an immediate retry with no backoff at all.
 		var calculator = new PollyBackoffCalculatorAdapter();
 
-		// Act
-		var delay = calculator.CalculateDelay(0);
-
-		// Assert
-		delay.ShouldBe(TimeSpan.Zero);
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => calculator.CalculateDelay(0));
 	}
 
 	[Fact]
-	public void ReturnZeroDelayForNegativeAttempt()
+	public void RefuseANegativeAttempt()
 	{
-		// Arrange
 		var calculator = new PollyBackoffCalculatorAdapter();
 
-		// Act
-		var delay = calculator.CalculateDelay(-1);
-
-		// Assert
-		delay.ShouldBe(TimeSpan.Zero);
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => calculator.CalculateDelay(-1));
 	}
 
 	[Fact]
@@ -486,23 +488,6 @@ public sealed class PollyBackoffCalculatorAdapterShould
 		}
 	}
 
-	[Fact]
-	public void DecorrelatedJitterMaintainsMinimumDelay()
-	{
-		// Arrange
-		var baseDelay = TimeSpan.FromMilliseconds(100);
-		var calculator = PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(
-			baseDelay,
-			TimeSpan.FromSeconds(30));
-
-		// Act & Assert - delays should have a minimum threshold
-		for (var attempt = 1; attempt <= 10; attempt++)
-		{
-			var delay = calculator.CalculateDelay(attempt);
-			// Minimum is 50% of base delay according to implementation
-			delay.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(50));
-		}
-	}
 
 	#endregion Decorrelated Jitter V2 Tests
 
@@ -538,7 +523,7 @@ public sealed class PollyBackoffCalculatorAdapterShould
 	// The adapter is registered AddSingleton, so one instance serves every retry sequence in the
 	// process. attempt == 1 must start from base rather than from whatever an unrelated earlier
 	// sequence happened to leave in the threaded state, or one message's backoff depends on
-	// another's. DecorrelatedJitterBackoffCalculator documents and implements the same reset.
+	// another's. This is now the only decorrelated implementation in the framework.
 	[Fact]
 	public void StartEachRetrySequenceFromBaseRatherThanTheLastSequencesDelay()
 	{

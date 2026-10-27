@@ -466,7 +466,7 @@ services.Configure<RetryOptions>(options =>
     options.BaseDelay = TimeSpan.FromMilliseconds(100);
     options.MaxDelay = TimeSpan.FromSeconds(30);
     options.BackoffMultiplier = 2.0;
-    // Fixed, Linear, Exponential, ExponentialWithJitter, Fibonacci, or FullJitter
+    // Constant, Linear, or Exponential. Jitter is a separate switch: UseJitter.
     // (AWS-style full jitter — maximally decorrelates concurrent retries).
     options.BackoffStrategy = BackoffStrategy.Exponential;
 
@@ -503,7 +503,6 @@ The computed backoff delay is always clamped to `MaxDelay` before the wait `Time
 | `Fixed` | Same delay between each attempt |
 | `Linear` | Delay increases linearly (BaseDelay × attempt) |
 | `Exponential` | Delay doubles each attempt |
-| `ExponentialWithJitter` | Exponential with random jitter to prevent thundering herd |
 
 ### Per-Message Retry Policy
 

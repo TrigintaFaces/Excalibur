@@ -107,7 +107,9 @@ replace that default. Resolve the policy by its configured key. Different names 
 retry strategy; delay, jitter, and the retry predicate are then unused.
 
 The Polly retry adapter maps `Fixed`, `Linear`, and `Exponential` to Polly's corresponding delay types.
-`FullJitter` selects exponential backoff with jitter enabled; other enum values fall back to exponential.
+Each `BackoffStrategy` member maps one-to-one onto Polly's `DelayBackoffType`, and the mapping is
+exhaustive — an unmapped value is refused rather than reinterpreted. It previously fell back to
+exponential, which meant a configured strategy could be silently replaced with a different curve.
 Polly's exponential jitter uses DecorrelatedJitterBackoffV2, so this adapter does not promise the AWS
 uniform full-jitter formula. See [Polly retry strategies](https://www.pollydocs.org/strategies/retry).
 

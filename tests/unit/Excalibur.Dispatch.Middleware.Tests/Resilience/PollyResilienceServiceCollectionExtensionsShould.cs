@@ -368,7 +368,7 @@ public sealed class PollyResilienceServiceCollectionExtensionsShould : UnitTestB
 		optionsMonitor.ShouldNotBeNull();
 
 		var namedOptions = optionsMonitor.Get(name);
-		namedOptions.UseJitter.ShouldBeTrue();
+		namedOptions.UseJitter.ShouldBeTrue("AddRetryPolicyWithJitter sets the flag explicitly; this is not the default");
 	}
 
 	[Fact]

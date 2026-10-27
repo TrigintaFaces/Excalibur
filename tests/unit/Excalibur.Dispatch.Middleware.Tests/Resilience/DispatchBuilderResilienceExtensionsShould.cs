@@ -492,7 +492,7 @@ public sealed class DispatchBuilderResilienceExtensionsShould
 	#region BackoffStrategy Mapping Tests
 
 	[Theory]
-	[InlineData(BackoffStrategy.Fixed)]
+	[InlineData(BackoffStrategy.Constant)]
 	[InlineData(BackoffStrategy.Linear)]
 	[InlineData(BackoffStrategy.Exponential)]
 	public void MapBackoffStrategyCorrectly(BackoffStrategy strategy)

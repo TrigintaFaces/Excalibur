@@ -72,7 +72,7 @@ public sealed class RetryMiddlewareNonRetryableHierarchyShould
 		{
 			MaxRetryAttempts = MaxAttempts,
 			BaseDelay = TimeSpan.FromMilliseconds(1),
-			BackoffStrategy = BackoffStrategy.Fixed,
+			BackoffStrategy = BackoffStrategy.Constant,
 		};
 		// Explicit so the lock does not depend on the default-set contents (F5 hygiene).
 		_ = options.NonRetryableExceptions.Add(typeof(InvalidOperationException));

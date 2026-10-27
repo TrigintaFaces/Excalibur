@@ -1,69 +1,67 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+
 namespace Excalibur.Dispatch.Resilience;
 
 /// <summary>
-/// Decorator that adds random jitter to any <see cref="IBackoffCalculator"/> implementation.
+/// Randomises another calculator's delay, sampling uniformly from zero up to that calculator's nominal
+/// value.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Jitter prevents the "thundering herd" problem by randomizing retry delays so that
-/// multiple clients do not retry simultaneously. This decorator wraps any backoff calculator
-/// and applies a configurable jitter factor.
+/// <b>This is the only jitter implementation in the package, and it used to be one of four.</b> Jitter was
+/// previously a boolean flag with a factor inside the exponential calculator, a decorator here, and the
+/// defining behaviour of two further strategy types -- four mechanisms for one concept, with four
+/// slightly different distributions and nothing stating which a consumer would get. Now a
+/// <see cref="BackoffStrategy" /> names only the growth law and this decorator adds the randomness, so
+/// jitter composes over every law rather than being baked into some of them.
 /// </para>
 /// <para>
-/// The jitter range is: delay +/- (delay * jitterFactor * random).
-/// For example, with jitterFactor=0.25 and a 1000ms delay, the result is between 750ms and 1250ms.
+/// <b>Uniform over <c>[0, nominal)</c> -- "full jitter" -- and the lower bound is the point.</b> A band
+/// around the nominal delay, which is what the previous implementation computed, keeps every client's
+/// retries clustered near the same instant; it adds noise without decorrelating. Sampling down to zero is
+/// what actually spreads a thundering herd, because two clients that failed together are no longer likely
+/// to retry together. It also cannot exceed the nominal delay, so the configured maximum remains a real
+/// ceiling -- which the contract on <see cref="IBackoffCalculator" /> requires and a symmetric band
+/// violates on its upper half.
+/// </para>
+/// <para>
+/// There is no jitter-factor knob. A factor only makes sense for a band, and tuning it was the mechanism
+/// by which the old implementation could be configured into not decorrelating at all.
 /// </para>
 /// </remarks>
 internal sealed class JitteredBackoffCalculator : IBackoffCalculator
 {
 	private readonly IBackoffCalculator _inner;
-	private readonly double _jitterFactor;
+	private readonly Func<double> _jitterSource;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="JitteredBackoffCalculator"/> class.
+	/// Initializes a new instance of the <see cref="JitteredBackoffCalculator" /> class.
 	/// </summary>
-	/// <param name="inner">The inner backoff calculator to wrap.</param>
-	/// <param name="jitterFactor">The jitter factor (0.0 to 1.0). Defaults to 0.25.</param>
-	public JitteredBackoffCalculator(IBackoffCalculator inner, double jitterFactor = 0.25)
+	/// <param name="inner">The calculator supplying the nominal delay.</param>
+	/// <param name="jitterSource">
+	/// Returns a value in <c>[0, 1)</c>. Defaults to <see cref="Random.Shared" />, which is thread-safe
+	/// and is the correct choice here: a retry delay is not secret, so a cryptographic generator would
+	/// spend entropy and time on the retry path for no security benefit.
+	/// </param>
+	/// <exception cref="ArgumentNullException"><paramref name="inner" /> is <see langword="null" />.</exception>
+	public JitteredBackoffCalculator(IBackoffCalculator inner, Func<double>? jitterSource = null)
 	{
-		_inner = inner ?? throw new ArgumentNullException(
-			nameof(inner),
-			Resources.JitteredBackoffCalculator_InnerCalculatorRequired);
+		ArgumentNullException.ThrowIfNull(inner);
 
-		if (jitterFactor is < 0.0 or > 1.0)
-		{
-			throw new ArgumentOutOfRangeException(
-				nameof(jitterFactor),
-				Resources.JitteredBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne);
-		}
-
-		_jitterFactor = jitterFactor;
+		_inner = inner;
+		_jitterSource = jitterSource ?? Random.Shared.NextDouble;
 	}
 
 	/// <inheritdoc />
 	public TimeSpan CalculateDelay(int attempt)
 	{
-		var baseDelay = _inner.CalculateDelay(attempt);
+		// The inner calculator validates `attempt` and clamps to the configured maximum, so the sampled
+		// value inherits both: the argument check happens before anything is randomised, and the nominal
+		// delay this samples below is already capped.
+		var nominal = _inner.CalculateDelay(attempt);
 
-		if (_jitterFactor == 0.0)
-		{
-			return baseDelay;
-		}
-
-		var delayMs = baseDelay.TotalMilliseconds;
-		var jitterRange = delayMs * _jitterFactor;
-
-		// Apply random jitter: delay +/- (jitterRange * random)
-		// Random.Shared is thread-safe and suitable for non-cryptographic scenarios like backoff jitter
-#pragma warning disable CA5394 // Do not use insecure randomness - jitter does not require cryptographic security
-		var jitter = ((Random.Shared.NextDouble() * 2) - 1) * jitterRange;
-#pragma warning restore CA5394
-
-		delayMs = Math.Max(0, delayMs + jitter);
-
-		return TimeSpan.FromMilliseconds(delayMs);
+		return TimeSpan.FromMilliseconds(nominal.TotalMilliseconds * _jitterSource());
 	}
 }

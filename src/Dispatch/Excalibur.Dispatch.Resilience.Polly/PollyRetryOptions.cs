@@ -34,7 +34,7 @@ public sealed class PollyRetryOptions
 	/// Gets or sets a value indicating whether to add jitter to retry delays.
 	/// </summary>
 	/// <value>The current <see cref="UseJitter"/> value.</value>
-	public bool UseJitter { get; set; } = true;
+	public bool UseJitter { get; set; }
 
 	/// <summary>
 	/// Gets or sets a predicate that selects which exceptions are retried.

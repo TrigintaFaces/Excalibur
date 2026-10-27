@@ -1,1 +1,2 @@
 #nullable enable
+static Excalibur.Dispatch.SegmentedKey.TryCompose(System.Span<char> destination, out int charsWritten, string! first, string! second, string! third) -> bool

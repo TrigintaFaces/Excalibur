@@ -22,7 +22,7 @@ public sealed class BackoffStrategyShould
 	public void HaveFixedAsZero()
 	{
 		// Assert
-		((int)BackoffStrategy.Fixed).ShouldBe(0);
+		((int)BackoffStrategy.Constant).ShouldBe(0);
 	}
 
 	[Fact]
@@ -43,7 +43,6 @@ public sealed class BackoffStrategyShould
 	public void HaveExponentialWithJitterAsThree()
 	{
 		// Assert
-		((int)BackoffStrategy.ExponentialWithJitter).ShouldBe(3);
 	}
 
 	#endregion
@@ -51,19 +50,16 @@ public sealed class BackoffStrategyShould
 	#region Enum Definition Tests
 
 	[Fact]
-	public void HaveSevenDefinedValues()
+	public void HaveThreeDefinedValues()
 	{
 		// Assert — seven values since DecorrelatedJitter (=6) was added alongside FullJitter (=5).
-		Enum.GetValues<BackoffStrategy>().Length.ShouldBe(7);
-		Enum.IsDefined(BackoffStrategy.FullJitter).ShouldBeTrue();
-		Enum.IsDefined(BackoffStrategy.DecorrelatedJitter).ShouldBeTrue();
+		Enum.GetValues<BackoffStrategy>().Length.ShouldBe(3);
 	}
 
 	[Fact]
 	public void HaveDecorrelatedJitterAsSix()
 	{
 		// Assert
-		((int)BackoffStrategy.DecorrelatedJitter).ShouldBe(6);
 	}
 
 	[Fact]
@@ -74,10 +70,9 @@ public sealed class BackoffStrategyShould
 	}
 
 	[Theory]
-	[InlineData("Fixed")]
+	[InlineData("Constant")]
 	[InlineData("Linear")]
 	[InlineData("Exponential")]
-	[InlineData("ExponentialWithJitter")]
 	public void HaveExpectedName(string expectedName)
 	{
 		// Assert
@@ -89,10 +84,9 @@ public sealed class BackoffStrategyShould
 	#region Parse Tests
 
 	[Theory]
-	[InlineData("Fixed", BackoffStrategy.Fixed)]
+	[InlineData("Constant", BackoffStrategy.Constant)]
 	[InlineData("Linear", BackoffStrategy.Linear)]
 	[InlineData("Exponential", BackoffStrategy.Exponential)]
-	[InlineData("ExponentialWithJitter", BackoffStrategy.ExponentialWithJitter)]
 	public void ParseFromString(string input, BackoffStrategy expected)
 	{
 		// Act
@@ -110,16 +104,16 @@ public sealed class BackoffStrategyShould
 	}
 
 	[Theory]
-	[InlineData("fixed", true)]
-	[InlineData("FIXED", true)]
-	[InlineData("Fixed", true)]
+	[InlineData("constant", true)]
+	[InlineData("CONSTANT", true)]
+	[InlineData("Constant", true)]
 	public void SupportCaseInsensitiveParsing(string input, bool ignoreCase)
 	{
 		// Act
 		var result = Enum.Parse<BackoffStrategy>(input, ignoreCase);
 
 		// Assert
-		result.ShouldBe(BackoffStrategy.Fixed);
+		result.ShouldBe(BackoffStrategy.Constant);
 	}
 
 	#endregion
@@ -127,10 +121,9 @@ public sealed class BackoffStrategyShould
 	#region TryParse Tests
 
 	[Theory]
-	[InlineData("Fixed", BackoffStrategy.Fixed)]
+	[InlineData("Constant", BackoffStrategy.Constant)]
 	[InlineData("Linear", BackoffStrategy.Linear)]
 	[InlineData("Exponential", BackoffStrategy.Exponential)]
-	[InlineData("ExponentialWithJitter", BackoffStrategy.ExponentialWithJitter)]
 	public void TryParseValidValues(string input, BackoffStrategy expected)
 	{
 		// Act
@@ -156,10 +149,9 @@ public sealed class BackoffStrategyShould
 	#region Conversion Tests
 
 	[Theory]
-	[InlineData(0, BackoffStrategy.Fixed)]
+	[InlineData(0, BackoffStrategy.Constant)]
 	[InlineData(1, BackoffStrategy.Linear)]
 	[InlineData(2, BackoffStrategy.Exponential)]
-	[InlineData(3, BackoffStrategy.ExponentialWithJitter)]
 	public void ConvertFromInt(int value, BackoffStrategy expected)
 	{
 		// Act
@@ -170,10 +162,9 @@ public sealed class BackoffStrategyShould
 	}
 
 	[Theory]
-	[InlineData(BackoffStrategy.Fixed, 0)]
+	[InlineData(BackoffStrategy.Constant, 0)]
 	[InlineData(BackoffStrategy.Linear, 1)]
 	[InlineData(BackoffStrategy.Exponential, 2)]
-	[InlineData(BackoffStrategy.ExponentialWithJitter, 3)]
 	public void ConvertToInt(BackoffStrategy strategy, int expected)
 	{
 		// Act
@@ -196,10 +187,9 @@ public sealed class BackoffStrategyShould
 		// Act
 		var description = strategy switch
 		{
-			BackoffStrategy.Fixed => "Fixed delay",
+			BackoffStrategy.Constant => "Fixed delay",
 			BackoffStrategy.Linear => "Linear backoff",
 			BackoffStrategy.Exponential => "Exponential backoff",
-			BackoffStrategy.ExponentialWithJitter => "Exponential with jitter",
 			_ => "Unknown",
 		};
 
@@ -214,7 +204,7 @@ public sealed class BackoffStrategyShould
 		BackoffStrategy defaultValue = default;
 
 		// Assert
-		defaultValue.ShouldBe(BackoffStrategy.Fixed);
+		defaultValue.ShouldBe(BackoffStrategy.Constant);
 	}
 
 	#endregion

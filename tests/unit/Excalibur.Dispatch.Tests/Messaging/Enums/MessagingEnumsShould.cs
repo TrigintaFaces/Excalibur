@@ -103,11 +103,9 @@ public sealed class MessagingEnumsShould
 	[Fact]
 	public void BackoffStrategy_HaveExpectedValues()
 	{
-		BackoffStrategy.Fixed.ShouldBe((BackoffStrategy)0);
+		BackoffStrategy.Constant.ShouldBe((BackoffStrategy)0);
 		BackoffStrategy.Linear.ShouldBe((BackoffStrategy)1);
 		BackoffStrategy.Exponential.ShouldBe((BackoffStrategy)2);
-		BackoffStrategy.ExponentialWithJitter.ShouldBe((BackoffStrategy)3);
-		BackoffStrategy.Fibonacci.ShouldBe((BackoffStrategy)4);
 	}
 
 	// --- CircuitState ---

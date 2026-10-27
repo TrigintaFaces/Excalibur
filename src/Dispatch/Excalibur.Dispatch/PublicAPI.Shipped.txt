@@ -3029,12 +3029,8 @@ Excalibur.Dispatch.Resilience.BackoffParameters.Multiplier.init -> void
 Excalibur.Dispatch.Resilience.BackoffParameters.UseJitter.get -> bool
 Excalibur.Dispatch.Resilience.BackoffParameters.UseJitter.init -> void
 Excalibur.Dispatch.Resilience.BackoffStrategy
-Excalibur.Dispatch.Resilience.BackoffStrategy.DecorrelatedJitter = 6 -> Excalibur.Dispatch.Resilience.BackoffStrategy
+Excalibur.Dispatch.Resilience.BackoffStrategy.Constant = 0 -> Excalibur.Dispatch.Resilience.BackoffStrategy
 Excalibur.Dispatch.Resilience.BackoffStrategy.Exponential = 2 -> Excalibur.Dispatch.Resilience.BackoffStrategy
-Excalibur.Dispatch.Resilience.BackoffStrategy.ExponentialWithJitter = 3 -> Excalibur.Dispatch.Resilience.BackoffStrategy
-Excalibur.Dispatch.Resilience.BackoffStrategy.Fibonacci = 4 -> Excalibur.Dispatch.Resilience.BackoffStrategy
-Excalibur.Dispatch.Resilience.BackoffStrategy.Fixed = 0 -> Excalibur.Dispatch.Resilience.BackoffStrategy
-Excalibur.Dispatch.Resilience.BackoffStrategy.FullJitter = 5 -> Excalibur.Dispatch.Resilience.BackoffStrategy
 Excalibur.Dispatch.Resilience.BackoffStrategy.Linear = 1 -> Excalibur.Dispatch.Resilience.BackoffStrategy
 Excalibur.Dispatch.Resilience.CircuitState (forwarded, contained in Excalibur.Dispatch.Abstractions)
 Excalibur.Dispatch.Resilience.CircuitState.Closed = 0 -> Excalibur.Dispatch.Resilience.CircuitState (forwarded, contained in Excalibur.Dispatch.Abstractions)

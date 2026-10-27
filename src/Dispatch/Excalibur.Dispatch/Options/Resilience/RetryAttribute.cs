@@ -57,6 +57,11 @@ public sealed class RetryAttribute : Attribute
 	/// <summary>
 	/// Gets or sets a value indicating whether to use jitter.
 	/// </summary>
-	/// <value>Default is <see langword="true"/>.</value>
-	public bool UseJitter { get; set; } = true;
+	/// <value>
+	/// <see langword="true"/> to randomize retry delays; otherwise, <see langword="false"/>. Default is
+	/// <see langword="false"/>, matching <see cref="RetryOptions.UseJitter"/> and Polly's own
+	/// <c>RetryStrategyOptions.UseJitter</c>. The same concept must not have two defaults depending on
+	/// whether it is set here or in options.
+	/// </value>
+	public bool UseJitter { get; set; }
 }

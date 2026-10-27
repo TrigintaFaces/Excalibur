@@ -39,4 +39,16 @@
   <data name="PollyBackoffCalculatorAdapter_MaxDelayMustBeGreaterOrEqualBaseDelay" xml:space="preserve">
     <value>Max delay must be greater than or equal to base delay.</value>
   </data>
+  <data name="PollyBackoffCalculatorAdapter_AttemptMustBeAtLeastOne" xml:space="preserve">
+    <value>The attempt number must be 1 or greater; the first retry is attempt 1.</value>
+  </data>
+  <data name="PollyBackoffCalculatorAdapter_UnknownBackoffType" xml:space="preserve">
+    <value>The backoff type is not one this adapter maps. Add an explicit mapping rather than defaulting it.</value>
+  </data>
+  <data name="DispatchBuilderResilienceExtensions_UnknownBackoffStrategy" xml:space="preserve">
+    <value>The configured backoff strategy has no Polly equivalent registered. Map it explicitly instead of substituting another curve.</value>
+  </data>
+  <data name="PollyRetryPolicyAdapter_UnknownBackoffStrategy" xml:space="preserve">
+    <value>The configured backoff strategy has no Polly equivalent registered. Map it explicitly instead of substituting another curve.</value>
+  </data>
 </root>

@@ -290,45 +290,35 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 	#region Backoff Calculator Behavioral Equivalence
 
 	[Fact]
-	public void BothCalculatorsHandleZeroAttempt()
+	public void BothCalculatorsRefuseAZeroAttempt()
 	{
-		// Arrange
+		// THIS ARM USED TO ASSERT THE OPPOSITE, and its own comment said so: "Note:
+		// ExponentialBackoffCalculator throws ArgumentOutOfRangeException for attempt <= 0. This is a
+		// known behavioral difference - Polly adapter is more lenient." A test that documents
+		// non-equivalence, in the file named for equivalence, is the clearest possible statement that the
+		// divergence was known and accepted rather than missed.
+		//
+		// It is not acceptable: substitutability is the whole purpose of the seam, and the lenient side
+		// converted a caller's off-by-one into an immediate retry with no backoff. IBackoffCalculator now
+		// states that a non-positive attempt MUST throw, and both implementations obey it.
 		var pollyCalc = new PollyBackoffCalculatorAdapter(
-			DelayBackoffType.Exponential,
-			TimeSpan.FromMilliseconds(100),
-			TimeSpan.FromSeconds(30),
-			false,
-			2.0);
+			DelayBackoffType.Exponential, TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), false, 2.0);
+		var defaultCalc = new ExponentialBackoffCalculator(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), 2.0);
 
-		// Act - Polly adapter is lenient and returns zero for invalid attempts
-		var pollyDelay = pollyCalc.CalculateDelay(0);
-
-		// Assert - Polly adapter gracefully handles edge cases
-		pollyDelay.ShouldBe(TimeSpan.Zero);
-
-		// Note: ExponentialBackoffCalculator throws ArgumentOutOfRangeException for attempt <= 0
-		// This is a known behavioral difference - Polly adapter is more lenient
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => pollyCalc.CalculateDelay(0));
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => defaultCalc.CalculateDelay(0));
 	}
 
 	[Fact]
-	public void BothCalculatorsHandleNegativeAttempt()
+	public void BothCalculatorsRefuseANegativeAttempt()
 	{
-		// Arrange
+		// The negative case, for the same reason as the zero case above.
 		var pollyCalc = new PollyBackoffCalculatorAdapter(
-			DelayBackoffType.Exponential,
-			TimeSpan.FromMilliseconds(100),
-			TimeSpan.FromSeconds(30),
-			false,
-			2.0);
+			DelayBackoffType.Exponential, TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), false, 2.0);
+		var defaultCalc = new ExponentialBackoffCalculator(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), 2.0);
 
-		// Act - Polly adapter is lenient and returns zero for invalid attempts
-		var pollyDelay = pollyCalc.CalculateDelay(-1);
-
-		// Assert - Polly adapter gracefully handles edge cases
-		pollyDelay.ShouldBe(TimeSpan.Zero);
-
-		// Note: ExponentialBackoffCalculator throws ArgumentOutOfRangeException for attempt <= 0
-		// This is a known behavioral difference - Polly adapter is more lenient
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => pollyCalc.CalculateDelay(-1));
+		_ = Should.Throw<ArgumentOutOfRangeException>(() => defaultCalc.CalculateDelay(-1));
 	}
 
 	[Fact]
@@ -339,8 +329,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		var defaultCalc = new ExponentialBackoffCalculator(
 			TimeSpan.FromMilliseconds(100),
 			maxDelay,
-			2.0,
-			false);
+			2.0);
 
 		var pollyCalc = new PollyBackoffCalculatorAdapter(
 			DelayBackoffType.Exponential,
@@ -365,8 +354,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		var defaultCalc = new ExponentialBackoffCalculator(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30),
-			2.0,
-			false);
+			2.0);
 
 		var pollyCalc = new PollyBackoffCalculatorAdapter(
 			DelayBackoffType.Exponential,
@@ -394,8 +382,7 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		var defaultCalc = new ExponentialBackoffCalculator(
 			TimeSpan.FromMilliseconds(100),
 			TimeSpan.FromSeconds(30),
-			2.0,
-			true);
+			2.0);
 
 		var pollyCalc = new PollyBackoffCalculatorAdapter(
 			DelayBackoffType.Exponential,

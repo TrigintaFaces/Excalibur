@@ -5,52 +5,46 @@
 namespace Excalibur.Dispatch.Resilience;
 
 /// <summary>
-/// Defines the backoff strategies for retry delays.
+/// Defines the growth law for retry delays.
 /// </summary>
 /// <remarks>
-/// Canonical location for all backoff strategy definitions.
-/// Previously duplicated in <c>Excalibur.Dispatch.Middleware</c>
-/// and <c>Excalibur.Dispatch.Resilience.Polly</c>.
+/// <para>
+/// <b>Three growth laws, and jitter is a separate switch.</b> These members name only how the nominal
+/// delay GROWS with the attempt number. Whether that delay is then randomised is
+/// <c>RetryOptions.UseJitter</c>, which applies to every member here. Earlier versions folded jitter into
+/// the strategy name, and that produced two public knobs for one concept whose interaction nothing
+/// documented: a strategy called <c>ExponentialWithJitter</c> that ignored <c>UseJitter</c>, and a
+/// <c>UseJitter</c> that the default strategy silently discarded.
+/// </para>
+/// <para>
+/// <b>These are the same three laws, with the same names, as Polly's <c>DelayBackoffType</c>.</b> That is
+/// deliberate: the opt-in <c>Excalibur.Dispatch.Resilience.Polly</c> package maps this enum onto Polly
+/// one-to-one, exhaustively, with no fall-through. A consumer who knows Polly already knows this surface,
+/// and -- more importantly -- a member cannot be added here and silently reinterpreted as something else
+/// there, because the mapping has no default arm to absorb it. A new member is a compile error in the
+/// adapter until it is mapped, which is where that decision belongs.
+/// </para>
+/// <para>
+/// <b>If you need a curve that is not one of these</b> -- Fibonacci growth, a bespoke ladder, a sequence
+/// read from configuration -- implement <see cref="IBackoffCalculator" /> and register it. That is the
+/// escape hatch, and it is the same shape as Polly's own <c>DelayGenerator</c>: three laws cover the cases
+/// worth naming, and anything else is a function the consumer supplies rather than a member we enumerate.
+/// </para>
 /// </remarks>
 public enum BackoffStrategy
 {
 	/// <summary>
-	/// Fixed (constant) delay between retry attempts.
+	/// The same delay before every attempt: <c>baseDelay</c>.
 	/// </summary>
-	Fixed = 0,
+	Constant = 0,
 
 	/// <summary>
-	/// Linear increase in delay (baseDelay * attempt).
+	/// Delay grows in proportion to the attempt number: <c>min(baseDelay * attempt, maxDelay)</c>.
 	/// </summary>
 	Linear = 1,
 
 	/// <summary>
-	/// Exponential increase in delay (baseDelay * 2^attempt).
+	/// Delay grows geometrically: <c>min(baseDelay * multiplier^(attempt-1), maxDelay)</c>.
 	/// </summary>
 	Exponential = 2,
-
-	/// <summary>
-	/// Exponential increase with random jitter to prevent thundering herd.
-	/// </summary>
-	ExponentialWithJitter = 3,
-
-	/// <summary>
-	/// Fibonacci sequence delays.
-	/// </summary>
-	Fibonacci = 4,
-
-	/// <summary>
-	/// AWS "Full Jitter" exponential backoff: the delay is sampled uniformly from
-	/// <c>[0, min(maxDelay, baseDelay * multiplier^(attempt-1))]</c>, maximally decorrelating concurrent
-	/// clients to avoid the thundering-herd problem.
-	/// </summary>
-	FullJitter = 5,
-
-	/// <summary>
-	/// AWS "Decorrelated Jitter": the delay is sampled uniformly from
-	/// <c>[baseDelay, min(maxDelay, previousDelay * 3)]</c>, threading the previous actual delay forward for a
-	/// smoother, less-correlated growth than full jitter. Stateful, so it applies to the in-process retry path
-	/// only; durable retry paths use an attempt-derived strategy.
-	/// </summary>
-	DecorrelatedJitter = 6,
 }

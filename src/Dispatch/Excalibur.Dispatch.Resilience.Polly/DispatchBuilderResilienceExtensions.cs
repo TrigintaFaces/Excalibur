@@ -135,18 +135,26 @@ public static class DispatchBuilderResilienceExtensions
 		{
 			var retryOpts = options.RetryOptions ?? new PollyRetryOptions();
 			return new PollyBackoffCalculatorAdapter(
+				// ONE-TO-ONE AND EXHAUSTIVE. BackoffStrategy names the same three growth laws as Polly's
+				// DelayBackoffType, so this mapping is total and has no default arm. That is the point:
+				// a `_ =>` here previously absorbed four strategy members and silently computed
+				// exponential for all of them, so a consumer who configured one of those got a curve
+				// they did not select, with no error and no log. With no default, adding a member to
+				// BackoffStrategy is a COMPILE ERROR here until somebody decides what it maps to, which
+				// is where that decision belongs.
 				retryOpts.BackoffStrategy switch
 				{
-					BackoffStrategy.Fixed => DelayBackoffType.Constant,
+					BackoffStrategy.Constant => DelayBackoffType.Constant,
 					BackoffStrategy.Linear => DelayBackoffType.Linear,
 					BackoffStrategy.Exponential => DelayBackoffType.Exponential,
-					// FullJitter → Polly exponential with jitter forced on (no distinct Polly FullJitter member).
-					BackoffStrategy.FullJitter => DelayBackoffType.Exponential,
-					_ => DelayBackoffType.Exponential,
+					_ => throw new ArgumentOutOfRangeException(
+						nameof(configureOptions),
+						retryOpts.BackoffStrategy,
+						Resources.DispatchBuilderResilienceExtensions_UnknownBackoffStrategy),
 				},
 				retryOpts.BaseDelay,
 				options.MaxBackoffDelay,
-				retryOpts.UseJitter || retryOpts.BackoffStrategy == BackoffStrategy.FullJitter);
+				retryOpts.UseJitter);
 		});
 
 		_ = services.RemoveAll<ITransportCircuitBreakerRegistry>();

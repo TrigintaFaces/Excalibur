@@ -63,6 +63,42 @@ namespace Excalibur.Dispatch.Resilience.Polly {
         /// <summary>
         ///   Looks up a localized string similar to Base delay must be positive..
         /// </summary>
+        /// <summary>
+        ///   Looks up a localized string.
+        /// </summary>
+        internal static string PollyBackoffCalculatorAdapter_AttemptMustBeAtLeastOne {
+            get {
+                return ResourceManager.GetString("PollyBackoffCalculatorAdapter_AttemptMustBeAtLeastOne", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string.
+        /// </summary>
+        internal static string PollyBackoffCalculatorAdapter_UnknownBackoffType {
+            get {
+                return ResourceManager.GetString("PollyBackoffCalculatorAdapter_UnknownBackoffType", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string.
+        /// </summary>
+        internal static string DispatchBuilderResilienceExtensions_UnknownBackoffStrategy {
+            get {
+                return ResourceManager.GetString("DispatchBuilderResilienceExtensions_UnknownBackoffStrategy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string.
+        /// </summary>
+        internal static string PollyRetryPolicyAdapter_UnknownBackoffStrategy {
+            get {
+                return ResourceManager.GetString("PollyRetryPolicyAdapter_UnknownBackoffStrategy", resourceCulture);
+            }
+        }
+
         internal static string PollyBackoffCalculatorAdapter_BaseDelayMustBePositive {
             get {
                 return ResourceManager.GetString("PollyBackoffCalculatorAdapter_BaseDelayMustBePositive", resourceCulture);
