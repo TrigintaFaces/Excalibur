@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
+
 using Excalibur.EventSourcing.Projections;
 
 namespace Excalibur.Data.ElasticSearch.Projections;
@@ -199,6 +201,14 @@ public sealed class ProjectionRebuildRequest
 	/// once the replay has finished, so a caller can always tell "still folding" from "done".
 	/// </para>
 	/// </remarks>
+	[RequiresUnreferencedCode(
+		"An event re-fold replays through the rebuild service, which serializes the projection type "
+		+ "reflectively through IProjectionStore. Use ForIndexMove, which copies documents and does not "
+		+ "re-fold, or run the re-fold from a host that permits reflection.")]
+	[RequiresDynamicCode(
+		"An event re-fold replays through the rebuild service, which serializes the projection type "
+		+ "reflectively through IProjectionStore. Use ForIndexMove, which copies documents and does not "
+		+ "re-fold, or run the re-fold from a host that permits reflection.")]
 	public static ProjectionRebuildRequest ForEventRefold<TProjection>()
 		where TProjection : class, new()
 	{

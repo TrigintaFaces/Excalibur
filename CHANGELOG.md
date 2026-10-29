@@ -56,6 +56,23 @@ reviewed SqlClient dependency limitation remains accepted for this alpha; the co
 Elasticsearch native path is **not AOT certified**. See the
 [native probe](tests/harnesses/SqlElasticInlineAotProbe/README.md) for the strict publication policy.
 
+**Rebuilding a projection now reports its trimming and AOT constraint at build time.**
+`IProjectionRebuildService.RebuildAsync<TProjection>` and
+`ProjectionRebuildRequest.ForEventRefold<TProjection>` carry `RequiresUnreferencedCode` and
+`RequiresDynamicCode`. Previously the constraint was suppressed internally, so a trimmed or Native AOT
+publish of a host that rebuilds succeeded with no diagnostic and could then fail while rebuilding.
+
+- **If you have trim or AOT analysis enabled, you will see a new warning** where these members are
+  called. That is the constraint being reported, not a new limitation: rebuilding persists the rebuilt
+  read model through `IProjectionStore`, which serializes the projection type reflectively.
+- **No projection provider currently makes a rebuild AOT-safe.** Run rebuilds from a host that permits
+  reflection while the trimmed host serves reads. On the search providers,
+  `ProjectionRebuildRequest.ForIndexMove` copies documents instead of re-folding and does not take this
+  path. Registering a store that advertises the source-generated projection-store capability does **not**
+  make a rebuild AOT-safe — the replay fold does not consult it.
+- **This bounds projection erasure for a Native AOT host.** Erasure reaches a projection by rebuild, so
+  such a host cannot discharge projection erasure itself and must run the rebuild elsewhere.
+
 
 ## [10.0.0-alpha.19] - 2026-10-26
 

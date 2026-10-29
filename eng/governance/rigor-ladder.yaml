@@ -106,7 +106,7 @@ seams:
     # Its generator now emits existing unnumbered rows and deletion schedules. The named never-fold
     # arm requires terminal refusal with unchanged row/position for the unnumbered precondition and
     # requires that this precondition was sampled. Adoption and absent-precondition generator mutants
-    # must redden that named arm (piema6); a passing file-pattern check alone proves none of this.
+    # must redden that named arm; a passing file-pattern check alone proves none of this.
     #
     # Splitting this into one row per guarantee is the right shape and is NOT done here: the coverage
     # oracle is bidirectional on architecture_md paths, so seven rows would need seven files or a gate

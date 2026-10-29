@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Excalibur.EventSourcing.Projections;
 
 /// <summary>
@@ -30,6 +32,20 @@ public interface IProjectionRebuildService
 	/// <typeparam name="TProjection">The projection type to rebuild.</typeparam>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous rebuild operation.</returns>
+	/// <remarks>
+	/// Rebuilding writes the rebuilt read model through <c>IProjectionStore</c>, which serializes
+	/// <typeparamref name="TProjection"/> reflectively, and the rebuild path does not consult the
+	/// source-generated projection-store capability. A trimmed or Native AOT host therefore cannot perform
+	/// a rebuild: run it from a host that permits reflection while the trimmed host serves reads.
+	/// </remarks>
+	[RequiresUnreferencedCode(
+		"Rebuilding re-folds the event stream and persists the result through IProjectionStore, which "
+		+ "serializes the projection type reflectively; the rebuild path does not consult the source-generated "
+		+ "projection-store capability. Run rebuilds from a host that permits reflection.")]
+	[RequiresDynamicCode(
+		"Rebuilding re-folds the event stream and persists the result through IProjectionStore, which "
+		+ "serializes the projection type reflectively; the rebuild path does not consult the source-generated "
+		+ "projection-store capability. Run rebuilds from a host that permits reflection.")]
 	Task RebuildAsync<TProjection>(CancellationToken cancellationToken)
 		where TProjection : class, new();
 

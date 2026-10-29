@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Excalibur.Data;
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing.Postgres.Requests;
 
@@ -38,11 +39,34 @@ public sealed partial class PostgresProjectionStore<TProjection>
     IProjectionGenerationReader<TProjection> IAotProjectionGenerationReaderFactory<TProjection>.OpenReader(string destinationIdentity, JsonTypeInfo<TProjection> typeInfo)
     {
         ArgumentNullException.ThrowIfNull(typeInfo);
+        var effectiveTypeInfo = GenerationReadMetadata(typeInfo);
         var store = new PostgresProjectionStore<TProjection>(this, destinationIdentity);
         return new GenerationReader(store._tenantContext, (store as IServiceProvider).GetService(typeof(IProjectionDestinationScope)) is IProjectionDestinationScope scope ? scope.Scope : null, 
-            (id, token) => store.GetByIdCoreAsync(id, json => JsonSerializer.Deserialize(json, typeInfo), token),
-            (filters, options, token) => store.QueryCoreAsync(filters, options, json => JsonSerializer.Deserialize(json, typeInfo), token),
+            (id, token) => store.GetByIdCoreAsync(id, json => JsonSerializer.Deserialize(json, effectiveTypeInfo), token),
+            (filters, options, token) => store.QueryCoreAsync(filters, options, json => JsonSerializer.Deserialize(json, effectiveTypeInfo), token),
             store.CountAsync);
+    }
+
+    // The persisted document shape is this store's, never the caller's. Generated metadata whose context
+    // declares a different naming policy -- or omits a converter the write path applied -- describes a
+    // different document, and deserializing through it yields defaults or wrong values with no error.
+    // Only the resolver is taken from the caller, so the read stays trim-safe.
+    private volatile GenerationReadBinding? _generationReadBinding;
+
+    private sealed record GenerationReadBinding(JsonTypeInfo<TProjection> Source, JsonTypeInfo<TProjection> Effective);
+
+    private JsonTypeInfo<TProjection> GenerationReadMetadata(JsonTypeInfo<TProjection> typeInfo)
+    {
+        // OpenReader runs once per read operation, so the derived options are memoised: a fresh
+        // JsonSerializerOptions carries a cold metadata cache. A benign race only recomputes.
+        var cached = _generationReadBinding;
+        if (cached is not null && ReferenceEquals(cached.Source, typeInfo))
+        {
+            return cached.Effective;
+        }
+        var effective = ProjectionSerializationDefaults.CreateReadModelTypeInfo(_jsonOptions, typeInfo);
+        _generationReadBinding = new GenerationReadBinding(typeInfo, effective);
+        return effective;
     }
 
     private sealed class GenerationReader(

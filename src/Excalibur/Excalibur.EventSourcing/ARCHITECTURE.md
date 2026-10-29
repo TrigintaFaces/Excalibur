@@ -380,6 +380,10 @@ not carry per-subject encryption keys and it has no erase endpoint of its own. *
 structural: a projection rebuilt after a subject's aggregate has been tombstoned contains no trace of that
 subject, because the rebuild replays the tombstoned stream and never applies the erased events.**
 
+> **This guarantee is conditional on being able to run a rebuild, and a trimmed or Native AOT host cannot.**
+> A rebuild serializes the projection type reflectively, so such a host must run the rebuild elsewhere to
+> discharge projection erasure. See *Backend and AOT boundaries* below.
+
 > **A rebuild is ADDITIVE, and for erasure that distinction is the whole story.** A rebuild re-folds
 > every projection id the replayed stream produces and writes each one. It does not remove a row for an
 > id the stream no longer produces, and it cannot: the store contract offers no key enumeration, so the
@@ -2255,6 +2259,28 @@ Generated reader overloads require `IAotProjectionGenerationReaderFactory<T>` an
 metadata. Conventional overloads carry trimming/dynamic-code annotations. A missing generated
 capability is refused, never replaced silently with reflection. A passing diagnostic native executable
 is not strict AOT certification: the accepted SqlClient limitation remains separately recorded.
+
+Rebuild does NOT yet follow that rule on the write side, and the annotations say so rather than implying
+otherwise. A rebuild persists the rebuilt read model through `IProjectionStore`, which serializes the
+projection type reflectively, so `IProjectionRebuildService.RebuildAsync<T>` and the search provider's
+event-refold request factory carry trimming/dynamic-code annotations instead of suppressing them: a
+trimmed or Native AOT publish reports the constraint at build time rather than failing at rebuild time.
+
+**The replay fold does not consult `IAotProjectionStore<T>`.** It holds `IProjectionStore<T>` and
+`IPositionedProjectionStore<T>` directly, so registering a store that advertises the source-generated
+capability does not make a rebuild AOT-safe today — the capability is resolved only on the live and
+inline read paths. Registering it is therefore not the remedy for a rebuild, and the annotation messages
+do not claim it is.
+
+**Consumer obligation.** A trimmed or Native AOT host cannot perform an event re-fold on any provider.
+Run rebuilds from a host that permits reflection while the trimmed host serves reads; on the search
+providers an index move copies documents instead of re-folding and does not go through the fold at all.
+
+**Known gap, and the bound it puts on erasure.** Routing the replay fold through a source-generated
+projection-store capability is unbuilt, and only the Elasticsearch projection store advertises one in the
+first place. This bounds the projection erasure statement earlier in this document for a Native AOT host:
+erasure reaches a projection by rebuild, so such a host cannot discharge projection erasure itself and
+must run the rebuild from a host that permits reflection.
 
 ## Verification
 

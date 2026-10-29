@@ -366,8 +366,6 @@
 1	src/Excalibur/Excalibur.EventSourcing/Projections/EventNotificationBroker.cs	IL3050
 1	src/Excalibur/Excalibur.EventSourcing/Projections/ImmutableProjectionBuilder.cs	IL3050
 1	src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionBuilder.cs	IL3050
-1	src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRebuildService.cs	IL2026
-1	src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRebuildService.cs	IL3050
 1	src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRecoveryService.cs	IL2026
 1	src/Excalibur/Excalibur.EventSourcing/Projections/ProjectionRecoveryService.cs	IL3050
 1	src/Excalibur/Excalibur.EventSourcing/Services/MaterializedViewRefreshService.cs	IL2026

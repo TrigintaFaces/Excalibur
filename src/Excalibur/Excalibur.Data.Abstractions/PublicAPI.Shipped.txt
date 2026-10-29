@@ -655,6 +655,7 @@ static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.ParseConnec
 static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.RefreshAsync(this Excalibur.Data.Persistence.IConnectionStringProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 static Excalibur.Data.Persistence.ConnectionStringProviderExtensions.ValidateConnectionString(this Excalibur.Data.Persistence.IConnectionStringProvider! provider, string! connectionString, string! providerType) -> bool
 static Excalibur.Data.ProjectionSerializationDefaults.CreateReadModelOptions() -> System.Text.Json.JsonSerializerOptions!
+static Excalibur.Data.ProjectionSerializationDefaults.CreateReadModelTypeInfo<TProjection>(System.Text.Json.JsonSerializerOptions! writeOptions, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! generatedTypeInfo) -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>!
 static Excalibur.Data.ResourceException.ForResource(string! resource, string? resourceId = null) -> Excalibur.Data.ResourceException!
 static Excalibur.Data.ResourceException.FormatMessage(string! resource, string? resourceId) -> string!
 static Excalibur.Data.ResourceNotFoundException.ForEntity<TEntity>(object! id) -> Excalibur.Data.ResourceNotFoundException!

@@ -128,6 +128,10 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
     }
 
     /// <inheritdoc />
+    // Internal type: the consumer-facing wording lives once, on the interface member. Keep these bare so a
+    // correction to that wording has one site, not four.
+    [RequiresUnreferencedCode("Rebuilding serializes the projection type reflectively through IProjectionStore.")]
+    [RequiresDynamicCode("Rebuilding serializes the projection type reflectively through IProjectionStore.")]
     public async Task RebuildAsync<TProjection>(CancellationToken cancellationToken) where TProjection : class, new()
     {
         ProjectionCapacity.ValidateAdmission(ProjectionCapacityKind.Rebuild);
@@ -146,10 +150,10 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
         (mode == ProjectionMode.Inline ? services.GetService<InlineProjectionSource>()?.Query : null)
         ?? services.GetService<Queries.IGlobalStreamQuery>();
 
-	[UnconditionalSuppressMessage("AOT", "IL2026",
-		Justification = "Event deserialization during rebuild uses IEventSerializer which consumers configure with preserved types.")]
-	[UnconditionalSuppressMessage("AOT", "IL3050",
-		Justification = "Event deserialization during rebuild uses IEventSerializer which consumers configure.")]
+	// Propagates the replay path's reflective projection serialization up to the public entry point
+	// rather than suppressing it, so a trimmed or AOT consumer is told at build time.
+	[RequiresUnreferencedCode("Rebuilding serializes the projection type reflectively through IProjectionStore.")]
+	[RequiresDynamicCode("Rebuilding serializes the projection type reflectively through IProjectionStore.")]
 	private async Task RebuildCoreAsync<TProjection>(IServiceProvider services, CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
@@ -259,8 +263,8 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		}
 	}
 
-    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "Rebuild uses the consumer-configured event serializer and projection metadata.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Rebuild uses the consumer-configured event serializer and projection metadata.")]
+    [RequiresUnreferencedCode("Folds and flushes through IProjectionStore, which serializes the projection type reflectively.")]
+    [RequiresDynamicCode("Folds and flushes through IProjectionStore, which serializes the projection type reflectively.")]
     private async Task ReplayProjectionAsync<TProjection>(IServiceProvider services, MultiStreamProjection<TProjection> projection,
         IProjectionStore<TProjection> store, ProjectionMode mode, Queries.IGlobalStreamQuery globalQuery, CancellationToken cancellationToken)
         where TProjection : class, new()

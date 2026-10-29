@@ -297,7 +297,6 @@ Excalibur.Domain.ApplicationContextOptions::ServiceAccountPrivateKeyPath
 Excalibur.Domain.BoundedContext.BoundedContextOptions::ValidateOnStartup
 Excalibur.EventSourcing.Firestore.FirestoreEventStoreOptions::CreateCollectionIfNotExists
 Excalibur.EventSourcing.Migration.MigrationRunnerOptions::MigrationAssembly
-Excalibur.EventSourcing.Projections.ProjectionRebuildOptions::MaxParallelism
 Excalibur.EventSourcing.Projections.ProjectionRebuildOptions::RebuildOnStartup
 Excalibur.EventSourcing.Subscriptions.EventSubscriptionOptions::BufferSize
 Excalibur.EventSourcing.Views.MaterializedViewOptions::CatchUpOnStartup

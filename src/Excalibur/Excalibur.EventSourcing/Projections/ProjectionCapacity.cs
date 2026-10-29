@@ -37,7 +37,7 @@ internal sealed class ProjectionCapacity : IDisposable
     private readonly UpDownCounter<long> _active;
     private readonly Counter<long> _rejected;
     private readonly Histogram<double> _waitDuration;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public ProjectionCapacity(IOptions<ProjectionCapacityOptions> options)
     {
