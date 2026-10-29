@@ -1,6 +1,10 @@
 -- One row per member lifetime. Advances update only the matching binding.
 -- Use binary column collation where enabled; STANDARD databases use binary key constraints
 -- and the provider uses explicit binary comparison operators in every key predicate.
+-- An operator running this inside an interactive session is ended by that non-zero exit;
+-- to keep the session, issue WHENEVER SQLERROR CONTINUE before @-ing the file.
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK
+
 DECLARE
     ddl VARCHAR2(32767) := 'CREATE TABLE EXCALIBUR.SUBSCRIPTIONCHECKPOINTS (
         SUBSCRIPTIONNAME VARCHAR2(255 CHAR) COLLATE BINARY NOT NULL,

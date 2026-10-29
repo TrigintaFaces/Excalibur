@@ -135,7 +135,7 @@ and is marked PROPRIETARY when they are not an OSI-approved open-source license.
 | Microsoft.IdentityModel.Tokens | 8.17.0 | MIT |
 | Microsoft.OpenApi | 2.7.5 | MIT |
 | MongoDB.Driver | 3.11.1 | Apache-2.0 |
-| MySqlConnector | 2.5.0 | MIT |
+| MySqlConnector | 2.6.1 | MIT |
 | NCrontab | 3.4.0 | Apache-2.0 |
 | Npgsql | 10.0.2 | PostgreSQL |
 | OpenSearch.Client | 1.8.0 | Apache-2.0 |
