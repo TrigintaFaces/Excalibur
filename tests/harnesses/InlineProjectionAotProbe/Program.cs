@@ -41,7 +41,7 @@ internal static class Probe
         var aggregate = new Counter(Guid.NewGuid());
         for (var i = 0; i < 20; i++) { aggregate.Add(); }
         var save = await repository.SaveAsync(aggregate, CancellationToken.None);
-        if (save.SessionToken is not > 0 || store.Count != 20 || store.Writes != 1) { throw new InvalidOperationException("Native foreground fold failed."); }
+        if (save.Projections != ProjectionFreshness.Attested || save.SessionToken is not > 0 || store.Count != 20 || store.Writes != 1) { throw new InvalidOperationException("Native foreground fold failed."); }
         store.Fail = true;
         aggregate.Add();
         var pending = await repository.SaveAsync(aggregate, CancellationToken.None);
@@ -77,14 +77,17 @@ public sealed class Counter(Guid id) : AggregateRoot<Guid>(id)
 internal sealed partial class ProbeJson : JsonSerializerContext;
 
 // Purpose-built, clone-safe single-document storage. This isolates orchestration from provider AOT support.
-internal sealed class ProbeStore : IProjectionStore<ReadModel>, IPositionedProjectionStore<ReadModel>
+internal sealed class ProbeStore : IProjectionStore<ReadModel>, IPositionedProjectionStore<ReadModel>, IProjectionDestinationIdentity
 {
     private readonly object _gate = new();
     private long? _position;
     public int Count { get; private set; }
     public int Writes { get; private set; }
     public bool Fail { get; set; }
-    public object? GetService(Type type) => type == typeof(IPositionedProjectionStore<ReadModel>) ? this : null;
+    public string Identity { get; } = "native-probe/" + Guid.NewGuid().ToString("N");
+    public object? GetService(Type type) => type == typeof(IPositionedProjectionStore<ReadModel>) ? this
+        : type == typeof(IProjectionDestinationIdentity) ? this
+        : type == typeof(IProjectionTenantBoundary) ? ProjectionTenantBoundary.EstateWide : null;
     [RequiresDynamicCode("Matches provider interface; this probe implementation uses typed state only.")]
     [RequiresUnreferencedCode("Matches provider interface; this probe implementation uses typed state only.")]
     public Task<ReadModel?> GetByIdAsync(string id, CancellationToken token)

@@ -1,38 +1,20 @@
--- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
--- SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
-
--- Durable subscription checkpoints.
---
--- SQLite is embedded, so it is tempting to treat a checkpoint as process state -- but the process is
--- exactly what restarts. Without a durable mark every subscription replays the whole stream on each
--- start, which on an append-only store grows without bound. The database file outlives the process.
---
--- The name is the key: a checkpoint is per SUBSCRIPTION, not per instance, and two processes sharing
--- one database file race for it. The store's compare-and-set advance resolves that race.
-
+-- One row per member lifetime. Binding creates a NULL position; advances only update the matching lifetime.
+-- Greenfield provisioning: existing databases must use this schema. No legacy data migration.
 CREATE TABLE IF NOT EXISTS [SubscriptionCheckpoints] (
-    -- BINARY collation so the compare-and-set matches the ordinal comparison the contract uses; under a
-    -- case-insensitive collation two subscriptions differing only in case would share one checkpoint and
-    -- each would skip whatever the other had consumed.
     SubscriptionName TEXT NOT NULL COLLATE BINARY,
-
-    -- The last position PROCESSED, never the next to fetch. Global-stream reads are exclusive of the
-    -- cursor, so the two conventions must not be mixed.
-    Position         INTEGER NOT NULL,
-
-    UpdatedAt        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    PRIMARY KEY (SubscriptionName)
+    ProjectionKey TEXT NOT NULL COLLATE BINARY,
+    DefinitionHash TEXT NOT NULL COLLATE BINARY CHECK (length(DefinitionHash) = 64 AND DefinitionHash NOT GLOB '*[^0-9A-F]*'),
+    Destination TEXT NOT NULL COLLATE BINARY,
+    DestinationScope TEXT NULL COLLATE BINARY,
+    BindingId TEXT NOT NULL COLLATE BINARY UNIQUE,
+    Position INTEGER NULL CHECK (Position IS NULL OR Position >= 0),
+    PRIMARY KEY (SubscriptionName, ProjectionKey)
 );
 
--- Immutable work-set binding, separate from the nullable/absent checkpoint state.
-CREATE TABLE IF NOT EXISTS [SubscriptionCheckpointsDefinitions] (
-    SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
-    -- Character count AND alphabet, matching the SQL Server table. length() is already
-    -- character-based here, so the byte/character trap that the other provider's DATALENGTH
-    -- carries does not exist -- but the alphabet half is the actual contract (the store refuses
-    -- anything that is not 64 uppercase hex characters before it reaches SQL), and both providers
-    -- should say the same thing. GLOB is case-sensitive, so the lower-case range rejects.
-    DefinitionHash TEXT NOT NULL COLLATE BINARY
-        CHECK (length(DefinitionHash) = 64 AND DefinitionHash NOT GLOB '*[^0-9A-F]*')
+CREATE TABLE IF NOT EXISTS [SubscriptionCheckpointsReaders] (
+    SubscriptionName TEXT NOT NULL COLLATE BINARY,
+    ReaderName TEXT NOT NULL COLLATE BINARY,
+    Revision TEXT NOT NULL COLLATE BINARY,
+    BindingId TEXT NOT NULL COLLATE BINARY REFERENCES [SubscriptionCheckpoints](BindingId),
+    PRIMARY KEY (SubscriptionName, ReaderName)
 );

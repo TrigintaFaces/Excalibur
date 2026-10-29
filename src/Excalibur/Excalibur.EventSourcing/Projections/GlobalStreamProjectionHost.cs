@@ -47,6 +47,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	// pinned for the process lifetime), so they are resolved from a fresh scope per polling cycle
 	// — the same pattern the sibling AsyncProjectionProcessingHost documents and uses.
 	private readonly IServiceScopeFactory _scopeFactory;
+	private Guid _bindingId;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IOptions<GlobalStreamProjectionOptions> _options;
 	private readonly ILogger<GlobalStreamProjectionHost<TState>> _logger;
@@ -128,25 +129,103 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	}
 
 	/// <summary>
-	/// The checkpoint key for this host, derived from <typeparamref name="TState"/> unless the consumer
-	/// named it explicitly.
+	/// This host's stable subscription name: always namespaced to this host kind, and distinguished
+	/// within it by the configured projection name when the consumer supplied one, or by
+	/// <typeparamref name="TState"/> when they did not.
 	/// </summary>
 	/// <remarks>
-	/// A checkpoint is keyed by name, so two hosts sharing a name share one mark. This type is generic and
-	/// is registered once per state type, so the state type is a name that is unique by construction —
-	/// deriving it makes the collision inexpressible rather than merely discouraged. An explicit name
-	/// still wins, which is what a consumer running two hosts over the same state type needs.
+	/// <para>
+	/// A roster is keyed by subscription name, so two hosts sharing a name share one roster. The
+	/// namespace prefix is applied UNCONDITIONALLY rather than only to the derived form, which is what
+	/// makes a collision with the asynchronous processing host's subscription inexpressible instead of
+	/// merely unlikely: that host binds under the configured name bare, so a configured name that was
+	/// returned bare here would bind both hosts to one roster. This host's work set is a single plain
+	/// state instance and is never an entry in that host's projection registry, so every member of the
+	/// shared roster would be permanently unattestable by one side or the other — a liveness failure that
+	/// satisfies every safety assertion while denying every attestation forever.
+	/// </para>
+	/// <para>
+	/// The configured name is COMPOSED INTO the namespaced form rather than replacing it, so an explicit
+	/// name still distinguishes two global-stream hosts over the same state type from one another — which
+	/// is what a consumer running two of them needs — while neither can reach the other host kind's
+	/// namespace.
+	/// </para>
 	/// </remarks>
 	private string SubscriptionName
 	{
 		get
 		{
 			var configured = _options.Value.ProjectionName;
-			return string.IsNullOrWhiteSpace(configured)
+			var distinguisher =
+				string.IsNullOrWhiteSpace(configured)
 				|| string.Equals(configured, GlobalStreamProjectionOptions.DefaultProjectionName, StringComparison.Ordinal)
-					? "GlobalStreamProjection:" + typeof(TState).FullName
+					? ProjectionKey
 					: configured;
+
+			return SubscriptionNamespace + distinguisher;
 		}
+	}
+
+	/// <summary>
+	/// The namespace every subscription name this host binds under begins with.
+	/// </summary>
+	private const string SubscriptionNamespace = "GlobalStreamProjection:";
+
+	/// <summary>
+	/// This host's single roster member key, and the second half of every cursor key it addresses.
+	/// </summary>
+	/// <remarks>
+	/// Shared by the binding and the cursor rather than spelled at each site: the member row and its
+	/// checkpoint are addressed by the SAME pair, so a cursor derived any other way is aimed at a row the
+	/// binding never wrote — read as absent, advanced as an orphan, and left behind by a release that
+	/// nonetheless reports success.
+	/// </remarks>
+	private static string ProjectionKey => SubscriptionKeys.ProjectionKey(typeof(TState));
+
+	/// <summary>
+	/// Binds this host's single-member roster before any cursor is read or advanced.
+	/// </summary>
+	/// <param name="checkpointStore">The checkpoint store for this run.</param>
+	/// <param name="options">The resolved projection options.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task that completes when the binding is established or already matches.</returns>
+	/// <remarks>
+	/// <para>
+	/// THIS HOST PREVIOUSLY BOUND NOTHING. It read and compare-and-set advanced a cursor keyed on the
+	/// subscription name while calling the binding operation nowhere, so the one shared cursor a binding
+	/// most obviously protects was the only cursor with no binding at all. Two deployments configured
+	/// with different state types under one subscription name would each advance it as if they owned it.
+	/// </para>
+	/// <para>
+	/// Its roster has exactly one member, and that is a property of this host rather than a
+	/// simplification: it is generic over a single state type and holds no projection registry, so that
+	/// type IS its work set. The destination is empty because this host advertises no destination
+	/// identity, which is the case the contract already requires a consumer to cover through the
+	/// subscription scope.
+	/// </para>
+	/// <para>
+	/// Extracted from the execute loop rather than inlined there, because inlining it pushed that
+	/// method past the class-coupling limit. The limit was the right signal: this is a distinct
+	/// responsibility with its own failure mode.
+	/// </para>
+	/// </remarks>
+	private async Task<SubscriptionMember> BindRosterAsync(
+		ISubscriptionCheckpointStore checkpointStore,
+		GlobalStreamProjectionOptions options,
+		CancellationToken cancellationToken)
+	{
+		var member = new SubscriptionMember(
+			ProjectionKey: ProjectionKey,
+			DefinitionHash: SubscriptionKeys.DefinitionFingerprint(
+				options.SubscriptionScope,
+				options.SubscriptionRevision,
+				typeof(TState).Assembly.GetName().Name ?? string.Empty,
+				ProjectionKey,
+				destination: string.Empty),
+			Destination: string.Empty);
+
+		var roster = await checkpointStore.BindSubscriptionAsync(SubscriptionName, [member], cancellationToken).ConfigureAwait(false);
+		return roster.Members.Single(m => m.ProjectionKey == ProjectionKey);
 	}
 
 	/// <inheritdoc />
@@ -154,19 +233,46 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 		Justification = "Event deserialization is inherently dynamic; projection host requires runtime type resolution.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026",
 		Justification = "Event deserialization requires type metadata; consumers must preserve event types.")]
+    private async Task<long?> RestoreCheckpointAsync(GlobalStreamProjectionOptions options, CancellationToken cancellationToken)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var store = ProjectionCapacitySource.Checkpoints(scope.ServiceProvider, scope.ServiceProvider.GetRequiredService<ISubscriptionCheckpointStore>());
+        var member = await BindRosterAsync(store, options, cancellationToken).ConfigureAwait(false);
+        _bindingId = member.BindingId;
+        return member.Position;
+    }
+
+    private async Task ReconcileCheckpointAsync(ISubscriptionCheckpointStore store, CancellationToken cancellationToken)
+    {
+        var current = await store.ReadSubscriptionAsync(SubscriptionName, cancellationToken).ConfigureAwait(false);
+        var member = current.Members.FirstOrDefault(m => m.ProjectionKey == ProjectionKey);
+        if (member?.BindingId != _bindingId)
+        {
+            throw new SubscriptionBindingRetiredException();
+        }
+        _durableCheckpoint = member.Position;
+        _currentPosition = new GlobalStreamPosition(member.Position ?? 0, DateTimeOffset.MinValue);
+        _checkpointedPosition = _currentPosition;
+    }
+
+	/// <inheritdoc />
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		var opts = _options.Value;
 		var state = new TState();
 
-		// Restore checkpoint position from last run (scoped resolution — no captive dependency).
-		long? lastCheckpoint;
-		await using (var restoreScope = _scopeFactory.CreateAsyncScope())
-		{
-			var restoreCheckpointStore = restoreScope.ServiceProvider.GetRequiredService<ISubscriptionCheckpointStore>();
-			lastCheckpoint = await restoreCheckpointStore.GetCheckpointAsync(SubscriptionName, stoppingToken)
-				.ConfigureAwait(false);
-		}
+		// BIND BEFORE READING OR ADVANCING A CURSOR. This host previously bound NOTHING: it read and
+		// compare-and-set advanced a cursor keyed on the subscription name while calling
+		// BindSubscriptionAsync nowhere, so the one shared cursor a binding most obviously protects was
+		// the only cursor with no binding at all. Two deployments configured with different state types
+		// under one subscription name would each advance that cursor as if they owned it.
+		//
+		// Its roster has exactly one member, and that is a property of this host rather than a
+		// simplification: it is generic over a single TState and holds no projection registry, so the
+		// state type IS its work set. The destination is empty because this host advertises no
+		// destination identity capability -- the subscription scope must identify the destination, which
+		// is what the contract already requires of a consumer in that case.
+		var lastCheckpoint = await RestoreCheckpointAsync(opts, stoppingToken).ConfigureAwait(false);
 
 		if (lastCheckpoint.HasValue)
 		{
@@ -190,13 +296,11 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				var provider = scope.ServiceProvider;
 				var globalStreamQuery = provider.GetRequiredService<IGlobalStreamQuery>();
 				var projection = provider.GetRequiredService<IGlobalStreamProjection<TState>>();
-				var checkpointStore = provider.GetRequiredService<ISubscriptionCheckpointStore>();
+				var checkpointStore = ProjectionCapacitySource.Checkpoints(provider, provider.GetRequiredService<ISubscriptionCheckpointStore>());
 				var cursorMapStore = provider.GetService<ICursorMapStore>();
 
-				var events = await globalStreamQuery.ReadAllAsync(
-					_currentPosition,
-					opts.BatchSize,
-					stoppingToken).ConfigureAwait(false);
+				var events = await ProjectionCapacitySource.ReadAsync(provider, globalStreamQuery,
+                    ct => globalStreamQuery.ReadAllAsync(_currentPosition, opts.BatchSize, ct), stoppingToken).ConfigureAwait(false);
 
 				if (events.Count == 0)
 				{
@@ -321,8 +425,8 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					// transaction — is the fix.)
 					if (cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 					{
-						await cursorMapStore.SaveCursorMapAsync(
-								SubscriptionName, _pendingCursorUpdates, stoppingToken)
+						await ProjectionCapacitySource.WriteAsync(provider, cursorMapStore,
+                            ct => cursorMapStore.SaveCursorMapAsync(SubscriptionName, _pendingCursorUpdates, ct), stoppingToken)
 							.ConfigureAwait(false);
 						_pendingCursorUpdates.Clear();
 					}
@@ -331,7 +435,8 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 					// the checkpoint since we last saw it, writing ours would drag the mark BACKWARDS and
 					// the whole span between the two positions would be delivered again.
 					var outcome = await checkpointStore.AdvanceCheckpointAsync(
-							SubscriptionName, _durableCheckpoint, _currentPosition.Position, stoppingToken)
+							SubscriptionName, ProjectionKey, _bindingId, _durableCheckpoint, _currentPosition.Position,
+							stoppingToken)
 						.ConfigureAwait(false);
 
 					if (outcome == CheckpointAdvanceOutcome.Superseded)
@@ -347,14 +452,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 
 						// Adopt the winner's mark so this reader stops re-reading the span already
 						// covered, then keep polling. If the winner stops, this reader takes over.
-						_durableCheckpoint = await checkpointStore
-							.GetCheckpointAsync(SubscriptionName, stoppingToken).ConfigureAwait(false);
-
-						if (_durableCheckpoint is { } winnersMark)
-						{
-							_currentPosition = new GlobalStreamPosition(winnersMark, DateTimeOffset.MinValue);
-							_checkpointedPosition = _currentPosition;
-						}
+						await ReconcileCheckpointAsync(checkpointStore, stoppingToken).ConfigureAwait(false);
 
 						_eventsSinceCheckpoint = 0;
 						continue;
@@ -390,6 +488,11 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			{
 				break;
 			}
+            catch (SubscriptionBindingRetiredException)
+            {
+                // A retired lifetime cannot recover by retrying its old token.
+                throw;
+            }
 			catch (Exception ex)
 			{
 				LogProjectionHostError(SubscriptionName, ex);
@@ -416,7 +519,7 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 			{
 				await using var finalScope = _scopeFactory.CreateAsyncScope();
 				var finalProvider = finalScope.ServiceProvider;
-				var checkpointStore = finalProvider.GetRequiredService<ISubscriptionCheckpointStore>();
+				var checkpointStore = ProjectionCapacitySource.Checkpoints(finalProvider, finalProvider.GetRequiredService<ISubscriptionCheckpointStore>());
 				var cursorMapStore = finalProvider.GetService<ICursorMapStore>();
 
 				// Same ordering invariant as the periodic checkpoint: cursor map FIRST, checkpoint LAST,
@@ -424,14 +527,15 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 				// reverse (which would skip events on a multi-stream resume).
 				if (cursorMapStore is not null && _pendingCursorUpdates.Count > 0)
 				{
-					await cursorMapStore.SaveCursorMapAsync(
-							SubscriptionName, _pendingCursorUpdates, CancellationToken.None)
+					await ProjectionCapacitySource.WriteAsync(finalProvider, cursorMapStore,
+                            ct => cursorMapStore.SaveCursorMapAsync(SubscriptionName, _pendingCursorUpdates, ct), CancellationToken.None)
 						.ConfigureAwait(false);
 					_pendingCursorUpdates.Clear();
 				}
 
 				var shutdownOutcome = await checkpointStore.AdvanceCheckpointAsync(
-						SubscriptionName, _durableCheckpoint, _currentPosition.Position, CancellationToken.None)
+						SubscriptionName, ProjectionKey, _bindingId, _durableCheckpoint, _currentPosition.Position,
+						CancellationToken.None)
 					.ConfigureAwait(false);
 
 				if (shutdownOutcome == CheckpointAdvanceOutcome.Superseded)
@@ -494,4 +598,10 @@ public sealed partial class GlobalStreamProjectionHost<TState> : BackgroundServi
 	private partial void LogProjectionHostError(string projectionName, Exception ex);
 
 	#endregion Logging
+    private sealed class SubscriptionBindingRetiredException : InvalidOperationException
+    {
+        public SubscriptionBindingRetiredException()
+            : base("The global projection binding was retired. Restart the host to bind a new lifetime.") { }
+    }
+
 }

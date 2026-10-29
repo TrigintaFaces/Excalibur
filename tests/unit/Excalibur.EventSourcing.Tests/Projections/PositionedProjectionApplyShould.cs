@@ -175,6 +175,7 @@ public sealed class PositionedProjectionApplyShould
 	/// </remarks>
 	private sealed class RecordingPositionedStore : IPositionedProjectionStore<Counter>
 	{
+        object? IServiceProvider.GetService(Type type) => type == typeof(IProjectionTenantBoundary) ? ProjectionTenantBoundary.EstateWide : type.IsInstanceOfType(this) ? this : null;
 		private readonly Dictionary<string, (Counter State, long Position)> _rows = new(StringComparer.Ordinal);
 
 		internal long? LastWrittenPosition { get; private set; }

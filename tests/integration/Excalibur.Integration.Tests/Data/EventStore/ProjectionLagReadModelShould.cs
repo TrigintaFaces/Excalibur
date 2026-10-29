@@ -127,7 +127,10 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		// head = 5 (five events appended → MAX(Position) = 5); checkpoint behind at 2 → lag = 3.
 		await AppendEventsAsync(store, 5).ConfigureAwait(false);
 		var checkpoints = provider.GetRequiredService<ISubscriptionCheckpointStore>();
-		await checkpoints.AdvanceCheckpointAsync("subscription-1", null, 2, CancellationToken.None).ConfigureAwait(false);
+		var member = (await checkpoints.BindSubscriptionAsync("subscription-1",
+            [new SubscriptionMember("Proj.A", new string('A', 64), "test/a")], CancellationToken.None)).Members.Single();
+        await checkpoints.AdvanceCheckpointAsync("subscription-1", "Proj.A", member.BindingId, null, 2, CancellationToken.None)
+			.ConfigureAwait(false);
 
 		var readModel = provider.GetRequiredService<IProjectionLagReadModel>();
 		var report = await readModel.GetLagAsync(CancellationToken.None).ConfigureAwait(false);
@@ -139,7 +142,10 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		// model learned to report a subscription that has never run.
 		report.Streams.Count.ShouldBe(2);
 
-		var entry = report.Streams.Single(s => s.SubscriptionName == "subscription-1");
+		// A cursor is stored per (subscription, projection), and the report renders the pair back into one
+		// identity so two projections under one subscription stay distinguishable to a dashboard.
+		var entry = report.Streams.Single(
+			s => s.SubscriptionName == SubscriptionKeys.CheckpointName("subscription-1", "Proj.A"));
 		entry.HeadPosition.ShouldBe(5);
 		entry.CheckpointPosition.ShouldBe(2);
 		entry.Lag.ShouldBe(3);
@@ -161,7 +167,10 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 		// head = 3, checkpoint seeded past the head at 10 → structural Math.Max(0, head − cp) clamps lag to 0.
 		await AppendEventsAsync(store, 3).ConfigureAwait(false);
 		var checkpoints = provider.GetRequiredService<ISubscriptionCheckpointStore>();
-		await checkpoints.AdvanceCheckpointAsync("ahead-of-head", null, 10, CancellationToken.None).ConfigureAwait(false);
+		var member = (await checkpoints.BindSubscriptionAsync("ahead-of-head",
+            [new SubscriptionMember("Proj.A", new string('A', 64), "test/a")], CancellationToken.None)).Members.Single();
+        await checkpoints.AdvanceCheckpointAsync("ahead-of-head", "Proj.A", member.BindingId, null, 10, CancellationToken.None)
+			.ConfigureAwait(false);
 
 		var readModel = provider.GetRequiredService<IProjectionLagReadModel>();
 		var report = await readModel.GetLagAsync(CancellationToken.None).ConfigureAwait(false);
@@ -179,7 +188,8 @@ public sealed class ProjectionLagReadModelShould : IClassFixture<SqlServerEventS
 
 		// BY NAME, NEVER BY INDEX. The never-started entry is prepended, so Streams[0] is not the
 		// subscription this arm seeded -- the old index assertions held only while that row did not exist.
-		var contradicted = report.Streams.Single(s => s.SubscriptionName == "ahead-of-head");
+		var contradicted = report.Streams.Single(
+			s => s.SubscriptionName == SubscriptionKeys.CheckpointName("ahead-of-head", "Proj.A"));
 		contradicted.HeadPosition.ShouldBe(3);
 		contradicted.CheckpointPosition.ShouldBe(10);
 		contradicted.Lag.ShouldBe(0, "lag is a structural safe-op and can never be negative");

@@ -209,22 +209,30 @@ services.AddElasticSearchProjectionStore<OrderProjection>(options =>
 ### Projection Rebuild
 
 ```csharp
-// Inject IProjectionRebuildManager
-var request = new ProjectionRebuildRequest
-{
-    ProjectionType = nameof(OrderProjection),
-    SourceIndexName = "orders-v1",
-    TargetIndexName = "orders-v2",
-    CreateNewIndex = true,
-    UseAliasing = true,
-    BatchSize = 1000
-};
+// Inject IProjectionRebuildManager, then state the CHANGE you are making. The mechanism follows
+// from it, so you cannot pick one that cannot serve your change.
 
-var result = await _rebuildManager.StartRebuildAsync(request);
+// A LIKE-FOR-LIKE MOVE -- same document shape, new index. Copies the documents, which is much
+// cheaper than a replay.
+var move = ProjectionRebuildRequest.ForIndexMove(
+    typeof(OrderProjection),
+    sourceIndexName: "orders-v1",
+    targetIndexName: "orders-v2");
 
-// Check status
-var status = await _rebuildManager.GetRebuildStatusAsync(result.OperationId);
+// A SHAPE CHANGE -- a new or renamed field. Re-folds from the event stream, which is the only
+// mechanism that can populate a field no stored document carries. A copy would complete and leave
+// the new field absent from every document.
+var shapeChange = ProjectionRebuildRequest.ForEventRefold<OrderProjection>();
+
+var result = await _rebuildManager.StartRebuildAsync(shapeChange, ct);
+
+// A re-fold replays the whole stream and can run for a long time. The state stays in progress for
+// its whole duration and reaches completed only once the replay has finished.
+var status = await _rebuildManager.GetRebuildStatusAsync(result.OperationId, ct);
 ```
+
+For online shape changes, use a new `[ProjectionVersion]` and let normal projection processing populate its separate destination. `ForEventRefold` repairs the existing destination: first stop and drain all application writers, projection processors, competing rebuilds and readers; decommission every durable reader pointer that pins this generation; then configure `ProjectionRebuildOptions.OfflineRebuildAcknowledged = true`. The acknowledgement is an operator prerequisite, not a distributed lock. A refold does not remove obsolete rows whose keys no longer occur in retained events.
+
 
 ### Eventual Consistency Tracking
 

@@ -104,9 +104,14 @@
        ============================================================================================ -->
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <!-- Root LICENSE (multi-license stack reference) -->
+    <!-- PackagePath is EMPTY, not "/". Both pack the file at the package root, but a leading slash
+         makes NuGet emit PartName="//LICENSE" in [Content_Types].xml, and an OPC Part URI may not
+         begin with two separators (NuGet/Home#12948), so a strict package reader can reject the
+         whole package. The sibling below is already correct because "licenses/" carries no leading
+         slash. This is the same defect class as the scripts// entries, one site further on. -->
     <None Include="$(MSBuildThisFileDirectory)LICENSE"
           Pack="true"
-          PackagePath="/"
+          PackagePath=""
           Visible="false" />
 
     <!-- All license files from licenses/ directory -->

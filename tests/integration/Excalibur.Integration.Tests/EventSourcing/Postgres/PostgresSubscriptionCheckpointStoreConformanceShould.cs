@@ -44,6 +44,13 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
 		IClassFixture<PostgresEventStoreContainerFixture>,
 		IAsyncLifetime
 {
+    [Fact]
+    public Task GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime_Test() => GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime();
+
+    [Fact]
+    public Task GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference_Test() => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference();
+
+
 	private const string CheckpointTable = "subscription_checkpoints";
 
 	private readonly PostgresEventStoreContainerFixture _fixture;
@@ -80,17 +87,45 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
 		return services.BuildServiceProvider().GetRequiredService<ISubscriptionCheckpointStore>();
 	}
 
-	[Fact]
-	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
-		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+    [Fact]
+    public Task RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement_Test() =>
+        RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement();
 
 	[Fact]
-	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
-		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+	public Task Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint();
 
 	[Fact]
-	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
-		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+	public Task Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched_Test() =>
+		Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched();
+
+	[Fact]
+	public Task Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound_Test() =>
+		Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound();
+
+	[Fact]
+	public Task Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply_Test() =>
+		Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply();
+
+	[Fact]
+	public Task ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Release_ShouldRemoveMemberAndItsCheckpoint_Atomically_Test() =>
+		Release_ShouldRemoveMemberAndItsCheckpoint_Atomically();
+
+	[Fact]
+	public Task Release_AbsentMember_ShouldReturnFalse_AndWriteNothing_Test() =>
+		Release_AbsentMember_ShouldReturnFalse_AndWriteNothing();
+
+	[Fact]
+	public Task Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent();
+
+
+
+
 
 	[Fact]
 	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
@@ -129,6 +164,14 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
 		ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne();
 
 	[Fact]
+	public Task Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip_Test() =>
+		Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip();
+
+	[Fact]
+	public Task Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors_Test() =>
+		Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors();
+
+	[Fact]
 	public Task Enumerate_ShouldReportStoredCheckpoints_Test() =>
 		Enumerate_ShouldReportStoredCheckpoints();
 
@@ -147,22 +190,15 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
 		await using var connection = _fixture.CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var sql = $"""
-			CREATE TABLE IF NOT EXISTS public.{CheckpointTable} (
-				subscription_name VARCHAR(255) COLLATE "C" NOT NULL,
-				position          BIGINT NOT NULL,
-				updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-				CONSTRAINT pk_{CheckpointTable} PRIMARY KEY (subscription_name)
-			);
-			CREATE TABLE IF NOT EXISTS public.{CheckpointTable}_definitions (
-				subscription_name VARCHAR(255) COLLATE "C" NOT NULL PRIMARY KEY,
-				definition_hash VARCHAR(64) COLLATE "C" NOT NULL
-			);
-			""";
 
-#pragma warning disable CA2100 // Table name is a test-controlled constant
-		await using var command = new NpgsqlCommand(sql, connection);
+        foreach (var script in global::Tests.Shared.Helpers.ShippedSchemaScript.ReadAll(
+            "src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/004_CreateSubscriptionCheckpointSchema.sql"))
+        {
+            await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // Shipped provider SQL; only test-owned schema names are substituted.
+            command.CommandText = script;
 #pragma warning restore CA2100
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-	}
+            _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+    }
 }

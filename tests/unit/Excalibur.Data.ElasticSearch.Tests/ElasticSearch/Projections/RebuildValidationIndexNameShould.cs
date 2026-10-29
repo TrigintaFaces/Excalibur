@@ -11,6 +11,7 @@ using Elastic.Clients.Elasticsearch;
 using Excalibur.Data.ElasticSearch;
 using Excalibur.Data.ElasticSearch.IndexManagement;
 using Excalibur.Data.ElasticSearch.Projections;
+using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,13 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Data.Tests.ElasticSearch.Projections;
 
 internal sealed class RebuildProjection
+{
+	public string Id { get; set; } = string.Empty;
+}
+
+/// <summary>A read model whose declared generation has been bumped.</summary>
+[ProjectionVersion(2)]
+internal sealed class VersionedRebuildProjection
 {
 	public string Id { get; set; } = string.Empty;
 }
@@ -114,7 +122,7 @@ public sealed class RebuildValidationIndexNameShould
 			index.IndexName = "customers";
 		});
 
-		_ = await manager.ValidateRebuildAsync(nameof(RebuildProjection), CancellationToken.None)
+		_ = await manager.ValidateRebuildAsync(typeof(RebuildProjection), CancellationToken.None)
 			.ConfigureAwait(true);
 
 		endpoint.Paths.ShouldContain(
@@ -135,10 +143,140 @@ public sealed class RebuildValidationIndexNameShould
 
 		var manager = CreateManager(endpoint.Uri, static _ => { });
 
-		_ = await manager.ValidateRebuildAsync(nameof(RebuildProjection), CancellationToken.None)
+		_ = await manager.ValidateRebuildAsync(typeof(RebuildProjection), CancellationToken.None)
 			.ConfigureAwait(true);
 
 		endpoint.Paths.ShouldContain("/projections-rebuildprojection");
+	}
+
+	/// <summary>
+	/// SAFETY. After a generation bump the store writes to the new generation's index, so validation
+	/// must probe THAT index. Asserting the path on the wire rather than a successful return is the
+	/// whole point: the defect was a confident, successful answer about the previous generation's
+	/// index, which no boolean assertion can distinguish from a correct one.
+	/// </summary>
+	[Fact]
+	public async Task AskAboutTheNewGenerationsIndexAfterAVersionBump()
+	{
+		using var endpoint = new PathRecordingEndpoint();
+
+		var manager = CreateManager(endpoint.Uri, static _ => { });
+
+		_ = await manager.ValidateRebuildAsync(typeof(VersionedRebuildProjection), CancellationToken.None)
+			.ConfigureAwait(true);
+
+		endpoint.Paths.ShouldContain(
+			"/projections-versionedrebuildprojection-v2",
+			"validation must probe the generation the projection type declares -- the one the store "
+			+ "writes to -- not the first generation's index");
+
+		// The discriminator. The version-blind lookup probes exactly this, and it is the index the
+		// rebuild is NOT targeting.
+		endpoint.Paths.ShouldNotContain("/projections-versionedrebuildprojection");
+	}
+
+	/// <summary>
+	/// SAFETY. The store registers a projection's settings under its FULL type name. Validation must ask
+	/// for THAT bucket; asking for the simple name names a bucket nothing configured, so a namespaced
+	/// projection -- which is every projection -- was validated against the defaults and reported on an
+	/// index the store does not write to.
+	/// </summary>
+	/// <remarks>
+	/// The options monitor here is NAME-SENSITIVE, which is the whole oracle: a monitor that answers the
+	/// same object to every name cannot tell a correct bucket lookup from a wrong one, and the arms above
+	/// use one. The assertion is the path on the wire, pinned as a literal, because the defect returns a
+	/// confident, successful answer about the wrong index -- no boolean can separate the two.
+	/// </remarks>
+	[Fact]
+	public async Task AskAboutTheBucketTheStoreRegisteredForANamespacedProjection()
+	{
+		using var endpoint = new PathRecordingEndpoint();
+
+		var manager = CreateManager(endpoint.Uri, index =>
+		{
+			index.IndexPrefix = "readmodels";
+			index.IndexName = "customers";
+		},
+		configuredFor: typeof(RebuildProjection));
+
+		_ = await manager.ValidateRebuildAsync(typeof(RebuildProjection), CancellationToken.None)
+			.ConfigureAwait(true);
+
+		endpoint.Paths.ShouldContain(
+			"/readmodels-customers",
+			"validation must read the options bucket keyed on the projection's FULL type name -- the one "
+			+ "the store registered -- not the simple name, which is an unconfigured default bucket");
+
+		// The discriminator. The simple-name lookup resolves exactly this, from defaults the consumer
+		// never set, and it is the index the rebuild is NOT targeting.
+		endpoint.Paths.ShouldNotContain("/projections-rebuildprojection");
+	}
+
+	/// <summary>
+	/// SAFETY. The bucket fix and the generation fix compose: after a version bump the index is the
+	/// CONFIGURED name qualified by the declared generation, which needs both derivations to be right.
+	/// </summary>
+	[Fact]
+	public async Task AskAboutTheConfiguredBucketsNewGenerationAfterAVersionBump()
+	{
+		using var endpoint = new PathRecordingEndpoint();
+
+		var manager = CreateManager(endpoint.Uri, index =>
+		{
+			index.IndexPrefix = "readmodels";
+			index.IndexName = "customers";
+		},
+		configuredFor: typeof(VersionedRebuildProjection));
+
+		_ = await manager.ValidateRebuildAsync(typeof(VersionedRebuildProjection), CancellationToken.None)
+			.ConfigureAwait(true);
+
+		endpoint.Paths.ShouldContain(
+			"/readmodels-customers-v2",
+			"the configured index name and the declared generation must BOTH participate -- a correct "
+			+ "generation applied to a default bucket is still the wrong index");
+
+		endpoint.Paths.ShouldNotContain("/projections-versionedrebuildprojection-v2");
+	}
+
+	/// <summary>
+	/// LIVENESS. Against the same name-sensitive monitor, a projection whose bucket holds nothing
+	/// configured still resolves the convention's default index and is still probed. Without this arm the
+	/// two SAFETY arms above are satisfied by a manager that has stopped probing, or by a monitor that
+	/// answers nothing to anybody.
+	/// </summary>
+	[Fact]
+	public async Task StillProbeTheConventionalIndexWhenTheRegisteredBucketConfiguresNothing()
+	{
+		using var endpoint = new PathRecordingEndpoint();
+
+		var manager = CreateManager(endpoint.Uri, static _ => { }, configuredFor: typeof(RebuildProjection));
+
+		_ = await manager.ValidateRebuildAsync(typeof(RebuildProjection), CancellationToken.None)
+			.ConfigureAwait(true);
+
+		endpoint.Paths.ShouldContain("/projections-rebuildprojection");
+	}
+
+	private static ProjectionRebuildManager CreateManager(
+		Uri endpoint,
+		Action<ElasticSearchProjectionIndexOptions> configureIndex,
+		Type configuredFor)
+	{
+		var configured = new ElasticSearchProjectionStoreOptions { NodeUri = endpoint.ToString() };
+		configureIndex(configured.Index);
+
+		var optionsName = ElasticSearchProjectionIndexConvention.GetOptionsName(configuredFor);
+
+		// Answers the CONFIGURED options for the bucket the store registered, and an untouched default for
+		// every other name -- which is what IOptionsMonitor.Get really does for a name nobody configured.
+		var monitor = A.Fake<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
+		A.CallTo(() => monitor.Get(A<string>._))
+			.ReturnsLazily(call => string.Equals((string?)call.Arguments[0], optionsName, StringComparison.Ordinal)
+				? configured
+				: new ElasticSearchProjectionStoreOptions { NodeUri = endpoint.ToString() });
+
+		return CreateManager(endpoint, monitor);
 	}
 
 	private static ProjectionRebuildManager CreateManager(
@@ -151,6 +289,13 @@ public sealed class RebuildValidationIndexNameShould
 		var monitor = A.Fake<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 		A.CallTo(() => monitor.Get(A<string>._)).Returns(storeOptions);
 
+		return CreateManager(endpoint, monitor);
+	}
+
+	private static ProjectionRebuildManager CreateManager(
+		Uri endpoint,
+		IOptionsMonitor<ElasticSearchProjectionStoreOptions> monitor)
+	{
 		return new ProjectionRebuildManager(
 			new ElasticsearchClient(new ElasticsearchClientSettings(endpoint)),
 			A.Fake<IIndexAliasManager>(),

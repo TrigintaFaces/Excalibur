@@ -64,6 +64,13 @@ Cooperating processes can attempt the same page, but a stale writer cannot overw
 Successful completion includes the store's configured query-visibility barrier. For immediate
 Elasticsearch **search**, enable `Index.EnsureSearchVisibilityOnProjectionCheckpoint` on the store.
 
+When completion IS confirmed, `SaveResult.Projections` is `ProjectionFreshness.Attested`: the save
+**observed** its required projections caught up, against the durable roster as it stood at that
+moment. That is a receipt, not a standing promise -- the roster can change before you read, so
+`Attested` on its own is **not** read-your-own-writes. For that, carry the `SessionToken` into
+`IProjectionSessionReader` and require `ProjectionFreshness.Fresh`, which is issued only after the
+reader re-validates roster identity, binding, position and destination around the data read.
+
 If completion cannot be confirmed, the save still succeeds and reports it: `SaveResult.Projections` is
 `ProjectionFreshness.BoundExpired` and the same `SaveResult` carries the `SessionToken`. The events are
 already durable: retry the read, not the command. Recovery
@@ -71,7 +78,10 @@ resumes automatically while a host is running, including after restart. A poison
 handler/data repair; a previously unpositioned row still requires a deliberate rebuild.
 Each projection retains its own durable cursor. A failed projection retries its missing prefix on
 later recovery rounds, even after repeated failures, while healthy projections continue from their
-own cursors. Whole-subscription completion requires every projection to catch up; a session read
+own cursors. Destination-discovery failures are isolated per projection during processing as well.
+Foreground saves resolve and process only their required projections, so an unrelated slow provider
+does not consume the save's completion budget. Startup still validates every registered destination.
+Whole-subscription completion requires every projection to catch up; a session read
 checks only the requested projection's confirmed progress.
 
 The foreground wait uses `EventNotificationOptions.PostCommitTimeout`, independent of request
@@ -241,15 +251,17 @@ Do not hand-write it. Either run the shipped template beside your provider's oth
 // SQL Server
 var ddl = SqlServerProjectionSchema.CreateTableScript("OrderSummary");
 
-// Postgres -- lowercase columns, JSONB body, no schema qualifier
+// Postgres -- lowercase columns, JSONB body
 var ddl = PostgresProjectionSchema.CreateTableScript("order_summary");
+var inAnotherSchema = PostgresProjectionSchema.CreateTableScript("order_summary", "reporting");
 ```
 
-The two differ in more than naming: Postgres stores the body as `JSONB`, its column names are
+The two differ in more than naming: Postgres stores the body as `JSONB`, and its column names are
 lowercase because the store references them unquoted (an unquoted identifier folds to lower case, so
-a quoted mixed-case column would be unreachable), and it takes **no schema parameter** — the store
-addresses the table unqualified, so it resolves through `search_path`, and a table created in a named
-schema would be one the store cannot find.
+a quoted mixed-case column would be unreachable). Both providers take a schema — `dbo` on SQL Server,
+`public` on Postgres — and it must match the store's configured schema, because every statement the
+store runs is schema-qualified. On Postgres the schema and table are **quoted**, so their case is
+preserved exactly as written: `"Reporting"` is not `"reporting"`.
 
 Prefer the generated form: it is emitted from the provider's own schema, so it cannot drift from the
 queries the store runs. The position column is the one nobody guesses correctly — it must be
@@ -267,8 +279,43 @@ empty table it just made is indistinguishable from one that is merely behind.
 For a real backend, swap the in-memory store for a provider — see
 [Registering Store Backends](#registering-store-backends). `AddInMemoryProjectionStore<T>()` is for
 development, tests and samples: it keeps nothing after the process exits and is **not tenant-confined**.
+Its destination scope belongs to that store instance. Replacing it while retaining durable checkpoints
+is rejected; keep events, projections, and checkpoints in memory together, or use a durable projection
+store with durable checkpoints. Clearing only a checkpoint position does not replace its lifetime binding.
 
 :::
+
+### Tenant boundaries during global-stream processing
+
+A projection checkpoint belongs to the actual destination, including its tenant partition. The
+processor validates the authoritative tenant recorded on each handled event before invoking any
+handler in a batch. A missing tenant is unknown; it never inherits the caller's ambient tenant.
+The explicit `__untenanted__` partition remains distinct from estate-wide storage.
+
+| Projection store | Enforced storage boundary |
+|---|---|
+| SQL Server, PostgreSQL | The resolved tenant's row partition |
+| Cosmos DB, DynamoDB, Elasticsearch, Firestore, MongoDB, OpenSearch | Estate-wide; no built-in tenant row isolation |
+| In-memory | Estate-wide, confined to one store instance's lifetime |
+
+A tenant-confined projection requires a source whose handled events belong to that partition. A
+mixed-tenant global stream is rejected before batch side effects; the processor does not switch the
+ambient tenant or silently skip another tenant's events. Use an explicitly estate-wide read model for
+estate-wide processing, or an isolated source and subscription for each tenant. Tenant-to-shard routing
+alone does not prove isolation when tenants share a shard. Wrapping an estate-wide store in a tenant
+presence guard does not add a tenant predicate.
+
+Custom projection stores used by persisted processing, rebuilds, or consistent reads must expose
+`IProjectionTenantBoundary` through their outer `IServiceProvider.GetService` capability chain. Return
+`ProjectionTenantBoundary.EstateWide` only for an intentionally estate-wide store, or
+`ProjectionTenantBoundary.Partition(actualTenantId)` for a partition the store actually enforces.
+Partitioned custom stores must also expose their actual storage scope through
+`IProjectionDestinationScope` or `IAsyncProjectionDestinationScope`. An explicit `SubscriptionScope`
+does not replace this requirement: without the destination scope, a tenant change could reuse another
+tenant's checkpoint. Separate subscription names alone do not filter a shared global stream.
+Unknown capabilities fail closed. Decorators must preserve this declaration without exposing raw
+inner data access. The framework includes the boundary in binding and freshness checks; changing it
+cannot reuse another partition's progress.
 
 For `.Async()`, `SaveAsync` does not wait for the projection, so an immediate read may not see it yet. Carry
 the token the save returned, and the read waits:
@@ -693,13 +740,17 @@ session-consistent read rather than describing it.
 #### SaveResult
 
 ```csharp
-public readonly record struct SaveResult(long CommittedVersion, long? SessionToken);
+public readonly record struct SaveResult(
+    long CommittedVersion,
+    long? SessionToken,
+    ProjectionFreshness Projections);
 ```
 
 | member | meaning |
 |---|---|
 | `CommittedVersion` | the aggregate's version after the save |
 | `SessionToken` | the global position of the **last** event this save wrote |
+| `Projections` | what the save could establish about its `Inline` projections: `Attested` (observed caught up, against the roster as it then stood), `BoundExpired` (behind), `NotRequested` (nothing was owed) or `Deferred` (you suppressed the wait) |
 
 `SessionToken` is `null` when the event store assigns no global ordering, or when the save wrote
 nothing. **That is a real answer, not a missing one:** it means there is no coordinate to wait on, so a
@@ -794,11 +845,18 @@ subscription when they use the same projection types, `ProjectionName`, `Subscri
 `SubscriptionRevision`. The scope identifies the logical source, filters/routing and destination; it must
 be nonempty. Revision defaults to `"1"` and must change when consumer fold semantics change.
 
-The first processor atomically binds that definition to the stable subscription name. A different
-definition is refused before effects. Use a new name and deliberately rebuild or cut over its destination
-for changed semantics. Do not give each cooperating instance a different name. Ambient outbox leadership
-does not gate projection processing. Every participating store must expose positioned writes through its
-decorator chain; missing capabilities and uncommitted/unpositioned pages are refused.
+The first processor atomically binds that definition to the stable subscription name, recording **one row
+per projection**. **Adding, removing or renaming a projection therefore affects only that member** — the
+added one binds alone and folds from zero while its siblings keep their cursors — and so does moving a
+single projection's destination. `SubscriptionScope` and `SubscriptionRevision` are inputs to *every*
+member's fingerprint, so changing either still refuses the whole roster, which is what a deliberate
+re-fold of the entire subscription looks like. Do not give each cooperating instance a different name.
+Ambient outbox leadership does not gate projection processing. Every participating store must expose
+positioned writes through its decorator chain; missing capabilities and uncommitted/unpositioned pages
+are refused.
+
+See [Evolving projections](./projection-evolution.md) for the workset and shape-change procedures,
+including what `BoundExpired` means while a deployment rolls.
 
 This mirrors how the outbox is composed: its registration supplies `IOutboxProcessor`, and the background
 drain is a separate explicit opt-in.
@@ -1128,7 +1186,8 @@ Async projections are processed by `AsyncProjectionProcessingHost` using checkpo
 
 ### Register a durable checkpoint store
 
-**The checkpoint store defaults to in-memory. Register a durable one for any process that can restart.**
+**The checkpoint store defaults to in-memory. Use durable projections and durable checkpoints together
+for a restartable production process.**
 
 A checkpoint is how far a projection has processed. Held in memory, it is lost on every restart and
 deployment, so the projection replays the stream from the beginning each time.
@@ -1452,8 +1511,11 @@ var page = await projectionStore.QueryPagedAsync(
 ```
 
 A store that implements `IPageableProjectionStore<T>` pages in the database. One that does not returns the
-same shape, paged in memory from `QueryAsync` — correct, but it reads the whole matching set, so prefer a
-provider with native paging for large result sets.
+same shape using a count query and a bounded `QueryAsync` call. Page arguments determine the offset
+and limit; `QueryOptions` supplies sorting. Count and page are separate observations under concurrent
+writes. `TotalPages` is a 64-bit integer; very large totals do not imply that a provider supports equally
+large offsets. Offset overflow and provider result-window limits fail explicitly. Prefer cursor paging
+for deep traversal when supported.
 
 Best for: traditional table UIs with page numbers, small-to-medium datasets, jump-to-page-N navigation.
 
@@ -1553,7 +1615,7 @@ and the stated behaviour is what you can observe.
 | provider | what it creates | knob (default) | with the knob OFF and the object absent |
 |---|---|---|---|
 | SQL Server | the projection table, from `SqlServerProjectionSchema.CreateTableScript(name[, schema])` — also shipped as `Scripts/005_CreateProjectionSchema.sql` | run the script yourself | reads and writes fail with a missing-object error from the database |
-| PostgreSQL | the projection table, from `PostgresProjectionSchema.CreateTableScript(name)` — also shipped as `Scripts/005_CreateProjectionSchema.sql`. Takes no schema argument on purpose: the store addresses the table unqualified and resolves it through `search_path` | run the script yourself | as above |
+| PostgreSQL | the projection table, from `PostgresProjectionSchema.CreateTableScript(name[, schema])` — also shipped as `Scripts/005_CreateProjectionSchema.sql`. The schema defaults to `public` and must match the store's `SchemaName`: every statement the store runs is schema-qualified, and both identifiers are quoted, so their case is significant | run the script yourself | as above |
 | Elasticsearch | the index, with a **declared** mapping built from your projection's public properties plus the reserved position field as `long`, honouring the configured shard count, replica count and refresh interval | `CreateIndexOnInitialize` (**true**) | initialization fails before any document write; an existing index must have compatible declared field mappings, including the reserved position field |
 | OpenSearch | the index, same shape as Elasticsearch | `CreateIndexOnInitialize` (**true**) | the engine may dynamically create an absent index on first write, or reject it when automatic index creation is disabled; provision its declared mapping before disabling initialization |
 | Cosmos DB | the container | `CreateContainerIfNotExists` (**true**) | reads and writes fail until you create the container with a partition key matching the store's keying |
@@ -1994,7 +2056,7 @@ public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
         ElasticsearchClient client,
         IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor)
         : base(client, ElasticSearchProjectionIndexConvention.GetIndexName<OrderSummary>(
-            optionsMonitor.Get(nameof(OrderSummary))))
+            optionsMonitor.Get(ElasticSearchProjectionIndexConvention.GetOptionsName<OrderSummary>())))
     {
     }
 
@@ -2023,26 +2085,41 @@ public class OrderSearchRepository : ElasticRepositoryBase<OrderSummary>
 When projections are backed by ElasticSearch, use the lifecycle services for index management:
 
 ```csharp
-// Rebuild Manager
-var result = await rebuildManager.StartRebuildAsync(new ProjectionRebuildRequest
-{
-    ProjectionType = nameof(OrderSummaryProjection),
-    SourceIndexName = "orders-v1",
-    TargetIndexName = "orders-v2",
-    CreateNewIndex = true,
-    UseAliasing = true
-}, ct);
+// Rebuild Manager. State the CHANGE; the mechanism follows from it.
 
-var status = await rebuildManager.GetRebuildStatusAsync(result.OperationId, ct);
+// A like-for-like move -- same document shape, new index. Copies the documents.
+var result = await rebuildManager.StartRebuildAsync(
+    ProjectionRebuildRequest.ForIndexMove(
+        typeof(OrderSummaryProjection),
+        sourceIndexName: "orders-v1",
+        targetIndexName: "orders-v2"),
+    ct);
+
+// A shape change -- a new or renamed field. Re-folds from the event stream, the only mechanism that
+// can populate a field no stored document carries; a copy would leave it absent everywhere.
+var refold = await rebuildManager.StartRebuildAsync(
+    ProjectionRebuildRequest.ForEventRefold<OrderSummaryProjection>(),
+    ct);
+
+// A re-fold replays the whole stream and can run for a long time: the state stays in progress until
+// the replay has finished.
+var status = await rebuildManager.GetRebuildStatusAsync(refold.OperationId, ct);
 ```
+
+For online shape changes, use a new `[ProjectionVersion]` and let normal projection processing populate its separate destination. `ForEventRefold` repairs the existing destination: first stop and drain all application writers, projection processors, competing rebuilds and readers; decommission every durable reader pointer that pins this generation; then configure `ProjectionRebuildOptions.OfflineRebuildAcknowledged = true`. The acknowledgement is an operator prerequisite, not a distributed lock. A refold does not remove obsolete rows whose keys no longer occur in retained events.
+
 
 ---
 
 ## Testing Projections
 
-Test projection handlers with an in-memory projection store:
+Test an application-defined projection handler with the built-in in-memory store. In this example,
+`OrderCreatedProjectionHandler`, `OrderCreated`, and `OrderSummary` are application types; the read
+model exposes `CustomerId` and `Status`. This tests handler behavior, not async host startup or replay.
+The projection must support a JSON round trip, as it would in a persistent store.
 
 ```csharp
+using Excalibur.EventSourcing.Projections;
 public class OrderSummaryProjectionTests
 {
     private readonly InMemoryProjectionStore<OrderSummary> _store;
@@ -2074,34 +2151,6 @@ public class OrderSummaryProjectionTests
     }
 }
 
-public class InMemoryProjectionStore<T> : IProjectionStore<T> where T : class
-{
-    private readonly ConcurrentDictionary<string, T> _data = new();
-
-    public Task<T?> GetByIdAsync(string id, CancellationToken ct)
-        => Task.FromResult(_data.GetValueOrDefault(id));
-
-    public Task UpsertAsync(string id, T projection, CancellationToken ct)
-    {
-        _data[id] = projection;
-        return Task.CompletedTask;
-    }
-
-    public Task DeleteAsync(string id, CancellationToken ct)
-    {
-        _data.TryRemove(id, out _);
-        return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<T>> QueryAsync(
-        IDictionary<string, object>? filters,
-        QueryOptions? options,
-        CancellationToken ct)
-        => Task.FromResult<IReadOnlyList<T>>(_data.Values.ToList());
-
-    public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken ct)
-        => Task.FromResult((long)_data.Count);
-}
 ```
 
 ---
@@ -2247,3 +2296,12 @@ if (existing?.LastProcessedVersion >= context.CommittedVersion) return;
 - [Materialized Views](./materialized-views.md) -- Schedule-driven, query-optimized views for reporting and analytics
 - [Event Sourcing Overview](./index.md) -- Core concepts and getting started with event sourcing
 - [CDC Pattern](../patterns/cdc.md) -- Change Data Capture for async projection processing
+
+
+### Distinct-value query limits
+
+`DistinctValuesAsync` uses the store’s optimized capability when available. Its fallback reads the
+matching count, requests that many rows in one query, and verifies the returned count before extracting
+values. A truncated response or provider result-window error fails explicitly instead of returning an
+incomplete list. The fallback materializes the matching set and is intended for small datasets; use a
+provider-native distinct query for larger sets. Count and query do not form a concurrent snapshot.

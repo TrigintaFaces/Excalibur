@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Diagnostics.Metrics;
 using System.Text.Json.Serialization;
 using Excalibur.Dispatch;
 using Excalibur.Domain.Model;
@@ -18,7 +19,15 @@ internal static class Probe
     public static async Task Main(string[] args)
     {
         if (RuntimeFeature.IsDynamicCodeSupported) { throw new InvalidOperationException("Run the native executable."); }
+        using var capacityMonitor = new CapacityMonitor();
         var builder = Host.CreateApplicationBuilder();
+        // Exercise all existing native scenarios at the tightest supported storage capacity.
+        builder.Services.Configure<ProjectionCapacityOptions>(options =>
+        {
+            options.MaxConcurrentOperations = 1;
+            options.MaxConcurrentReads = 1;
+            options.MaxConcurrentWrites = 1;
+        });
         builder.Services.AddAotEventSerializer(ProbeJson.Default);
         builder.Services.AddElasticSearchProjectionStore<ReadModel>(o =>
         {
@@ -35,6 +44,7 @@ internal static class Probe
             es.AddRepository<Counter, Guid>(id => new Counter(id));
             es.AddProjection<ReadModel>(ProbeJson.Default.ReadModel, p => p.Inline().When<Added>((state, e) => state.Count += e.Amount));
         }));
+        builder.Services.AddInlineProjectionGenerationReader<ReadModel>("native-reader");
         using var host = builder.Build();
         var mode = args.Length > 0 ? args[0] : "api";
         if (mode == "contracts")
@@ -81,6 +91,7 @@ internal static class Probe
         { throw new InvalidOperationException("Native provider foreground/read failed."); }
         var reload = await repository.GetByIdAsync(id, CancellationToken.None);
         if (reload?.Count != count) { throw new InvalidOperationException("Native aggregate reload failed."); }
+        capacityMonitor.AssertObserved();
         Console.WriteLine($"PASS native SQL/Elastic {aggregate.Id} position={save.SessionToken}");
         await host.StopAsync();
     }
@@ -106,15 +117,15 @@ internal static class Probe
         await using var provider = registrations.BuildServiceProvider();
         var checkpoints = provider.GetRequiredService<ISubscriptionCheckpointStore>();
         var name = "native-contract-" + Guid.NewGuid();
-        await checkpoints.BindSubscriptionAsync(name, new string('A', 64), CancellationToken.None);
+        var binding = (await checkpoints.BindSubscriptionAsync(name, [new SubscriptionMember("Proj.A", new string('A', 64), "dest-a")], CancellationToken.None)).Members.Single().BindingId;
         var first = (long)int.MaxValue + 100;
-        var attempts = await Task.WhenAll(checkpoints.AdvanceCheckpointAsync(name, null, first, CancellationToken.None),
-            checkpoints.AdvanceCheckpointAsync(name, null, first + 1, CancellationToken.None));
+        var attempts = await Task.WhenAll(checkpoints.AdvanceCheckpointAsync(name, "Proj.A", binding, null, first, CancellationToken.None),
+            checkpoints.AdvanceCheckpointAsync(name, "Proj.A", binding, null, first + 1, CancellationToken.None));
         if (attempts.Count(x => x == CheckpointAdvanceOutcome.Advanced) != 1) { throw new InvalidOperationException("Checkpoint insert race failed."); }
-        var position = await checkpoints.GetCheckpointAsync(name, CancellationToken.None);
-        if (await checkpoints.AdvanceCheckpointAsync(name, position, first + 2, CancellationToken.None) != CheckpointAdvanceOutcome.Advanced
-            || await checkpoints.AdvanceCheckpointAsync(name, position, first + 3, CancellationToken.None) != CheckpointAdvanceOutcome.Superseded
-            || !(await checkpoints.EnumerateCheckpointsAsync(CancellationToken.None)).Any(x => x.SubscriptionName == name && x.Position == first + 2))
+        var position = await checkpoints.GetCheckpointAsync(name, "Proj.A", CancellationToken.None);
+        if (await checkpoints.AdvanceCheckpointAsync(name, "Proj.A", binding, position, first + 2, CancellationToken.None) != CheckpointAdvanceOutcome.Advanced
+            || await checkpoints.AdvanceCheckpointAsync(name, "Proj.A", binding, position, first + 3, CancellationToken.None) != CheckpointAdvanceOutcome.Superseded
+            || !(await checkpoints.EnumerateCheckpointsAsync(CancellationToken.None)).Any(x => x.SubscriptionName == name && x.ProjectionKey == "Proj.A" && x.Position == first + 2))
         { throw new InvalidOperationException("Checkpoint CAS or enumeration failed."); }
         var store = services.GetRequiredService<IEventStore>();
         var snapshots = services.GetRequiredService<ISnapshotStore>();
@@ -144,8 +155,156 @@ internal static class Probe
         var rejected = await store.AppendAsync(id, "Counter", [new Added(1) { EventId = new string('X', 300) }], 0, CancellationToken.None);
         if (rejected.Success || (await store.LoadAsync(id, "Counter", CancellationToken.None)).Count != 1)
         { throw new InvalidOperationException("Native rollback/zero-match classification failed."); }
+        await CheckGenerationReaderAsync(services, checkpoints);
+        await CheckRetirementAsync(services.GetRequiredService<IProjectionStore<ReadModel>>());
         Console.WriteLine("PASS native checkpoint CAS, enumeration, snapshot/custom metadata, timestamp and committed/rolled-back reconciliation");
     }
+    private static async Task CheckRetirementAsync(IProjectionStore<ReadModel> store)
+    {
+        var token = CancellationToken.None;
+        var aot = (IAotProjectionStore<ReadModel>)store.GetService(typeof(IAotProjectionStore<ReadModel>))!;
+        var factory = (IAotProjectionGenerationReaderFactory<ReadModel>)store.GetService(typeof(IAotProjectionGenerationReaderFactory<ReadModel>))!;
+        var identity = ((IProjectionDestinationIdentity)store.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        await using var reader = factory.OpenReader(identity, ProbeJson.Default.ReadModel);
+        var visibility = (IProjectionVisibilityBarrier)store.GetService(typeof(IProjectionVisibilityBarrier))!;
+        await visibility.EnsureVisibleAsync(token);
+        var initialCount = await reader.CountAsync(null, token);
+        var initialRows = (await reader.QueryAsync(null, new QueryOptions(Take: 1000), token)).Count;
+        if (initialRows != initialCount) { throw new InvalidOperationException("Native retirement fixture exceeded its query window."); }
+        var id = "retired-native-" + Guid.NewGuid();
+        _ = await aot.UpsertAtPositionAsync(id, new ReadModel { Count = 1 }, null, 1, token);
+        await visibility.EnsureVisibleAsync(token);
+        if (await reader.CountAsync(null, token) != initialCount + 1) { throw new InvalidOperationException("Native retirement control was never visible."); }
+        await store.DeleteAsync(id, token);
+        await visibility.EnsureVisibleAsync(token);
+        var read = await aot.GetWithPositionAsync(id, token);
+        if (read.Projection is not null || read.Position.Kind != ProjectionPositionKind.Retired
+            || await aot.GetByIdAsync(id, token) is not null
+            || (await aot.UpsertAtPositionAsync(id, new ReadModel { Count = 2 }, null, 2, token)).Outcome != ProjectionAdvanceOutcome.Vanished
+            || (await aot.RefoldAtPositionAsync(id, new ReadModel { Count = 2 }, 1, token)).Outcome != ProjectionRefoldOutcome.Vanished)
+        { throw new InvalidOperationException("Native generated writes resurrected a retired key."); }
+        if (await reader.CountAsync(null, token) != initialCount
+            || (await reader.QueryAsync(null, new QueryOptions(Take: 1000), token)).Count != initialRows)
+        { throw new InvalidOperationException("Native generated queries exposed retirement metadata."); }
+        var refused = false;
+        try { await aot.UpsertUnnumberedAsync(id, new ReadModel { Count = 2 }, token); }
+        catch (InvalidOperationException) { refused = true; }
+        if (!refused) { throw new InvalidOperationException("Native unnumbered write bypassed retirement."); }
+        Console.WriteLine("PASS native generated retirement reads and all generated write surfaces");
+    }
+
+    private static async Task CheckGenerationReaderAsync(IServiceProvider services, ISubscriptionCheckpointStore checkpoints)
+    {
+        var token = CancellationToken.None;
+        var repository = services.GetRequiredService<IEventSourcedRepository<Counter, Guid>>();
+        var aggregate = new Counter(Guid.NewGuid());
+        aggregate.Add();
+        var save = await repository.SaveAsync(aggregate, token);
+        var attestation = save.Attestation ?? throw new InvalidOperationException("Native generation setup was not attested.");
+        var generations = (IProjectionGenerationStore)checkpoints;
+        var key = SubscriptionKeys.ProjectionKey(typeof(ReadModel));
+        const string readerName = "native-reader";
+        await using var scope = services.CreateAsyncScope();
+        var control = scope.ServiceProvider.GetRequiredService<ProjectionGenerationControl<ReadModel>>();
+        var previous = await control.ReadGenerationAsync(token);
+        var switched = await control.CutOverAsync(key, previous?.Revision, 0, token);
+        if (switched.Outcome != ProjectionCutoverOutcome.CutOver) { throw new InvalidOperationException("Native pointer initialization failed."); }
+        var reader = scope.ServiceProvider.GetRequiredService<ProjectionGenerationReader<ReadModel>>();
+        var actual = await reader.GetByIdAsync(aggregate.Id.ToString(), ProbeJson.Default.ReadModel, token);
+        var rows = await reader.QueryAsync(new Dictionary<string, object> { ["Count"] = 1 }, null, ProbeJson.Default.ReadModel, token);
+        var count = await reader.CountAsync(new Dictionary<string, object> { ["Count"] = 1 }, ProbeJson.Default.ReadModel, token);
+        if (actual?.Count != 1 || rows.Count == 0 || count < 1) { throw new InvalidOperationException("Native Elasticsearch generation reads failed."); }
+        var route = (await generations.ReadGenerationAsync(attestation.SubscriptionName, readerName, token))!;
+        if (await checkpoints.ReleaseSubscriptionMemberAsync(attestation.SubscriptionName, key, route.Member.BindingId, token))
+        { throw new InvalidOperationException("Native pointer did not pin its binding."); }
+        if (!await generations.TryRemoveGenerationAsync(attestation.SubscriptionName, readerName, route.Revision, token))
+        { throw new InvalidOperationException("Native reader decommission failed."); }
+        Console.WriteLine("PASS native generated Elasticsearch generation get/query/count and durable reader pin");
+        await CheckSqlGenerationReaderAsync(services);
+    }
+
+    private static async Task CheckSqlGenerationReaderAsync(IServiceProvider services)
+    {
+        var token = CancellationToken.None;
+        var connectionString = Environment.GetEnvironmentVariable("INLINE_SQL")!;
+        var tenant = services.GetRequiredService<ITenantContext>();
+        await using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                IF OBJECT_ID('dbo.NativeProjectionGenerationProbe', 'U') IS NULL
+                    CREATE TABLE dbo.NativeProjectionGenerationProbe (Id nvarchar(128) NOT NULL, TenantId nvarchar(128) NOT NULL, Data nvarchar(max) NOT NULL, LastAppliedPosition bigint NULL, CreatedAt datetimeoffset NOT NULL DEFAULT SYSDATETIMEOFFSET(), UpdatedAt datetimeoffset NOT NULL DEFAULT SYSDATETIMEOFFSET(), PRIMARY KEY(TenantId, Id));
+                INSERT INTO dbo.NativeProjectionGenerationProbe (Id, TenantId, Data) VALUES (@Id, @Tenant, '{"count":7}');
+                """;
+            command.Parameters.AddWithValue("@Id", "native");
+            command.Parameters.AddWithValue("@Tenant", tenant.TenantId!);
+            _ = await command.ExecuteNonQueryAsync(token);
+        }
+        IProjectionStore<ReadModel> store = new SqlServerProjectionStore<ReadModel>(connectionString,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SqlServerProjectionStore<ReadModel>>.Instance,
+            tenant, "NativeWriterProjection");
+        var factory = (IAotProjectionGenerationReaderFactory<ReadModel>)store.GetService(typeof(IAotProjectionGenerationReaderFactory<ReadModel>))!;
+        await using var reader = factory.OpenReader("sqlserver/dbo/NativeProjectionGenerationProbe", ProbeJson.Default.ReadModel);
+        if (string.IsNullOrWhiteSpace(await reader.GetDestinationScopeAsync(token)))
+        { throw new InvalidOperationException("Native SQL generation reader lost its actual storage identity."); }
+        var row = await reader.GetByIdAsync("native", token);
+        var filters = new Dictionary<string, object> { ["count"] = 7 };
+        var rows = await reader.QueryAsync(filters, null, token);
+        var count = await reader.CountAsync(filters, token);
+        if (row?.Count != 7 || rows.Count != 1 || count != 1) { throw new InvalidOperationException("Native SQL exact-generation reads failed."); }
+        IProjectionStore<ReadModel> retiringStore = new SqlServerProjectionStore<ReadModel>(connectionString,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SqlServerProjectionStore<ReadModel>>.Instance,
+            tenant, "NativeProjectionGenerationProbe");
+        await retiringStore.DeleteAsync("native", token);
+        if (await reader.GetByIdAsync("native", token) is not null
+            || (await reader.QueryAsync(null, null, token)).Count != 0
+            || await reader.CountAsync(null, token) != 0)
+        { throw new InvalidOperationException("Native SQL generation reads exposed a retired marker."); }
+        Console.WriteLine("PASS native generated SQL generation get/query/count on an exact destination independent of the writer");
+    }
+
+}
+
+internal sealed class CapacityMonitor : IDisposable
+{
+    private readonly MeterListener _listener = new();
+    private long _active;
+    private long _peak;
+    private long _observed;
+
+    internal CapacityMonitor()
+    {
+        _listener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Meter.Name == "Excalibur.EventSourcing.ProjectionCapacity"
+                && instrument.Name == "projection.capacity.active") { listener.EnableMeasurementEvents(instrument); }
+        };
+        _listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "operation" && tag.Value is "rebuild") { return; }
+            }
+            if (value > 0) { Interlocked.Increment(ref _observed); }
+            var active = Interlocked.Add(ref _active, value);
+            long previous;
+            do { previous = Volatile.Read(ref _peak); if (previous >= active) { break; } }
+            while (Interlocked.CompareExchange(ref _peak, active, previous) != previous);
+        });
+        _listener.Start();
+    }
+
+    internal void AssertObserved()
+    {
+        if (Volatile.Read(ref _observed) == 0 || Volatile.Read(ref _peak) != 1)
+        {
+            throw new InvalidOperationException("Native storage admission was not observed or exceeded the configured application capacity of one.");
+        }
+        Console.WriteLine("PASS native shared storage admission peak=1");
+    }
+
+    public void Dispose() => _listener.Dispose();
 }
 
 internal sealed class FailingRequest : Excalibur.Data.DataRequest<List<int>>

@@ -3,6 +3,8 @@ namespace Company.ExcaliburCqrs.ReadModel;
 /// <summary>
 /// Read model for order queries (CQRS read side).
 /// </summary>
+// Increment the projection version for changed persisted semantics, not the subscription name.
+[Excalibur.EventSourcing.ProjectionVersion(1)]
 public sealed class OrderReadModel
 {
     /// <summary>

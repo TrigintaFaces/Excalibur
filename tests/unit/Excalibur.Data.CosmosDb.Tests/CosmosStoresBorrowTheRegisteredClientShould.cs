@@ -78,11 +78,15 @@ public sealed class CosmosStoresBorrowTheRegisteredClientShould
             // account behind it -- GetDatabase and GetContainer are client-side references.
             o.CreateContainerIfNotExists = false;
         });
-        _ = services.Configure<CosmosDbProjectionStoreOptions>(o =>
-        {
-            o.Client.AccountEndpoint = Endpoint;
-            o.Client.AccountKey = EmulatorKey;
-        });
+        // Named, keyed on the projection type: a projection store reads the options instance belonging to
+        // its own type, so configuring the unnamed one leaves it on the option defaults.
+        _ = services.Configure<CosmosDbProjectionStoreOptions>(
+            CosmosDbProjectionStore<TestProjection>.OptionsName,
+            o =>
+            {
+                o.Client.AccountEndpoint = Endpoint;
+                o.Client.AccountKey = EmulatorKey;
+            });
         _ = services.Configure<CosmosDbOptions>(o =>
         {
             o.DatabaseName = "conformance";

@@ -46,7 +46,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		var projection = new MultiStreamProjection<TestProjection>();
 		var serializer = A.Fake<IEventSerializer>();
 		var pipeline = A.Fake<IUpcastingPipeline>();
-		var serviceProvider = A.Fake<IServiceProvider>();
+		var serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<TestProjection>();
 
 		var v1 = new UpcastTestEventV1();
 		var stored = new StoredEvent("e1", "agg-1", "Agg", "UpcastTestEvent", [0x01], null, 1, DateTimeOffset.UtcNow);
@@ -67,7 +67,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
 			serializer,
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { BatchSize = 100 }),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true,  BatchSize = 100 }),
 			NullLogger<ProjectionRebuildService>.Instance);
 
 		await sut.RebuildAsync<TestProjection>(CancellationToken.None);
@@ -79,14 +79,14 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 	public async Task RebuildAsync_WithNoGlobalQuery_ShouldSetStatusToFailed()
 	{
 		// Arrange
-		var serviceProvider = A.Fake<IServiceProvider>();
+		var serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<TestProjection>();
 		A.CallTo(() => serviceProvider.GetService(typeof(IGlobalStreamQuery)))
 			.Returns(null);
 
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
 			A.Fake<IEventSerializer>(),
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 			NullLogger<ProjectionRebuildService>.Instance);
 
 		// Act
@@ -102,7 +102,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 	{
 		// Arrange
 		var globalQuery = A.Fake<IGlobalStreamQuery>();
-		var serviceProvider = A.Fake<IServiceProvider>();
+		var serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<TestProjection>();
 
 		A.CallTo(() => serviceProvider.GetService(typeof(IGlobalStreamQuery)))
 			.Returns(globalQuery);
@@ -112,7 +112,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
 			A.Fake<IEventSerializer>(),
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 			NullLogger<ProjectionRebuildService>.Instance);
 
 		// Act
@@ -129,7 +129,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		// Arrange
 		var globalQuery = A.Fake<IGlobalStreamQuery>();
 		var projection = new MultiStreamProjection<TestProjection>();
-		var serviceProvider = A.Fake<IServiceProvider>();
+		var serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<TestProjection>();
 
 		A.CallTo(() => serviceProvider.GetService(typeof(IGlobalStreamQuery)))
 			.Returns(globalQuery);
@@ -141,7 +141,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 		var sut = new ProjectionRebuildService(
 			serviceProvider,
 			A.Fake<IEventSerializer>(),
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { BatchSize = 100 }),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true,  BatchSize = 100 }),
 			NullLogger<ProjectionRebuildService>.Instance);
 
 		// Act
@@ -158,9 +158,9 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 	{
 		// Arrange
 		var sut = new ProjectionRebuildService(
-			A.Fake<IServiceProvider>(),
+			SubscriptionCheckpointTestSetup.CreateRebuildProvider<TestProjection>(),
 			A.Fake<IEventSerializer>(),
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 			NullLogger<ProjectionRebuildService>.Instance);
 
 		// Act
@@ -178,7 +178,7 @@ public sealed class ProjectionRebuildServiceFunctionalShould
 			new ProjectionRebuildService(
 				null!,
 				A.Fake<IEventSerializer>(),
-				Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+				Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 				NullLogger<ProjectionRebuildService>.Instance));
 	}
 }

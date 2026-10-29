@@ -453,6 +453,7 @@ public static class EventSourcingBuilderExtensions
 
 		// Configure options (consumer overrides or defaults)
 		var optionsBuilder = builder.Services.AddOptions<GlobalStreamProjectionOptions>();
+        ProjectionCapacity.Register(builder.Services);
 		if (configure is not null)
 		{
 			_ = optionsBuilder.Configure(configure);
@@ -477,7 +478,8 @@ public static class EventSourcingBuilderExtensions
 				// The subscription this host checkpoints under. Without it the read model can only
 				// enumerate subscriptions that have already recorded progress, so a configured
 				// projection that has never run is invisible rather than behind.
-				sp.GetRequiredService<IOptions<GlobalStreamProjectionOptions>>().Value.ProjectionName));
+				sp.GetRequiredService<IOptions<GlobalStreamProjectionOptions>>().Value.ProjectionName,
+                sp.GetService<ProjectionCapacity>()));
 
 		// ONE INSTANCE, TWO ENTRY POINTS. The concrete host is registered as a singleton and BOTH the
 		// hosted service and the pull API resolve that same object, so a consumer registering both cannot

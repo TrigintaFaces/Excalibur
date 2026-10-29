@@ -15,9 +15,13 @@ namespace Excalibur.EventSourcing;
 /// <param name="Projections">
 /// Whether this save's <c>Inline</c> projections reached <paramref name="SessionToken"/> before returning.
 /// <see cref="ProjectionFreshness.NotRequested"/> when nothing was waited for — no projection is
-/// registered <c>Inline</c>, so none was ever going to be. <see cref="ProjectionFreshness.Fresh"/> when
-/// every <c>Inline</c> projection folded the committed prefix through the token, which is the read-your-
-/// writes promise. <see cref="ProjectionFreshness.BoundExpired"/> when the bounded wait ended first:
+/// registered <c>Inline</c>, so none was ever going to be. <see cref="ProjectionFreshness.Attested"/> when
+/// every required <c>Inline</c> projection was OBSERVED to have folded the committed prefix through the token,
+/// against the durable roster as it stood at that moment — a receipt, not a standing promise, because the
+/// roster can change before you read. For read-your-own-writes, hand <paramref name="SessionToken"/> to
+/// <c>IProjectionSessionReader</c> and require <see cref="ProjectionFreshness.Fresh"/>, which is issued
+/// only after re-validating roster identity, binding, position and destination around the data read.
+/// <see cref="ProjectionFreshness.BoundExpired"/> when the bounded wait ended first:
 /// <b>the events ARE durably committed</b> and only the read model is behind, so the correct response is
 /// to answer from the stale read model or wait on <c>IProjectionSessionReader</c> — never to repeat the
 /// command, which would append the events a second time.
@@ -52,4 +56,9 @@ namespace Excalibur.EventSourcing;
 public readonly record struct SaveResult(
 	long CommittedVersion,
 	long? SessionToken,
-	ProjectionFreshness Projections);
+	ProjectionFreshness Projections)
+{
+	/// <summary>Gets the roster receipt for the inline freshness observation.</summary>
+	/// <value>The receipt, or null when no roster was attested.</value>
+	public ProjectionAttestation? Attestation { get; init; }
+}

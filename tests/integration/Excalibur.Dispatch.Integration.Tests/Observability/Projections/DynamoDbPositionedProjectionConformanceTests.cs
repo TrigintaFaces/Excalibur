@@ -90,7 +90,7 @@ public sealed class DynamoDbPositionedProjectionContainerFixture : ContainerFixt
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class DynamoDbPositionedProjectionConformanceTests
-	: PositionedProjectionStoreConformanceTestKit,
+	: PositionedProjectionDestinationConformanceTestKit,
 		IClassFixture<DynamoDbPositionedProjectionContainerFixture>
 {
 	private readonly DynamoDbPositionedProjectionContainerFixture _fixture;
@@ -99,6 +99,41 @@ public sealed class DynamoDbPositionedProjectionConformanceTests
 	public DynamoDbPositionedProjectionConformanceTests(DynamoDbPositionedProjectionContainerFixture fixture) =>
 		_fixture = fixture;
 
+    [Fact]
+    public async Task ResolveRealScopeAndReadTheGenerationThroughItsAccountQualifiedArn()
+    {
+        var store = await CreateStoreAsync();
+        var scope = (IAsyncProjectionDestinationScope)store.GetService(typeof(IAsyncProjectionDestinationScope))!;
+        var actualScope = await scope.GetScopeAsync(CancellationToken.None);
+        actualScope.ShouldNotBeNullOrWhiteSpace();
+        await store.UpsertAsync("scope-row", new ConformanceProjection { Id = "scope-row", Total = 21 }, CancellationToken.None);
+        var destination = ((IProjectionDestinationIdentity)store.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldBe(actualScope);
+        (await reader.GetByIdAsync("scope-row", CancellationToken.None))!.Total.ShouldBe(21);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(21);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ReadAnExactNextGenerationWithoutMovingTheWriter()
+    {
+        var store = await CreateStoreAsync();
+        var next = await CreateNextGenerationStoreAsync();
+        await next.UpsertAsync("reader-row", new ConformanceProjectionNextGeneration { Id = "reader-row", Total = 37 }, CancellationToken.None);
+        var destination = ((IProjectionDestinationIdentity)next.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldNotBeNull();
+        (await reader.GetByIdAsync("reader-row", CancellationToken.None))!.Total.ShouldBe(37);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(37);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+        (await store.GetByIdAsync("reader-row", CancellationToken.None)).ShouldBeNull();
+    }
+    [Fact]
+    public async Task GateCutoverAndRouteAllReadsToTheSelectedGeneration() =>
+        await GenerationRoutingAcceptance.VerifyAsync(await CreateStoreAsync(), await CreateNextGenerationStoreAsync());
 	/// <summary>Wires the kit's own completeness check, which names any arm this suite forgot.</summary>
 	/// <returns>A task representing the check.</returns>
 	[Fact]
@@ -207,6 +242,68 @@ public sealed class DynamoDbPositionedProjectionConformanceTests
 	[Fact]
 	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
+
+	/// <summary>The store states which destination it is configured against.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Advertise_the_destination_it_is_configured_against_Test() =>
+		Advertise_the_destination_it_is_configured_against();
+
+	/// <summary>A generation reader reports one storage scope through both of its members.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Report_one_storage_scope_through_both_generation_reader_members_Test() =>
+		Report_one_storage_scope_through_both_generation_reader_members();
+
+	/// <summary>Moving the configured destination changes the identity the store advertises.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Change_the_identity_when_the_configured_destination_moves_Test() =>
+		Change_the_identity_when_the_configured_destination_moves();
+
+	/// <summary>A declared generation resolves a destination of its own, carrying its generation segment.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Resolve_a_distinct_destination_for_the_next_generation_Test() =>
+		Resolve_a_distinct_destination_for_the_next_generation();
+
+	/// <summary>The previous generation keeps serving its own documents while the next one builds.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Keep_the_previous_generation_readable_while_the_next_one_builds_Test() =>
+		Keep_the_previous_generation_readable_while_the_next_one_builds();
+
+	/// <inheritdoc />
+	protected override Task<IProjectionStore<ConformanceProjection>> CreateRelocatedStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjection>>(
+			new DynamoDbProjectionStore<ConformanceProjection>(
+				_fixture.Client,
+				new SingleNamedOptionsMonitor(new DynamoDbProjectionStoreOptions
+				{
+					TableName = _tableName + "-moved",
+					AutoCreateTable = true,
+				}),
+				NullLogger<DynamoDbProjectionStore<ConformanceProjection>>.Instance));
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Configured against the SAME table as the baseline, because this provider puts the generation in
+	/// the per-projection discriminator rather than the table: a new generation writes under its own key
+	/// prefix in the table the consumer already provisioned, which is infrastructure we cannot create
+	/// for them. So the two generations here share a table and must still not share a row.
+	/// </remarks>
+	protected override Task<IProjectionStore<ConformanceProjectionNextGeneration>>
+		CreateNextGenerationStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjectionNextGeneration>>(
+			new DynamoDbProjectionStore<ConformanceProjectionNextGeneration>(
+				_fixture.Client,
+				new SingleNamedOptionsMonitor(new DynamoDbProjectionStoreOptions
+				{
+					TableName = _tableName,
+					AutoCreateTable = true,
+				}),
+				NullLogger<DynamoDbProjectionStore<ConformanceProjectionNextGeneration>>.Instance));
+
 	/// <inheritdoc />
 	protected override Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
 	{
@@ -215,16 +312,34 @@ public sealed class DynamoDbPositionedProjectionConformanceTests
 			+ "skipped, because an arm that passes by being skipped is indistinguishable from one that "
 			+ "passed by working, and this provider's contract is enforced entirely by the service.");
 
-		var options = Microsoft.Extensions.Options.Options.Create(new DynamoDbProjectionStoreOptions
+		var options = new DynamoDbProjectionStoreOptions
 		{
 			TableName = _tableName,
 			AutoCreateTable = true,
-		});
+		};
 
 		return Task.FromResult<IProjectionStore<ConformanceProjection>>(
 			new DynamoDbProjectionStore<ConformanceProjection>(
 				_fixture.Client,
-				options,
+				new SingleNamedOptionsMonitor(options),
 				NullLogger<DynamoDbProjectionStore<ConformanceProjection>>.Instance));
+	}
+
+	/// <summary>
+	/// Serves one options instance under every name.
+	/// </summary>
+	/// <remarks>
+	/// The store resolves its options by the projection type's options name. A directly-constructed store
+	/// has no container to register that name against, so this returns the same instance whatever is
+	/// asked for -- correct here because the suite has exactly one projection type.
+	/// </remarks>
+	private sealed class SingleNamedOptionsMonitor(DynamoDbProjectionStoreOptions options)
+		: Microsoft.Extensions.Options.IOptionsMonitor<DynamoDbProjectionStoreOptions>
+	{
+		public DynamoDbProjectionStoreOptions CurrentValue => options;
+
+		public DynamoDbProjectionStoreOptions Get(string? name) => options;
+
+		public IDisposable? OnChange(Action<DynamoDbProjectionStoreOptions, string?> listener) => null;
 	}
 }

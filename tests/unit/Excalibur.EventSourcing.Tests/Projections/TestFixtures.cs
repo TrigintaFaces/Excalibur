@@ -55,15 +55,23 @@ public sealed class TestOrderShipped : IDomainEvent
 
 
 /// <summary>A synchronous test accessor over the production positioned in-memory store.</summary>
-internal sealed class TestProjectionStore<T> : IProjectionStore<T>
+internal sealed class TestProjectionStore<T>(string? destination = null) : IProjectionStore<T>, IProjectionDestinationIdentity, IProjectionDestinationScope
 	where T : class
 {
 	private readonly Excalibur.EventSourcing.Projections.InMemoryProjectionStore<T> _store = new();
 
-	public object? GetService(Type serviceType) => ((IServiceProvider)_store).GetService(serviceType);
+	public string Identity => destination ?? "test/" + typeof(T).FullName;
+    public string Scope => "test-cluster";
 
-	public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
-		_store.GetByIdAsync(id, cancellationToken);
+    public object? GetService(Type serviceType) => serviceType == typeof(IProjectionDestinationIdentity) || serviceType == typeof(IProjectionDestinationScope)
+        ? this : ((IServiceProvider)_store).GetService(serviceType);
+
+    internal Action? BeforeRead { get; init; }
+    public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken)
+    {
+        BeforeRead?.Invoke();
+        return _store.GetByIdAsync(id, cancellationToken);
+    }
 
 	// Test seeds represent an initial state before the numbered events, rather than an
 	// unpositioned production write that a persisted async fold must refuse.

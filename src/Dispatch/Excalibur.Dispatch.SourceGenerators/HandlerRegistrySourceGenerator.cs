@@ -555,7 +555,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 
 		foreach (var handler in actionHandlers)
 		{
-			var messageType = handler.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var messageType = handler.MessageType.ToDisplayString(GeneratorDisplayFormats.TypeReference);
 			_ = sb.AppendLine($" {messageType} typedAction => Invoke_{SanitizeIdentifier(messageType)}(typedAction, provider, context, cancellationToken),");
 		}
 
@@ -566,10 +566,10 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 
 		foreach (var handler in actionHandlers)
 		{
-			var messageType = handler.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var messageType = handler.MessageType.ToDisplayString(GeneratorDisplayFormats.TypeReference);
 			var handlerType = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var interfaceType = handler.InterfaceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var responseType = handler.ResponseType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var interfaceType = handler.InterfaceType.ToDisplayString(GeneratorDisplayFormats.TypeReference);
+			var responseType = handler.ResponseType?.ToDisplayString(GeneratorDisplayFormats.TypeReference);
 			var usesInterface = ImplementsContextAware(handler.HandlerType, contextAwareInterface);
 			var contextProperty = usesInterface ? null : FindMessageContextProperty(handler.HandlerType);
 			var helperName = SanitizeIdentifier(messageType);
@@ -696,7 +696,7 @@ public sealed class HandlerRegistrySourceGenerator : IIncrementalGenerator
 		foreach (var handler in handlers)
 		{
 			var handlerType = handler.HandlerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-			var interfaceType = handler.InterfaceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			var interfaceType = handler.InterfaceType.ToDisplayString(GeneratorDisplayFormats.TypeReference);
 
 			// Register concrete type once
 			if (seenHandlerTypes.Add(handlerType))

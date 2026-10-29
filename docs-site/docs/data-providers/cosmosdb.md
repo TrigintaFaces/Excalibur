@@ -8,6 +8,17 @@ description: Cloud-native Cosmos DB provider with partition keys, consistency le
 
 The Cosmos DB provider implements `ICloudNativePersistenceProvider` for globally distributed, multi-model database access with partition key management, tunable consistency, and change feed subscriptions.
 
+## Projection tenant isolation
+
+This provider's projection store is **estate-wide**: it does not add a tenant predicate to
+projection reads or writes. A tenant routing rule or tenant-presence decorator does not add row
+isolation when tenants share a destination. Row-discriminator multi-tenancy refuses an unmarked
+projection store during registration.
+
+Use an explicitly estate-wide read model for cross-tenant processing. For tenant-confined projections,
+use a store that enforces the partition, such as SQL Server or PostgreSQL, together with a source
+isolated to that tenant. See [projection tenant boundaries](../event-sourcing/projections.md#tenant-boundaries-during-global-stream-processing).
+
 ## Before You Start
 
 - **.NET 10.0**

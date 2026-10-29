@@ -5,7 +5,6 @@ using Excalibur.EventSourcing.Subscriptions;
 using Excalibur.Integration.Tests.Data.EventStore;
 using Excalibur.Testing.Conformance;
 
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Integration.Tests.EventSourcing.Sqlite;
@@ -27,6 +26,13 @@ public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 		IClassFixture<SqliteEventStoreFixture>,
 		IAsyncLifetime
 {
+    [Fact]
+    public Task GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime_Test() => GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime();
+
+    [Fact]
+    public Task GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference_Test() => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference();
+
+
 	private const string CheckpointTable = "SubscriptionCheckpoints";
 
 	private readonly SqliteEventStoreFixture _fixture;
@@ -59,52 +65,58 @@ public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 		return services.BuildServiceProvider().GetRequiredService<ISubscriptionCheckpointStore>();
 	}
 
-	[Fact]
-	public async Task CreateDefinitionCompanionWithoutChangingAnExistingCheckpoint()
-	{
-		// Keep this predecessor schema literal independent of the current DDL generator.
-		// A unique named database prevents initialization caches from making the test vacuous.
-		var connectionString = $"Data Source=checkpoint-upgrade-{Guid.NewGuid():N};Mode=Memory;Cache=Shared";
-		await using var keeper = new SqliteConnection(connectionString);
-		await keeper.OpenAsync().ConfigureAwait(false);
-		await using (var create = keeper.CreateCommand())
-		{
-			create.CommandText = """
-				CREATE TABLE SubscriptionCheckpoints (
-				    SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
-				    Position INTEGER NOT NULL,
-				    UpdatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-				INSERT INTO SubscriptionCheckpoints (SubscriptionName, Position)
-				VALUES ('existing-subscription', 42);
-				""";
-			_ = await create.ExecuteNonQueryAsync().ConfigureAwait(false);
-		}
+    [Fact]
+    public async Task PreserveTheBindingAndCursorAcrossStoreInstances()
+    {
+        var name = "restart-" + Guid.NewGuid().ToString("N");
+        var first = CreateStore();
+        var member = (await first.BindSubscriptionAsync(name,
+            [new SubscriptionMember("A", new string('A', 64), "dest-a")], CancellationToken.None)).Members.Single();
+        await first.AdvanceCheckpointAsync(name, "A", member.BindingId, null, 42, CancellationToken.None);
+        var restored = (await CreateStore().ReadSubscriptionAsync(name, CancellationToken.None)).Members.Single();
+        restored.BindingId.ShouldBe(member.BindingId);
+        restored.Position.ShouldBe(42);
+    }
 
-		var services = new ServiceCollection();
-		_ = services.AddSqliteSubscriptionCheckpointStore(connectionString, CheckpointTable);
-		await using var provider = services.BuildServiceProvider();
-		var store = provider.GetRequiredService<ISubscriptionCheckpointStore>();
-		await store.BindSubscriptionAsync("existing-subscription", new string('A', 64), CancellationToken.None).ConfigureAwait(false);
-		(await store.GetCheckpointAsync("existing-subscription", CancellationToken.None).ConfigureAwait(false)).ShouldBe(42);
-		await store.BindSubscriptionAsync("existing-subscription", new string('A', 64), CancellationToken.None).ConfigureAwait(false);
-
-		await using var read = keeper.CreateCommand();
-		read.CommandText = "SELECT DefinitionHash FROM SubscriptionCheckpointsDefinitions WHERE SubscriptionName = 'existing-subscription';";
-		(await read.ExecuteScalarAsync().ConfigureAwait(false)).ShouldBe(new string('A', 64));
-		(await store.GetCheckpointAsync("existing-subscription", CancellationToken.None).ConfigureAwait(false)).ShouldBe(42);
-	}
+    [Fact]
+    public Task RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement_Test() =>
+        RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement();
 
 	[Fact]
-	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
-		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+	public Task Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint();
 
 	[Fact]
-	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
-		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+	public Task Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched_Test() =>
+		Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched();
 
 	[Fact]
-	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
-		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+	public Task Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound_Test() =>
+		Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound();
+
+	[Fact]
+	public Task Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply_Test() =>
+		Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply();
+
+	[Fact]
+	public Task ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Release_ShouldRemoveMemberAndItsCheckpoint_Atomically_Test() =>
+		Release_ShouldRemoveMemberAndItsCheckpoint_Atomically();
+
+	[Fact]
+	public Task Release_AbsentMember_ShouldReturnFalse_AndWriteNothing_Test() =>
+		Release_AbsentMember_ShouldReturnFalse_AndWriteNothing();
+
+	[Fact]
+	public Task Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent();
+
+
+
+
 
 	[Fact]
 	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
@@ -141,6 +153,14 @@ public sealed class SqliteSubscriptionCheckpointStoreConformanceShould
 	[Fact]
 	public Task ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne_Test() =>
 		ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip_Test() =>
+		Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip();
+
+	[Fact]
+	public Task Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors_Test() =>
+		Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors();
 
 	[Fact]
 	public Task Enumerate_ShouldReportStoredCheckpoints_Test() =>

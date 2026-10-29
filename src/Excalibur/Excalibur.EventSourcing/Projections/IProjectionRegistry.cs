@@ -30,9 +30,13 @@ internal interface IProjectionRegistry
 	IReadOnlyList<ProjectionRegistration> GetByMode(ProjectionMode mode);
 
 	/// <summary>
-	/// Registers or replaces a projection. A second registration for the same
-	/// projection type replaces the first (idempotent).
+	/// Registers or replaces a projection. A second registration for the same projection type in the
+	/// same mode replaces the first (idempotent); one in a DIFFERENT mode is refused, because a
+	/// projection type has one cursor and cannot be folded two ways at once.
 	/// </summary>
 	/// <param name="registration">The projection registration to add.</param>
+	/// <exception cref="InvalidOperationException">
+	/// The same projection type is already registered in a different <see cref="ProjectionMode"/>.
+	/// </exception>
 	void Register(ProjectionRegistration registration);
 }

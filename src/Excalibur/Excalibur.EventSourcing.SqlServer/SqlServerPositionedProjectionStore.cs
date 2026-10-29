@@ -107,7 +107,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		// single-provider test could see.
 		var position = ProjectionPosition.FromStored(row.LastAppliedPosition);
 
-		return (row.Data, position);
+		return (position.Kind == ProjectionPositionKind.Retired ? null : row.Data, position);
 	}
 
 	/// <summary>Writes the state and the position together, conditionally.</summary>
@@ -211,6 +211,11 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		// was refused at, so an outcome characterising the stored STATE would attribute a property of the
 		// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
 		// its position, where ProjectionPositionKind reports it as a measured fact.
+		if (current == ProjectionPosition.RetiredSentinel)
+		{
+			return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+		}
+
 		var held = ProjectionPosition.FromStored(current);
 		return held.Kind == ProjectionPositionKind.Positioned
 			? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held.Value)
@@ -242,7 +247,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 			MERGE {_tableName} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @Id AS Id, @TenantId AS TenantId) AS source
 			ON target.Id = source.Id AND target.TenantId = source.TenantId
-			WHEN MATCHED THEN
+			WHEN MATCHED AND (target.LastAppliedPosition IS NULL OR target.LastAppliedPosition <> @Retired) THEN
 				UPDATE SET Data = @Data, UpdatedAt = @UpdatedAt, LastAppliedPosition = @Unnumbered
 			WHEN NOT MATCHED THEN
 				INSERT (Id, Data, CreatedAt, UpdatedAt, TenantId, LastAppliedPosition)
@@ -256,11 +261,16 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		parameters.Add("@UpdatedAt", DateTimeOffset.UtcNow);
 		parameters.Add("@TenantId", tenantId);
 		parameters.Add("@Unnumbered", ProjectionPosition.Unnumbered.ToStored());
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		_ = await connection.ExecuteAsync(
+		var affected = await connection.ExecuteAsync(
 			new CommandDefinition(sql, parameters, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		if (affected == 0)
+		{
+			throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+		}
 	}
 
 	/// <summary>
@@ -294,7 +304,8 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		var sql = $"""
 			UPDATE {_tableName} WITH (UPDLOCK, HOLDLOCK)
 			SET Data = @Data, UpdatedAt = @UpdatedAt, LastAppliedPosition = @NewPosition
-			WHERE Id = @Id AND TenantId = @TenantId;
+			WHERE Id = @Id AND TenantId = @TenantId
+			  AND (LastAppliedPosition IS NULL OR LastAppliedPosition <> @Retired);
 			""";
 #pragma warning restore CA2100
 
@@ -304,6 +315,7 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		parameters.Add("@UpdatedAt", DateTimeOffset.UtcNow);
 		parameters.Add("@TenantId", tenantId);
 		parameters.Add("@NewPosition", ProjectionPosition.At(newPosition).ToStored());
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -405,6 +417,11 @@ internal sealed class SqlServerPositionedProjectionStore<TProjection>
 		}
 
 		if (currentPosition is not { } current)
+		{
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+		}
+
+		if (current == ProjectionPosition.RetiredSentinel)
 		{
 			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
 		}

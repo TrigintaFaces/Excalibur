@@ -26,12 +26,13 @@ namespace Excalibur.Data.DynamoDb.Projections;
 /// <remarks>
 /// <para>
 /// Stores projections as JSON-serialized items in a DynamoDB table.
-/// Uses a single-table design with projection type as a key prefix.
+/// Uses a single-table design with the projection's fully-qualified type name as a key prefix, so two
+/// projection classes sharing a simple name in different namespaces remain separate in one table.
 /// Supports auto-table creation and dictionary-based filter queries via scan.
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed class DynamoDbProjectionStore<
+public sealed partial class DynamoDbProjectionStore<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
 	: IProjectionStore<TProjection>, ICursorProjectionStore<TProjection>,
 		IPositionedProjectionStore<TProjection>
@@ -65,7 +66,7 @@ public sealed class DynamoDbProjectionStore<
 	/// Metadata field: preserves the projection's original partition key value if the
 	/// consumer projection type has a property whose camelCase name matches the configured
 	/// <see cref="DynamoDbProjectionStoreOptions.PartitionKeyName"/>. Without this, the
-	/// compound PK (<c>{type}#{id}</c>) would overwrite the projection's own value.
+	/// compound PK (<c>{discriminator}#{id}</c>) would overwrite the projection's own value.
 	/// Restored during deserialization by <see cref="DeserializeItem"/>.
 	/// </summary>
 	private const string MetaFieldOrigPk = "origPk";
@@ -79,6 +80,9 @@ public sealed class DynamoDbProjectionStore<
 	/// </remarks>
 	private const string MetaFieldPosition = "lastAppliedPosition";
 
+	/// <summary>The options name this store's settings are registered under.</summary>
+	internal static readonly string OptionsName = DynamoDbProjectionTableConvention.GetOptionsName<TProjection>();
+
 	private readonly IAmazonDynamoDB _client;
 	private readonly DynamoDbProjectionStoreOptions _options;
 	private readonly ILogger<DynamoDbProjectionStore<TProjection>> _logger;
@@ -90,22 +94,31 @@ public sealed class DynamoDbProjectionStore<
 	/// Initializes a new instance of the <see cref="DynamoDbProjectionStore{TProjection}"/> class.
 	/// </summary>
 	/// <param name="client">The DynamoDB client.</param>
-	/// <param name="options">The projection store options.</param>
+	/// <param name="optionsMonitor">
+	/// The options monitor. Settings are resolved by the name
+	/// <see cref="DynamoDbProjectionTableConvention.GetOptionsName{TProjection}"/>, so projections
+	/// registered in one container each read their own table.
+	/// </param>
 	/// <param name="logger">The logger instance.</param>
 	public DynamoDbProjectionStore(
 		IAmazonDynamoDB client,
-		IOptions<DynamoDbProjectionStoreOptions> options,
+		IOptionsMonitor<DynamoDbProjectionStoreOptions> optionsMonitor,
 		ILogger<DynamoDbProjectionStore<TProjection>> logger)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
-		_options = options.Value;
+
+		// Snapshotted once: the table name and the discriminator are hashed into a durable destination
+		// fingerprint, so this store's destination identity must not move under it mid-life.
+		_options = optionsMonitor.Get(OptionsName);
 		_logger = logger;
-		_projectionType = typeof(TProjection).Name;
+		_projectionType = DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TProjection>();
 		_jsonOptions = _options.JsonSerializerOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
+		_scopeCache = new DynamoDbProjectionScopeCache();
+		_destination = new DynamoDbProjectionDestination(_client, _options, EnsureTableAsync, _scopeCache);
 	}
 
 	/// <inheritdoc/>
@@ -117,7 +130,7 @@ public sealed class DynamoDbProjectionStore<
 
 		var response = await _client.GetItemAsync(new GetItemRequest
 		{
-			TableName = _options.TableName,
+			TableName = RequestTableName,
 			Key = CreateKey(id),
 		}, cancellationToken).ConfigureAwait(false);
 
@@ -139,6 +152,8 @@ public sealed class DynamoDbProjectionStore<
 	[RequiresDynamicCode("Deserializes the projection type with the reflection-based System.Text.Json serializer, which generates converters at run time.")]
 	private TProjection? DeserializeItem(Dictionary<string, AttributeValue> item)
 	{
+		if (ReadPosition(item).Kind == ProjectionPositionKind.Retired) { return null; }
+
 		// Convert low-level attributes to Document model
 		var doc = Document.FromAttributeMap(item);
 
@@ -190,11 +205,7 @@ public sealed class DynamoDbProjectionStore<
 		// destroyed position is recorded as a never-established one.
 		var item = BuildItem(id, projection, ProjectionPosition.Unplaceable);
 
-		await _client.PutItemAsync(new PutItemRequest
-		{
-			TableName = _options.TableName,
-			Item = item,
-		}, cancellationToken).ConfigureAwait(false);
+		await PutLiveAsync(item, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -220,11 +231,7 @@ public sealed class DynamoDbProjectionStore<
 		ArgumentNullException.ThrowIfNull(projection);
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
-		await _client.PutItemAsync(new PutItemRequest
-		{
-			TableName = _options.TableName,
-			Item = BuildItem(id, projection, ProjectionPosition.Unnumbered),
-		}, cancellationToken).ConfigureAwait(false);
+		await PutLiveAsync(BuildItem(id, projection, ProjectionPosition.Unnumbered), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -261,12 +268,15 @@ public sealed class DynamoDbProjectionStore<
 		{
 			_ = await _client.PutItemAsync(new PutItemRequest
 			{
-				TableName = _options.TableName,
+				TableName = RequestTableName,
 				Item = BuildItem(id, projection, ProjectionPosition.At(newPosition)),
-				ConditionExpression = "attribute_exists(#pk)",
+				ConditionExpression = "attribute_exists(#pk) AND (attribute_not_exists(#meta.#pos) OR #meta.#pos <> :retired)",
+				ExpressionAttributeValues = new() { [":retired"] = RetiredAttribute() },
 				ExpressionAttributeNames = new Dictionary<string, string>(StringComparer.Ordinal)
 				{
 					["#pk"] = _options.PartitionKeyName,
+					["#meta"] = MetadataKey,
+					["#pos"] = MetaFieldPosition,
 				},
 			}, cancellationToken).ConfigureAwait(false);
 
@@ -284,11 +294,21 @@ public sealed class DynamoDbProjectionStore<
 	{
 		await EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
-		await _client.DeleteItemAsync(new DeleteItemRequest
-		{
-			TableName = _options.TableName,
-			Key = CreateKey(id),
-		}, cancellationToken).ConfigureAwait(false);
+		var marker = CreateKey(id);
+        marker[MetadataKey] = new AttributeValue
+        {
+            M = new Dictionary<string, AttributeValue>
+            {
+                [MetaFieldId] = new() { S = id },
+                [MetaFieldType] = new() { S = _projectionType },
+                [MetaFieldPosition] = RetiredAttribute(),
+            },
+        };
+        await _client.PutItemAsync(new PutItemRequest
+        {
+            TableName = RequestTableName,
+            Item = marker,
+        }, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -355,7 +375,7 @@ public sealed class DynamoDbProjectionStore<
 		{
 			var request = new ScanRequest
 			{
-				TableName = _options.TableName,
+				TableName = RequestTableName,
 				FilterExpression = filterExpression,
 				ExpressionAttributeNames = names,
 				ExpressionAttributeValues = values,
@@ -578,7 +598,7 @@ public sealed class DynamoDbProjectionStore<
 		{
 			var request = new ScanRequest
 			{
-				TableName = _options.TableName,
+				TableName = RequestTableName,
 				FilterExpression = filterExpression,
 				ExpressionAttributeNames = names,
 				ExpressionAttributeValues = values,
@@ -643,7 +663,7 @@ public sealed class DynamoDbProjectionStore<
 		{
 			var request = new ScanRequest
 			{
-				TableName = _options.TableName,
+				TableName = RequestTableName,
 				FilterExpression = filterExpression,
 				ExpressionAttributeNames = names,
 				ExpressionAttributeValues = values,
@@ -699,16 +719,18 @@ public sealed class DynamoDbProjectionStore<
 		{
 			["#proj"] = MetadataKey,
 			["#type"] = MetaFieldType,
+			["#retiredPosition"] = MetaFieldPosition,
 		};
 
 		var values = new Dictionary<string, AttributeValue>
 		{
 			[":projType"] = new() { S = _projectionType },
+			[":retired"] = RetiredAttribute(),
 		};
 
 		if (filters is null || filters.Count == 0)
 		{
-			return ("#proj.#type = :projType", names, values);
+			return ("#proj.#type = :projType AND (attribute_not_exists(#proj.#retiredPosition) OR #proj.#retiredPosition <> :retired)", names, values);
 		}
 
 		var conditions = new List<string>(filters.Count);
@@ -728,7 +750,7 @@ public sealed class DynamoDbProjectionStore<
 			conditions.Add(BuildFilterCondition(parsed.Operator, namePlaceholder, value, values, ref valueIndex));
 		}
 
-		var filterExpression = $"#proj.#type = :projType AND {string.Join(" AND ", conditions)}";
+		var filterExpression = $"#proj.#type = :projType AND (attribute_not_exists(#proj.#retiredPosition) OR #proj.#retiredPosition <> :retired) AND {string.Join(" AND ", conditions)}";
 		return (filterExpression, names, values);
 	}
 
@@ -851,7 +873,7 @@ public sealed class DynamoDbProjectionStore<
 			{
 				await _client.CreateTableAsync(new CreateTableRequest
 				{
-					TableName = _options.TableName,
+					TableName = RequestTableName,
 					KeySchema =
 					[
 						new KeySchemaElement(_options.PartitionKeyName, KeyType.HASH),
@@ -888,7 +910,7 @@ public sealed class DynamoDbProjectionStore<
 		// interleave, after which the position the caller holds certifies a prefix its state does not
 		// contain -- and the conditional write below would ACCEPT, losing every event in the gap.
 		var response = await _client.GetItemAsync(
-			new GetItemRequest { TableName = _options.TableName, Key = CreateKey(id) },
+			new GetItemRequest { TableName = RequestTableName, Key = CreateKey(id) },
 			cancellationToken).ConfigureAwait(false);
 
 		if (response.HttpStatusCode != HttpStatusCode.OK || !response.IsItemSet)
@@ -1000,7 +1022,7 @@ public sealed class DynamoDbProjectionStore<
 		{
 			_ = await _client.PutItemAsync(new PutItemRequest
 			{
-				TableName = _options.TableName,
+				TableName = RequestTableName,
 				Item = item,
 				ConditionExpression = condition,
 				ExpressionAttributeNames = names,
@@ -1037,6 +1059,10 @@ public sealed class DynamoDbProjectionStore<
 			// row-at-read-time to a write refused earlier. A caller that needs to know what the row holds reads
 			// its position, where ProjectionPositionKind reports it as a measured fact.
 			var held = ReadPosition(ex.Item);
+			if (held.Kind == ProjectionPositionKind.Retired)
+			{
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+			}
 			return held.Kind == ProjectionPositionKind.Positioned
 				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held.Value)
 				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
@@ -1076,7 +1102,7 @@ public sealed class DynamoDbProjectionStore<
 		{
 			_ = await _client.PutItemAsync(new PutItemRequest
 			{
-				TableName = _options.TableName,
+				TableName = RequestTableName,
 				Item = item,
 				ConditionExpression = "attribute_exists(#pk) AND #meta.#pos = :at",
 				ExpressionAttributeNames = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -1106,6 +1132,10 @@ public sealed class DynamoDbProjectionStore<
 			// matched -- has nothing a re-fold can be placed against, and re-reading cannot change
 			// that.
 			var held = ReadPosition(ex.Item);
+			if (held.Kind == ProjectionPositionKind.Retired)
+			{
+				return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+			}
 			return held.Kind == ProjectionPositionKind.Positioned
 				? new ProjectionRefoldResult(ProjectionRefoldOutcome.Superseded, held.Value)
 				: new ProjectionRefoldResult(ProjectionRefoldOutcome.RequiresRebuild, null);
@@ -1174,6 +1204,28 @@ public sealed class DynamoDbProjectionStore<
 	/// sentence excluded while carrying it.
 	/// </para>
 	/// </remarks>
+    private static AttributeValue RetiredAttribute() =>
+        new() { N = ProjectionPosition.RetiredSentinel.ToString(CultureInfo.InvariantCulture) };
+
+    private async Task PutLiveAsync(Dictionary<string, AttributeValue> item, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _client.PutItemAsync(new PutItemRequest
+            {
+                TableName = RequestTableName,
+                Item = item,
+                ConditionExpression = "attribute_not_exists(#meta.#pos) OR #meta.#pos <> :retired",
+                ExpressionAttributeNames = new() { ["#meta"] = MetadataKey, ["#pos"] = MetaFieldPosition },
+                ExpressionAttributeValues = new() { [":retired"] = RetiredAttribute() },
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ConditionalCheckFailedException ex)
+        {
+            throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.", ex);
+        }
+    }
+
 	private static ProjectionPosition ReadPosition(Dictionary<string, AttributeValue> item)
 	{
 		if (!item.TryGetValue(MetadataKey, out var meta) || meta.M is null
@@ -1187,4 +1239,23 @@ public sealed class DynamoDbProjectionStore<
 				? parsed
 				: null);
 	}
+
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+		if (serviceType == typeof(IAsyncProjectionDestinationScope)) { return Destination; }
+		if (serviceType == typeof(IProjectionGenerationReaderFactory<TProjection>)) { return new DynamoDbGenerationReaderFactory<TProjection>(this); }
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			// The table alone does not identify the destination: the single-table design puts every
+			// projection type in one table and separates them by the type prefix on the partition key,
+			// so two projections sharing a table are two destinations. Both parts are the values the
+			// writes use -- the request's TableName and the prefix BuildItem stamps on the key.
+			return new DynamoDbProjectionDestinationIdentity(_options.TableName, _projectionType);
+		}
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
 }

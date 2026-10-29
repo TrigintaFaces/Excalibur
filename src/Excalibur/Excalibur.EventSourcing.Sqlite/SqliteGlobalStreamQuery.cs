@@ -43,8 +43,19 @@ namespace Excalibur.EventSourcing.Sqlite;
 	"from. Its result carries each event's own tenant on the row, so a consumer that needs confinement " +
 	"filters there. Adding a tenant predicate here would not harden the statement -- it would silently " +
 	"narrow the stream to one partition and make every projection built on it incomplete.")]
-internal sealed class SqliteGlobalStreamQuery : IGlobalStreamQuery
+internal sealed class SqliteGlobalStreamQuery : IGlobalStreamQuery, IProjectionDestinationScope
 {
+    string IProjectionDestinationScope.Scope
+    {
+        get
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            return string.IsNullOrWhiteSpace(connection.DataSource) || string.IsNullOrWhiteSpace(connection.Database)
+                ? string.Empty
+                : "sqlite/" + Uri.EscapeDataString(connection.DataSource) + "/" + Uri.EscapeDataString(connection.Database);
+        }
+    }
+
 	private const string SelectColumns =
 		"GlobalPosition, EventId, AggregateId, AggregateType, EventType, EventData, Metadata, Version, Timestamp, TenantId";
 

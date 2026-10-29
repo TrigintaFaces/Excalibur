@@ -97,12 +97,18 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// <param name="dataSource">The NpgsqlDataSource for creating connections.</param>
 	/// <param name="viewTableName">Optional view table name. Defaults to "materialized_views".</param>
 	/// <param name="positionTableName">Optional position table name. Defaults to "materialized_view_positions".</param>
+	/// <param name="schemaName">
+	/// The schema holding both tables. Defaults to <c>public</c>. Every statement the store runs names it
+	/// explicitly, so the tables must be provisioned in this schema rather than wherever the connection's
+	/// <c>search_path</c> happens to point.
+	/// </param>
 	/// <returns>The service collection for method chaining.</returns>
 	public static IServiceCollection AddPostgresMaterializedViewStore(
 		this IServiceCollection services,
 		NpgsqlDataSource dataSource,
 		string? viewTableName = null,
-		string? positionTableName = null)
+		string? positionTableName = null,
+		string schemaName = "public")
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(dataSource);
@@ -118,7 +124,9 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 				sp.GetRequiredService<ILogger<PostgresMaterializedViewStore>>(),
 				sp.GetRequiredService<ITenantContext>(),
 				viewTableName,
-				positionTableName));
+				positionTableName,
+				jsonOptions: null,
+				schemaName));
 
 		return services;
 	}

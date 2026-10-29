@@ -19,7 +19,7 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
+		var result = await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None);
 
 		// Assert
 		result.ShouldBeNull();
@@ -32,8 +32,8 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 42, CancellationToken.None);
-		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 42, CancellationToken.None);
+		var result = await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(42L);
@@ -46,9 +46,9 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10, CancellationToken.None);
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: 10, 20, CancellationToken.None);
-		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 10, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: 10, 20, CancellationToken.None);
+		var result = await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(20L);
@@ -61,12 +61,12 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10, CancellationToken.None);
-		await store.AdvanceCheckpointAsync("sub-2", expectedPosition: null, 20, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 10, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-2", "Proj.A", expectedPosition: null, 20, CancellationToken.None);
 
 		// Assert
-		(await store.GetCheckpointAsync("sub-1", CancellationToken.None)).ShouldBe(10L);
-		(await store.GetCheckpointAsync("sub-2", CancellationToken.None)).ShouldBe(20L);
+		(await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None)).ShouldBe(10L);
+		(await store.GetCheckpointAsync("sub-2", "Proj.A", CancellationToken.None)).ShouldBe(20L);
 	}
 
 	[Fact]
@@ -74,7 +74,7 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			store.GetCheckpointAsync(null!, CancellationToken.None));
+			store.GetCheckpointAsync(null!, "Proj.A", CancellationToken.None));
 	}
 
 	[Fact]
@@ -82,7 +82,28 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			store.GetCheckpointAsync("", CancellationToken.None));
+			store.GetCheckpointAsync("", "Proj.A", CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task GetCheckpointAsync_ThrowsArgumentException_WhenProjectionKeyIsBlank()
+	{
+		var store = new InMemorySubscriptionCheckpointStore();
+
+		// A cursor is addressed by the PAIR, so a blank projection key is as unaddressable as a blank
+		// subscription name. Accepting one would collapse every projection under a subscription onto a
+		// single cursor, and each would skip whatever the others folded.
+		_ = await Should.ThrowAsync<ArgumentException>(() =>
+			store.GetCheckpointAsync("sub-1", " ", CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task AdvanceCheckpointAsync_ThrowsArgumentException_WhenProjectionKeyIsBlank()
+	{
+		var store = new InMemorySubscriptionCheckpointStore();
+
+		_ = await Should.ThrowAsync<ArgumentException>(() =>
+			store.AdvanceBoundCheckpointAsync("sub-1", "", null, 10, CancellationToken.None));
 	}
 
 	[Fact]
@@ -90,7 +111,7 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			store.AdvanceCheckpointAsync(null!, null, 10, CancellationToken.None));
+			store.AdvanceBoundCheckpointAsync(null!, "Proj.A", null, 10, CancellationToken.None));
 	}
 
 	[Fact]
@@ -98,6 +119,6 @@ public sealed class InMemorySubscriptionCheckpointStoreDepthShould
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
 		await Should.ThrowAsync<ArgumentException>(() =>
-			store.AdvanceCheckpointAsync("", null, 10, CancellationToken.None));
+			store.AdvanceBoundCheckpointAsync("", "Proj.A", null, 10, CancellationToken.None));
 	}
 }

@@ -51,9 +51,40 @@ internal sealed class InMemoryProjectionRegistry : IProjectionRegistry
 	}
 
 	/// <inheritdoc />
+	/// <exception cref="InvalidOperationException">
+	/// The same projection type is already registered in a different <see cref="ProjectionMode"/>.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// <b>A cross-mode duplicate is refused rather than applied.</b> This used to be a bare indexer
+	/// assignment, so registering one projection type both inline and async silently displaced the first
+	/// registration and the consumer got one of the two modes it asked for. The displacement was not
+	/// symmetric either: registering an inline projection also writes container descriptors that cannot
+	/// be withdrawn, so the inline coordinator stayed wired for a mode the registry no longer held.
+	/// Neither call order was refused. Refusing here makes that composition inexpressible rather than
+	/// silently resolved, and this is the one choke point every registration path reaches.
+	/// </para>
+	/// <para>
+	/// A re-registration in the SAME mode still replaces, which keeps a projection reconfigurable in
+	/// place and is what the mode cannot be incoherent about.
+	/// </para>
+	/// </remarks>
 	public void Register(ProjectionRegistration registration)
 	{
 		ArgumentNullException.ThrowIfNull(registration);
+
+		if (_registrations.TryGetValue(registration.ProjectionType, out var existing)
+			&& existing.Mode != registration.Mode)
+		{
+			throw new InvalidOperationException(
+				$"Projection type '{registration.ProjectionType.Name}' is already registered in " +
+				$"{existing.Mode} mode and cannot also be registered in {registration.Mode} mode. " +
+				"One projection type folds one stream of events into one destination, so registering it " +
+				"in two modes would either fold every event twice or contradict the single cursor the " +
+				$"type is tracked by. Register '{registration.ProjectionType.Name}' in one mode; to " +
+				"project the same events a second way, declare a second projection type for it.");
+		}
+
 		_registrations[registration.ProjectionType] = registration;
 	}
 }

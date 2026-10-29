@@ -61,8 +61,10 @@ namespace Excalibur.EventSourcing.Queries;
 /// <param name="logger">Records where a read stopped, so a gap is never silent.</param>
 internal sealed partial class ContiguousGlobalStreamQuery(
 	IGlobalStreamQuery inner,
-	ILogger<ContiguousGlobalStreamQuery> logger) : IGlobalStreamQuery
+	ILogger<ContiguousGlobalStreamQuery> logger) : IGlobalStreamQuery, IProjectionDestinationScope
 {
+    string IProjectionDestinationScope.Scope => (_inner as IProjectionDestinationScope)?.Scope ?? string.Empty;
+
 	private readonly IGlobalStreamQuery _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 	private readonly ILogger<ContiguousGlobalStreamQuery> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 

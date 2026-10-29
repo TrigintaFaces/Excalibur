@@ -370,10 +370,12 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		// and because the advance is independent of this flag they were marked done with their effects
 		// suppressed.
 		var query = A.Fake<IGlobalStreamQuery>();
-		if (effectedThrough is { } seeded)
-		{
-			_ = await _checkpointStore.AdvanceCheckpointAsync(
-				AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary)),
+        if (effectedThrough is { } seeded)
+        {
+            await SeedDefinitionAsync();
+			_ = await _checkpointStore.AdvanceBoundCheckpointAsync(
+				"AsyncProjectionProcessingHost",
+				AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)),
 				null, seeded, TestContext.Current.CancellationToken)
 				.ConfigureAwait(false);
 		}
@@ -411,7 +413,7 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			IdlePollingInterval = TimeSpan.FromMilliseconds(50),
 			CheckpointInterval = 1,
 		});
-		var checkpointName = AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary));
+		var projectionKey = AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary));
 		await host.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		try
 		{
@@ -421,7 +423,9 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			// checkpoint, so the StopAsync below can cut that write off. Wait for the durable value
 			// while the host is still running; the assertion on it stays after the stop.
 			await WaitHelpers.WaitUntilAsync(
-				async token => await _checkpointStore.GetCheckpointAsync(checkpointName, token).ConfigureAwait(false) == 4L,
+				async token => await _checkpointStore
+					.GetCheckpointAsync("AsyncProjectionProcessingHost", projectionKey, token)
+					.ConfigureAwait(false) == 4L,
 				TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 				TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 		}
@@ -444,7 +448,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		batchHighWaterMarks.ShouldAllBe(
 			m => m == 4L,
 			customMessage: "the batch context's position is the page's last event");
-		var checkpoint = await _checkpointStore.GetCheckpointAsync(checkpointName, CancellationToken.None)
+		var checkpoint = await _checkpointStore
+			.GetCheckpointAsync("AsyncProjectionProcessingHost", projectionKey, CancellationToken.None)
 			.ConfigureAwait(false);
 		checkpoint.ShouldBe(4L);
 	}
@@ -610,7 +615,8 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 	public async Task RestoreCheckpoint_OnStartup()
 	{
 		// Arrange — store a checkpoint so the host resumes from it
-		await _checkpointStore.AdvanceCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("AsyncProjectionProcessingHost", typeof(OrderSummary)), null, 42, CancellationToken.None)
+        await SeedDefinitionAsync();
+		await _checkpointStore.AdvanceBoundCheckpointAsync("AsyncProjectionProcessingHost", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), null, 42, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
@@ -729,19 +735,14 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		var healthState = new ProjectionHealthState();
 
 		var fakeQuery = A.Fake<IGlobalStreamQuery>();
-		var callCount = 0;
 		var storedEvents = new List<StoredEvent>
 		{
 			new("e1", "order-1", "Order", "BadEvent", Array.Empty<byte>(), null, 1, DateTimeOffset.UtcNow) { GlobalPosition = 1 },
 		};
 
-		A.CallTo(() => fakeQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
-			.ReturnsLazily(() =>
-			{
-				var count = Interlocked.Increment(ref callCount);
-				return new ValueTask<IReadOnlyList<StoredEvent>>(
-					count == 1 ? storedEvents : (IReadOnlyList<StoredEvent>)Array.Empty<StoredEvent>());
-			});
+        // A durable poison event remains readable until the checkpoint passes it.
+        A.CallTo(() => fakeQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+            .Returns(new ValueTask<IReadOnlyList<StoredEvent>>(storedEvents));
 
 		var poisonObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var fakeSerializer = A.Fake<IEventSerializer>();
@@ -988,7 +989,92 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 		host.ShouldBeAssignableTo<BackgroundService>();
 	}
 
+
+    [Fact]
+    public async Task PersistAnExplicitZeroCheckpointForAnEmptyStream()
+    {
+        var query = A.Fake<IGlobalStreamQuery>();
+        A.CallTo(() => query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+            .Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+        _services.AddSingleton(query);
+        _registry.Register(CreateAsyncRegistration());
+        using var provider = _services.BuildServiceProvider();
+        using var host = CreateHost(provider);
+        var result = await host.ProcessPendingAsync(CancellationToken.None);
+        result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
+        result.Attestation.ShouldNotBeNull();
+        var roster = await _checkpointStore.ReadSubscriptionAsync("AsyncProjectionProcessingHost", CancellationToken.None);
+        roster.Members.Single().Position.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task NeverAttestZeroWhenCheckpointInitializationFails()
+    {
+        var query = A.Fake<IGlobalStreamQuery>();
+        A.CallTo(() => query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+            .Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+        _services.AddSingleton(query);
+        _registry.Register(CreateAsyncRegistration());
+        var checkpoints = A.Fake<ISubscriptionCheckpointStore>();
+        A.CallTo(() => checkpoints.BindSubscriptionAsync(A<string>._, A<IReadOnlyList<SubscriptionMember>>._, A<CancellationToken>._))
+            .ReturnsLazily((string name, IReadOnlyList<SubscriptionMember> members, CancellationToken token) => _checkpointStore.BindSubscriptionAsync(name, members, token));
+        A.CallTo(() => checkpoints.ReadSubscriptionAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily((string name, CancellationToken token) => _checkpointStore.ReadSubscriptionAsync(name, token));
+        A.CallTo(() => checkpoints.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
+            .ThrowsAsync(new InvalidOperationException("checkpoint unavailable"));
+        using var provider = _services.BuildServiceProvider();
+        using var host = new AsyncProjectionProcessingHost(_registry, A.Fake<IEventSerializer>(), checkpoints,
+            Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }), provider,
+            NullLogger<AsyncProjectionProcessingHost>.Instance);
+        var result = await host.ProcessPendingAsync(CancellationToken.None);
+        result.Outcome.ShouldBe(ProjectionProcessingOutcome.Halted);
+        result.HaltReason.ShouldBe(ProjectionHaltReason.CheckpointWriteFailed);
+        result.Attestation.ShouldBeNull();
+    }
+
 	// --- Helpers ---
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InitializeRequiredSiblingOnEmptyStreamDespiteAnotherMembersFailure(bool contested)
+    {
+        var query = A.Fake<IGlobalStreamQuery>();
+        A.CallTo(() => query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+            .Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+        _services.AddSingleton(query);
+        _registry.Register(CreateAsyncRegistration());
+        _registry.Register(new ProjectionRegistration(typeof(InventoryView), ProjectionMode.Async,
+            new MultiStreamProjection<InventoryView>(), inlineApply: (_, _, _, _) => Task.CompletedTask));
+        var checkpoints = A.Fake<ISubscriptionCheckpointStore>();
+        A.CallTo(() => checkpoints.BindSubscriptionAsync(A<string>._, A<IReadOnlyList<SubscriptionMember>>._, A<CancellationToken>._))
+            .ReturnsLazily((string name, IReadOnlyList<SubscriptionMember> members, CancellationToken token) => _checkpointStore.BindSubscriptionAsync(name, members, token));
+        A.CallTo(() => checkpoints.ReadSubscriptionAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily((string name, CancellationToken token) => _checkpointStore.ReadSubscriptionAsync(name, token));
+        A.CallTo(() => checkpoints.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
+            .ReturnsLazily((string name, string key, Guid binding, long? expected, long next, CancellationToken token) =>
+            {
+                if (key == SubscriptionKeys.ProjectionKey(typeof(OrderSummary)))
+                {
+                    return contested ? Task.FromResult(CheckpointAdvanceOutcome.Superseded)
+                        : Task.FromException<CheckpointAdvanceOutcome>(new InvalidOperationException("checkpoint unavailable"));
+                }
+                return _checkpointStore.AdvanceCheckpointAsync(name, key, binding, expected, next, token);
+            });
+        using var provider = _services.BuildServiceProvider();
+        using var host = new AsyncProjectionProcessingHost(_registry, A.Fake<IEventSerializer>(), checkpoints,
+            Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test" }), provider,
+            NullLogger<AsyncProjectionProcessingHost>.Instance);
+
+        (await host.ProcessPendingAsync(CancellationToken.None)).Outcome.ShouldNotBe(ProjectionProcessingOutcome.CaughtUp);
+        var result = await host.ProcessThroughAsync(0, [typeof(InventoryView)], CancellationToken.None);
+
+        result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
+        result.Attestation.ShouldNotBeNull();
+        var roster = await _checkpointStore.ReadSubscriptionAsync("AsyncProjectionProcessingHost", CancellationToken.None);
+        roster.Members.Single(m => m.ProjectionKey == SubscriptionKeys.ProjectionKey(typeof(InventoryView))).Position.ShouldBe(0);
+        roster.Members.Single(m => m.ProjectionKey == SubscriptionKeys.ProjectionKey(typeof(OrderSummary))).Position.ShouldBeNull();
+    }
 
 	private static ProjectionRegistration CreateAsyncRegistration()
 	{
@@ -999,56 +1085,13 @@ public sealed class AsyncProjectionProcessingHostShould : IDisposable
 			inlineApply: (_, _, _, _) => Task.CompletedTask);
 	}
 
-	/// <summary>
-	/// Minimal in-memory checkpoint store for testing.
-	/// </summary>
-	private sealed class InMemorySubscriptionCheckpointStore : ISubscriptionCheckpointStore
-	{
-		private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _definitions = new(StringComparer.Ordinal);
+    private Task<SubscriptionRoster> SeedDefinitionAsync()
+    {
+        var type = typeof(OrderSummary);
+        var key = SubscriptionKeys.ProjectionKey(type);
+        return _checkpointStore.BindSubscriptionAsync("AsyncProjectionProcessingHost",
+            [new SubscriptionMember(key, SubscriptionKeys.DefinitionFingerprint("unit-test", "1",
+                type.Assembly.GetName().Name!, key, string.Empty), string.Empty)], CancellationToken.None);
+    }
 
-		public Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
-		{
-			SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
-			cancellationToken.ThrowIfCancellationRequested();
-			var actual = _definitions.GetOrAdd(subscriptionName, definitionHash);
-			SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
-			return Task.CompletedTask;
-		}
-
-		private readonly Dictionary<string, long> _checkpoints = new();
-
-		public Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken)
-		{
-			_checkpoints.TryGetValue(subscriptionName, out var pos);
-			return Task.FromResult(pos == 0 && !_checkpoints.ContainsKey(subscriptionName)
-				? (long?)null
-				: pos);
-		}
-
-		public Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
-			string subscriptionName,
-			long? expectedPosition,
-			long newPosition,
-			CancellationToken cancellationToken)
-		{
-			// Honours the compare-and-set the contract requires. A fake that just assigned would let a
-			// host with a stale expected value pass here and fail against every real implementation.
-			var present = _checkpoints.TryGetValue(subscriptionName, out var current);
-			var matches = expectedPosition is null ? !present : present && current == expectedPosition.Value;
-			if (!matches)
-			{
-				return Task.FromResult(CheckpointAdvanceOutcome.Superseded);
-			}
-
-			_checkpoints[subscriptionName] = newPosition;
-			return Task.FromResult(CheckpointAdvanceOutcome.Advanced);
-		}
-
-		public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken)
-		{
-			IReadOnlyList<SubscriptionCheckpoint> checkpoints =
-				[.. _checkpoints.Select(kvp => new SubscriptionCheckpoint(kvp.Key, kvp.Value))];
-			return Task.FromResult(checkpoints);
-		}
-	}
 }

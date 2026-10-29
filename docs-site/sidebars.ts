@@ -171,6 +171,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'event-sourcing/aggregate-handlers' },
             { type: 'doc', id: 'event-sourcing/snapshots' },
             { type: 'doc', id: 'event-sourcing/projections' },
+            { type: 'doc', id: 'event-sourcing/projection-evolution' },
             { type: 'doc', id: 'event-sourcing/global-stream-projection-host' },
             { type: 'doc', id: 'event-sourcing/materialized-views' },
             { type: 'doc', id: 'event-sourcing/migrations' },

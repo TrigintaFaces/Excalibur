@@ -75,7 +75,7 @@ public static class ProjectionStoreExtensions
 	/// </para>
 	/// <para>
 	/// The fallback path loads all matching projections into memory and is not suitable
-	/// for large datasets. Providers should implement the escape hatch for production use.
+	/// for large datasets. It requests the observed count in one query and refuses a truncated response. Provider result-window limits and errors propagate. Count and query are separate observations, not a concurrent snapshot. Providers should implement the escape hatch for production use.
 	/// </para>
 	/// </remarks>
 	[RequiresUnreferencedCode("Fallback uses reflection to extract property values. Implement IDistinctValuesProjectionStore<T> for AOT-safe usage.")]
@@ -97,13 +97,22 @@ public static class ProjectionStoreExtensions
 				.ConfigureAwait(false);
 		}
 
-		// Fallback: load all matching projections and extract distinct values via reflection
-		var projections = await store.QueryAsync(filters, null, cancellationToken).ConfigureAwait(false);
-
 		var property = typeof(TProjection).GetProperty(propertyName)
 			?? throw new ArgumentException(
 				$"Property '{propertyName}' not found on type '{typeof(TProjection).Name}'.",
 				nameof(propertyName));
+
+		var count = await store.CountAsync(filters, cancellationToken).ConfigureAwait(false);
+        if (count is < 0 or > int.MaxValue)
+        {
+            throw new InvalidOperationException("The distinct-value fallback cannot materialize this result size. Use a store with IDistinctValuesProjectionStore support.");
+        }
+        if (count == 0) { return []; }
+        var projections = await store.QueryAsync(filters, new QueryOptions(Take: (int)count), cancellationToken).ConfigureAwait(false);
+        if (projections.Count != count)
+        {
+            throw new InvalidOperationException("The distinct-value query returned an incomplete result or the destination changed during the read. Use IDistinctValuesProjectionStore for provider-native distinct queries; partial results are not returned.");
+        }
 
 		var distinctValues = new HashSet<object>();
 		foreach (var projection in projections)
@@ -132,13 +141,13 @@ public static class ProjectionStoreExtensions
 	/// <remarks>
 	/// <para>
 	/// Uses the provider's native pagination when the store offers
-	/// <see cref="IPageableProjectionStore{TProjection}"/>; otherwise pages the result of
-	/// <see cref="IProjectionStore{TProjection}.QueryAsync"/> in memory.
+	/// <see cref="IPageableProjectionStore{TProjection}"/>; otherwise counts matching rows and requests a bounded page through
+	/// <see cref="IProjectionStore{TProjection}.QueryAsync"/>. Count and page are separate observations, not a snapshot across concurrent writes.
 	/// </para>
 	/// <para>
 	/// Prefer this over testing the store's type. A store reached through a decorator -- tenant scoping,
 	/// encryption -- does not itself implement the capability interface even when the store beneath it does,
-	/// so a type test silently selects the in-memory fallback. This method asks the store for the capability
+	/// so a type test silently selects the fallback. This method asks the store for the capability
 	/// instead, which a decorator answers on behalf of the store it wraps.
 	/// </para>
 	/// </remarks>
@@ -159,6 +168,7 @@ public static class ProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(store);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        var offset = checked((pageNumber - 1) * pageSize);
 
 		// Provider escape hatch: native paging, resolved through the store so decoration cannot hide it
 		if (store.GetService(typeof(IPageableProjectionStore<TProjection>)) is IPageableProjectionStore<TProjection> optimized)
@@ -167,11 +177,11 @@ public static class ProjectionStoreExtensions
 				.ConfigureAwait(false);
 		}
 
-		// Fallback: query and page in memory
-		var all = await store.QueryAsync(filters, options, cancellationToken).ConfigureAwait(false);
-		var page = all.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
-
-		return new PagedResult<TProjection>(page, pageNumber, pageSize, all.Count);
+		// Count and page are separate observations; neither silently inherits the provider's default limit.
+		var total = await store.CountAsync(filters, cancellationToken).ConfigureAwait(false);
+		var pageOptions = (options ?? QueryOptions.Default) with { Skip = offset, Take = pageSize };
+		var page = await store.QueryAsync(filters, pageOptions, cancellationToken).ConfigureAwait(false);
+		return new PagedResult<TProjection>(page, pageNumber, pageSize, total);
 	}
 
 	/// <summary>

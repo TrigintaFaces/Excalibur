@@ -146,7 +146,7 @@ public sealed class ProjectionProcessorRegistrationShould
 		immutable.ShouldNotBeNull().Total.ShouldBe(42m);
 		immutable.ShippedAt.ShouldBe(shippedAt);
 		var checkpoint = await provider.GetRequiredService<ISubscriptionCheckpointStore>()
-			.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor(GlobalStreamProjectionOptions.DefaultProjectionName, typeof(OrderSummary)), TestContext.Current.CancellationToken);
+			.GetCheckpointAsync(GlobalStreamProjectionOptions.DefaultProjectionName, AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), TestContext.Current.CancellationToken);
 		checkpoint.ShouldBe(appended.LastEventPosition);
 		checkpoint.ShouldNotBeNull();
 	}

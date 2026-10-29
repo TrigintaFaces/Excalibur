@@ -6,6 +6,8 @@ using Excalibur.EventSourcing.DependencyInjection;
 using System.Text;
 
 using Excalibur.EventSourcing.Projections;
+using Excalibur.EventSourcing.Subscriptions;
+using Microsoft.Extensions.Options;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -57,6 +59,65 @@ internal sealed class StoreItemWithNotes
 [Trait("Component", "Core")]
 public sealed class InMemoryProjectionStoreShould
 {
+	[ProjectionVersion(3)]
+	private sealed class ThirdGenerationItem
+	{
+		public string Id { get; set; } = string.Empty;
+	}
+
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public void IncludeAnExplicitProjectionVersionInItsDestination()
+	{
+		IProjectionStore<ThirdGenerationItem> store = new InMemoryProjectionStore<ThirdGenerationItem>();
+		store.GetService(typeof(IProjectionDestinationIdentity)).ShouldBeAssignableTo<IProjectionDestinationIdentity>()
+			.Identity.ShouldEndWith("ThirdGenerationItem-v3");
+	}
+
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public void IdentifyTheVersionedDestinationWithoutSharingAnEmptyInstancesScope()
+	{
+		IProjectionStore<StoreItem> first = new InMemoryProjectionStore<StoreItem>();
+		IProjectionStore<StoreItem> second = new InMemoryProjectionStore<StoreItem>();
+		var identity = first.GetService(typeof(IProjectionDestinationIdentity)).ShouldBeAssignableTo<IProjectionDestinationIdentity>();
+		var scope = first.GetService(typeof(IProjectionDestinationScope)).ShouldBeAssignableTo<IProjectionDestinationScope>();
+		identity.Identity.ShouldContain(ProjectionVersionConvention.Qualify(typeof(StoreItem).FullName!, typeof(StoreItem), '-'));
+		second.GetService(typeof(IProjectionDestinationIdentity)).ShouldBeAssignableTo<IProjectionDestinationIdentity>().Identity.ShouldBe(identity.Identity);
+		first.GetService(typeof(IProjectionDestinationScope)).ShouldBeAssignableTo<IProjectionDestinationScope>().Scope.ShouldBe(scope.Scope);
+		second.GetService(typeof(IProjectionDestinationScope)).ShouldBeAssignableTo<IProjectionDestinationScope>().Scope.ShouldNotBe(scope.Scope);
+		first.GetService(typeof(IPositionedProjectionStore<StoreItem>)).ShouldBeSameAs(first);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	[Trait("Pattern", "Regression")]
+	public async Task ConfirmSessionProgressOnlyForTheStoreInstanceThatWasPopulated(bool replaceStore)
+	{
+		IProjectionStore<StoreItem> original = new InMemoryProjectionStore<StoreItem>();
+		await original.UpsertAsync("a", new StoreItem { Id = "a", Status = "Created" }, None);
+		var identity = original.GetService(typeof(IProjectionDestinationIdentity)).ShouldBeAssignableTo<IProjectionDestinationIdentity>().Identity;
+		var scope = ProjectionTenantValidation.Scope(ProjectionTenantBoundary.EstateWide, original.GetService(typeof(IProjectionDestinationScope)).ShouldBeAssignableTo<IProjectionDestinationScope>().Scope);
+		var key = SubscriptionKeys.ProjectionKey(typeof(StoreItem));
+		var hash = SubscriptionKeys.DefinitionFingerprint("test", "1", typeof(StoreItem).Assembly.GetName().Name!, key,
+			AsyncProjectionProcessingHost.DestinationDescriptor(ProjectionMode.Async, identity, scope)!);
+		var checkpoints = new InMemorySubscriptionCheckpointStore();
+		var member = (await checkpoints.BindSubscriptionAsync("orders", [new SubscriptionMember(key, hash, identity) { DestinationScope = scope }], None)).Members.Single();
+		(await checkpoints.AdvanceCheckpointAsync("orders", key, member.BindingId, null, 1, None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		var services = new ServiceCollection();
+		services.AddSingleton<IProjectionStore<StoreItem>>(replaceStore ? new InMemoryProjectionStore<StoreItem>() : original);
+		await using var provider = services.BuildServiceProvider();
+		var reader = new ProjectionSessionReader(provider.GetRequiredService<IServiceScopeFactory>(),
+			Options.Create(new ProjectionSessionOptions { Bound = TimeSpan.FromMilliseconds(100) }),
+			Options.Create(new GlobalStreamProjectionOptions { ProjectionName = "orders", SubscriptionScope = "test" }), checkpoints);
+		using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+		var result = await reader.ReadAsync<StoreItem>("a", new SaveResult(1, 1, ProjectionFreshness.NotRequested), timeout.Token);
+		result.Freshness.ShouldBe(replaceStore ? ProjectionFreshness.BoundExpired : ProjectionFreshness.Fresh);
+		if (replaceStore) { result.Projection.ShouldBeNull(); }
+		else { result.Projection.ShouldNotBeNull().Status.ShouldBe("Created"); }
+	}
+
 	private static readonly CancellationToken None = CancellationToken.None;
 
 	[Fact]

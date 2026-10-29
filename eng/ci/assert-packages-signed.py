@@ -38,6 +38,7 @@ import os
 import sys
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 
 EXIT_PASS = 0
 EXIT_FAIL = 1
@@ -45,6 +46,31 @@ EXIT_REFUSE = 3
 
 # The entry NuGet writes into the archive root when a package is author- or repository-signed.
 SIGNATURE_ENTRY = ".signature.p7s"
+
+# The OPC content-type map every .nupkg carries. Its PartName values are Part URIs, and a Part URI
+# may not begin with two separators, so "//LICENSE" makes the package OPC-invalid and a strict
+# reader may reject the whole archive rather than the one part.
+CONTENT_TYPES_ENTRY = "[Content_Types].xml"
+
+# The valid single-separator shape a correct pack produces; the self-test's default fixture.
+_DEFAULT_PARTS = ("/LICENSE", "/lib/net10.0/Some.Package.dll")
+
+
+def opc_part_violations(path):
+    """Doubled-separator PartName values in the package's content-type map, or raises.
+
+    Our own MSBuild is what produces these: a Pack item written PackagePath="/" lands as
+    PartName="//LICENSE", while PackagePath="" or "licenses/" lands clean. The symptom is in the
+    artifact and the cause is in the build files, so this asserts the artifact -- the only place
+    where every contributing item has already been composed.
+
+    This checks doubled separators only, not full OPC validity. A missing or malformed
+    content-type map is unmeasured and must refuse rather than pass."""
+    with zipfile.ZipFile(path) as archive:
+        root = ET.fromstring(archive.read(CONTENT_TYPES_ENTRY))
+    return [name for entry in root.iter()
+            if entry.tag in ("Override", "{http://schemas.openxmlformats.org/package/2006/content-types}Override")
+            and (name := entry.get("PartName", "")).startswith("//")]
 
 
 def is_signed(path):
@@ -94,6 +120,30 @@ def run(packages_dir, allow_unsigned):
 
     total = len(signed) + len(unsigned)
 
+    # OPC validity is checked BEFORE the signature verdict and has no opt-out, because it is not a
+    # policy choice: an invalid Part URI can make a conforming reader reject the package whole, and
+    # signing an invalid archive does not make it loadable. ALLOW_UNSIGNED_RELEASE is consent to
+    # ship without a publisher guarantee; nothing is consent to ship a malformed artifact.
+    invalid = []
+    for name in sorted(signed + unsigned):
+        try:
+            for part in opc_part_violations(os.path.join(packages_dir, name)):
+                invalid.append((name, part))
+        except Exception as exc:  # unreadable is unmeasured, never a pass
+            print("::error::REFUSE: could not read the content-type map of '%s': %s" % (name, exc))
+            return EXIT_REFUSE
+
+    if invalid:
+        print("::error::REFUSE: %d part name(s) across the packed set begin with two separators, "
+              "which is not a valid OPC Part URI:" % len(invalid))
+        for name, part in invalid:
+            print("::error::  %s carries PartName=\"%s\"" % (name, part))
+        print("::error::Cause is ours, not the SDK's: a Pack item declared PackagePath=\"/\" lands "
+              "with a doubled separator. Use PackagePath=\"\" for the package root, or a relative "
+              "prefix such as \"licenses/\" -- both pack to the same place and produce a valid "
+              "Part URI. Fix the declaration and re-pack; do not publish and do not sign over it.")
+        return EXIT_FAIL
+
     if not unsigned:
         emit_output(True)
         print("all %d package(s) carry an author signature" % total)
@@ -135,10 +185,16 @@ def run(packages_dir, allow_unsigned):
 
 # --------------------------------------------------------------------------------- self-test
 
-def _make_package(path, signed):
+def _make_package(path, signed, parts=_DEFAULT_PARTS):
+    """Build a fixture package. `parts` are the PartName values written into the content-type map;
+    the default is the valid single-separator shape a correct pack produces."""
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("Some.Package.nuspec", "<package/>")
         archive.writestr("lib/net10.0/Some.Package.dll", "MZ")
+        if parts is not None:
+            entries = "".join('<Override PartName="%s" ContentType="application/octet" />' % p
+                              for p in parts)
+            archive.writestr(CONTENT_TYPES_ENTRY, "<Types>%s</Types>" % entries)
         if signed:
             archive.writestr(SIGNATURE_ENTRY, "not a real signature, but the entry that marks one")
 
@@ -152,11 +208,11 @@ def self_test():
     failures = []
     root = tempfile.mkdtemp(prefix="assert-packages-signed-selftest-")
 
-    def case(label, expected, packages, allow_unsigned=False):
+    def case(label, expected, packages, allow_unsigned=False, parts=_DEFAULT_PARTS):
         directory = os.path.join(root, label)
         os.makedirs(directory)
         for name, signed in packages:
-            _make_package(os.path.join(directory, name), signed)
+            _make_package(os.path.join(directory, name), signed, parts)
         actual = run(directory, allow_unsigned)
         if actual != expected:
             failures.append("%s: expected exit %d, got %d" % (label, expected, actual))
@@ -173,6 +229,45 @@ def self_test():
 
     # The opt-out is a DECISION and must work; absence of a certificate is not that decision.
     case("unsigned-with-optout", EXIT_PASS, [("A.nupkg", False)], allow_unsigned=True)
+
+    # SAFETY: an OPC-invalid part name must FAIL even when every package is signed, because signing
+    # an unloadable archive does not make it loadable. The defect measured on a published package
+    # was PartName="//LICENSE", produced by our own PackagePath="/".
+    case("opc-doubled-separator", EXIT_FAIL, [("A.nupkg", True)],
+         parts=("//LICENSE", "/lib/net10.0/Some.Package.dll"))
+
+    # ...and it must FAIL under the signing opt-out too, or the opt-out silently becomes consent to
+    # ship a malformed artifact, which nobody granted.
+    case("opc-doubled-separator-with-signing-optout", EXIT_FAIL, [("A.nupkg", False)],
+         allow_unsigned=True, parts=("//LICENSE",))
+
+    # LIVENESS for the OPC arm: the valid single-separator shape must still be accepted. Without
+    # this, a check that rejected every part name would satisfy both arms above. The default-parts
+    # cases elsewhere in this self-test carry it too, which is why they must keep passing.
+    case("opc-valid-separator", EXIT_PASS, [("A.nupkg", True)], parts=("/LICENSE",))
+
+    # Without the map the OPC property cannot be measured.
+    case("opc-absent-map", EXIT_REFUSE, [("A.nupkg", True)], parts=None)
+
+    for label, body, expected in (
+        ("single-quotes", "<Types><Override PartName='//LICENSE'/></Types>", EXIT_FAIL),
+        ("attribute-spacing", '<Types><Override PartName = "//LICENSE"/></Types>', EXIT_FAIL),
+        ("escaped-separator", '<Types><Override PartName="&#47;/LICENSE"/></Types>', EXIT_FAIL),
+        ("comment", '<Types><!-- PartName="//LICENSE" --><Override PartName="/LICENSE"/></Types>', EXIT_PASS),
+        ("namespace", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="//LICENSE"/></Types>', EXIT_FAIL),
+        ("malformed", '<Types><Override PartName="/LICENSE">', EXIT_REFUSE),
+    ):
+        directory = os.path.join(root, "opc-" + label)
+        os.makedirs(directory)
+        package = os.path.join(directory, "A.nupkg")
+        _make_package(package, True, parts=None)
+        with zipfile.ZipFile(package, "a") as archive:
+            archive.writestr(CONTENT_TYPES_ENTRY, body)
+        actual = run(directory, False)
+        if actual != expected:
+            failures.append("%s: expected exit %d, got %d" % (label, expected, actual))
+        else:
+            print("SELF-TEST: PASS -- OPC " + label)
 
     # SAFETY: nothing to measure must REFUSE, never pass vacuously.
     case("empty-directory", EXIT_REFUSE, [])
@@ -196,8 +291,11 @@ def self_test():
         for item in failures:
             print("SELF-TEST: FAIL -- %s" % item)
         return EXIT_FAIL
-    print("SELF-TEST: the signature gate is non-vacuous (accepts signed, rejects unsigned, "
-          "honours an explicit opt-out, and refuses when there is nothing to measure).")
+    print("SELF-TEST: this gate is non-vacuous on both properties it asserts. Signing: accepts "
+          "signed, rejects unsigned, honours an explicit opt-out, refuses when there is nothing to "
+          "measure. OPC part validity: rejects a doubled separator even when signed and even under "
+          "the signing opt-out, parses XML attributes, accepts the valid single-separator shape, "
+          "and refuses missing or malformed content-type maps.")
     return EXIT_PASS
 
 

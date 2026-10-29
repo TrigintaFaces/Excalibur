@@ -195,7 +195,8 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 		{
 			var store = serviceProvider.GetRequiredService<IProjectionStore<TProjection>>();
 			var positioned = PositionedProjectionWriter<TProjection>.ResolveRequired(store, events);
-			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+            var operations = ProjectionStoreOperations<TProjection>.Legacy(store, positioned).WithCapacity(serviceProvider);
+			var readPositions = new Dictionary<string, ProjectionPosition>(StringComparer.Ordinal);
 			var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
 			// Keyed PER AGGREGATE rather than once per call. A batch can span aggregates, and loading a
@@ -221,16 +222,16 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 				if (!loaded.TryGetValue(id, out var current))
 				{
 					// State and position as ONE observation when the store records a position.
-					long? readAt = null;
+					var readAt = ProjectionPosition.Unplaceable;
 					if (positioned is not null)
 					{
-						(current, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
+						(current, var readAtPos) = await operations.GetWithPositionAsync(id, cancellationToken)
 							.ConfigureAwait(false);
-						readAt = readAtPos.ExpectedPositionOrNull;
+						readAt = readAtPos;
 					}
 					else
 					{
-						current = await store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+						current = await operations.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
 					}
 
 					loaded[id] = current;
@@ -241,9 +242,7 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 				// Skip what is already folded in, or a redelivery recomputes a state the store then
 				// refuses as non-advancing and the reader never gets past the overlap.
 				if (positioned is not null
-					&& readPositions[id] is { } storedAt
-					&& projectionEvent.GlobalPosition is { } eventPos
-					&& eventPos <= storedAt)
+					&& PositionedProjectionWriter<TProjection>.AlreadyFolded(readPositions[id], projectionEvent.GlobalPosition))
 				{
 					continue;
 				}
@@ -305,11 +304,11 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 				}
 
 				_ = await PositionedProjectionWriter<TProjection>.WriteAsync(
-						store,
-						positioned,
+						operations,
+						positioned is null ? null : operations,
 						id,
 						finalState,
-						readPositions[id],
+						readPositions[id].ExpectedPositionOrNull,
 						PositionedProjectionWriter<TProjection>.HighestPosition(folded[id]),
 						cancellationToken)
 					.ConfigureAwait(false);

@@ -123,7 +123,7 @@ public sealed class CooperativeProjectionProcessingShould
 			result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
 			result.EventsApplied.ShouldBe(1, "the request must process page two while the worker remains live");
 			admitted.Take(2).ShouldBe(["worker", "manual"]);
-			(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("cooperative", typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(2);
+			(await checkpoints.GetCheckpointAsync("cooperative", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(2);
 		}
 		finally
 		{
@@ -162,12 +162,24 @@ public sealed class CooperativeProjectionProcessingShould
 		var held = await store.GetWithPositionAsync("order-1", safety.Token).ConfigureAwait(false);
 		held.Projection.ShouldNotBeNull().Count.ShouldBe(2);
 		held.Position.Value.ShouldBe(2);
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("cooperative", typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(2);
+		(await checkpoints.GetCheckpointAsync("cooperative", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(2);
 		initialReads.ShouldBe(2, "both hosts must really race from the same durable starting point");
 	}
 
+	/// <summary>
+	/// A changed SCOPE or REVISION is still refused before any scan or effect.
+	/// </summary>
+	/// <param name="changed">Which part of the definition the second host changes.</param>
+	/// <remarks>
+	/// The "workset" case was REMOVED from this theory deliberately, and replaced by
+	/// <see cref="AdmitAnAddedProjectionButRefuseToAttestItFromAHostThatDoesNotHostIt"/> below, because
+	/// the contract changed on exactly that axis and on no other. Scope and revision remain inputs to
+	/// EVERY member's fingerprint, so changing either still refuses the whole roster — which was never
+	/// the problem and is still the behaviour we want. The superseded case asserted
+	/// <c>ThrowAsync&lt;InvalidOperationException&gt;</c> for an added projection; that is now a
+	/// supported, additive change.
+	/// </remarks>
 	[Theory]
-	[InlineData("workset")]
 	[InlineData("scope")]
 	[InlineData("revision")]
 	public async Task RefuseADifferentSubscriptionDefinitionBeforeScanningOrEffects(string changed)
@@ -185,15 +197,6 @@ public sealed class CooperativeProjectionProcessingShould
 		using var original = Host(Registry<Counter>(), checkpoints, provider);
 		await original.ProcessPendingAsync(safety.Token).ConfigureAwait(false);
 		var otherRegistry = Registry<Counter>(() => effects++);
-		if (changed == "workset")
-		{
-			otherRegistry.Register(new ProjectionRegistration(typeof(OtherCounter), ProjectionMode.Async,
-				new MultiStreamProjection<OtherCounter>(), inlineApply: (_, _, _, _) =>
-				{
-					effects++;
-					return Task.CompletedTask;
-				}));
-		}
 		var options = Configuration();
 		if (changed == "scope") options.SubscriptionScope = "different-database";
 		if (changed == "revision") options.SubscriptionRevision = "2";
@@ -201,7 +204,64 @@ public sealed class CooperativeProjectionProcessingShould
 		await Should.ThrowAsync<InvalidOperationException>(() => incompatible.ProcessPendingAsync(safety.Token));
 		reads.ShouldBe(1, "the mismatching host must be refused before reading a page");
 		effects.ShouldBe(0);
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("cooperative", typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+		(await checkpoints.GetCheckpointAsync("cooperative", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(Counter)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+	}
+
+	/// <summary>
+	/// Adding a projection is ADMITTED, and the host that does not have it cannot report caught-up.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// THIS IS THE INTERLEAVING THE ROSTER EXISTS TO CLOSE, and it replaces a refusal rather than
+	/// relaxing one. The previous contract refused the second host outright, which was safe and
+	/// expensive: the only remedy re-folded every projection from zero. Admitting it without the
+	/// store-sourced required set would be the dangerous half — the first host would fold what it can
+	/// see, report its read models fresh, and say nothing about a projection bound by the second host
+	/// that has not folded the same events. Nothing downstream could detect that, because the caller was
+	/// told it need not re-check.
+	/// </para>
+	/// <para>
+	/// So both halves are asserted. LIVENESS: the host with the added projection starts and processes,
+	/// and the shared projection's cursor is unharmed. SAFETY: the host that does NOT host the added
+	/// projection no longer reports caught-up, because the roster tells it that work exists which it
+	/// cannot perform and therefore cannot attest.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task AdmitAnAddedProjectionButRefuseToAttestItFromAHostThatDoesNotHostIt()
+	{
+		using var safety = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+		var query = new Stream(1, (position, _, _) => ValueTask.FromResult(Events(position, 1)));
+		using var provider = Provider(query);
+		var checkpoints = new InMemorySubscriptionCheckpointStore();
+
+		using var original = Host(Registry<Counter>(), checkpoints, provider);
+		await original.ProcessPendingAsync(safety.Token).ConfigureAwait(false);
+		var sharedKey = AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(Counter));
+		var before = await checkpoints.GetCheckpointAsync("cooperative", sharedKey, safety.Token).ConfigureAwait(false);
+
+		// The second deployment hosts an additional projection. Under the roster this is additive.
+		var extended = Registry<Counter>();
+		extended.Register(new ProjectionRegistration(typeof(OtherCounter), ProjectionMode.Async,
+			new MultiStreamProjection<OtherCounter>(), inlineApply: (_, _, _, _) => Task.CompletedTask));
+		using var wider = Host(extended, checkpoints, provider);
+
+		// LIVENESS: admitted, not refused. A roster that refused this would pass the safety arm below
+		// while making the whole change pointless.
+		// No exception is the liveness assertion: the previous contract threw here. ProjectionProcessingResult
+		// is a value type, so there is nothing to null-check -- reaching this line at all is the result.
+		_ = await wider.ProcessPendingAsync(safety.Token).ConfigureAwait(false);
+
+		var after = await checkpoints.GetCheckpointAsync("cooperative", sharedKey, safety.Token).ConfigureAwait(false);
+		(after ?? 0).ShouldBeGreaterThanOrEqualTo(
+			before ?? 0, "admitting a new projection must not rewind a sibling's cursor");
+
+		// SAFETY: the narrower host now sees a bound member it does not host, so it must not claim to be
+		// caught up. This is the assertion that fails if the required set is computed from the local
+		// registry instead of the durable roster.
+		var narrowResult = await original.ProcessPendingAsync(safety.Token).ConfigureAwait(false);
+		narrowResult.Outcome.ShouldNotBe(ProjectionProcessingOutcome.CaughtUp,
+			"a host cannot report caught-up while the roster holds a projection it does not host");
 	}
 
 	private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);

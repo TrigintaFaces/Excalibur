@@ -11,6 +11,10 @@ namespace Excalibur.Data.OpenSearch.IndexManagement;
 /// </summary>
 public sealed class AliasOperation
 {
+    /// <summary>Gets whether a missing removal target must reject the entire alias transaction.</summary>
+    /// <value>True for a conditional generation replacement.</value>
+    public bool MustExist { get; init; }
+
 	/// <summary>
 	/// Gets the type of alias operation.
 	/// </summary>

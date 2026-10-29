@@ -14,11 +14,11 @@ public sealed class ProjectionRebuildRequestShould
 	{
 		var sut = new ProjectionRebuildRequest
 		{
-			ProjectionType = "OrderProjection",
+			ProjectionType = typeof(ProjectionRebuildRequestShould),
 			TargetIndexName = "orders-v2",
 		};
 
-		sut.ProjectionType.ShouldBe("OrderProjection");
+		sut.ProjectionType.ShouldBe(typeof(ProjectionRebuildRequestShould));
 		sut.TargetIndexName.ShouldBe("orders-v2");
 		sut.SourceIndexName.ShouldBeNull();
 		sut.FromTimestamp.ShouldBeNull();
@@ -39,7 +39,7 @@ public sealed class ProjectionRebuildRequestShould
 
 		var sut = new ProjectionRebuildRequest
 		{
-			ProjectionType = "OrderProjection",
+			ProjectionType = typeof(ProjectionRebuildRequestShould),
 			TargetIndexName = "orders-v2",
 			SourceIndexName = "orders-v1",
 			FromTimestamp = from,

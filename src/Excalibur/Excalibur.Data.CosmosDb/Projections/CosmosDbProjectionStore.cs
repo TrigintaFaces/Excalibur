@@ -43,7 +43,7 @@ namespace Excalibur.Data.CosmosDb.Projections;
 		+ "must agree on exactly.")]
 public sealed partial class CosmosDbProjectionStore<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.PublicConstructors)] TProjection>
-	: IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>, ICursorProjectionStore<TProjection>,
+	: IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IPageableProjectionStore<TProjection>, ICursorProjectionStore<TProjection>,
 		IPositionedProjectionStore<TProjection>, IAsyncDisposable, IDisposable
 	where TProjection : class
 {
@@ -91,9 +91,20 @@ public sealed partial class CosmosDbProjectionStore<
 	/// </remarks>
 	private const string PartitionKeyField = "projectionType";
 
+	/// <summary>
+	/// The named options key this store's settings live under.
+	/// </summary>
+	/// <remarks>
+	/// Internal, and here so a test can assert the store reads the SAME options instance the registration
+	/// configured. Comparing the store against a key the test computes itself stays green if the two ever
+	/// diverge, and a divergence puts the store back on the unconfigured unnamed instance.
+	/// </remarks>
+	internal static readonly string OptionsName = CosmosDbProjectionContainerConvention.GetOptionsName<TProjection>();
+
 	private readonly CosmosDbProjectionStoreOptions _options;
 	private readonly ILogger<CosmosDbProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;
+	private readonly string _containerName;
 	private readonly SemaphoreSlim _initLock = new(1, 1);
 	private readonly JsonSerializerOptions _jsonOptions;
 	private CosmosClient? _client;
@@ -112,29 +123,41 @@ public sealed partial class CosmosDbProjectionStore<
 	private volatile bool _disposed;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="CosmosDbProjectionStore{TProjection}"/> class.
+	/// Initializes a new instance of the <see cref="CosmosDbProjectionStore{TProjection}"/> class
+	/// using named options resolved via <see cref="IOptionsMonitor{TOptions}"/>.
 	/// </summary>
-	/// <param name="options">The configuration options.</param>
+	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <remarks>
+	/// The options instance belonging to <typeparamref name="TProjection"/> is read ONCE here and held for
+	/// the store's lifetime: the database and container it names are hashed into a durable destination
+	/// fingerprint, which a later reconfiguration must not move underneath the rows already written.
+	/// </remarks>
 	public CosmosDbProjectionStore(
-		IOptions<CosmosDbProjectionStoreOptions> options,
+		IOptionsMonitor<CosmosDbProjectionStoreOptions> optionsMonitor,
 		ILogger<CosmosDbProjectionStore<TProjection>> logger)
 	{
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_options = options.Value;
+		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
+
+		// RESOLVED ONCE, and used by the creation, the container reference and the destination identity
+		// alike. Reading options.ContainerName at each of those sites was three derivations of one fact,
+		// and the declared generation now participates in it -- so a second derivation that missed the
+		// generation would advertise an identity for a container the writes do not address.
+		_containerName = CosmosDbProjectionContainerConvention.GetContainerName<TProjection>(_options);
 		_jsonOptions = _options.JsonSerializerOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CosmosDbProjectionStore{TProjection}"/> class over a
-	/// client the host owns.
+	/// client the host owns, using named options resolved via <see cref="IOptionsMonitor{TOptions}"/>.
 	/// </summary>
-	/// <param name="options">The configuration options.</param>
+	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="client">The Cosmos client registered by the host. Borrowed, never disposed here.</param>
 	/// <remarks>
@@ -143,10 +166,10 @@ public sealed partial class CosmosDbProjectionStore<
 	/// features on one connection pool rather than one per feature, and the store does not dispose it.
 	/// </remarks>
 	public CosmosDbProjectionStore(
-		IOptions<CosmosDbProjectionStoreOptions> options,
+		IOptionsMonitor<CosmosDbProjectionStoreOptions> optionsMonitor,
 		ILogger<CosmosDbProjectionStore<TProjection>> logger,
 		CosmosClient client)
-		: this(options, logger)
+		: this(optionsMonitor, logger)
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		_client = client;
@@ -184,7 +207,7 @@ public sealed partial class CosmosDbProjectionStore<
 
 			if (_options.CreateContainerIfNotExists)
 			{
-				var containerProperties = new ContainerProperties(_options.ContainerName, _options.PartitionKeyPath);
+				var containerProperties = new ContainerProperties(_containerName, _options.PartitionKeyPath);
 
 				if (_options.DefaultTtlSeconds != 0)
 				{
@@ -200,16 +223,43 @@ public sealed partial class CosmosDbProjectionStore<
 			}
 			else
 			{
-				_container = database.GetContainer(_options.ContainerName);
+				_container = database.GetContainer(_containerName);
 			}
 
 			_initialized = true;
-			LogInitialized(_options.ContainerName, _projectionType);
+			LogInitialized(_containerName, _projectionType);
 		}
 		finally
 		{
 			_ = _initLock.Release();
 		}
+	}
+
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+        if (serviceType == typeof(IProjectionDestinationScope))
+        {
+            var scope = ReadDestinationScope();
+            return scope is null ? null : new ConfiguredDestinationScope(scope);
+        }
+
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			// The database and container the writes resolve through, qualified together: a container
+			// name alone repeats across databases, so it cannot tell one destination from another.
+			return new ConfiguredDestinationIdentity(
+				$"cosmosdb/{_options.DatabaseName}/{_containerName}/{_projectionType}");
+		}
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
 	}
 
 	/// <inheritdoc/>
@@ -281,15 +331,7 @@ public sealed partial class CosmosDbProjectionStore<
 		// Writing the unplaceable sentinel makes the row self-describing instead. It rides the same
 		// single document write as the state, so there is no window in which a destroyed position is
 		// recorded as a never-established one.
-		using var payload = Serialize(BuildDocument(id, projection, ProjectionPosition.Unplaceable));
-
-		using var response = await _container!.UpsertItemStreamAsync(
-			payload,
-			new PartitionKey(_projectionType),
-			new ItemRequestOptions { EnableContentResponseOnWrite = false },
-			cancellationToken).ConfigureAwait(false);
-
-		response.EnsureSuccessStatusCode();
+		_ = await WriteLiveAsync(id, BuildDocument(id, projection, ProjectionPosition.Unplaceable), false, cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -304,21 +346,37 @@ public sealed partial class CosmosDbProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var documentId = CreateDocumentId(id);
-
-		try
-		{
-			_ = await _container!.DeleteItemAsync<object>(
-				documentId,
-				new PartitionKey(_projectionType),
-				cancellationToken: cancellationToken).ConfigureAwait(false);
-
-			LogDeleted(_projectionType, id);
-		}
-		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-		{
-			// Already deleted or never existed, nothing to do (idempotent delete)
-		}
+        var marker = new JsonObject
+        {
+            ["id"] = CreateDocumentId(id),
+            [PartitionKeyField] = _projectionType,
+            ["ttl"] = -1,
+            [MetadataKey] = new JsonObject
+            {
+                [MetaFieldId] = id,
+                [MetaFieldType] = _projectionType,
+                [MetaFieldPosition] = ProjectionPosition.RetiredSentinel,
+            },
+        };
+        var bytes = System.Text.Encoding.UTF8.GetBytes(marker.ToJsonString());
+        for (var attempt = 0; ; attempt++)
+        {
+            using var payload = new MemoryStream(bytes, writable: false);
+            using var response = await _container!.UpsertItemStreamAsync(payload,
+                new PartitionKey(_projectionType),
+                new ItemRequestOptions { EnableContentResponseOnWrite = false },
+                cancellationToken).ConfigureAwait(false);
+            // A concurrent first insert can win the create arm of an upsert. Retrying the
+            // retirement then replaces that live row; never acknowledge a failed marker write.
+            if (response.StatusCode == HttpStatusCode.Conflict && attempt < 7)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10 * (attempt + 1)), cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+            response.EnsureSuccessStatusCode();
+            break;
+        }
+        LogDeleted(_projectionType, id);
 	}
 
 	/// <inheritdoc/>
@@ -360,27 +418,7 @@ public sealed partial class CosmosDbProjectionStore<
 			queryDefinition = queryDefinition.WithParameter("@take", options.Take.Value);
 		}
 
-		var results = new List<TProjection>();
-		using var iterator = _container!.GetItemQueryIterator<JsonElement>(queryDefinition);
-
-		while (iterator.HasMoreResults)
-		{
-			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			foreach (var item in response)
-			{
-				// Convert JsonElement to JsonNode for StripAndDeserialize.
-				// QueryAsync iterates multiple results so stream-based parsing is not
-				// practical — the SDK returns JsonElement from the query iterator.
-				var node = JsonNode.Parse(item.GetRawText());
-				var projection = StripAndDeserialize(node);
-				if (projection is not null)
-				{
-					results.Add(projection);
-				}
-			}
-		}
-
-		return results;
+		return await ExecuteQueryAsync(queryDefinition, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -404,14 +442,7 @@ public sealed partial class CosmosDbProjectionStore<
 			queryDefinition = queryDefinition.WithParameter(paramName, paramValue);
 		}
 
-		using var iterator = _container!.GetItemQueryIterator<long>(queryDefinition);
-		if (iterator.HasMoreResults)
-		{
-			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			return response.FirstOrDefault();
-		}
-
-		return 0;
+		return await ExecuteCountQueryAsync(queryDefinition, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -427,12 +458,12 @@ public sealed partial class CosmosDbProjectionStore<
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        var offset = checked((pageNumber - 1) * pageSize);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var (whereClause, parameters) = BuildWhereClause(filters);
 		var orderByClause = BuildOrderByClause(options);
-		var offset = (pageNumber - 1) * pageSize;
 
 		// Single-roundtrip: run data + count queries in parallel
 		var dataQueryText = $"SELECT VALUE c FROM c WHERE c.{PartitionKeyField} = @projectionType{whereClause}{orderByClause} OFFSET @skip LIMIT @take";
@@ -506,7 +537,7 @@ public sealed partial class CosmosDbProjectionStore<
 		do
 		{
 			var remaining = pageSize - results.Count;
-			using var iterator = _container!.GetItemQueryIterator<JsonElement>(
+			using var iterator = _container!.GetItemQueryStreamIterator(
 				queryDefinition,
 				continuation,
 				new QueryRequestOptions { MaxItemCount = remaining });
@@ -517,17 +548,17 @@ public sealed partial class CosmosDbProjectionStore<
 				break;
 			}
 
-			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			foreach (var item in response)
+			using var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			foreach (var item in await ReadQueryDocumentsAsync(response, cancellationToken).ConfigureAwait(false))
 			{
-				var projection = StripAndDeserialize(JsonNode.Parse(item.GetRawText()));
+				var projection = StripAndDeserialize(item);
 				if (projection is not null)
 				{
 					results.Add(projection);
 				}
 			}
 
-			continuation = response.ContinuationToken;
+			continuation = response.Headers.ContinuationToken;
 		}
 		while (results.Count < pageSize && !string.IsNullOrEmpty(continuation));
 
@@ -560,15 +591,14 @@ public sealed partial class CosmosDbProjectionStore<
 		CancellationToken cancellationToken)
 	{
 		var results = new List<TProjection>();
-		using var iterator = _container!.GetItemQueryIterator<JsonElement>(queryDefinition);
+		using var iterator = _container!.GetItemQueryStreamIterator(queryDefinition);
 
 		while (iterator.HasMoreResults)
 		{
-			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			foreach (var item in response)
+			using var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			foreach (var item in await ReadQueryDocumentsAsync(response, cancellationToken).ConfigureAwait(false))
 			{
-				var node = JsonNode.Parse(item.GetRawText());
-				var projection = StripAndDeserialize(node);
+				var projection = StripAndDeserialize(item);
 				if (projection is not null)
 				{
 					results.Add(projection);
@@ -583,15 +613,25 @@ public sealed partial class CosmosDbProjectionStore<
 		QueryDefinition queryDefinition,
 		CancellationToken cancellationToken)
 	{
-		using var iterator = _container!.GetItemQueryIterator<long>(queryDefinition);
-		if (iterator.HasMoreResults)
+		using var iterator = _container!.GetItemQueryStreamIterator(queryDefinition);
+		long count = 0;
+		while (iterator.HasMoreResults)
 		{
-			var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
-			return response.FirstOrDefault();
+			using var response = await iterator.ReadNextAsync(cancellationToken).ConfigureAwait(false);
+			foreach (var item in await ReadQueryDocumentsAsync(response, cancellationToken).ConfigureAwait(false))
+			{
+				count = checked(count + (item?.GetValue<long>() ?? throw new JsonException("A count query returned a null value.")));
+			}
 		}
-
-		return 0;
+		return count;
 	}
+
+    private static async Task<JsonArray> ReadQueryDocumentsAsync(ResponseMessage response, CancellationToken cancellationToken)
+    {
+        response.EnsureSuccessStatusCode();
+        var root = await JsonNode.ParseAsync(response.Content, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return root?["Documents"] as JsonArray ?? throw new JsonException("The Cosmos query response did not contain a Documents array.");
+    }
 
 	/// <inheritdoc/>
 	public void Dispose()
@@ -634,11 +674,12 @@ public sealed partial class CosmosDbProjectionStore<
 	private static (string WhereClause, List<(string Name, object Value)> Parameters) BuildWhereClause(
 		IDictionary<string, object>? filters)
 	{
-		var parameters = new List<(string Name, object Value)>();
+		var parameters = new List<(string Name, object Value)> { ("@retired", ProjectionPosition.RetiredSentinel) };
+		var live = $" AND (NOT IS_DEFINED(c.{MetadataKey}.{MetaFieldPosition}) OR c.{MetadataKey}.{MetaFieldPosition} != @retired)";
 
 		if (filters is null || filters.Count == 0)
 		{
-			return (string.Empty, parameters);
+			return (live, parameters);
 		}
 
 		var conditions = new List<string>();
@@ -679,7 +720,7 @@ public sealed partial class CosmosDbProjectionStore<
 			conditions.Add(condition);
 		}
 
-		return ($" AND {string.Join(" AND ", conditions)}", parameters);
+		return (live + $" AND {string.Join(" AND ", conditions)}", parameters);
 	}
 
 	private static string BuildContainsCondition(
@@ -839,6 +880,7 @@ public sealed partial class CosmosDbProjectionStore<
 	/// </param>
 	private TProjection? StripAndDeserialize(JsonNode? node)
 	{
+		if (ReadPosition(node).Kind == ProjectionPositionKind.Retired) { return null; }
 		if (node is not JsonObject obj)
 		{
 			return default;
@@ -928,15 +970,7 @@ public sealed partial class CosmosDbProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		using var payload = Serialize(BuildDocument(id, projection, ProjectionPosition.Unnumbered));
-
-		using var response = await _container!.UpsertItemStreamAsync(
-			payload,
-			new PartitionKey(_projectionType),
-			new ItemRequestOptions { EnableContentResponseOnWrite = false },
-			cancellationToken).ConfigureAwait(false);
-
-		response.EnsureSuccessStatusCode();
+		_ = await WriteLiveAsync(id, BuildDocument(id, projection, ProjectionPosition.Unnumbered), false, cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -973,25 +1007,9 @@ public sealed partial class CosmosDbProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		using var payload = Serialize(BuildDocument(id, projection, ProjectionPosition.At(newPosition)));
-
-		using var response = await _container!.ReplaceItemStreamAsync(
-			payload,
-			CreateDocumentId(id),
-			new PartitionKey(_projectionType),
-			new ItemRequestOptions { EnableContentResponseOnWrite = false },
-			cancellationToken).ConfigureAwait(false);
-
-		if (response.StatusCode == HttpStatusCode.NotFound)
-		{
-			return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
-		}
-
-		response.EnsureSuccessStatusCode();
-
-		LogUpserted(_projectionType, id);
-
-		return new ProjectionRebuildResult(ProjectionRebuildOutcome.Applied);
+        var wrote = await WriteLiveAsync(id, BuildDocument(id, projection, ProjectionPosition.At(newPosition)),
+            true, cancellationToken).ConfigureAwait(false);
+        return new ProjectionRebuildResult(wrote ? ProjectionRebuildOutcome.Applied : ProjectionRebuildOutcome.Vanished);
 	}
 
 	/// <inheritdoc />
@@ -1075,10 +1093,9 @@ public sealed partial class CosmosDbProjectionStore<
 				var (_, conflicting, conflictEtag) = await ReadWithEtagAsync(id, cancellationToken)
 					.ConfigureAwait(false);
 
-				if (conflictEtag is null)
+				if (conflictEtag is null || conflicting.Kind == ProjectionPositionKind.Retired)
 				{
-					// Deleted between the create and this read. The next attempt creates it.
-					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
+					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 				}
 
 				// TWO refusals. A positioned row means a real writer is ahead, so the caller re-reads and
@@ -1094,7 +1111,7 @@ public sealed partial class CosmosDbProjectionStore<
 
 		var (_, storedPosition, etag) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
 
-		if (etag is null)
+		if (etag is null || storedPosition.Kind == ProjectionPositionKind.Retired)
 		{
 			// Gone: deleted, which is how erasure removes personal data. Re-folding the event stream
 			// would reinstate it, so this is settled rather than retried.
@@ -1157,7 +1174,7 @@ public sealed partial class CosmosDbProjectionStore<
 
 		var (_, storedPosition, etag) = await ReadWithEtagAsync(id, cancellationToken).ConfigureAwait(false);
 
-		if (etag is null)
+		if (etag is null || storedPosition.Kind == ProjectionPositionKind.Retired)
 		{
 			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
 		}
@@ -1249,6 +1266,7 @@ public sealed partial class CosmosDbProjectionStore<
 			// an unnumbered write landing in that window is exactly what moves the ETag and causes this
 			// refusal. Reporting Superseded for a numberless row would hand the caller a null position to
 			// retry against, forever.
+			if (current.Kind == ProjectionPositionKind.Retired) { return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null); }
 			return current.Kind == ProjectionPositionKind.Positioned
 				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Value)
 				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
@@ -1259,12 +1277,45 @@ public sealed partial class CosmosDbProjectionStore<
 		}
 	}
 
+    // A read followed by an ETag-conditional replace preserves terminal retirement under races.
+    [RequiresUnreferencedCode("Projection serialization uses the configured JSON resolver.")]
+    [RequiresDynamicCode("Projection serialization uses the configured JSON resolver.")]
+    private async Task<bool> WriteLiveAsync(string id, Dictionary<string, object?> document,
+        bool requireExisting, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (_, position, etag) = await ReadWithEtagAsync(id, cancellationToken, materialize: false).ConfigureAwait(false);
+            if (position.Kind == ProjectionPositionKind.Retired)
+            {
+                if (requireExisting) { return false; }
+                throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+            }
+            if (etag is null && requireExisting) { return false; }
+            using var payload = Serialize(document);
+            using var response = etag is null
+                ? await _container!.CreateItemStreamAsync(payload, new PartitionKey(_projectionType),
+                    new ItemRequestOptions { EnableContentResponseOnWrite = false }, cancellationToken).ConfigureAwait(false)
+                : await _container!.ReplaceItemStreamAsync(payload, CreateDocumentId(id), new PartitionKey(_projectionType),
+                    new ItemRequestOptions { IfMatchEtag = etag, EnableContentResponseOnWrite = false },
+                    cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed or HttpStatusCode.NotFound)
+            {
+                continue;
+            }
+            response.EnsureSuccessStatusCode();
+            return true;
+        }
+        throw new InvalidOperationException("Projection write exhausted its concurrency retry limit.");
+    }
+
 	/// <summary>Reads the projection, its stored position and its ETag in one request.</summary>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	private async Task<(TProjection? Projection, ProjectionPosition Position, string? ETag)> ReadWithEtagAsync(
 		string id,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken, bool materialize = true)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -1300,7 +1351,7 @@ public sealed partial class CosmosDbProjectionStore<
 			// claims-absence path and the condition it is supposed to enforce never engaged.
 			var position = ReadPosition(node);
 
-			return (StripAndDeserialize(node), position, response.Headers.ETag);
+			return (materialize ? StripAndDeserialize(node) : null, position, response.Headers.ETag);
 		}
 		catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
 		{

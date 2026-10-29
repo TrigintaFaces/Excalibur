@@ -18,7 +18,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Testcontainers.Firestore;
 
-using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 
@@ -76,7 +75,7 @@ public sealed class FirestoreProjectionStoreFilterShould : IClassFixture<Firesto
 
 		_store = new FirestoreProjectionStore<TestOrderProjection>(
 			_fixture.Db,
-			MsOptions.Create(new FirestoreProjectionStoreOptions { CollectionName = $"proj-{Guid.NewGuid():N}" }),
+			new SingleNamedFirestoreProjectionOptions(new FirestoreProjectionStoreOptions { CollectionName = $"proj-{Guid.NewGuid():N}" }),
 			NullLogger<FirestoreProjectionStore<TestOrderProjection>>.Instance);
 
 		return ValueTask.CompletedTask;

@@ -401,6 +401,7 @@ public static class EventNotificationServiceCollectionExtensions
 
 		// Idempotent: only register once
 		builder.Services.TryAddSingleton<IProjectionRegistry, InMemoryProjectionRegistry>();
+        ProjectionCapacity.Register(builder.Services);
 		_ = builder.Services.AddDefaultTenantContext();
 		builder.Services.TryAddSingleton<IEventNotificationBroker, EventNotificationBroker>();
 		builder.Services.TryAddSingleton<ICursorMapStore, InMemoryCursorMapStore>();

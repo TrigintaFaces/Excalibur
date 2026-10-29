@@ -72,6 +72,11 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 	public object? GetService(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+		if (serviceType == typeof(IProjectionTenantBoundary))
+		{
+			return WrapCapability(serviceType) ?? (Inner.GetService(serviceType) is IProjectionTenantBoundary boundary
+				? new TenantBoundaryView(boundary) : null);
+		}
 
 		if (serviceType == typeof(IProjectionDestinationIdentity))
 		{
@@ -84,6 +89,11 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 			return Inner.GetService(serviceType) is IProjectionDestinationScope scope
 				? new DestinationScopeView(scope) : null;
 		}
+        if (serviceType == typeof(IAsyncProjectionDestinationScope))
+        {
+            return Inner.GetService(serviceType) is IAsyncProjectionDestinationScope scope
+                ? new AsyncDestinationScopeView(scope) : null;
+        }
 
 		if (serviceType == typeof(IProjectionVisibilityBarrier))
 		{
@@ -95,6 +105,11 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 		return serviceType.IsInstanceOfType(this) ? this : WrapCapability(serviceType);
 	}
 
+	private sealed class TenantBoundaryView(IProjectionTenantBoundary inner) : IProjectionTenantBoundary
+	{
+		public ProjectionTenantBoundary Boundary => inner.Boundary;
+	}
+
 	private sealed class DestinationIdentityView(IProjectionDestinationIdentity inner) : IProjectionDestinationIdentity
 	{
 		public string Identity => inner.Identity;
@@ -104,6 +119,11 @@ public abstract class IsolatingProjectionStoreDecorator<TProjection> : IProjecti
 	{
 		public string Scope => inner.Scope;
 	}
+
+    private sealed class AsyncDestinationScopeView(IAsyncProjectionDestinationScope inner) : IAsyncProjectionDestinationScope
+    {
+        public ValueTask<string> GetScopeAsync(CancellationToken cancellationToken) => inner.GetScopeAsync(cancellationToken);
+    }
 
 	private sealed class VisibilityBarrierView(IProjectionVisibilityBarrier inner) : IProjectionVisibilityBarrier
 	{

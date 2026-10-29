@@ -20,12 +20,13 @@ namespace Excalibur.Data.Tests.MongoDB.Projections;
 public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbProjectionStore<TestProjection>> _logger;
-	private readonly IOptions<MongoDbProjectionStoreOptions> _options;
+	private readonly IOptionsMonitor<MongoDbProjectionStoreOptions> _optionsMonitor;
+	private readonly MongoDbProjectionStoreOptions _optionsValue = new();
 
 	public MongoDbProjectionStoreConstructorShould()
 	{
 		_logger = A.Fake<ILogger<MongoDbProjectionStore<TestProjection>>>();
-		_options = Options.Create(new MongoDbProjectionStoreOptions());
+		_optionsMonitor = NamedOptionsMonitor(_optionsValue);
 	}
 
 	#region Simple Constructor Tests
@@ -34,7 +35,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithValidOptions_CreatesInstance()
 	{
 		// Arrange & Act
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -45,8 +46,8 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbProjectionStore<TestProjection>(options: null!, _logger));
-		exception.ParamName.ShouldBe("options");
+			new MongoDbProjectionStore<TestProjection>(optionsMonitor: null!, _logger));
+		exception.ParamName.ShouldBe("optionsMonitor");
 	}
 
 	[Fact]
@@ -54,7 +55,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbProjectionStore<TestProjection>(_options, logger: null!));
+			new MongoDbProjectionStore<TestProjection>(_optionsMonitor, logger: null!));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -62,7 +63,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithInvalidOptions_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var invalidOptions = Options.Create(new MongoDbProjectionStoreOptions
+		var invalidOptions = NamedOptionsMonitor(new MongoDbProjectionStoreOptions
 		{
 			ConnectionString = string.Empty
 		});
@@ -76,7 +77,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithNullDatabaseName_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var invalidOptions = Options.Create(new MongoDbProjectionStoreOptions
+		var invalidOptions = NamedOptionsMonitor(new MongoDbProjectionStoreOptions
 		{
 			DatabaseName = string.Empty
 		});
@@ -90,7 +91,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public void SimpleConstructor_WithNullCollectionName_ThrowsInvalidOperationException()
 	{
 		// Arrange
-		var invalidOptions = Options.Create(new MongoDbProjectionStoreOptions
+		var invalidOptions = NamedOptionsMonitor(new MongoDbProjectionStoreOptions
 		{
 			CollectionName = string.Empty
 		});
@@ -111,11 +112,11 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 		var client = A.Fake<IMongoClient>();
 		var database = A.Fake<IMongoDatabase>();
 
-		_ = A.CallTo(() => client.GetDatabase(_options.Value.DatabaseName, null))
+		_ = A.CallTo(() => client.GetDatabase(_optionsValue.DatabaseName, null))
 			.Returns(database);
 
 		// Act
-		var store = new MongoDbProjectionStore<TestProjection>(client, _options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(client, _optionsMonitor, _logger);
 
 		// Assert
 		_ = store.ShouldNotBeNull();
@@ -126,7 +127,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	{
 		// Arrange & Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbProjectionStore<TestProjection>(client: null!, _options, _logger));
+			new MongoDbProjectionStore<TestProjection>(client: null!, _optionsMonitor, _logger));
 		exception.ParamName.ShouldBe("client");
 	}
 
@@ -138,8 +139,8 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbProjectionStore<TestProjection>(client, options: null!, _logger));
-		exception.ParamName.ShouldBe("options");
+			new MongoDbProjectionStore<TestProjection>(client, optionsMonitor: null!, _logger));
+		exception.ParamName.ShouldBe("optionsMonitor");
 	}
 
 	[Fact]
@@ -150,7 +151,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 
 		// Act & Assert
 		var exception = Should.Throw<ArgumentNullException>(() =>
-			new MongoDbProjectionStore<TestProjection>(client, _options, logger: null!));
+			new MongoDbProjectionStore<TestProjection>(client, _optionsMonitor, logger: null!));
 		exception.ParamName.ShouldBe("logger");
 	}
 
@@ -165,12 +166,12 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 		var client = A.Fake<IMongoClient>();
 		var database = A.Fake<IMongoDatabase>();
 
-		_ = A.CallTo(() => client.GetDatabase(_options.Value.DatabaseName, null))
+		_ = A.CallTo(() => client.GetDatabase(_optionsValue.DatabaseName, null))
 			.Returns(database);
 
 		// Act
-		var simpleStore = new MongoDbProjectionStore<TestProjection>(_options, _logger);
-		var clientStore = new MongoDbProjectionStore<TestProjection>(client, _options, _logger);
+		var simpleStore = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
+		var clientStore = new MongoDbProjectionStore<TestProjection>(client, _optionsMonitor, _logger);
 
 		// Assert - Both create valid instances
 		_ = simpleStore.ShouldNotBeNull();
@@ -185,7 +186,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_CanBeCalledMultipleTimes()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 
 		// Act & Assert - Should not throw
 		await store.DisposeAsync();
@@ -197,7 +198,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task DisposeAsync_SetsDisposedState()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 
 		// Act
 		await store.DisposeAsync();
@@ -211,7 +212,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task GetByIdAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -223,7 +224,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task UpsertAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -235,7 +236,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task DeleteAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -247,7 +248,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task QueryAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -259,7 +260,7 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	public async Task CountAsync_AfterDispose_ThrowsObjectDisposedException()
 	{
 		// Arrange
-		var store = new MongoDbProjectionStore<TestProjection>(_options, _logger);
+		var store = new MongoDbProjectionStore<TestProjection>(_optionsMonitor, _logger);
 		await store.DisposeAsync();
 
 		// Act & Assert
@@ -268,6 +269,17 @@ public sealed class MongoDbProjectionStoreConstructorShould : UnitTestBase
 	}
 
 	#endregion Dispose Tests
+
+	// The store reads its settings from the options instance NAMED for its projection type, so these
+	// unit arms hand it a monitor that answers any name with the supplied instance. The arm that binds
+	// the name itself resolves through real DI -- see ProjectionDestinationIdentityShould.
+	private static IOptionsMonitor<MongoDbProjectionStoreOptions> NamedOptionsMonitor(
+		MongoDbProjectionStoreOptions options)
+	{
+		var monitor = A.Fake<IOptionsMonitor<MongoDbProjectionStoreOptions>>();
+		_ = A.CallTo(() => monitor.Get(A<string>._)).Returns(options);
+		return monitor;
+	}
 }
 
 /// <summary>

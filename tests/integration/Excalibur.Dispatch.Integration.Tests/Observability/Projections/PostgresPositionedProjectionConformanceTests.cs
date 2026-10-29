@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 [Trait("Infrastructure", TestInfrastructure.Postgres)]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]
-public sealed class PostgresPositionedProjectionConformanceTests : PositionedProjectionStoreConformanceTestKit
+public sealed class PostgresPositionedProjectionConformanceTests : PositionedProjectionDestinationConformanceTestKit
 {
 	private const string ConformanceTenantId = "tenant-positioned-conformance";
 
@@ -45,6 +45,24 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 
 	public PostgresPositionedProjectionConformanceTests(PostgresFixture fixture) => _fixture = fixture;
 
+    [Fact]
+    public async Task ReadAnExactNextGenerationWithoutMovingTheWriter()
+    {
+        var store = await CreateStoreAsync();
+        var next = await CreateNextGenerationStoreAsync();
+        await next.UpsertAsync("reader-row", new ConformanceProjectionNextGeneration { Id = "reader-row", Total = 37 }, CancellationToken.None);
+        var destination = ((IProjectionDestinationIdentity)next.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldNotBeNull();
+        (await reader.GetByIdAsync("reader-row", CancellationToken.None))!.Total.ShouldBe(37);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(37);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+        (await store.GetByIdAsync("reader-row", CancellationToken.None)).ShouldBeNull();
+    }
+    [Fact]
+    public async Task GateCutoverAndRouteAllReadsToTheSelectedGeneration() =>
+        await GenerationRoutingAcceptance.VerifyAsync(await CreateStoreAsync(), await CreateNextGenerationStoreAsync());
 	/// <summary>Wires the kit's own completeness check, which names any arm this suite forgot.</summary>
 	/// <returns>A task representing the check.</returns>
 	[Fact]
@@ -153,6 +171,67 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 	[Fact]
 	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
+
+	/// <summary>The store states which destination it is configured against.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Advertise_the_destination_it_is_configured_against_Test() =>
+		Advertise_the_destination_it_is_configured_against();
+
+	/// <summary>A generation reader reports one storage scope through both of its members.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Report_one_storage_scope_through_both_generation_reader_members_Test() =>
+		Report_one_storage_scope_through_both_generation_reader_members();
+
+	/// <summary>Moving the configured destination changes the identity the store advertises.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Change_the_identity_when_the_configured_destination_moves_Test() =>
+		Change_the_identity_when_the_configured_destination_moves();
+
+	/// <summary>A declared generation resolves a destination of its own, carrying its generation segment.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Resolve_a_distinct_destination_for_the_next_generation_Test() =>
+		Resolve_a_distinct_destination_for_the_next_generation();
+
+	/// <summary>The previous generation keeps serving its own documents while the next one builds.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Keep_the_previous_generation_readable_while_the_next_one_builds_Test() =>
+		Keep_the_previous_generation_readable_while_the_next_one_builds();
+
+	/// <inheritdoc />
+	protected override Task<IProjectionStore<ConformanceProjection>> CreateRelocatedStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjection>>(
+			new PostgresProjectionStore<ConformanceProjection>(
+				_fixture.ConnectionString,
+				NullLogger<PostgresProjectionStore<ConformanceProjection>>.Instance,
+				tenantContext: new FixedConformanceTenantContext(ConformanceTenantId),
+				tableName: _tableName + "_moved",
+				jsonOptions: null));
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// The table is created under the name the generation segment produces, WRITTEN OUT LITERALLY. The
+	/// store appends the segment itself; provisioning through the same convention would follow it into a
+	/// regression -- drop the generation from the store's composition and both generations would address
+	/// the one table this method created, which is precisely what the side-by-side arm must see.
+	/// </remarks>
+	protected override async Task<IProjectionStore<ConformanceProjectionNextGeneration>>
+		CreateNextGenerationStoreAsync()
+	{
+		await EnsureTableAsync(_tableName + "_v2").ConfigureAwait(false);
+
+		return new PostgresProjectionStore<ConformanceProjectionNextGeneration>(
+			_fixture.ConnectionString,
+			NullLogger<PostgresProjectionStore<ConformanceProjectionNextGeneration>>.Instance,
+			tenantContext: new FixedConformanceTenantContext(ConformanceTenantId),
+			tableName: _tableName,
+			jsonOptions: null);
+	}
+
 	/// <inheritdoc />
 	protected override async Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
 	{
@@ -161,7 +240,7 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 			+ "skipped, because an arm that passes by being skipped is indistinguishable from one that "
 			+ "passed by working, and the property under test is an engine behaviour we cannot simulate.");
 
-		await EnsureTableAsync().ConfigureAwait(false);
+		await EnsureTableAsync(_tableName).ConfigureAwait(false);
 
 		return new PostgresProjectionStore<ConformanceProjection>(
 			_fixture.ConnectionString,
@@ -182,7 +261,8 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 	/// what lets a row written through the unconditional surface be told apart from one holding a complete
 	/// fold; both are refused by a positioned write, and only a rebuild repairs either.
 	/// </remarks>
-	private async Task EnsureTableAsync()
+	/// <param name="table">The table to create.</param>
+	private async Task EnsureTableAsync(string table)
 	{
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync().ConfigureAwait(false);
@@ -193,7 +273,7 @@ public sealed class PostgresPositionedProjectionConformanceTests : PositionedPro
 		// would still pass here and fail on a consumer's database, which is the one place no gate of
 		// ours can see. Emitting it from the provider's own schema makes this arm the binding.
 		_ = await connection.ExecuteAsync(
-			PostgresProjectionSchema.CreateTableScript(_tableName)).ConfigureAwait(false);
+			PostgresProjectionSchema.CreateTableScript(table)).ConfigureAwait(false);
 	}
 
 	/// <summary>

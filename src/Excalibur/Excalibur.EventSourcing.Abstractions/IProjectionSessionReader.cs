@@ -16,10 +16,10 @@ namespace Excalibur.EventSourcing;
 /// or say plainly that it could not confirm so within the configured bound.
 /// </para>
 /// <para>
-/// <b>The WRITE does not wait; the READ does.</b> Making the save wait for a projection would put that
-/// latency on every save, including the ones nobody reads back. Here only the caller who needs the
-/// guarantee pays for it. This is the shape Azure Cosmos DB uses for session consistency, and the
-/// reason is the same.
+/// <b>The read validates consistency at its own observation boundary.</b> Async projections do not
+/// delay the save. Inline projections perform a bounded save-time wait and can return
+/// <see cref="ProjectionFreshness.Attested"/>, but that receipt does not replace the validation here:
+/// the roster and destination may change before the caller reads.
 /// </para>
 /// <para>
 /// <b>A separate interface rather than a member on <see cref="IProjectionStore{TProjection}"/>.</b> That

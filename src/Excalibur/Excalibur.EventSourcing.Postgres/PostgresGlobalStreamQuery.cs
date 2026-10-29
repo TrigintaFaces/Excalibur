@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using Dapper;
-
 using Excalibur.Data;
 using Excalibur.Dispatch.Extensions;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
@@ -38,11 +36,21 @@ namespace Excalibur.EventSourcing.Postgres;
 	"from. Its result carries each event's own tenant on the row, so a consumer that needs confinement " +
 	"filters there. Adding a tenant predicate here would not harden the statement -- it would silently " +
 	"narrow the stream to one partition and make every projection built on it incomplete.")]
-internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
+internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery, IProjectionDestinationScope
 {
-	// Aliased to the StoredEvent member names, matching LoadEventsRequest. Dapper will not map a
-	// snake_case column onto a PascalCase member, and aliasing here keeps the row type free of the
-	// underscore-bearing member names that would otherwise be required.
+    string IProjectionDestinationScope.Scope
+    {
+        get
+        {
+            using var connection = _dataSource.CreateConnection();
+            return string.IsNullOrWhiteSpace(connection.DataSource) || string.IsNullOrWhiteSpace(connection.Database)
+                ? string.Empty
+                : "postgres/" + Uri.EscapeDataString(connection.DataSource) + "/" + Uri.EscapeDataString(connection.Database);
+        }
+    }
+
+	// Materialized explicitly by ordinal: PostgreSQL exposes timestamptz as DateTime by default,
+	// so reflective constructor matching cannot populate a DateTimeOffset record reliably.
 	private const string SelectColumns =
 		"position AS Position, event_id AS EventId, aggregate_id AS AggregateId, " +
 		"aggregate_type AS AggregateType, event_type AS EventType, event_data AS EventData, " +
@@ -88,7 +96,7 @@ internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
 			""";
 #pragma warning restore CA2100
 
-		return await ReadAsync(connection, sql, new { Position = position.Position, MaxCount = maxCount }, cancellationToken)
+		return await ReadAsync(connection, sql, position.Position, maxCount, null, cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -117,7 +125,7 @@ internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
 		return await ReadAsync(
 				connection,
 				sql,
-				new { Position = position.Position, MaxCount = maxCount, EventType = eventType },
+				position.Position, maxCount, eventType,
 				cancellationToken)
 			.ConfigureAwait(false);
 	}
@@ -129,58 +137,43 @@ internal sealed class PostgresGlobalStreamQuery : IGlobalStreamQuery
 
 #pragma warning disable CA2100 // Schema and table validated by SqlIdentifierValidator in PgTableName.Format
 		var sql = $"SELECT COALESCE(MAX(position), 0) FROM {_qualifiedTable}";
+		await using var command = new NpgsqlCommand(sql, connection);
 #pragma warning restore CA2100
-
-		return await connection.ExecuteScalarAsync<long>(
-			new CommandDefinition(sql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		return (long)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
 	}
 
 	private static async ValueTask<IReadOnlyList<StoredEvent>> ReadAsync(
 		NpgsqlConnection connection,
 		string sql,
-		object parameters,
+		long position,
+		int maxCount,
+		string? eventType,
 		CancellationToken cancellationToken)
 	{
 #pragma warning disable CA2100 // sql is built from schema/table validated by PgTableName.Format; no user input
-		var rows = await connection.QueryAsync<StoredEventRow>(
-			new CommandDefinition(sql, parameters, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		await using var command = new NpgsqlCommand(sql, connection);
 #pragma warning restore CA2100
+		command.Parameters.Add(new NpgsqlParameter<long>("Position", position));
+		command.Parameters.Add(new NpgsqlParameter<int>("MaxCount", maxCount));
+		if (eventType is not null) { command.Parameters.Add(new NpgsqlParameter<string>("EventType", eventType)); }
+		await using var rows = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
 		var result = new List<StoredEvent>();
-		foreach (var row in rows)
+		while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
 		{
 			result.Add(new StoredEvent(
-				row.EventId,
-				row.AggregateId,
-				row.AggregateType,
-				row.EventType,
-				row.EventData,
-				row.Metadata,
-				row.Version,
-				row.Timestamp)
+				rows.GetString(1), rows.GetString(2), rows.GetString(3), rows.GetString(4),
+				await rows.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : await rows.GetFieldValueAsync<byte[]>(5, cancellationToken).ConfigureAwait(false),
+				await rows.IsDBNullAsync(6, cancellationToken).ConfigureAwait(false) ? null : await rows.GetFieldValueAsync<byte[]>(6, cancellationToken).ConfigureAwait(false),
+				rows.GetInt64(7), await rows.GetFieldValueAsync<DateTimeOffset>(8, cancellationToken).ConfigureAwait(false))
 			{
-				GlobalPosition = row.Position,
-				ArchivedAt = row.ArchivedAt,
-				TenantId = row.TenantId,
+				GlobalPosition = rows.GetInt64(0),
+				ArchivedAt = await rows.IsDBNullAsync(9, cancellationToken).ConfigureAwait(false) ? null : await rows.GetFieldValueAsync<DateTimeOffset>(9, cancellationToken).ConfigureAwait(false),
+				TenantId = rows.GetString(10),
 			});
 		}
 
 		return result.AsReadOnlyList();
 	}
 
-	/// <summary>
-	/// Row mapping for Dapper query results.
-	/// </summary>
-	private sealed record StoredEventRow(
-		long Position,
-		string EventId,
-		string AggregateId,
-		string AggregateType,
-		string EventType,
-		byte[] EventData,
-		byte[]? Metadata,
-		long Version,
-		DateTimeOffset Timestamp,
-		DateTimeOffset? ArchivedAt,
-		string TenantId);
 }

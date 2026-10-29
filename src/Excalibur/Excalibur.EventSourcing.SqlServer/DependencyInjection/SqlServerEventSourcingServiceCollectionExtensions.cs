@@ -517,12 +517,18 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	/// <param name="connectionFactory">Factory for creating SQL connections.</param>
 	/// <param name="viewTableName">Optional view table name. Defaults to "MaterializedViews".</param>
 	/// <param name="positionTableName">Optional position table name. Defaults to "MaterializedViewPositions".</param>
+	/// <param name="schemaName">
+	/// The schema holding both tables. Defaults to <c>dbo</c>. Every statement the store runs names it
+	/// explicitly, including the DDL <c>EnsureSchemaAsync</c> emits, so the tables are created and read in
+	/// this schema rather than wherever the caller's default schema happens to point.
+	/// </param>
 	/// <returns>The service collection for method chaining.</returns>
 	public static IServiceCollection AddSqlServerMaterializedViewStore(
 		this IServiceCollection services,
 		Func<SqlConnection> connectionFactory,
 		string? viewTableName = null,
-		string? positionTableName = null)
+		string? positionTableName = null,
+		string schemaName = "dbo")
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactory);
@@ -538,7 +544,9 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
 				sp.GetRequiredService<ITenantContext>(),
 				viewTableName,
-				positionTableName));
+				positionTableName,
+				jsonOptions: null,
+				schemaName));
 
 		return services;
 	}

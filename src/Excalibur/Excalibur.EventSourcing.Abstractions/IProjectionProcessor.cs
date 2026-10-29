@@ -22,7 +22,8 @@ public interface IProjectionProcessor
 	/// Each page starts from the shared durable checkpoint. A competing checkpoint advance is reconciled
 	/// internally; CaughtUp means that the shared subscription reached the captured target, including work
 	/// completed by another compatible processor. A poison event, apply decline/fault or checkpoint failure
-	/// returns Halted without acknowledging the failed page. Cancellation returns Cancelled. Partially
+	/// returns Halted without acknowledging the failed page. A subscription whose roster holds members this
+	/// process does not host also returns Halted, because no caught-up claim can cover them. Cancellation returns Cancelled. Partially
 	/// completed pages can have effects that are not included in the returned count and are redelivered.
 	/// A handler that swallows cancellation cannot acknowledge that page once the caller's token is signalled.
 	/// </remarks>
@@ -44,7 +45,12 @@ public interface IProjectionProcessor
 public readonly record struct ProjectionProcessingResult(
 	long EventsApplied,
 	ProjectionProcessingOutcome Outcome,
-	ProjectionHaltReason HaltReason);
+	ProjectionHaltReason HaltReason)
+{
+	/// <summary>Gets the roster receipt for a caught-up observation.</summary>
+	/// <value>The receipt, or null when no observation was confirmed.</value>
+	public ProjectionAttestation? Attestation { get; init; }
+}
 
 /// <summary>What caused processing to halt, so a caller can tell a transient stop from a terminal one.</summary>
 /// <remarks>
@@ -90,6 +96,15 @@ public enum ProjectionHaltReason
 	/// acknowledged. Not necessarily permanent, but never a success: the page is redelivered.
 	/// </summary>
 	CheckpointWriteFailed = 4,
+
+	/// <summary>
+	/// The subscription's roster holds projection members this process does not host, so this process
+	/// cannot establish that the subscription reached the stream head. Terminal here: which events an
+	/// absent member consumes is not recorded anywhere, so waiting does not resolve it -- that member
+	/// advances only in the deployment that hosts it. Drive the processor there, or host every member
+	/// bound to the subscription in one deployment.
+	/// </summary>
+	SubscriptionMembersNotHosted = 5,
 }
 
 /// <summary>Why a projection-processing invocation stopped.</summary>

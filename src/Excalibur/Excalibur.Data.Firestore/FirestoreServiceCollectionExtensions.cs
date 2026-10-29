@@ -106,7 +106,7 @@ public static class FirestoreServiceCollectionExtensions
 			var projectId = firestoreBuilder.ProjectIdValue ?? "emulator-project";
 			var emulatorHost = firestoreBuilder.EmulatorHostValue;
 			services.TryAddSingleton(_ =>
-				new FirestoreDbBuilder
+				FirestoreClientScope.Bind(new FirestoreDbBuilder
 				{
 					ProjectId = projectId,
 
@@ -115,12 +115,17 @@ public static class FirestoreServiceCollectionExtensions
 					// registration could not resolve a client at all when an emulator host was configured.
 					Endpoint = emulatorHost,
 					ChannelCredentials = ChannelCredentials.Insecure,
-				}.Build());
+				}.Build(), emulatorHost, insecure: true));
 		}
 		else if (firestoreBuilder.ProjectIdValue is not null)
 		{
 			var projectId = firestoreBuilder.ProjectIdValue;
-			services.TryAddSingleton(_ => FirestoreDb.Create(projectId));
+			services.TryAddSingleton(_ => FirestoreClientScope.Bind(new FirestoreDbBuilder
+            {
+                ProjectId = projectId,
+                Endpoint = "firestore.googleapis.com:443",
+                EmulatorDetection = Google.Api.Gax.EmulatorDetection.None,
+            }.Build(), "firestore.googleapis.com:443", insecure: false));
 		}
 
 		// Register core services

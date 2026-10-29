@@ -466,8 +466,17 @@ public static class ElasticSearchServiceCollectionExtensions
 			sp.GetRequiredService<ILogger<ProjectionErrorHandler>>(),
 			sp.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
 
-		// Register projection rebuild manager
-		services.TryAddSingleton<IProjectionRebuildManager, ProjectionRebuildManager>();
+		// Register projection rebuild manager. Built by hand rather than by the container so the event
+		// re-fold service stays OPTIONAL: it is registered separately, and a host that only moves indexes
+		// never registers it. Container-selected construction would make every such host fail to resolve
+		// the manager at all.
+		services.TryAddSingleton<IProjectionRebuildManager>(sp => new ProjectionRebuildManager(
+			sp.GetRequiredService<ElasticsearchClient>(),
+			sp.GetRequiredService<IIndexAliasManager>(),
+			sp.GetRequiredService<IOptions<ElasticSearchProjectionManagementOptions>>(),
+			sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>(),
+			sp.GetRequiredService<ILogger<ProjectionRebuildManager>>(),
+			sp.GetService<Excalibur.EventSourcing.Projections.IProjectionRebuildService>()));
 
 		// Register eventual consistency tracker
 		services.TryAddSingleton<IEventualConsistencyTracker, EventualConsistencyTracker>();

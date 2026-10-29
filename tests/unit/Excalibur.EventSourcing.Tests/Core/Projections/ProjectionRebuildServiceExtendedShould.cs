@@ -27,7 +27,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 public sealed class ProjectionRebuildServiceExtendedShould
 {
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
-	private readonly ProjectionRebuildOptions _options = new();
+	private readonly ProjectionRebuildOptions _options = new() { OfflineRebuildAcknowledged = true };
 
 	private ProjectionRebuildService CreateService(IServiceProvider sp)
 	{
@@ -64,7 +64,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 
 		var store = new TestProjectionStore<RebuildTestState>();
 
-		var sp = A.Fake<IServiceProvider>();
+		var sp = SubscriptionCheckpointTestSetup.CreateRebuildProvider<RebuildTestState>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => sp.GetService(typeof(MultiStreamProjection<RebuildTestState>))).Returns(projection);
 		A.CallTo(() => sp.GetService(typeof(IProjectionStore<RebuildTestState>))).Returns(store);
@@ -85,27 +85,27 @@ public sealed class ProjectionRebuildServiceExtendedShould
 	}
 
 	[Fact]
-	public async Task CompleteWithoutPersistence_WhenNoProjectionStoreRegistered()
+	public async Task FailWhenNoProjectionStoreRegistered()
 	{
-		// Arrange — no IProjectionStore, should still succeed (just log warning)
+		// Missing persistence must fail before retiring any checkpoint.
 		var globalQuery = A.Fake<IGlobalStreamQuery>();
 		var projection = new MultiStreamProjection<RebuildTestState>();
 		A.CallTo(() => globalQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
 
-		var sp = A.Fake<IServiceProvider>();
+		var sp = SubscriptionCheckpointTestSetup.CreateRebuildProvider<RebuildTestState>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => sp.GetService(typeof(MultiStreamProjection<RebuildTestState>))).Returns(projection);
 		A.CallTo(() => sp.GetService(typeof(IProjectionStore<RebuildTestState>))).Returns(null);
 
 		var sut = CreateService(sp);
 
-		// Act — should not throw
-		await sut.RebuildAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
+		// Act
+		await Should.ThrowAsync<InvalidOperationException>(() => sut.RebuildAsync<RebuildTestState>(CancellationToken.None));
 
 		// Assert
 		var status = await sut.GetStatusAsync<RebuildTestState>(CancellationToken.None).ConfigureAwait(false);
-		status.State.ShouldBe(ProjectionRebuildState.Completed);
+		status.State.ShouldBe(ProjectionRebuildState.Failed);
 	}
 
 	[Fact]
@@ -126,11 +126,11 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		A.CallTo(() => globalQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
 
-		var sp = A.Fake<IServiceProvider>();
+		var sp = SubscriptionCheckpointTestSetup.CreateRebuildProvider<RebuildTestState>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => sp.GetService(typeof(MultiStreamProjection<RebuildTestState>))).Returns(null);
 		A.CallTo(() => sp.GetService(typeof(IProjectionRegistry))).Returns(registry);
-		A.CallTo(() => sp.GetService(typeof(IProjectionStore<RebuildTestState>))).Returns(null);
+
 
 		var sut = CreateService(sp);
 
@@ -174,7 +174,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 
 		var store = new TestProjectionStore<RebuildTestState>();
 
-		var sp = A.Fake<IServiceProvider>();
+		var sp = SubscriptionCheckpointTestSetup.CreateRebuildProvider<RebuildTestState>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => sp.GetService(typeof(MultiStreamProjection<RebuildTestState>))).Returns(projection);
 		A.CallTo(() => sp.GetService(typeof(IProjectionStore<RebuildTestState>))).Returns(store);
@@ -223,7 +223,7 @@ public sealed class ProjectionRebuildServiceExtendedShould
 		A.CallTo(() => _eventSerializer.ResolveType(A<string>._)).Returns(typeof(RebuildTestEvent));
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(new RebuildTestEvent());
 
-		var sp = A.Fake<IServiceProvider>();
+		var sp = SubscriptionCheckpointTestSetup.CreateRebuildProvider<RebuildTestState>();
 		A.CallTo(() => sp.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => sp.GetService(typeof(MultiStreamProjection<RebuildTestState>))).Returns(projection);
 

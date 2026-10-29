@@ -640,6 +640,7 @@ per-partition version arm both go RED against the real emulator, and both return
 | Erasure resolved through the supported DI composition reaches the store and tombstones (the decoration chain does not strip the capability), for both multi-tenant and non-multi-tenant hosts | event-store erasure real-DI-resolve arms (MT + non-MT) |
 | A rebuild driven through the surface a consumer's host actually rebuilds through never hands an erased subject's event to a projection, still hands another subject's event to it, and runs to completion | `SqlServerProjectionRebuildErasureEndToEndShould` — real SQL Server, the real erasure path, and `IMaterializedViewProcessor` resolved from a container composed the documented way. The property is asserted at the **view builder**, which is where this document states it; a persisted-view assertion cannot tell the event being skipped from a builder that ran and wrote nothing |
 | The same property on the in-process rebuild service | `ProjectionRebuildErasureShould`, paired with `ProjectionPoisonHaltParityShould` (a genuinely corrupt, non-erasure event still halts the rebuild). **Scope, CORRECTED: a consumer CAN reach this service.** `AddProjectionRebuild()` is a public registration extension and `IProjectionRebuildService` is a public interface, both at committed HEAD, so a host that calls it resolves and drives this path directly. The superseded wording said the service was unreachable — *“no registration extension, so no consumer can reach it”* — and it is quoted here because it understated the reach of every defect in this service to anyone assessing one. These arms cover a path consumers use, not a sibling of it |
+| **Tenant-isolated PROJECTIONS are a narrower capability than tenant-isolated event stores, and the difference is per provider.** Two mechanisms exist and no store offers both: routing, where each tenant has its own index or container (Elasticsearch, OpenSearch), and row confinement, where one store carries a tenant predicate per statement (PostgreSQL, SQL Server). **Cosmos DB, MongoDB, DynamoDB and Firestore projection stores offer NEITHER** -- they declare themselves estate-wide and no per-tenant resolver ships for them. Wrapping one in the tenant-scoped decorator does not degrade silently: it **throws**, because the decorator refuses to advertise a confinement its inner store does not enforce. **Consumer obligation:** choose the read-model provider for the isolation you need; do not infer projection support from event-store support. Estate-wide is a legitimate declaration for a read model that genuinely serves every tenant, and the declaration exists so the framework can tell the two apart rather than inferring confinement from a tenant merely being present | the decorator's boundary check (`Sharding/TenantScopedProjectionStore.cs:184`) and each store's own declaration. **UNVERIFIED:** no arm asserts which of the two kinds a given provider declares, so a provider silently changing its declaration would not redden a test -- the matrix above is maintained by reading, not enforced |
 | The default-tenant identifier is a single canonical reserved value | tenant-defaults unit arms |
 | A SQLite database created before the snapshot table had a tenant column is still readable and writable after upgrading, and one holding the empty-string encoding becomes reachable again | SQLite released-schema upgrade arms + empty-tenant convergence arms |
 | A SQLite table holding both untenanted encodings for one aggregate refuses at startup, naming the table and aggregate, without mutating a row | SQLite convergence collision arm |
@@ -1180,15 +1181,75 @@ row and the lost fold is not expressible — the S1-S6 properties above carry In
 
 | | property | stated in falsifiable terms | status |
 |---|---|---|---|
-| **S7** | inline completion, scoped to what the save FEEDS | if `SaveResult.Projections == Fresh`, then every projection registered `Inline` **that consumes at least one of the committed events' types** has folded the contiguous prefix through `SaveResult.SessionToken`: reading that projection's stored position yields a value `>= SessionToken`. **A projection the save does not feed is OUTSIDE this promise** — the save neither advances nor attests it. A projection the save DOES feed is attested, or the save reports `BoundExpired`; there is no third outcome | the completion predicate is a QUANTIFIER over the required set — every registration consuming one of the committed event types must have its own cursor at or past the token — and the positioned compare-and-set supplies the per-row half. Cursors are per registration, so the mechanism is now exactly as wide as the promise |
+| **S7** | inline completion: a save-time RECEIPT and a read-time VERDICT, with different names | `SaveResult.Projections == Attested` means every required `Inline` projection was OBSERVED at or past `SessionToken` against the durable roster as it stood at that moment. **Falsifiable:** read that roster's identity and each covered member's `Position` at save time; if any required member is below the token, or is absent from the attested set, the value is wrong. `ProjectionRead.Freshness == Fresh` asserts strictly more: re-read AFTER the data read, the roster identity is unchanged, the member's `BindingId` is unchanged, its `Position >= SessionToken`, and its `Destination` is unchanged. **Falsifiable:** mutate any one of those four and the read must report `BoundExpired`. **Neither value claims the roster is unchanged after return**, and `Attested` alone is NOT read-your-own-writes. | `ProjectionAttestation` carries roster identity, covered keys and BindingIds (`AsyncProjectionProcessingHost.cs:266-274`). Unhosted required members refuse completion. `IProjectionSessionReader` takes its own witness, reads, then compares all four properties before issuing `Fresh` (`ProjectionSessionReader.cs:86`, `:92`, `:99-104`), defaulting to `BoundExpired`. **KNOWN GAP:** the save reads the roster once and attests from that same snapshot, so a member bound after that read is not covered by `Attested` and the save does not learn of it. That state is REACHABLE, not hypothetical. It is why `Attested` is a receipt: a consumer needing a current answer must re-validate through `IProjectionSessionReader` and require `Fresh`. No finite number of save-side re-reads closes this — a bind is always enabled, so a re-read moves the window rather than removing it; the caller's own read is the only right-hand boundary. |
 | **S8** | behind is never success, and never a failure either | if the save CANNOT establish S7 it returns `SaveResult.Projections == BoundExpired`, and the events are **already durably committed** — a behind read model is REPORTED, never thrown and never silently passed off as fresh | every non-`CaughtUp` exit returns `BoundExpired` and logs at Warning; the token rides the same `SaveResult`, so the caller can hand it to `IProjectionSessionReader` |
-| **L3** | inline completion liveness, independent of unrelated projections | a save whose REQUIRED projections are healthy observes `CaughtUp` within `PostCommitTimeout` **regardless of any other projection's state** — a projection it does not feed cannot hold it open, however far behind or however badly broken | one cursor PER REGISTRATION, so a faulting projection holds back only its own; and a page read is SHARED ONLY BY REGISTRATIONS SITTING AT THE SAME DURABLE CURSOR (`AsyncProjectionProcessingHost.cs:337`), so a projection that is behind reads its own prefix from its own position — it neither holds a healthy sibling's read start down nor can be handed a page that begins past its own gap. A required registration that is failing reports that fault on the save at once rather than at the deadline. Bound by `RetryATransientlyUnreadablePrefixInsteadOfFailingTheCommittedSave` plus the eight `PerProjectionCursorShould` arms |
+| **L3** | inline completion liveness, independent of unrelated projections | unrelated locally registered projection work does not determine the required members' cursors. Completion still depends on available source/checkpoint/destination stores, readable source prefixes, and hosted required members; outages, gaps, scheduling delays or unhosted obligations can expire `PostCommitTimeout` | one cursor PER REGISTRATION, so a faulting projection holds back only its own; and a page read is SHARED ONLY BY REGISTRATIONS SITTING AT THE SAME DURABLE CURSOR (`AsyncProjectionProcessingHost.cs:337`), so a projection that is behind reads its own prefix from its own position — it neither holds a healthy sibling's read start down nor can be handed a page that begins past its own gap. A required registration that is failing reports that fault on the save at once rather than at the deadline. Bound by `RetryATransientlyUnreadablePrefixInsteadOfFailingTheCommittedSave` plus the eight `PerProjectionCursorShould` arms |
 
-**Per-registration cursors buy FAULT ISOLATION, not workset evolution.** The subscription definition
-hash still covers the registration SET, so adding or removing a projection still requires a new
-subscription name and still refuses against an existing binding. What changed is that a projection
-FAILING no longer implicates its siblings; what did not change is which projections a subscription is
-allowed to contain.
+**Per-registration cursors now buy WORKSET EVOLUTION as well as fault isolation.** The subscription
+binds **one row per projection**, not one fingerprint over the registration set, so adding a projection
+binds that member alone and folds it from zero while its siblings keep their cursors. Removing or
+renaming one, or moving one destination, affects only that member. Scope and revision remain inputs to
+**every** member's fingerprint, so changing either still refuses the whole roster — that was never the
+problem. A member may be retired deliberately with `ReleaseSubscriptionMemberAsync`, which removes the
+member row and its checkpoint in one durable step, so that projection re-binds and re-folds alone.
+
+> **SUPERSEDED WORDING, quoted so a reader who absorbed it recognises it:** *"Per-registration cursors
+> buy FAULT ISOLATION, not workset evolution. The subscription definition hash still covers the
+> registration SET, so adding or removing a projection still requires a new subscription name and still
+> refuses against an existing binding … what did not change is which projections a subscription is
+> allowed to contain."* That was accurate when written and is now false. The remedy it described — a new
+> subscription name — re-folded **every** projection from zero, including the ones that had not changed.
+
+**THE ROSTER IS A PROPERTY OF THE SUBSCRIPTION, NOT OF THE PROCESS.** This is the invariant that makes
+the above safe, and loosening the binding without it is strictly worse than the behaviour it replaced.
+Any attestation quantified over "every registration" — the freshness a returning save reports — is
+honest only while the quantifier's domain is read from the **durable store**. Computed from the local
+registry instead, it narrows silently to whatever projections this process happens to host: the host
+folds what it can see, reports fresh, and says nothing about a sibling bound by another deployment that
+has not folded the same events. Nothing downstream can detect that, because the caller was told it need
+not re-check. So the required set is the union of **(a)** local registrations consuming a committed event
+type and **(b)** every roster member absent from the local registry. A member in (b) cannot be performed
+here and therefore cannot be attested here, which yields `BoundExpired` — see S8. Evidence:
+`CooperativeProjectionProcessingShould.AdmitAnAddedProjectionButRefuseToAttestItFromAHostThatDoesNotHostIt`,
+which RED-detects a registry-sourced quantifier by observing the false `CaughtUp` itself.
+
+**Freshness carries an observation boundary.** The durable roster can change after any read. A
+`ProjectionAttestation` records the observed roster identity, covered keys and their `BindingId`s,
+and the finite position completed. It does not assert that a newly bound member was included in an
+older observation. The identity includes binding lifetimes, so release/rebind with the same key is
+not the same roster. Checkpoint advancement compares both the captured binding and expected position;
+a stale worker cannot acknowledge a replacement lifetime or recreate an orphan checkpoint.
+
+`IProjectionSessionReader` uses the save's position to obtain a fresh, independent witness for the
+requested projection. It confirms definition/destination/progress before reading, then validates the
+roster identity, selected binding, destination and position after the data read. It does not treat the
+save's earlier receipt as a current roster. A changed witness or expired bound yields `BoundExpired`.
+This is an observation-time guarantee; no database read promises the world will remain unchanged after
+return. Retain event history for new generations; aggregate snapshots cannot replace that history.
+
+The bounded current-protocol model is `spec/tla/subscription-roster/BindingLifetime.tla`, run by
+`Check-BindingLifetime.ps1`. Its scope and assumptions distinguish logical lifetime/read safety from
+SQL isolation, physical fold correctness, crash durability and generation routing. Historical
+`SubscriptionRoster.tla` counterexamples remain regression evidence for rejected designs. Neither
+model promotes every guarantee in this architecture file to R4.
+**Consumer obligation during a rolling deployment that adds a projection.** Saves served by an instance
+that does not yet host the new projection report `BoundExpired` until it is replaced. The events are
+durably committed; only read-your-own-write is affected, and the reason is logged at Warning. This is
+strictly more available than the previous behaviour, where that instance refused to start at all.
+
+**The same invariant binds the PULL entry point, which carries its own report.**
+`IProjectionProcessor.ProcessPendingAsync` is the only driver of the Inline cursor in a host that runs no
+background service, so a vacuous success there is the most expensive one available. A process hosting no
+Inline projection answered `CaughtUp` from the local registry alone, having folded nothing; it now reads
+the roster through the same binding path the processing loop uses
+(`InlineProjectionCoordinator.cs:72`) and reports `ProjectionProcessingOutcome.Halted` with
+`ProjectionHaltReason.SubscriptionMembersNotHosted` while the subscription binds a member this process
+does not host. **That halt is TERMINAL, unlike `PrefixUnavailable`:** which events an absent member
+consumes is not recorded anywhere, so waiting cannot resolve it — the member advances only in the
+deployment that hosts it, and a caller should drive the processor there rather than retry here. Evidence:
+`InlineCompletionConsultsTheRosterShould.RefuseCaughtUpWithNoLocalProjectionWhileTheRosterHasAnUnhostedMember`,
+paired with `StillReportCaughtUpWithNoLocalProjectionWhenTheRosterIsEmpty`, whose bind count RED-detects an
+implementation that reaches the right verdict without consulting the roster at all.
 
 **A page read is shared only by registrations sitting at the same durable cursor.** Registrations are
 grouped by their stored cursor and each group reads its own page from its own position
@@ -1204,7 +1265,7 @@ page that skips exactly the events it was missing, silently corrupting an accumu
 removes the choice rather than balancing it. It also needs no in-memory state, no fault-count heuristic
 and no agreement between instances, because the grouping is recomputed from the durable cursors on every
 page — so two instances cannot disagree about it. Failure state is never an input to the required set
-either: if it were, a save could report `Fresh` over a projection known to be stuck, and that
+either: if it were, a save could report `Attested` over a projection known to be stuck, and that
 independence is what makes the freshness report honest.
 
 **S7's scope is the half a reader will otherwise get wrong, so it is stated separately.** A projection fed
@@ -1914,30 +1975,21 @@ state cannot speak about states it has no path to.
   unrelated write moves the version token, so a caller can be told `Superseded` while the position is
   unchanged. It re-reads and retries, which is correct; the cost is an extra round trip, not a wrong
   answer.
-- **A deleted projection is RECREATED by the next write, and the paragraph that stood here said the
-  opposite.** The superseded text read: *"a write against a missing row reports `Vanished` and the row
-  is not recreated. A projection deleted for any other reason therefore stops being updated until it is
-  rebuilt."* **That is false, and false in the direction that reassures.**
+- **Deletion through the store is terminal within the physical generation.** `DeleteAsync` atomically
+  replaces the payload with a durable retirement marker, including when the key was absent.
+  `GetWithPositionAsync` returns `(null, ProjectionPosition.Retired)`; ordinary reads, queries,
+  pages and counts hide the marker. Fresh readers cannot mistake deletion for permission to insert.
+  Conditional advance, refold and rebuild return `Vanished`; blind and unnumbered writes throw.
+  Marker keys are retained while the generation can receive writes. They must not expire through TTL
+  or be physically removed. A new physical generation can populate the same logical key independently.
 
-  `Vanished` is reachable only on the branch where the caller supplies a position it read. Once a row is
-  gone, every caller reads nothing, so every subsequent write carries no expected position and takes the
-  insert-if-absent branch instead. Enumerated across all eight stores, **seven cannot return `Vanished`
-  to a caller that read nothing** — the create-when-absent arm fires first and the write succeeds. Cosmos
-  DB is the lone exception, and only through one sub-path. Removing the adopt arm does not change this:
-  insert-if-absent is exactly the arm that fires here, and it is legitimate — a row that does not exist
-  is not a state whose prefix is unknown.
+  This protects destination state, not cancellation of handler execution or external effects.
+  An asynchronous handler can still run to discover another destination key, and an in-flight handler
+  can finish after deletion. External effects remain at-least-once and must be idempotent.
+  Source history and minimal key/deletion metadata are not erased by this operation.
 
-  So the real outcome is neither of the two the old text offered, and it is worse than both: the row is
-  **recreated**, folded only from whatever tail the reader delivers next, and stamped with a position
-  asserting a full fold over everything up to it. That is precisely the state this seam exists to make
-  impossible — a row claiming a prefix it does not hold.
-
-  **What this means for you.** Deleting a projection row out of band is not a supported way to reset it.
-  Do not delete rows to force a rebuild, and do not treat a deleted row as a quiescent state; the next
-  batch will resurrect it with a position it has not earned. To reset a projection, replay it through
-  the recovery path for the aggregates concerned. For erasure specifically the exposure is narrower,
-  because erasure also tombstones the source events, so a resurrected row folds tombstones rather than
-  personal data — but the position it claims is still wrong.
+  Out-of-band physical database deletion bypasses this contract. Never delete rows or markers to
+  reset a projection: populate a new generation and cut over after its progress is verified.
 - **A permanently-losing writer redelivers forever rather than losing events, and that trade is
   deliberate.** When a conditional write is refused AND the store is BEHIND the position the fold tried
   to reach, the apply path raises rather than returning quietly: those events are in neither the
@@ -2145,3 +2197,91 @@ it pays nothing.
 - **A projection whose store records no positions cannot be repaired by recovery.** Such a row has no
   coordinate a conditional write can advance from; `IProjectionRecovery.ReapplyAsync` refuses it terminally
   and the remedy is a full rebuild.
+
+# Architecture — Projection Generation Cutover
+
+Scope: selecting the physical generation read by framework readers. Population/replay, aggregate
+snapshots, native search aliases and deletion of retired physical data are separate operations.
+
+## Guarantee
+
+`ProjectionGenerationCutover` uses the checkpoint backend's atomic `IProjectionGenerationStore`.
+`ProjectionGenerationReader<T>` resolves the selected destination on each read. Writer stores retain
+their configured destination. This separation supports runtime cutover and rollback without blocking
+asynchronous I/O inside a DI factory or mutating the writer's identity.
+
+| Projection provider | Framework generation reads |
+|---|---|
+| SQL Server, PostgreSQL, Cosmos DB, DynamoDB, Firestore, MongoDB | Exact destination reader factories, selected by the durable checkpoint pointer |
+| Elasticsearch, OpenSearch | Exact concrete-index reader factories through the same pointer; native alias administration is separate |
+
+An opened reader must advertise its actual storage scope. Framework-created clients capture verified
+configuration; opaque external clients without trustworthy scope cannot certify routing. Tenant-confined
+stores include the actual tenant partition in the binding and reject handles reused across tenants.
+Decorators must preserve or explicitly refuse the capability. A reader explicitly declares compatible
+projection keys; routing does not make incompatible read schemas interchangeable.
+
+The request names a subscription, stable reader name, new member key, expected reader revision and
+maximum acceptable lag in stream positions. No universal lag threshold is supplied.
+
+- An absent cursor is refused even when a generous threshold would admit position zero. Absence is
+  not a measurement, and the result has no measured cursor or lag.
+- The gate reads a finite stream head and computes `max(0, head - cursor)`. Excessive lag is refused.
+- The database compares the expected reader revision while verifying the captured target BindingId
+  still exists and its checkpoint still meets the minimum position derived from the observed head.
+  Known transaction conflicts return a contested/not-applied result; unknown commit failures propagate.
+- The successful pointer references a live binding. Referential/lifetime protection prevents retiring
+  that binding while a reader pointer still references it. Atomicity belongs to the checkpoint backend,
+  not to a cross-store transaction with the physical projection database.
+- A framework read opens the exact selected destination, checks its scope, reads, and validates the
+  pointer revision and binding again. A change retries up to three times, then fails explicitly.
+  A→B→A has a different revision and cannot pass as an unchanged read.
+- Cutover retains the previous member, cursor and physical destination. Explicit rollback requires the
+  current revision. Decommissioning removes a reader pointer with revision CAS; member retirement is
+  a separate fenced operation. Physical deletion waits until in-flight readers have drained.
+
+`ProjectionGenerationControl<T>` provides the registration-affine administrative surface, including
+source-affine inline subscription resolution. Normal APIs remain asynchronous. Consumers keep the
+subscription name stable; changing persisted projection semantics declares a new `ProjectionVersion`
+whose member and physical destination populate independently of unchanged siblings.
+
+## Backend and AOT boundaries
+
+Durable checkpoint/routing backends are SQL Server, PostgreSQL, Oracle and SQLite. The in-memory backend
+is volatile. Document/search projection stores may use one of these durable checkpoint backends; the
+projection storage provider need not match it. There is no distributed transaction between the stores.
+
+Generated reader overloads require `IAotProjectionGenerationReaderFactory<T>` and generated JSON
+metadata. Conventional overloads carry trimming/dynamic-code annotations. A missing generated
+capability is refused, never replaced silently with reflection. A passing diagnostic native executable
+is not strict AOT certification: the accepted SqlClient limitation remains separately recorded.
+
+## Verification
+
+`GenerationRoutingAcceptance` is invoked by all six no-alias provider integration fixtures. It uses
+real provider destinations plus SQLite pointer transactions and checks Get/Query/Count before and after:
+missing cursor, excessive lag, permitted nonzero lag, successful cutover, stale-revision refusal,
+retained prior binding, target retirement refusal, and intentional rollback. The old writer remains on
+its original destination. Separate conformance covers native search aliases, relational pointer and
+retirement races, tenant-bound handles, and generated SQL/Elasticsearch native reader execution.
+
+These are executable R2 claims with explicitly bounded infrastructure. The lifecycle model does not
+model generation pointers and is not cited as R4 evidence for cutover. No throughput, capacity, failover
+or production-SLO claim follows solely from these functional tests.
+
+## Limits and operational obligations
+
+The lag threshold is evaluated against an observed head; later appends can increase lag immediately.
+A generation can still be filling when the consumer-selected threshold admits it. A generation reader
+confirms which lifetime it read, not freshness against every newly committed event. Use a session read
+when a particular write must be observed.
+
+Only framework generation readers follow this pointer. Direct SDK reads, native search aliases and
+writer stores do not. Aliases can be changed explicitly through their provider administrative primitive,
+with its own verification; they are not silently updated by the database-pointer operation.
+
+Database constraints and atomic conditional writes are essential premises and are exercised against real
+engines. Keep required schema constraints/indexes installed. Unknown I/O or ambiguous commit outcomes
+must not be classified as known rolled-back contention. Reader retry bounds expose sustained contention
+rather than hiding it in an unbounded loop. Retired physical destinations need an operational retention
+policy that accommodates in-flight reads and rollback.

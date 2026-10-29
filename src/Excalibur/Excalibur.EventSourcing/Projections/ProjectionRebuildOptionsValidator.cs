@@ -46,6 +46,11 @@ internal sealed class ProjectionRebuildOptionsValidator : IValidateOptions<Proje
 				+ "Use 1 to rebuild projections sequentially.");
 		}
 
+        if (options.RebuildOnStartup && !options.OfflineRebuildAcknowledged)
+        {
+            failures.Add("RebuildOnStartup requires OfflineRebuildAcknowledged after all writers and other rebuild processes have stopped and drained.");
+        }
+
 		return failures.Count > 0
 			? ValidateOptionsResult.Fail(failures)
 			: ValidateOptionsResult.Success;

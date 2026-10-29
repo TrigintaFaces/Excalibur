@@ -34,6 +34,8 @@ public sealed class HydratedProjectionRebuildShould
         projection.AddHandler<HydratedConsumerFixture.AmountAdded>((state, message) => state.Total += message.Amount);
         var store = new TestProjectionStore<Amounts>();
         var services = new ServiceCollection();
+        services.AddSingleton<Excalibur.EventSourcing.Subscriptions.ISubscriptionCheckpointStore>(new Excalibur.EventSourcing.Subscriptions.InMemorySubscriptionCheckpointStore());
+        services.AddSingleton<IOptions<GlobalStreamProjectionOptions>>(Options.Create(new GlobalStreamProjectionOptions()));
         services.AddSingleton<IGlobalStreamQuery>(fixture.Query);
         services.AddSingleton(projection);
         services.AddSingleton<IProjectionStore<Amounts>>(store);
@@ -46,7 +48,7 @@ public sealed class HydratedProjectionRebuildShould
         _ = services.AllowUnpositionedProjectionRebuild();
         using var provider = services.BuildServiceProvider();
         var rebuild = new ProjectionRebuildService(provider, fixture.Serializer,
-            Options.Create(new ProjectionRebuildOptions { BatchSize = 10, BatchDelay = TimeSpan.Zero }),
+            Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true,  BatchSize = 10, BatchDelay = TimeSpan.Zero }),
             NullLogger<ProjectionRebuildService>.Instance);
 
         if (corruptLaterArchive)

@@ -101,10 +101,14 @@ internal sealed class ElasticSearchProjectionIndexIdentityValidator
 					ex);
 			}
 
-			// Derived exactly as ElasticSearchProjectionStore derives its own index: the simple type
-			// name through the one convention function. A second expression here would let the check
-			// and the store disagree, and the check would then pass on the composition that breaks.
-			var index = ElasticSearchProjectionIndexConvention.GetIndexName(options, projectionType.Name);
+			// Derived exactly as ElasticSearchProjectionStore derives its own index: the projection TYPE
+			// through the one convention function. A second expression here would let the check and the
+			// store disagree, and the check would then pass on the composition that breaks. The TYPE is
+			// passed rather than its name so the check sees the same declared generation the store does:
+			// two generations of one read model address two indices and must not be reported as a
+			// collision, while a consumer whose configured index name happens to equal another
+			// projection's generation-2 name still is.
+			var index = ElasticSearchProjectionIndexConvention.GetIndexName(options, projectionType);
 
 			// Nodes only, never the credential: two stores on one cluster under different credentials
 			// still overwrite each other, so folding the credential in here would separate them and

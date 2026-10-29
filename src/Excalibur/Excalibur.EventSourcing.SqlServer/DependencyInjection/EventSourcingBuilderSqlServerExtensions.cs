@@ -251,7 +251,8 @@ public static class EventSourcingBuilderSqlServerExtensions
 				builder.Services,
 				connectionFactory,
 				sqlBuilder.MaterializedViewTableName,
-				sqlBuilder.MaterializedViewPositionTableName);
+				sqlBuilder.MaterializedViewPositionTableName,
+				sqlBuilder.MaterializedViewSchemaName);
 		}
 
 		// Register health checks if enabled and connection string is available
@@ -365,7 +366,8 @@ public static class EventSourcingBuilderSqlServerExtensions
 		IServiceCollection services,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
 		string? viewTableName,
-		string? positionTableName)
+		string? positionTableName,
+		string schemaName)
 	{
 		// Idempotent single-tenant default, so GetRequiredService<ITenantContext>() below always resolves
 		// for a host that never registered multi-tenancy. A multi-tenant host registers its own first and
@@ -380,7 +382,9 @@ public static class EventSourcingBuilderSqlServerExtensions
 				sp.GetRequiredService<ILogger<SqlServerMaterializedViewStore>>(),
 				sp.GetRequiredService<ITenantContext>(),
 				viewTableName,
-				positionTableName);
+				positionTableName,
+				jsonOptions: null,
+				schemaName);
 		});
 	}
 	private sealed record ProviderBinding(

@@ -1,29 +1,8 @@
 # Cooperative projection design model
 
-> ## ⚠ UNCHECKED AS OF 2026-10-22. `checked-design-summary.json` IS STALE AND SAYS SO.
->
-> The search-visibility barrier has just been added as a **modeled step**. It was previously
-> neither modeled nor listed in `ABSTRACTED`, so the model asserted an ordering
-> (`Load → Apply → Commit`) one step shorter than the protocol that ships
-> (`AsyncProjectionProcessingHost.cs:460` awaits the barrier; the checkpoint CAS is at
-> `:232-233`; `IProjectionVisibilityBarrier.cs:9-12` makes it mandatory and makes its failure
-> prevent acknowledgment). An undeclared omission of the step that carries the silent-loss
-> property is a scope defect, not a modelling choice — a proof is valid only inside what was
-> modeled.
->
-> **Consequences, stated so nobody cites the wrong thing:**
-> - `checked-design-summary.json` records results for model SHA-256 `B247303C…`. The model now
->   hashes to `8DA10D1D…`. The file carries a `"STALE": true` marker and a reason; it must be
->   regenerated before any rung claim rests on it.
-> - **No R4 rung may be claimed from this model until the checker has run and printed its
->   verdict.** A generated or hand-edited formal artifact is a DRAFT; the checker has the final
->   word. That applies to this edit as much as to any other.
-> - Independently of the model's adequacy, the rung is **not declarable on the manifest as it is
->   shaped today**: `eng/governance/rigor-ladder.yaml` keys seams by `architecture_md` path, so
->   this subject falls inside the `event-sourcing` row, which carries **seven** declared
->   guarantees under one `met:` verdict. Claiming R4 there would assert a model-checked guarantee
->   for atomic append and tenant isolation on the strength of a model about projection
->   processing. The row must be split one-per-guarantee first.
+The full canonical run on 2026-10-29 checked the current visibility-barrier model after dead-scratch-state normalization. All nine protocol arms and the checker self-test returned their expected results. `checked-design-summary.json` records the exact model and toolchain hashes; compare its model hash with the source before citing it. Earlier results for the pre-barrier model are superseded.
+
+**Scope remains limited:** the historical manifest binder no longer matches production admission. Its mismatch/refusal arms are historical evidence, not a claim about today's per-projection roster. Current binding lifetime checks live in `../subscription-roster/BindingLifetime.tla`. This model does not establish external side-effect uniqueness, arbitrary provider behavior, or an R4 claim for every event-sourcing guarantee. Read the module's correspondence and limits before using its results.
 
 This is a finite design model, checked before the corresponding production concurrency change. It replaces leadership exclusion with cooperating readers, positioned projection writes, and an expected-position checkpoint CAS. It does not implement leadership-token fencing or prove uniqueness of external handler effects.
 
@@ -39,13 +18,13 @@ duplicate or superseded observed a *competing* writer's state, which may be acce
 refreshed. That is `skip-barrier-when-not-writing`, and it is a reachable silent loss rather than a
 theoretical concern.
 
-Run the nine independent checks with an existing Java runtime and TLC jar:
+Run the nine protocol checks and checker self-test with an existing Java runtime and TLC jar:
 
 ```powershell
 python check-cooperative-projection.py --java '<java.exe>' --jar '<tla2tools.jar>' --output '<new evidence directory>'
 ```
 
-Exit 0 means every requested arm returned its expected answer. Exit 1 means an unexpected answer. Exit 2 means the toolchain was unavailable or a run timed out; neither is a pass. Evidence includes complete logs, generated configurations, TLC state artifacts, Java version, jar SHA-256, and model SHA-256. A subset selected with `--only` is evidence for that subset only.
+Exit 0 means every requested arm returned its expected answer. Exit 1 means an unexpected answer. Exit 2 means the toolchain was unavailable, a run timed out, or Java exhausted its heap; none is a pass. An observed invariant failure remains a failure even if another arm cannot finish. Evidence includes complete logs, generated configurations, TLC state artifacts, Java version, jar SHA-256, and model SHA-256. A subset selected with `--only` is evidence for that subset only.
 
 | Arm | Required answer |
 | --- | --- |
@@ -125,3 +104,21 @@ The model has three actors: API and background polling in one process, plus Jobs
 Invariants cover permit ownership, manifest compatibility, row monotonicity, valid prefix folds, checkpoint coverage of every required row, checkpoint monotonicity, and — the pair added with the barrier — that a reader never observes more than the write path accepted (`VisibleNeverExceedsWritten`) and that nothing is acknowledged in the checkpoint that a reader cannot yet see (`CheckpointVisibility`). Temporal completion assumes weak fairness of each actor's ordinary steps, finite input, bounded faults, and terminating callbacks/storage. FIFO is a modeled requirement; this result does not establish fairness of a particular semaphore implementation.
 
 Limits: one-event pages, two rows, two events, no dynamic routing, no erasure/rebuild racing with normal folds, no unbounded fault stream, no external side effects, and no actual provider implementation. **On visibility specifically**, the barrier is one atomic step that publishes every required row, so per-row and per-index refresh granularity, partial refresh, and refresh cost are not modeled; and a reader's own staleness *after* a successful barrier (a replica lagging the refreshed primary) is not modeled. The model establishes the **ordering obligation** — no acknowledgement before visibility — and **no bound** on how stale a reader may be once the barrier has returned. All participating production stores must enforce positioned writes; falling back to unconditional upserts invalidates the premises. This is evidence about the stated protocol, not proof of production code or general parameter sizes.
+
+## Discarded page state
+
+`Release` and `Crash` reset the actor's six page-local scratch fields to their initial values. This merges states that differ only in completed or abandoned page history; it does not reduce the three actors, two processes, two rows, two events, or per-actor fault budgets.
+
+| Scratch field | Live use | Overwritten before the next use |
+| --- | --- | --- |
+| `base` | Checkpoint comparison in `Commit` | `Page` |
+| `target` | `Apply` and `Commit` | `Page` |
+| `row` | `Load` and `Apply` | `Page` |
+| `readPos`, `readValue` | Corresponding `Apply` after `Load` | `Load` |
+| `wrote` | Across applications within one page, including the skipped-barrier mutant | `Page` |
+
+Both reset transitions enter `Wait` or `Done`. `Acquire` reads no scratch fields; `Page` and `Load` overwrite them before their next use. The state relation preserves durable state, phases, gates, failure budgets and live scratch values. Enabled transitions and phase progression therefore agree, including `ActorStep` weak fairness and temporal `Completion`. The safety invariants do not inspect discarded scratch values; `TypeOK` only requires `wrote` to remain Boolean, which resetting it to `FALSE` preserves.
+
+Active `Load`–`Apply` windows remain unchanged, preserving the stale-write counterexample. `wrote` survives all applications in the current page, preserving the skipped-barrier controls. Crash, cancellation and barrier-fault budgets are never reset. This optimization still requires the full checker run; a timeout remains a refusal.
+
+The checker defaults to a 1,800-second timeout per arm and a 4,096 MiB Java heap. Override these with `--timeout` and `--heap-mb`, or `TLA_COOPERATIVE_TIMEOUT` and `TLA_COOPERATIVE_HEAP_MB` when using the canonical shell runner. These settings affect resources, not model bounds. TLC documents that an undersized heap can crash exploration and an oversized heap can slow the host; see its [memory options](https://nightly.tlapl.us/doc/model/tlc-options-page.html).

@@ -1,58 +1,33 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using Dapper;
-
-using Excalibur.EventSourcing.Oracle.Requests;
+using System.Data;
+using System.Data.Common;
+using System.Globalization;
 using Excalibur.EventSourcing.Subscriptions;
-
 using Oracle.ManagedDataAccess.Client;
+using Excalibur.EventSourcing.Oracle.Requests;
 
 namespace Excalibur.EventSourcing.Oracle;
 
-/// <summary>
-/// A durable <see cref="ISubscriptionCheckpointStore"/> backed by Oracle.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>Why a durable store is not optional.</b> The gapless global position exists so a catch-up
-/// subscriber can hold one number and never look back. An in-memory checkpoint forfeits that on every
-/// process start: the subscription replays the whole stream, which on an append-only store grows without
-/// bound, and every projection is rebuilt from zero after a restart or a deployment.
-/// </para>
-/// <para>
-/// <b>The advance is a compare-and-set, and every statement here is a single atomic one.</b> Two
-/// instances of the same subscription share one checkpoint row and race for it. A read-then-write would
-/// let the slower instance overwrite the faster one's progress with a lower mark, and the events between
-/// the two marks would then be delivered a second time.
-/// </para>
-/// <para>
-/// <b>The two prior states are distinct.</b> A caller passing <see langword="null"/> claims there is no
-/// checkpoint at all and must LOSE to a writer that has since created one, so that case is a plain
-/// INSERT with the primary key refusing the loser — never a MERGE. A MERGE would make the two prior
-/// states interchangeable and let a late-starting instance reset a live subscription.
-/// </para>
-/// <para>
-/// <b>Binding.</b> ODP.NET binds by POSITION unless told otherwise, and this request goes through Dapper
-/// rather than a hand-built command, so no placeholder is repeated: each appears exactly once and the
-/// parameters are added in the order the text uses them. That is correct under both binding modes.
-/// </para>
-/// </remarks>
-internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpointStore
+/// <summary>Persists each member lifetime and its nullable cursor in one atomic row.</summary>
+internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpointStore, IProjectionGenerationStore, IProjectionDestinationScope
 {
-	/// <summary>ORA-00001: unique constraint violated — the row already existed.</summary>
-	private const int UniqueConstraintViolated = 1;
+    string IProjectionDestinationScope.Scope
+    {
+        get
+        {
+            using var connection = _connectionFactory();
+            return string.IsNullOrWhiteSpace(connection.DataSource)
+                ? string.Empty
+                : "oracle/" + Uri.EscapeDataString(connection.DataSource);
+        }
+    }
 
 	private readonly Func<OracleConnection> _connectionFactory;
 	private readonly string _table;
-	private readonly string _definitionsTable;
+	private readonly RelationalProjectionGenerationStore _generations;
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="OracleSubscriptionCheckpointStore"/> class.
-	/// </summary>
-	/// <param name="connectionFactory">Creates a connection to the checkpoint database.</param>
-	/// <param name="schema">The schema holding the checkpoint table. Default: "EXCALIBUR".</param>
-	/// <param name="table">The checkpoint table name. Default: "SUBSCRIPTIONCHECKPOINTS".</param>
 	internal OracleSubscriptionCheckpointStore(
 		Func<OracleConnection> connectionFactory,
 		string schema = "EXCALIBUR",
@@ -62,176 +37,152 @@ internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpoin
 
 		_connectionFactory = connectionFactory;
 		_table = OracleTableName.Format(schema, table);
-		var definitionsTable = table + "DEFINITIONS";
-		if (definitionsTable.Length > 128)
-		{
-			throw new ArgumentException("The derived subscription definitions table name exceeds the provider identifier limit.", nameof(table));
-		}
-
-		_definitionsTable = OracleTableName.Format(schema, definitionsTable);
+		_generations = new(OpenAsync, Command, static error => error is OracleException { Number: 1 or 60 or 8177 or 2291 or 2292 }, _table, OracleTableName.Format(schema, table + "READERS"), oracle: true);
 	}
 
-	/// <inheritdoc />
-	public async Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+
+
+	public Task<ProjectionGeneration?> ReadGenerationAsync(string subscriptionName, string readerName, CancellationToken cancellationToken) =>
+		_generations.ReadGenerationAsync(subscriptionName, readerName, cancellationToken);
+
+	public Task<bool> TrySetGenerationAsync(string subscriptionName, string readerName, Guid? expectedRevision,
+		string projectionKey, Guid bindingId, long minimumPosition, CancellationToken cancellationToken) =>
+		_generations.TrySetGenerationAsync(subscriptionName, readerName, expectedRevision, projectionKey, bindingId, minimumPosition, cancellationToken);
+
+	public Task<bool> TryRemoveGenerationAsync(string subscriptionName, string readerName, Guid expectedRevision, CancellationToken cancellationToken) =>
+		_generations.TryRemoveGenerationAsync(subscriptionName, readerName, expectedRevision, cancellationToken);
+
+	public async Task<SubscriptionRoster> BindSubscriptionAsync(string subscriptionName,
+		IReadOnlyList<SubscriptionMember> members, CancellationToken cancellationToken)
 	{
-		SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
-		cancellationToken.ThrowIfCancellationRequested();
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		try
+		SubscriptionDefinitionValidation.Validate(subscriptionName, members);
 		{
-#pragma warning disable CA2100 // Identifiers validated in the constructor
-			_ = await connection.ExecuteAsync(new CommandDefinition(
-				$"INSERT INTO {_definitionsTable} (SUBSCRIPTIONNAME, DEFINITIONHASH) VALUES (:Name, :Hash)",
-				new { Name = subscriptionName, Hash = definitionHash },
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		foreach (var member in members)
+		{
+			await using var command = Command(connection,
+				$"INSERT INTO {_table} (SubscriptionName, ProjectionKey, DefinitionHash, Destination, BindingId, DestinationScope) VALUES (:Name, :Key, :Hash, :Destination, :BindingId, :Scope)",
+				("Name", subscriptionName), ("Key", member.ProjectionKey), ("Hash", member.DefinitionHash),
+				("Destination", member.Destination), ("BindingId", Guid.NewGuid().ToString("D")), ("Scope", member.DestinationScope));
+			try { _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false); }
+			catch (OracleException error) when (error.Number == 1) { /* The existing row wins; validate its definition below. */ }
 		}
-		catch (Exception ex) when (IsUniqueViolation(ex))
-		{
-			// The immutable primary-key winner is compared below. A collision never overwrites it.
 		}
-
-		// No operation in this contract changes or deletes a definition. A separate read after the
-		// insert therefore observes the same immutable winner even when another instance won first.
-#pragma warning disable CA2100 // Identifiers validated in the constructor
-		var actual = await connection.ExecuteScalarAsync<string>(new CommandDefinition(
-			$"SELECT DEFINITIONHASH FROM {_definitionsTable} WHERE SUBSCRIPTIONNAME = :Name",
-			new { Name = subscriptionName },
-			cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
-	}
-
-	/// <inheritdoc />
-	public async Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in OracleTableName.Format
-		return await connection.ExecuteScalarAsync<long?>(
-			new CommandDefinition(
-				$"SELECT POSITION FROM {_table} WHERE SUBSCRIPTIONNAME = :Name",
-				new { Name = subscriptionName },
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-	}
-
-	/// <inheritdoc />
-	public async Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
-		string subscriptionName,
-		long? expectedPosition,
-		long newPosition,
-		CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
-		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
-		if (expectedPosition is { } prior)
+		var roster = await ReadSubscriptionAsync(subscriptionName, cancellationToken).ConfigureAwait(false);
+		var stored = roster.Members.ToDictionary(static member => member.ProjectionKey, StringComparer.Ordinal);
+		foreach (var member in members)
 		{
-			ArgumentOutOfRangeException.ThrowIfNegative(prior, nameof(expectedPosition));
-			ArgumentOutOfRangeException.ThrowIfLessThan(newPosition, prior);
-		}
-
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		if (expectedPosition is { } expected)
-		{
-			// One statement: the predicate carries the expectation, so the row is matched and written
-			// atomically. Nothing updated means the row is not where the caller believed.
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in OracleTableName.Format
-			var affected = await connection.ExecuteAsync(
-				new CommandDefinition(
-					$"""
-					UPDATE {_table}
-					SET POSITION = :NewPosition, UPDATEDAT = SYSTIMESTAMP
-					WHERE SUBSCRIPTIONNAME = :Name AND POSITION = :Expected
-					""",
-					new { NewPosition = newPosition, Name = subscriptionName, Expected = expected },
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-
-			return affected == 1 ? CheckpointAdvanceOutcome.Advanced : CheckpointAdvanceOutcome.Superseded;
-		}
-
-		try
-		{
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in OracleTableName.Format
-			_ = await connection.ExecuteAsync(
-				new CommandDefinition(
-					$"""
-					INSERT INTO {_table} (SUBSCRIPTIONNAME, POSITION, UPDATEDAT)
-					VALUES (:Name, :NewPosition, SYSTIMESTAMP)
-					""",
-					new { Name = subscriptionName, NewPosition = newPosition },
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-
-			return CheckpointAdvanceOutcome.Advanced;
-		}
-		catch (Exception ex) when (IsUniqueViolation(ex))
-		{
-			// A row already exists, so the caller's "there is no checkpoint" belief was wrong. An
-			// ordinary outcome of the race, reported rather than thrown.
-			return CheckpointAdvanceOutcome.Superseded;
-		}
-	}
-
-	/// <inheritdoc />
-	public async Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(
-		CancellationToken cancellationToken)
-	{
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in OracleTableName.Format
-		var rows = await connection.QueryAsync<CheckpointRow>(
-			new CommandDefinition(
-				$"SELECT SUBSCRIPTIONNAME AS SubscriptionName, POSITION AS Position FROM {_table}",
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-
-		return [.. rows.Select(static r => new SubscriptionCheckpoint(r.SubscriptionName, (long)r.Position))];
-	}
-
-	/// <summary>
-	/// Recognises ORA-00001 anywhere in the exception chain.
-	/// </summary>
-	/// <remarks>
-	/// The chain is walked rather than the outermost type matched, because the data-request seam wraps
-	/// whatever the driver raised; matching only the outer type silently never fires.
-	/// </remarks>
-	private static bool IsUniqueViolation(Exception? ex)
-	{
-		for (var current = ex; current is not null; current = current.InnerException)
-		{
-			if (current is OracleException { Number: UniqueConstraintViolated })
+			if (!stored.TryGetValue(member.ProjectionKey, out var bound))
 			{
-				return true;
+				throw new InvalidOperationException("A member was retired while binding the subscription. Retry the binding.");
 			}
+			SubscriptionDefinitionValidation.RequireMemberMatch(subscriptionName, member, bound);
 		}
-
-		return false;
+		return roster;
 	}
 
-	/// <summary>Row shape for <see cref="EnumerateCheckpointsAsync"/>.</summary>
-	/// <remarks>
-	/// <para>
-	/// Named explicitly rather than materialized into <see cref="SubscriptionCheckpoint"/> directly: that
-	/// type is a positional record struct, and mapping a SELECT onto one depends on column order rather
-	/// than column name, which breaks silently the moment the projection changes.
-	/// </para>
-	/// <para>
-	/// <c>Position</c> is <see cref="decimal"/>, not <see cref="long"/>: Oracle returns NUMBER(19) as a
-	/// decimal, which does not bind to a <see cref="long"/> constructor parameter, so Dapper fails to
-	/// materialize the row at all. This mirrors <c>LoadEventsRequest.OracleEventRow</c> and
-	/// <c>GetLatestSnapshotRequest.SnapshotData</c> in this package, which solved the identical problem.
-	/// </para>
-	/// </remarks>
-	private sealed record CheckpointRow(string SubscriptionName, decimal Position);
+	public async Task<SubscriptionRoster> ReadSubscriptionAsync(string subscriptionName, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.ValidateName(subscriptionName, nameof(subscriptionName), 255);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"SELECT ProjectionKey, DefinitionHash, Destination, BindingId, Position, DestinationScope FROM {_table} WHERE SubscriptionName COLLATE BINARY = :Name", ("Name", subscriptionName));
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+		var members = new List<SubscriptionMember>();
+		while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+		{
+			members.Add(new SubscriptionMember(reader.GetString(0), reader.GetString(1),
+				(await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false)) ? string.Empty : reader.GetString(2))
+			{
+				BindingId = Guid.Parse(reader.GetString(3)),
+                DestinationScope = await reader.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(5),
+				Position = (await reader.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false)) ? null : Convert.ToInt64(reader.GetValue(4), CultureInfo.InvariantCulture),
+			});
+		}
+		return new SubscriptionRoster(subscriptionName, members.AsReadOnly());
+	}
+
+	public async Task<bool> ReleaseSubscriptionMemberAsync(string subscriptionName, string projectionKey,
+		Guid bindingId, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.ValidateBinding(subscriptionName, projectionKey, bindingId);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"DELETE FROM {_table} WHERE SubscriptionName COLLATE BINARY = :Name AND ProjectionKey COLLATE BINARY = :Key AND BindingId COLLATE BINARY = :BindingId",
+			("Name", subscriptionName), ("Key", projectionKey), ("BindingId", bindingId.ToString("D")));
+		try { return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1; }
+		catch (DbException error) when (error is OracleException { Number: 1 or 60 or 8177 or 2291 or 2292 }) { return false; }
+	}
+
+	public async Task<long?> GetCheckpointAsync(string subscriptionName, string projectionKey, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.ValidateName(subscriptionName, nameof(subscriptionName), 255);
+		SubscriptionDefinitionValidation.ValidateName(projectionKey, nameof(projectionKey), 512);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"SELECT Position FROM {_table} WHERE SubscriptionName COLLATE BINARY = :Name AND ProjectionKey COLLATE BINARY = :Key",
+			("Name", subscriptionName), ("Key", projectionKey));
+		var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+		return value is null or DBNull ? null : Convert.ToInt64(value, CultureInfo.InvariantCulture);
+	}
+
+	public async Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(string subscriptionName, string projectionKey,
+		Guid bindingId, long? expectedPosition, long newPosition, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.ValidateAdvance(subscriptionName, projectionKey, bindingId, expectedPosition, newPosition);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		var expected = expectedPosition.HasValue ? "Position = :Expected" : "Position IS NULL";
+		await using var command = Command(connection,
+			$"UPDATE {_table} SET Position = :Position WHERE SubscriptionName COLLATE BINARY = :Name AND ProjectionKey COLLATE BINARY = :Key AND BindingId COLLATE BINARY = :BindingId AND {expected}",
+			("Position", newPosition), ("Name", subscriptionName), ("Key", projectionKey), ("BindingId", bindingId.ToString("D")));
+		if (expectedPosition is { } prior) { AddParameter(command, "Expected", prior); }
+		return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1
+			? CheckpointAdvanceOutcome.Advanced : CheckpointAdvanceOutcome.Superseded;
+	}
+
+	public async Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"SELECT SubscriptionName, ProjectionKey, Position FROM {_table} WHERE Position IS NOT NULL");
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+		var checkpoints = new List<SubscriptionCheckpoint>();
+		while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+		{
+			checkpoints.Add(new SubscriptionCheckpoint(reader.GetString(0), reader.GetString(1),
+				Convert.ToInt64(reader.GetValue(2), CultureInfo.InvariantCulture)));
+		}
+		return checkpoints;
+	}
+
+	private async Task<DbConnection> OpenAsync(CancellationToken cancellationToken)
+	{
+		var connection = _connectionFactory();
+		try
+		{
+			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+			return connection;
+		}
+		catch { await connection.DisposeAsync().ConfigureAwait(false); throw; }
+	}
+
+	private static DbCommand Command(DbConnection connection, string sql, params (string Name, object? Value)[] parameters)
+	{
+		var command = connection.CreateCommand();
+#pragma warning disable CA2100 // Only provider-owned SQL and constructor-validated identifiers reach this helper.
+		command.CommandText = sql;
+#pragma warning restore CA2100
+		((OracleCommand)command).BindByName = true;
+		foreach (var (name, value) in parameters) { AddParameter(command, name, value); }
+		return command;
+	}
+
+	private static void AddParameter(DbCommand command, string name, object? value)
+	{
+		var parameter = command.CreateParameter();
+		parameter.ParameterName = name;
+		parameter.DbType = value is long ? DbType.Int64 : DbType.String;
+		parameter.Value = value ?? DBNull.Value;
+		_ = command.Parameters.Add(parameter);
+	}
 }

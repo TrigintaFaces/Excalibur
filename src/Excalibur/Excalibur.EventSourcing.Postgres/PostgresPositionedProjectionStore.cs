@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Data;
@@ -46,14 +46,21 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 	where TProjection : class
 {
 	private readonly Func<NpgsqlConnection> _connectionFactory;
-	private readonly string _tableName;
+	private readonly string _qualifiedTable;
 
+	/// <param name="connectionFactory">Creates the connections the statements here run on.</param>
+	/// <param name="qualifiedTable">
+	/// The schema-qualified, already-quoted table name, composed once by the owning store. It is taken
+	/// pre-composed so there is one resolution site per store and this type never re-derives it or parses
+	/// it back apart: both halves must address the same table, or a conditional write could read one
+	/// table and write another.
+	/// </param>
 	internal PostgresPositionedProjectionStore(
 		Func<NpgsqlConnection> connectionFactory,
-		string tableName)
+		string qualifiedTable)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-		_tableName = tableName ?? throw new ArgumentNullException(nameof(tableName));
+		_qualifiedTable = qualifiedTable ?? throw new ArgumentNullException(nameof(qualifiedTable));
 	}
 
 	/// <summary>Reads the state and the position in one statement.</summary>
@@ -69,10 +76,10 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		// ONE statement. Reading state and position separately admits a writer between them, after which
 		// the caller's expected position certifies a prefix its state does not contain -- and the
 		// conditional write then ACCEPTS, losing every event in the gap.
-#pragma warning disable CA2100 // Table name is a validated configured identifier, quoted below
+#pragma warning disable CA2100 // Schema and table are validated configured identifiers, quoted by the owning store
 		var sql =
 			$"""SELECT data AS "Data", last_applied_position AS "LastAppliedPosition" """
-			+ $"""FROM "{_tableName}" WHERE id = @Id AND tenant_id = @TenantId;""";
+			+ $"""FROM {_qualifiedTable} WHERE id = @Id AND tenant_id = @TenantId;""";
 #pragma warning restore CA2100
 
 		await using var connection = _connectionFactory();
@@ -97,7 +104,7 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		// could see.
 		var position = ProjectionPosition.FromStored(row.LastAppliedPosition);
 
-		return (row.Data, position);
+		return (position.Kind == ProjectionPositionKind.Retired ? null : row.Data, position);
 	}
 
 	/// <summary>Writes the state and the position together, conditionally.</summary>
@@ -145,16 +152,16 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		// none: the server refuses to plan the statement at all, with 42P08 "could not determine data
 		// type of parameter". Measured against a real server -- without the casts EVERY positioned write
 		// on this provider threw, and no mocked connection could have shown it.
-#pragma warning disable CA2100 // Table name is a validated configured identifier, quoted below
+#pragma warning disable CA2100 // Schema and table are validated configured identifiers, quoted by the owning store
 		var sql = $"""
 			WITH attempted AS (
-			    INSERT INTO "{_tableName}" (id, data, created_at, updated_at, tenant_id, last_applied_position)
+			    INSERT INTO {_qualifiedTable} (id, data, created_at, updated_at, tenant_id, last_applied_position)
 			    SELECT @Id, @Data::jsonb, @UpdatedAt, @UpdatedAt, @TenantId, @NewPosition::bigint
 			    WHERE @ExpectedPosition::bigint IS NULL
 			    ON CONFLICT (id, tenant_id) DO NOTHING
 			    RETURNING last_applied_position
 			), updated AS (
-			    UPDATE "{_tableName}" t
+			    UPDATE {_qualifiedTable} t
 			    SET data = @Data::jsonb, updated_at = @UpdatedAt, last_applied_position = @NewPosition
 			    WHERE t.id = @Id AND t.tenant_id = @TenantId
 			      AND @ExpectedPosition::bigint IS NOT NULL
@@ -164,7 +171,7 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 			)
 			SELECT
 			    (SELECT COUNT(*) FROM attempted) + (SELECT COUNT(*) FROM updated) AS "Wrote",
-			    (SELECT last_applied_position FROM "{_tableName}"
+			    (SELECT last_applied_position FROM {_qualifiedTable}
 			     WHERE id = @Id AND tenant_id = @TenantId) AS "CurrentPosition";
 			""";
 #pragma warning restore CA2100
@@ -211,6 +218,11 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		// its position, where ProjectionPositionKind reports it as a measured fact.
 		static ProjectionAdvanceResult Refused(long current)
 		{
+			if (current == ProjectionPosition.RetiredSentinel)
+			{
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+			}
+
 			var held = ProjectionPosition.FromStored(current);
 			return held.Kind == ProjectionPositionKind.Positioned
 				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, held.Value)
@@ -236,13 +248,14 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 		ArgumentNullException.ThrowIfNull(data);
 
-#pragma warning disable CA2100 // Table name is a validated configured identifier, quoted below
+#pragma warning disable CA2100 // Schema and table are validated configured identifiers, quoted by the owning store
 		var sql = $"""
-		           INSERT INTO "{_tableName}" (id, data, created_at, updated_at, tenant_id, last_applied_position)
+		           INSERT INTO {_qualifiedTable} AS target (id, data, created_at, updated_at, tenant_id, last_applied_position)
 		           VALUES (@Id, @Data::jsonb, @UpdatedAt, @UpdatedAt, @TenantId, @Unnumbered)
 		           ON CONFLICT (id, tenant_id)
 		           DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at,
 		                         last_applied_position = EXCLUDED.last_applied_position
+		           WHERE target.last_applied_position IS DISTINCT FROM @Retired
 		           """;
 #pragma warning restore CA2100
 
@@ -252,11 +265,16 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		parameters.Add("@UpdatedAt", DateTimeOffset.UtcNow);
 		parameters.Add("@TenantId", tenantId);
 		parameters.Add("@Unnumbered", ProjectionPosition.Unnumbered.ToStored());
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-		_ = await connection.ExecuteAsync(
+		var affected = await connection.ExecuteAsync(
 			new CommandDefinition(sql, parameters, cancellationToken: cancellationToken)).ConfigureAwait(false);
+		if (affected == 0)
+		{
+			throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+		}
 	}
 
 	/// <summary>
@@ -287,11 +305,12 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
 		ArgumentNullException.ThrowIfNull(data);
 
-#pragma warning disable CA2100 // Table name is a validated configured identifier, quoted below
+#pragma warning disable CA2100 // Schema and table are validated configured identifiers, quoted by the owning store
 		var sql = $"""
-		           UPDATE "{_tableName}"
+		           UPDATE {_qualifiedTable}
 		           SET data = @Data::jsonb, updated_at = @UpdatedAt, last_applied_position = @NewPosition
 		           WHERE id = @Id AND tenant_id = @TenantId
+		             AND last_applied_position IS DISTINCT FROM @Retired
 		           """;
 #pragma warning restore CA2100
 
@@ -301,6 +320,7 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		parameters.Add("@UpdatedAt", DateTimeOffset.UtcNow);
 		parameters.Add("@TenantId", tenantId);
 		parameters.Add("@NewPosition", ProjectionPosition.At(newPosition).ToStored());
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -343,10 +363,10 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		ArgumentOutOfRangeException.ThrowIfNegative(atPosition);
 		ArgumentNullException.ThrowIfNull(data);
 
-#pragma warning disable CA2100 // Table name is a validated configured identifier, quoted below
+#pragma warning disable CA2100 // Schema and table are validated configured identifiers, quoted by the owning store
 		var sql = $"""
 			WITH refolded AS (
-			    UPDATE "{_tableName}" t
+			    UPDATE {_qualifiedTable} t
 			    SET data = @Data::jsonb, updated_at = @UpdatedAt
 			    WHERE t.id = @Id AND t.tenant_id = @TenantId
 			      AND t.last_applied_position = @AtPosition::bigint
@@ -354,7 +374,7 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 			)
 			SELECT
 			    (SELECT COUNT(*) FROM refolded) AS "Wrote",
-			    (SELECT last_applied_position FROM "{_tableName}"
+			    (SELECT last_applied_position FROM {_qualifiedTable}
 			     WHERE id = @Id AND tenant_id = @TenantId) AS "CurrentPosition";
 			""";
 #pragma warning restore CA2100
@@ -378,6 +398,11 @@ internal sealed class PostgresPositionedProjectionStore<TProjection>
 		}
 
 		if (outcome.CurrentPosition is not { } current)
+		{
+			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+		}
+
+		if (current == ProjectionPosition.RetiredSentinel)
 		{
 			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
 		}

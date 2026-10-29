@@ -61,9 +61,11 @@ starts to matter.
 
 ## Why the API drives projections instead of hosting them
 
-`POST /orders` saves and then calls `IProjectionProcessor.ProcessPendingAsync` before returning, so
-the list screen reflects the write by the time the caller's next request arrives — with no session
-token on the read.
+`POST /orders` saves and then calls `IProjectionProcessor.ProcessPendingAsync` before returning.
+The response reports the processing outcome. Each call processes a finite page: backlog, contention,
+or a halted processor can leave the list behind the committed write. For a bounded read-your-writes
+guarantee in a production API, pass the returned session token to `IProjectionSessionReader` and inspect
+its freshness result.
 
 It registers `AddProjectionProcessor()`, which supplies the processor and **no** background worker.
 That matters on IIS: an application pool idles out and recycles, and a `BackgroundService` dies with
@@ -92,9 +94,10 @@ duplicates deliberately so they can be counted.
 
 ### 1. Read-your-writes without a session token
 
-Run `api` alone. `POST /orders`, then `GET /orders`. The order is present, because the write drove
-the projection before returning. `projectionsApplied` in the response says how many events that
-drive applied.
+Run `api` alone against the fresh sample database. `POST /orders`, then `GET /orders`. With no
+backlog, the order is present because the write drove its projection before returning.
+`projectionsApplied` reports how many events that drive applied; it is not a freshness guarantee for
+an arbitrary backlog. Check `projectionOutcome` and use a session read when confirmation is required.
 
 ### 2. A first delivery is not a replay
 
@@ -123,10 +126,16 @@ Use an event-identifier idempotency key for real external effects.
 
 Both roles use `ProjectionName = "OrderSummaries"`, scope
 `"two-process-orders/sql-events/sql-order-summary"`, revision `"1"`, and the same projection registrations.
-The stable name is bound atomically to that definition. Starting another processor with different
-projections, scope or revision under that name is refused before effects instead of silently skipping
-another process's read models. To change semantics, choose a new subscription name and deliberately
-rebuild or cut over its destination.
+Keep that subscription name stable when adding projections. Each projection generation has its own
+durable binding and checkpoint: a new member catches up from the beginning while existing members
+retain their progress. Both roles must agree on the definition and destination of each shared member.
+An incompatible change to an existing member is refused before it can advance that member.
+
+For changed projection semantics, declare a new `[ProjectionVersion]`, populate its separate destination,
+and deliberately switch compatible readers after it catches up. Arbitrary handler-body changes are not
+detected automatically. Removing a registration does not retire its durable member; retire it explicitly
+after stopping its writers. See [Evolving projections](../../../docs-site/docs/event-sourcing/projection-evolution.md)
+for generation readers, guarded cutover, rollback and retirement.
 
 Manual calls and the background worker may also coexist in one process: a fair local gate protects one
 finite page and is released before polling sleeps. Across processes, positioned writes and checkpoint
@@ -172,3 +181,20 @@ protocol and fault bounds; it does not prove the providers or this sample correc
 
 Projection processing does not inherit ambient leader election or the outbox lease. The sample's effect
 log deliberately counts duplicate attempts; it is instrumentation, not an exactly-once delivery mechanism.
+
+## Evolving the read model
+
+Keep `OrderSummaries` as the subscription name in both roles when adding another projection. Each projection generation has its own durable checkpoint; the new member catches up from zero while existing members retain their progress.
+
+`OrderSummary` declares `[ProjectionVersion(1)]`. Increment that version when its persisted meaning changes. The sample derives its table DDL using the same version convention as the store, so version 2 provisions `SampleOrderSummary_v2`. The ordinary processor populates it from events. Keep the previous deployment running during catch-up when old readers must remain available.
+
+The sample's existing endpoints read their declared version directly. For a coordinated online reader switch, use `ProjectionGenerationReader<T>` and the checkpoint-backed cutover gate described in [Evolving projections](../../../docs-site/docs/event-sourcing/projection-evolution.md). Deploy a reader compatible with both schemas before switching. A renamed property is not automatically converted.
+
+Aggregate snapshots are optional and do not populate projections. New generations replay retained events; existing generations resume from their own checkpoints. In-place repair requires all writers and other rebuilds to be stopped and drained and an explicit `OfflineRebuildAcknowledged` setting. Prefer a new empty generation for online changes and for replacement that must remove obsolete rows.
+
+Projection storage admission is registered automatically. Defaults allow four reads and four writes
+per configured resource, with an application-wide limit of 16 operations. Each host has its own
+budget. For smaller shared databases, configure `ProjectionCapacityOptions` with lower limits;
+reserve capacity for other application work. These limits govern framework logical operations,
+not exact SDK connection counts. See the projection evolution documentation for queue metrics,
+resource identity, and deployment limits.

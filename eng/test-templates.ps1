@@ -44,6 +44,15 @@ $script:FailCount = 0
 $script:Failures = @()
 $PSNativeCommandUseErrorActionPreference = $false
 . (Join-Path $PSScriptRoot 'package-composition.functions.ps1')
+function Get-TemplateInputHash {
+    param([Parameter(Mandatory)][string]$Path)
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    }
+    if (Test-Path -LiteralPath $Path) { throw "Template input is not a file: $Path" }
+    # Git still lists tracked files deleted in the candidate checkout. Their absence is an input.
+    return 'deleted'
+}
 $TemplateHiveArguments = @()
 $TemplateVariants = @()
 
@@ -94,7 +103,7 @@ if ($LocalFeed) {
 }
 $inputPaths = @(git -C $RepoRoot ls-files --cached --others --exclude-standard -- templates eng/test-templates.ps1 eng/test-templates.test.ps1 | Sort-Object -Unique)
 if ($LASTEXITCODE -ne 0) { throw 'Cannot enumerate template candidate inputs.' }
-$script:TemplateInputHashes = @($inputPaths | ForEach-Object { @{path=$_; sha256=(Get-FileHash -LiteralPath (Join-Path $RepoRoot $_) -Algorithm SHA256).Hash} })
+$script:TemplateInputHashes = @($inputPaths | ForEach-Object { @{path=$_; sha256=(Get-TemplateInputHash (Join-Path $RepoRoot $_))} })
 $script:TemplateInputHashes |
     ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $TemplateEvidenceDir 'source-inputs.json') -Encoding utf8
 
@@ -795,7 +804,7 @@ function Invoke-Cleanup {
         }
         foreach ($input in $script:TemplateInputHashes) {
             $path = Join-Path $RepoRoot $input.path
-            if (-not (Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $input.sha256) {
+            if ((Get-TemplateInputHash $path) -cne $input.sha256) {
                 Write-TestResult 'Template input remained unchanged' $false $input.path
             }
         }

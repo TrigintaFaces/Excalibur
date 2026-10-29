@@ -300,7 +300,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	internal void Build(IProjectionRegistry registry)
 	{
-        BuildCore(registry, static sp => ProjectionStoreOperations<TProjection>.Legacy(sp.GetRequiredService<IProjectionStore<TProjection>>()),
+        BuildCore(registry, static sp => ProjectionStoreOperations<TProjection>.Legacy(sp.GetRequiredService<IProjectionStore<TProjection>>()).WithCapacity(sp),
             CreateClearForAggregateDelegate());
     }
 
@@ -428,14 +428,14 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = resolveStore(serviceProvider);
-			var positioned = store.ResolveRequired(events);
+			var positioned = store.ResolveRequired(events, type => projection.GetHandler(type) is not null);
 
 			// The handler context is built PER EVENT inside the loop below, not once here: a batch can
 			// span aggregates, so there is no single aggregate id that describes the whole call.
 
 			// Multi-ID: lazily loaded projection instances keyed by projection ID (D1)
 			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
-			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+			var readPositions = new Dictionary<string, ProjectionPosition>(StringComparer.Ordinal);
 			var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
 			foreach (var projectionEvent in events)
@@ -631,7 +631,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						positioned,
 						id,
 						state,
-						readPositions.TryGetValue(id, out var readAt) ? readAt : null,
+						readPositions.TryGetValue(id, out var readAt) ? readAt.ExpectedPositionOrNull : null,
 						PositionedProjectionWriter<TProjection>.HighestPosition(applied),
 						cancellationToken)
 					.ConfigureAwait(false);
@@ -661,7 +661,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		// and the conditional write accepts -- losing every event in the gap.
 		static async Task<TProjection> GetOrLoadAsync(
 			Dictionary<string, TProjection> cache,
-			Dictionary<string, long?> readPositions,
+			Dictionary<string, ProjectionPosition> readPositions,
 			ProjectionStoreOperations<TProjection> store,
 			ProjectionStoreOperations<TProjection>? positioned,
 			string id,
@@ -669,12 +669,12 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		{
 			if (!cache.TryGetValue(id, out var state))
 			{
-				long? readAt = null;
+				var readAt = ProjectionPosition.Unplaceable;
 				if (positioned is not null)
 				{
 					(state, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
 						.ConfigureAwait(false);
-					readAt = readAtPos.ExpectedPositionOrNull;
+					readAt = readAtPos;
 				}
 				else
 				{
@@ -707,10 +707,10 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			return async (events, context, serviceProvider, cancellationToken) =>
 			{
 				var store = resolveStore(serviceProvider);
-				var positioned = store.ResolveRequired(events);
+				var positioned = store.ResolveRequired(events, type => projection.GetHandler(type) is not null);
 
 				var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
-				var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+				var readPositions = new Dictionary<string, ProjectionPosition>(StringComparer.Ordinal);
 				var folded = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
 				foreach (var projectionEvent in events)
@@ -734,12 +734,12 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						// State and position read TOGETHER when the store records one: reading them
 						// separately lets a writer interleave, after which the position the caller holds
 						// certifies a prefix its state does not contain and the conditional write accepts.
-						long? readAt = null;
+						var readAt = ProjectionPosition.Unplaceable;
 						if (positioned is not null)
 						{
 							(state, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
 								.ConfigureAwait(false);
-							readAt = readAtPos.ExpectedPositionOrNull;
+							readAt = readAtPos;
 						}
 						else
 						{
@@ -796,7 +796,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 							positioned,
 							id,
 							state,
-							readPositions[id],
+							readPositions[id].ExpectedPositionOrNull,
 							PositionedProjectionWriter<TProjection>.HighestPosition(folded[id]),
 							cancellationToken)
 						.ConfigureAwait(false);
@@ -817,10 +817,10 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 		return async (events, context, serviceProvider, cancellationToken) =>
 		{
 			var store = resolveStore(serviceProvider);
-			var positioned = store.ResolveRequired(events);
+			var positioned = store.ResolveRequired(events, type => projection.GetHandler(type) is not null);
 
 			var projections = new Dictionary<string, TProjection>(StringComparer.Ordinal);
-			var readPositions = new Dictionary<string, long?>(StringComparer.Ordinal);
+			var readPositions = new Dictionary<string, ProjectionPosition>(StringComparer.Ordinal);
 			var applied = new Dictionary<string, List<ProjectionEvent>>(StringComparer.Ordinal);
 
 			foreach (var projectionEvent in events)
@@ -842,12 +842,12 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 					// Reading them separately lets a writer interleave, after which the position the
 					// caller holds certifies a prefix its state does not contain -- and the conditional
 					// write then ACCEPTS, losing every event in between.
-					long? readAt = null;
+					var readAt = ProjectionPosition.Unplaceable;
 					if (positioned is not null)
 					{
 						(state, var readAtPos) = await positioned.GetWithPositionAsync(id, cancellationToken)
 							.ConfigureAwait(false);
-						readAt = readAtPos.ExpectedPositionOrNull;
+						readAt = readAtPos;
 					}
 					else
 					{
@@ -900,7 +900,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 						positioned,
 						id,
 						state,
-						readPositions[id],
+						readPositions[id].ExpectedPositionOrNull,
 						PositionedProjectionWriter<TProjection>.HighestPosition(applied[id]),
 						cancellationToken)
 					.ConfigureAwait(false);

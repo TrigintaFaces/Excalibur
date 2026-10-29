@@ -18,7 +18,7 @@ public sealed class ProjectionRebuildSummary
 	public required string OperationId { get; init; }
 
 	/// <summary>
-	/// Gets the projection type.
+	/// Gets the fully qualified projection type name.
 	/// </summary>
 	/// <value>
 	/// The projection type.

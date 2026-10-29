@@ -64,6 +64,11 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 	internal Func<CancellationToken, Task>? OnAfterViewBeforePositionAsync { get; set; }
 	private readonly string _viewTableName;
 	private readonly string _positionTableName;
+
+	// Composed ONCE in the constructor and used by every statement. Never taken apart again: a
+	// statement that re-derived the name from its parts is a second chance to resolve a different one.
+	private readonly string _qualifiedViewTable;
+	private readonly string _qualifiedPositionTable;
 	private readonly ILogger<SqlServerMaterializedViewStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
 
@@ -80,14 +85,20 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 	/// <param name="viewTableName">Optional view table name. Defaults to "MaterializedViews".</param>
 	/// <param name="positionTableName">Optional position table name. Defaults to "MaterializedViewPositions".</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="schemaName">
+	/// The schema holding both tables. Defaults to <c>dbo</c>. Honoured by every statement this store
+	/// runs, including the DDL it emits: a schema setting the data access does not use reads as
+	/// supported and does nothing.
+	/// </param>
 	public SqlServerMaterializedViewStore(
 		string connectionString,
 		ILogger<SqlServerMaterializedViewStore> logger,
 		ITenantContext tenantContext,
 		string? viewTableName = null,
 		string? positionTableName = null,
-		JsonSerializerOptions? jsonOptions = null)
-		: this(CreateConnectionFactory(connectionString), logger, tenantContext, viewTableName, positionTableName, jsonOptions)
+		JsonSerializerOptions? jsonOptions = null,
+		string schemaName = "dbo")
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext, viewTableName, positionTableName, jsonOptions, schemaName)
 	{
 	}
 
@@ -104,21 +115,50 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 	/// <param name="viewTableName">Optional view table name. Defaults to "MaterializedViews".</param>
 	/// <param name="positionTableName">Optional position table name. Defaults to "MaterializedViewPositions".</param>
 	/// <param name="jsonOptions">Optional JSON serializer options.</param>
+	/// <param name="schemaName">
+	/// The schema holding both tables. Defaults to <c>dbo</c>. Honoured by every statement this store
+	/// runs, including the DDL it emits: a schema setting the data access does not use reads as
+	/// supported and does nothing.
+	/// </param>
 	public SqlServerMaterializedViewStore(
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerMaterializedViewStore> logger,
 		ITenantContext tenantContext,
 		string? viewTableName = null,
 		string? positionTableName = null,
-		JsonSerializerOptions? jsonOptions = null)
+		JsonSerializerOptions? jsonOptions = null,
+		string schemaName = "dbo")
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
 		_viewTableName = viewTableName ?? DefaultViewTableName;
 		_positionTableName = positionTableName ?? DefaultPositionTableName;
+
+		// Validated BEFORE composition, not after: all three identifiers are interpolated into the SQL,
+		// so a bracket or a dot inside one would escape the delimiting and make the destination ambiguous.
 		SqlIdentifierValidator.ThrowIfInvalid(_viewTableName, nameof(viewTableName));
 		SqlIdentifierValidator.ThrowIfInvalid(_positionTableName, nameof(positionTableName));
+		if (schemaName is null || !SqlIdentifierValidator.IsValid(schemaName))
+		{
+			throw new ArgumentException(
+				$"SQL identifier contains invalid characters. Only alphanumeric characters and underscores are allowed: '{schemaName}'",
+				nameof(schemaName));
+		}
+
+		// QUALIFIED ONCE, and used by every statement. Addressing the tables unqualified made them resolve
+		// through the caller's default schema, so a consumer who set a schema got tables the store could
+		// not find -- the setting read as supported and did nothing.
+		//
+		// CASE IS NOT TOUCHED. SQL Server does not fold identifier case, and brackets only delimit an
+		// identifier, they do not make it case-sensitive: whether [MyViews] and [myviews] are the same
+		// object is decided by the database collation, not by this store. So the configured spelling is
+		// carried through verbatim and the server resolves it the way it resolves every other name.
+		// Through the shared formatter the rest of this package's SQL Server statements already use, so the
+		// bracketing rule lives in one place rather than once per store. It validates again, which is
+		// harmless: the explicit checks above exist only to name the parameter the consumer actually passed.
+		_qualifiedViewTable = SqlTableName.Format(schemaName, _viewTableName);
+		_qualifiedPositionTable = SqlTableName.Format(schemaName, _positionTableName);
 		// Read-model serialization — intentionally NOT the event canonical contract (a view is not an event;
 		// consumer-injectable). The numeric-enum representation is preserved: this JSON is a queryable,
 		// consumer-facing surface (SQL/search filters) where enum-as-string would break range/equality queries.
@@ -141,7 +181,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewId);
 
 		var sql = $"""
-			SELECT Data FROM [{_viewTableName}]
+			SELECT Data FROM {_qualifiedViewTable}
 			WHERE TenantId = @TenantId AND ViewName = @ViewName AND ViewId = @ViewId
 			""";
 
@@ -179,7 +219,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		ArgumentNullException.ThrowIfNull(view);
 
 		var sql = $"""
-			MERGE [{_viewTableName}] WITH (UPDLOCK, HOLDLOCK) AS target
+			MERGE {_qualifiedViewTable} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @TenantId AS TenantId, @ViewName AS ViewName, @ViewId AS ViewId, @Data AS Data, @UpdatedAt AS UpdatedAt) AS source
 			ON target.TenantId = source.TenantId AND target.ViewName = source.ViewName AND target.ViewId = source.ViewId
 			WHEN MATCHED THEN
@@ -215,7 +255,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewId);
 
 		var sql = $"""
-			DELETE FROM [{_viewTableName}]
+			DELETE FROM {_qualifiedViewTable}
 			WHERE TenantId = @TenantId AND ViewName = @ViewName AND ViewId = @ViewId
 			""";
 
@@ -247,7 +287,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		// ROWLOCK hint: prevents page-level escalation from blocking other views'
 		// position reads. Consistent with the UPDLOCK pattern in SavePositionAsync.
 		var sql = $"""
-			SELECT Position FROM [{_positionTableName}] WITH (ROWLOCK)
+			SELECT Position FROM {_qualifiedPositionTable} WITH (ROWLOCK)
 			WHERE TenantId = @TenantId AND ViewName = @ViewName
 			""";
 
@@ -288,7 +328,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		// checkpoint, and the projection replays events it has already applied. Both methods write this same row,
 		// so both must enforce the invariant: a guarantee held by only one of a state's writers is not held.
 		var sql = $"""
-			MERGE [{_positionTableName}] WITH (UPDLOCK, HOLDLOCK, ROWLOCK) AS target
+			MERGE {_qualifiedPositionTable} WITH (UPDLOCK, HOLDLOCK, ROWLOCK) AS target
 			USING (SELECT @TenantId AS TenantId, @ViewName AS ViewName, @Position AS Position, @UpdatedAt AS UpdatedAt) AS source
 			ON target.TenantId = source.TenantId AND target.ViewName = source.ViewName
 			WHEN MATCHED AND source.Position > target.Position THEN
@@ -331,7 +371,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		// and a stored zero would be indistinguishable from a view legitimately checkpointed at zero.
 		// Unconditional by contract -- the monotonic guard on SavePositionAsync exists to refuse exactly
 		// this, which is why clearing is a separate statement rather than a lower position.
-		var sql = $"DELETE FROM [{_positionTableName}] WHERE TenantId = @TenantId AND ViewName = @ViewName;";
+		var sql = $"DELETE FROM {_qualifiedPositionTable} WHERE TenantId = @TenantId AND ViewName = @ViewName;";
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -367,7 +407,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		// can never leave the view updated while the position lags (or vice versa) — the exactly-once
 		// contract. The position advance is monotonic: a lower position never overwrites a higher one.
 		var viewSql = $"""
-			MERGE [{_viewTableName}] WITH (UPDLOCK, HOLDLOCK) AS target
+			MERGE {_qualifiedViewTable} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @TenantId AS TenantId, @ViewName AS ViewName, @ViewId AS ViewId, @Data AS Data, @UpdatedAt AS UpdatedAt) AS source
 			ON target.TenantId = source.TenantId AND target.ViewName = source.ViewName AND target.ViewId = source.ViewId
 			WHEN MATCHED THEN
@@ -378,7 +418,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 			""";
 
 		var positionSql = $"""
-			MERGE [{_positionTableName}] WITH (UPDLOCK, HOLDLOCK, ROWLOCK) AS target
+			MERGE {_qualifiedPositionTable} WITH (UPDLOCK, HOLDLOCK, ROWLOCK) AS target
 			USING (SELECT @TenantId AS TenantId, @ViewName AS ViewName, @Position AS Position, @UpdatedAt AS UpdatedAt) AS source
 			ON target.TenantId = source.TenantId AND target.ViewName = source.ViewName
 			WHEN MATCHED AND source.Position > target.Position THEN
@@ -488,10 +528,16 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 		// indistinguishable from "this row is deliberately untenanted". Latin1_General_BIN2 because the database
 		// default is typically case-INSENSITIVE, under which 'Acme' and 'acme' would be the same tenant and a
 		// scoped read would return another tenant's view -- the predicate failing OPEN.
+		//
+		// THE EXISTENCE CHECK IS SCHEMA-SCOPED, and it was not. `sys.tables WHERE name = '…'` matches the
+		// name in ANY schema, so a same-named table in some other schema suppressed the CREATE and left
+		// this store's configured schema without its tables -- a silent no-op whose symptom appears later,
+		// as a missing object on the first read. OBJECT_ID resolves the qualified name the same way the
+		// engine resolves it for every statement above, so the guard and the writes agree by construction.
 		var sql = $"""
-			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{_viewTableName}')
+			IF OBJECT_ID(N'{_qualifiedViewTable}', N'U') IS NULL
 			BEGIN
-				CREATE TABLE [{_viewTableName}] (
+				CREATE TABLE {_qualifiedViewTable} (
 					Id         BIGINT IDENTITY(1,1) NOT NULL,
 					TenantId   NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
 					ViewName   NVARCHAR(256)  NOT NULL,
@@ -504,9 +550,9 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 				);
 			END
 
-			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{_positionTableName}')
+			IF OBJECT_ID(N'{_qualifiedPositionTable}', N'U') IS NULL
 			BEGIN
-				CREATE TABLE [{_positionTableName}] (
+				CREATE TABLE {_qualifiedPositionTable} (
 					Id         BIGINT IDENTITY(1,1) NOT NULL,
 					TenantId   NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
 					ViewName   NVARCHAR(256)  NOT NULL,
@@ -526,7 +572,9 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 			new CommandDefinition(sql, cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
 
-		LogSchemaEnsured(_viewTableName, _positionTableName);
+		// The QUALIFIED names, so the log names the objects that were actually created rather than a pair
+		// of bare names whose schema the reader has to guess.
+		LogSchemaEnsured(_qualifiedViewTable, _qualifiedPositionTable);
 	}
 
 	/// <summary>
@@ -591,7 +639,7 @@ public sealed partial class SqlServerMaterializedViewStore : IAtomicMaterialized
 	[LoggerMessage(
 		EventId = 3106,
 		Level = LogLevel.Information,
-		Message = "Materialized view schema ensured: tables [{ViewTable}] and [{PositionTable}]")]
+		Message = "Materialized view schema ensured: tables {ViewTable} and {PositionTable}")]
 	private partial void LogSchemaEnsured(string viewTable, string positionTable);
 
 	#endregion

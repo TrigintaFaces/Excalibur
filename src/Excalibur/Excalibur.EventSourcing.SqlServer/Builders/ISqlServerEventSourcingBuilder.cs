@@ -162,14 +162,21 @@ public interface ISqlServerEventSourcingBuilder
 	/// </summary>
 	/// <param name="viewTableName">The view data table name.</param>
 	/// <param name="positionTableName">The position tracking table name.</param>
+	/// <param name="schemaName">
+	/// The schema holding both tables. Defaults to <c>dbo</c>, the same default the store resolves, so
+	/// omitting it does not move the tables. Every statement the store runs names the schema explicitly,
+	/// including the DDL it emits, so a schema set here is honoured rather than resolved through the
+	/// caller's default schema.
+	/// </param>
 	/// <returns>The builder for fluent chaining.</returns>
 	/// <exception cref="ArgumentException">
-	/// Thrown when <paramref name="viewTableName"/> or <paramref name="positionTableName"/>
-	/// is null or whitespace.
+	/// Thrown when <paramref name="viewTableName"/>, <paramref name="positionTableName"/> or
+	/// <paramref name="schemaName"/> is null or whitespace.
 	/// </exception>
 	ISqlServerEventSourcingBuilder UseMaterializedViewStore(
 		string viewTableName,
-		string positionTableName);
+		string positionTableName,
+		string schemaName = "dbo");
 
 	/// <summary>
 	/// Supplies a source-generated JSON type-info resolver covering the application's domain event types and

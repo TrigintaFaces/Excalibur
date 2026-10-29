@@ -1,0 +1,9 @@
+{
+  "java": "C:\\Users\\thoma\\tools\\tla\\jdk-21.0.12.1+1-jre\\bin\\java.exe",
+  "javaVersion": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)\n",
+  "jar": "C:\\Users\\thoma\\tools\\tla\\tla2tools.jar",
+  "jarSha256": "936A262061C914694DFD669A543BE24573C45D5AA0FF20A8B96B23D01E050E88",
+  "modelSha256": "374F4BEF02B7FC1CA0C6EAD2B14B85B32BDB2EA8590D6E999BB04399F9B6407E",
+  "scope": "3 actors, 2 processes, 2 rows, 2 events; one crash/cancel per actor; FIFO local gates",
+  "arms": []
+}

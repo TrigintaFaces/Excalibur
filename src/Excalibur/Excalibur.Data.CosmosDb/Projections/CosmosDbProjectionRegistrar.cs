@@ -11,8 +11,10 @@ namespace Excalibur.Data.CosmosDb.Projections;
 /// <c>AddCosmosDbProjections</c>.
 /// </summary>
 /// <remarks>
-/// Each projection type gets its own options instance, so per-projection
-/// overrides (container name, partition key, etc.) are fully isolated.
+/// Each projection type is configured under its own named options instance, keyed by
+/// <see cref="CosmosDbProjectionContainerConvention.GetOptionsName{TProjection}"/>, so a per-projection
+/// override (database, container name, partition key path, throughput) applies to that projection alone
+/// and cannot be overwritten by a projection registered after it.
 /// </remarks>
 public sealed class CosmosDbProjectionRegistrar
 {

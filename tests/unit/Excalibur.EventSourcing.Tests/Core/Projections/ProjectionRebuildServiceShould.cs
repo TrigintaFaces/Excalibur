@@ -14,11 +14,11 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
-public sealed class ProjectionRebuildServiceShould
+public sealed class ProjectionRebuildServiceShould : IDisposable
 {
-	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
+	private readonly IServiceProvider _serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<ProjectionRebuildTestState>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
-	private readonly ProjectionRebuildOptions _options = new();
+	private readonly ProjectionRebuildOptions _options = new() { OfflineRebuildAcknowledged = true };
 	private readonly ProjectionRebuildService _sut;
 
 	public ProjectionRebuildServiceShould()
@@ -30,6 +30,8 @@ public sealed class ProjectionRebuildServiceShould
 			optionsWrapper,
 			NullLogger<ProjectionRebuildService>.Instance);
 	}
+
+	public void Dispose() => _sut.Dispose();
 
 	[Fact]
 	public async Task ReturnIdleStatusWhenNoRebuildHasRun()
@@ -154,7 +156,7 @@ public sealed class ProjectionRebuildServiceShould
 		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
 			null!,
 			_eventSerializer,
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 			NullLogger<ProjectionRebuildService>.Instance));
 	}
 
@@ -164,7 +166,7 @@ public sealed class ProjectionRebuildServiceShould
 		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
 			_serviceProvider,
 			null!,
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 			NullLogger<ProjectionRebuildService>.Instance));
 	}
 
@@ -184,7 +186,7 @@ public sealed class ProjectionRebuildServiceShould
 		Should.Throw<ArgumentNullException>(() => new ProjectionRebuildService(
 			_serviceProvider,
 			_eventSerializer,
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions()),
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true }),
 			null!));
 	}
 
@@ -198,7 +200,7 @@ public sealed class ProjectionRebuildServiceShould
 		A.CallTo(() => _serviceProvider.GetService(typeof(MultiStreamProjection<ProjectionRebuildTestState>)))
 			.Returns(new MultiStreamProjection<ProjectionRebuildTestState>());
 		A.CallTo(() => _serviceProvider.GetService(typeof(IProjectionStore<ProjectionRebuildTestState>)))
-			.Returns(A.Fake<IProjectionStore<ProjectionRebuildTestState>>());
+			.Returns(new InMemoryProjectionStore<ProjectionRebuildTestState>());
 
 		// Hold the first rebuild inside ReadAllAsync so it stays in-progress (claim held).
 		var gate = new TaskCompletionSource<IReadOnlyList<StoredEvent>>(TaskCreationOptions.RunContinuationsAsynchronously);

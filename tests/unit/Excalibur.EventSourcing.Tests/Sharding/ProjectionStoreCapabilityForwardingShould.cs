@@ -205,6 +205,74 @@ public sealed class ProjectionStoreCapabilityForwardingShould
 		page.Items.ShouldHaveSingleItem().Secret.ShouldBe(Plaintext, "the view must decrypt the page it produces");
 	}
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DecryptExactGenerationReadsWithoutExposingTheWriter(bool query)
+    {
+        var inner = new CapableGenerationStore();
+        var decorated = Encrypting(inner, EncryptingProvider());
+        await decorated.UpsertAsync("id", new TestProjection { Id = "id", Secret = Plaintext }, TestContext.Current.CancellationToken);
+        var factory = (IProjectionGenerationReaderFactory<TestProjection>)decorated.GetService(typeof(IProjectionGenerationReaderFactory<TestProjection>))!;
+        await using var reader = factory.OpenReader("test/old-generation");
+        (reader is IProjectionStore<TestProjection>).ShouldBeFalse();
+        reader.DestinationScope.ShouldBe("test/cluster");
+        (await reader.GetDestinationScopeAsync(TestContext.Current.CancellationToken)).ShouldBe("test/async-cluster");
+        var result = query ? (await reader.QueryAsync(null, null, TestContext.Current.CancellationToken)).Single()
+            : await reader.GetByIdAsync("id", TestContext.Current.CancellationToken);
+        result.ShouldNotBeNull().Secret.ShouldBe(Plaintext);
+        inner.Destination.ShouldBe("test/old-generation");
+        decorated.GetService(typeof(IAotProjectionGenerationReaderFactory<TestProjection>)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RequireTenantAtGenerationOpenAndEveryReadAndStillDispose()
+    {
+        var context = new MutableTenantContext { TenantId = Tenant };
+        var inner = new CapableGenerationStore(context);
+        IProjectionStore<TestProjection> decorated = new TenantScopedProjectionStore<TestProjection>(inner, context);
+        var factory = (IProjectionGenerationReaderFactory<TestProjection>)decorated.GetService(typeof(IProjectionGenerationReaderFactory<TestProjection>))!;
+        var reader = factory.OpenReader("test/old-generation");
+        (await reader.GetDestinationScopeAsync(TestContext.Current.CancellationToken)).ShouldBe("test/async-cluster");
+        context.TenantId = "another-tenant";
+        await Should.ThrowAsync<InvalidOperationException>(() => reader.GetByIdAsync("id", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<InvalidOperationException>(() => reader.QueryAsync(null, null, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<InvalidOperationException>(() => reader.CountAsync(null, TestContext.Current.CancellationToken));
+        context.TenantId = null;
+        Should.Throw<TenantRequiredException>(() => factory.OpenReader("test/other-generation"));
+        await Should.ThrowAsync<TenantRequiredException>(() => reader.GetByIdAsync("id", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<TenantRequiredException>(() => reader.QueryAsync(null, null, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<TenantRequiredException>(() => reader.CountAsync(null, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<TenantRequiredException>(async () => await reader.GetDestinationScopeAsync(TestContext.Current.CancellationToken));
+        await reader.DisposeAsync();
+        inner.Disposals.ShouldBe(1);
+    }
+
+    private sealed class CapableGenerationStore(ITenantContext? context = null) : PlainStore, IProjectionGenerationReaderFactory<TestProjection>, IProjectionTenantBoundary
+    {
+        public ProjectionTenantBoundary Boundary => ProjectionTenantBoundary.Partition(context?.TenantId ?? Tenant);
+        public string? Destination { get; private set; }
+        public int Disposals { get; set; }
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Conventional test serializer.")]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Conventional test serializer.")]
+        public IProjectionGenerationReader<TestProjection> OpenReader(string destinationIdentity)
+        {
+            Destination = destinationIdentity;
+            return new Handle(this);
+        }
+        private sealed class Handle(CapableGenerationStore owner) : IProjectionGenerationReader<TestProjection>
+        {
+            public string? DestinationScope => "test/cluster";
+            public ValueTask<string> GetDestinationScopeAsync(CancellationToken cancellationToken) => ValueTask.FromResult("test/async-cluster");
+            public Task<TestProjection?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
+                Task.FromResult<TestProjection?>(new TestProjection { Id = id, Secret = owner.Upserted?.Secret?.ToArray() });
+            public async Task<IReadOnlyList<TestProjection>> QueryAsync(IDictionary<string, object>? filters, QueryOptions? options, CancellationToken cancellationToken) =>
+                [(await GetByIdAsync("id", cancellationToken))!];
+            public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken) => Task.FromResult(1L);
+            public ValueTask DisposeAsync() { owner.Disposals++; return ValueTask.CompletedTask; }
+        }
+    }
+
 	private static IProjectionStore<TestProjection> Encrypting(
 		IProjectionStore<TestProjection> inner,
 		IEncryptionProvider provider)

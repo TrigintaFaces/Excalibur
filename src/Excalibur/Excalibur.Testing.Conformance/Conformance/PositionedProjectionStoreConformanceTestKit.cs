@@ -568,39 +568,146 @@ public abstract class PositionedProjectionStoreConformanceTestKit : ConformanceT
 	[System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
 	[System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Projection serialization is reflective; a conformance kit exercises the store the consumer configured, whose serializer the kit does not choose.")]
 	public virtual async Task Report_a_deleted_projection_as_vanished_without_recreating_it()
-	{
-		RecordArmExecuted(nameof(Report_a_deleted_projection_as_vanished_without_recreating_it));
+    {
+        RecordArmExecuted(nameof(Report_a_deleted_projection_as_vanished_without_recreating_it));
+        var store = await CreateStoreAsync().ConfigureAwait(false);
+        var positioned = store.GetService(typeof(IPositionedProjectionStore<ConformanceProjection>))
+            as IPositionedProjectionStore<ConformanceProjection>
+            ?? throw new InvalidOperationException("the store does not provide the positioned capability");
+        await AssertNativePagingOffsetOverflowAsync(store).ConfigureAwait(false);
+        var initialCount = await store.CountAsync(null, CancellationToken.None).ConfigureAwait(false);
+        foreach (var initiallyPresent in new[] { false, true })
+        {
+            var id = NewId();
+            if (initiallyPresent)
+            {
+                _ = await positioned.UpsertAtPositionAsync(id, Projection(id, 1), null, 60, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            await store.DeleteAsync(id, CancellationToken.None).ConfigureAwait(false);
+            await store.DeleteAsync(id, CancellationToken.None).ConfigureAwait(false);
+            var (projection, observed) = await positioned.GetWithPositionAsync(id, CancellationToken.None).ConfigureAwait(false);
+            Require(projection is null && observed.Kind == ProjectionPositionKind.Retired,
+                "a fresh read must distinguish terminal retirement from a never-created key");
+            Require(await store.GetByIdAsync(id, CancellationToken.None).ConfigureAwait(false) is null,
+                "a marker must not deserialize into consumer state");
+            foreach (var expected in new long?[] { null, 60 })
+            {
+                var result = await positioned.UpsertAtPositionAsync(id, Projection(id, 2), expected, 61, CancellationToken.None)
+                    .ConfigureAwait(false);
+                AssertOutcome(result, ProjectionAdvanceOutcome.Vanished, "fresh and stale writers must respect deletion");
+            }
+            var refold = await positioned.RefoldAtPositionAsync(id, Projection(id, 2), 60, CancellationToken.None).ConfigureAwait(false);
+            Require(refold.Outcome == ProjectionRefoldOutcome.Vanished, "refold must not resurrect a retired key");
+            var rebuild = await positioned.RebuildAtPositionAsync(id, Projection(id, 2), 61, CancellationToken.None).ConfigureAwait(false);
+            Require(rebuild.Outcome == ProjectionRebuildOutcome.Vanished, "rebuild must not resurrect a retired key");
+            foreach (var write in new Func<Task>[]
+            {
+                () => store.UpsertAsync(id, Projection(id, 2), CancellationToken.None),
+                () => positioned.UpsertUnnumberedAsync(id, Projection(id, 2), CancellationToken.None),
+            })
+            {
+                var refused = false;
+                try { await write().ConfigureAwait(false); }
+                catch (InvalidOperationException) { refused = true; }
+                Require(refused, "blind and unnumbered writes must explicitly refuse retirement");
+            }
+            Require((await positioned.GetWithPositionAsync(id, CancellationToken.None).ConfigureAwait(false)).Position.Kind
+                == ProjectionPositionKind.Retired, "every refused writer must preserve the durable marker");
+            Require(!(await store.QueryAsync(null, null, CancellationToken.None).ConfigureAwait(false)).Any(row => row.Id == id),
+                "queries must exclude markers before deserialization");
+            var page = await store.QueryPagedAsync(null, 1, 20, null, CancellationToken.None).ConfigureAwait(false);
+            Require(!page.Items.Any(row => row.Id == id) && page.TotalItems == initialCount,
+                "offset pages and their totals must hide retired keys");
+            if (store.GetService(typeof(ICursorProjectionStore<ConformanceProjection>))
+                is ICursorProjectionStore<ConformanceProjection> cursorStore)
+            {
+                var cursorPage = await cursorStore.QueryCursorAsync(null, null, 20, CancellationToken.None).ConfigureAwait(false);
+                Require(!cursorPage.Items.Any(row => row.Id == id), "cursor pages must hide retired keys");
+            }
+        }
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            var id = NewId();
+            await Task.WhenAll(
+                store.DeleteAsync(id, CancellationToken.None),
+                positioned.UpsertAtPositionAsync(id, Projection(id, 1), null, 1, CancellationToken.None)).ConfigureAwait(false);
+            var observed = await positioned.GetWithPositionAsync(id, CancellationToken.None).ConfigureAwait(false);
+            Require(observed.Projection is null && observed.Position.Kind == ProjectionPositionKind.Retired,
+                "delete racing the first insert must leave a terminal marker in either serialization order");
+        }
+        for (var writeKind = 0; writeKind < 5; writeKind++)
+        {
+            var id = NewId();
+            _ = await positioned.UpsertAtPositionAsync(id, Projection(id, 1), null, 1, CancellationToken.None).ConfigureAwait(false);
+            async Task RaceWriteAsync()
+            {
+                try
+                {
+                    switch (writeKind)
+                    {
+                        case 0: await store.UpsertAsync(id, Projection(id, 2), CancellationToken.None).ConfigureAwait(false); break;
+                        case 1: await positioned.UpsertUnnumberedAsync(id, Projection(id, 2), CancellationToken.None).ConfigureAwait(false); break;
+                        case 2: _ = await positioned.UpsertAtPositionAsync(id, Projection(id, 2), 1, 2, CancellationToken.None).ConfigureAwait(false); break;
+                        case 3: _ = await positioned.RefoldAtPositionAsync(id, Projection(id, 2), 1, CancellationToken.None).ConfigureAwait(false); break;
+                        default: _ = await positioned.RebuildAtPositionAsync(id, Projection(id, 2), 2, CancellationToken.None).ConfigureAwait(false); break;
+                    }
+                }
+                catch (InvalidOperationException) when (writeKind < 2)
+                {
+                    // Void write surfaces refuse a retirement that won the race by throwing.
+                }
+            }
+            await Task.WhenAll(RaceWriteAsync(), store.DeleteAsync(id, CancellationToken.None)).ConfigureAwait(false);
+            var observed = await positioned.GetWithPositionAsync(id, CancellationToken.None).ConfigureAwait(false);
+            Require(observed.Projection is null && observed.Position.Kind == ProjectionPositionKind.Retired,
+                "every write surface racing deletion must leave the key retired");
+        }
+        Require(await store.CountAsync(null, CancellationToken.None).ConfigureAwait(false) == initialCount,
+            "count must exclude every marker, including deletion of never-created keys");
+        var survivor = "z-live-" + NewId();
+        await store.UpsertAsync(survivor, Projection(survivor, 3), CancellationToken.None).ConfigureAwait(false);
+        var visibleIds = new HashSet<string>(StringComparer.Ordinal);
+        for (var pageNumber = 1; pageNumber <= initialCount + 1; pageNumber++)
+        {
+            var page = await store.QueryPagedAsync(null, pageNumber, 1,
+                new QueryOptions(OrderBy: nameof(ConformanceProjection.Id)), CancellationToken.None).ConfigureAwait(false);
+            Require(page.TotalItems == initialCount + 1 && page.Items.Count == 1,
+                "retirement must be filtered before offset pagination, without dropping live rows");
+            _ = visibleIds.Add(page.Items[0].Id);
+        }
+        Require(visibleIds.Contains(survivor), "offset traversal must reach the live survivor behind retired keys");
+        if (store.GetService(typeof(ICursorProjectionStore<ConformanceProjection>))
+            is ICursorProjectionStore<ConformanceProjection> mixedCursorStore)
+        {
+            string? cursor = null;
+            visibleIds.Clear();
+            for (var pages = 0; pages <= initialCount + 2; pages++)
+            {
+                var page = await mixedCursorStore.QueryCursorAsync(null, cursor, 1, CancellationToken.None).ConfigureAwait(false);
+                foreach (var item in page.Items) { _ = visibleIds.Add(item.Id); }
+                cursor = page.NextCursor;
+                if (cursor is null) { break; }
+            }
+            Require(cursor is null && visibleIds.Count == initialCount + 1 && visibleIds.Contains(survivor),
+                "cursor traversal must return every live row without exposing markers or stopping prematurely");
+        }
+        await store.DeleteAsync(survivor, CancellationToken.None).ConfigureAwait(false);
+    }
 
-		var store = await CreateStoreAsync().ConfigureAwait(false);
-		var positioned = store.GetService(typeof(IPositionedProjectionStore<ConformanceProjection>))
-			as IPositionedProjectionStore<ConformanceProjection>
-			?? throw new InvalidOperationException("the store does not provide the positioned capability");
-
-		var id = NewId();
-
-		_ = await positioned
-			.UpsertAtPositionAsync(id, Projection(id, 1), expectedPosition: null, newPosition: 60, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		await store.DeleteAsync(id, CancellationToken.None).ConfigureAwait(false);
-
-		var result = await positioned
-			.UpsertAtPositionAsync(id, Projection(id, 2), expectedPosition: 60, newPosition: 61, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		AssertOutcome(
-			result,
-			ProjectionAdvanceOutcome.Vanished,
-			nameof(Report_a_deleted_projection_as_vanished_without_recreating_it));
-
-		var (projection, _) = await positioned.GetWithPositionAsync(id, CancellationToken.None)
-			.ConfigureAwait(false);
-
-		Require(
-			projection is null,
-			"an erased projection must stay erased: a write against a deleted row must report Vanished "
-			+ "and must not resurrect it");
-	}
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Conformance tests exercise consumer-configured projection serializers.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Conformance tests exercise consumer-configured projection serializers.")]
+    private static async Task AssertNativePagingOffsetOverflowAsync(IProjectionStore<ConformanceProjection> store)
+    {
+        if (store.GetService(typeof(IPageableProjectionStore<ConformanceProjection>))
+            is IPageableProjectionStore<ConformanceProjection> nativePaging)
+        {
+            var overflowRejected = false;
+            try { _ = await nativePaging.QueryPagedAsync(null, int.MaxValue, 2, null, CancellationToken.None).ConfigureAwait(false); }
+            catch (OverflowException) { overflowRejected = true; }
+            Require(overflowRejected, "native pagination must reject an overflowing offset instead of wrapping it");
+        }
+    }
 
 	/// <summary>
 	/// SAFETY, third obligation. Exactly one of two writers racing from the same read succeeds.

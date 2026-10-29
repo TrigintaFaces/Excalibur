@@ -59,6 +59,53 @@ public sealed class PostgresGlobalStreamPositionShould
 {
 	private const string AggregateType = "Order";
 
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public async Task ReadUtcTimestampsAndNullablePayloadsWithoutReflectiveRowMapping()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue();
+		await _fixture.EnsureInitializedAsync();
+		await _fixture.CleanupTableAsync();
+		var first = await AppendAsync(Store(), Guid.NewGuid().ToString("N"), -1);
+		var second = await AppendAsync(Store(), Guid.NewGuid().ToString("N"), -1);
+		var third = await AppendAsync(Store(), Guid.NewGuid().ToString("N"), -1);
+		var timestamp = new DateTimeOffset(2026, 10, 28, 9, 30, 0, TimeSpan.FromHours(-5));
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+		await using (var command = new NpgsqlCommand("""
+			UPDATE public.events SET timestamp=@timestamp,
+			metadata=CASE WHEN position=@first THEN decode('0102','hex') ELSE NULL END,
+			event_data=CASE WHEN position=@first THEN event_data ELSE NULL END,
+			archived_at=CASE WHEN position=@second THEN @timestamp ELSE NULL END,
+			event_type=CASE WHEN position=@second THEN 'Archived' ELSE 'LiveOrErased' END
+			""", connection))
+		{
+			command.Parameters.AddWithValue("timestamp", timestamp.ToUniversalTime());
+			command.Parameters.AddWithValue("first", first);
+			command.Parameters.AddWithValue("second", second);
+			(await command.ExecuteNonQueryAsync()).ShouldBe(3);
+		}
+		await using var source = NpgsqlDataSource.Create(_fixture.ConnectionString);
+		var query = Query(source);
+		var all = await query.ReadAllAsync(GlobalStreamPosition.Start, 3, CancellationToken.None);
+		all.Count.ShouldBe(3);
+		all.Select(row => row.GlobalPosition).ShouldBe([first, second, third]);
+		all.ShouldAllBe(row => row.Timestamp == timestamp && row.Timestamp.Offset == TimeSpan.Zero);
+		all[0].EventData.ShouldNotBeNull();
+		all[0].Metadata.ShouldBe(new byte[] { 1, 2 });
+		all[1].EventData.ShouldBeNull();
+		all[1].ArchivedAt.ShouldBe(timestamp);
+		all[1].Metadata.ShouldBeNull();
+		all[2].EventData.ShouldBeNull();
+		all[2].ArchivedAt.ShouldBeNull();
+		var page = await query.ReadAllAsync(new GlobalStreamPosition(first, timestamp), 1, CancellationToken.None);
+		page.Single().GlobalPosition.ShouldBe(second);
+		var filtered = await query.ReadByEventTypeAsync("LiveOrErased", new GlobalStreamPosition(first, timestamp), 1, CancellationToken.None);
+		filtered.Single().GlobalPosition.ShouldBe(third);
+		(await query.GetHeadPositionAsync(CancellationToken.None)).ShouldBe(third);
+		(await query.ReadAllAsync(new GlobalStreamPosition(third, timestamp), 1, CancellationToken.None)).ShouldBeEmpty();
+	}
+
 	private readonly PostgresEventStoreContainerFixture _fixture;
 
 	public PostgresGlobalStreamPositionShould(PostgresEventStoreContainerFixture fixture) => _fixture = fixture;

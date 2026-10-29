@@ -198,6 +198,7 @@ services.AddPostgresProjectionStore<OrderSummaryProjection>(
 |----------|------|---------|-------------|
 | `ConnectionString` | `string?` | Required | Postgres connection string |
 | `TableName` | `string?` | Type name (snake_case) | Table name for projections |
+| `SchemaName` | `string` | `public` | Schema holding the table. Every statement the store runs is qualified with it, so the table must be created in this schema. Both identifiers are quoted, so their case is significant |
 | `JsonSerializerOptions` | `JsonSerializerOptions?` | camelCase, no indent | JSON serializer options for projection data |
 
 ### CockroachDB and YugabyteDB Compatibility

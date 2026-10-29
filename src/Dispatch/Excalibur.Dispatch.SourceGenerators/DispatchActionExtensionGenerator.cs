@@ -96,7 +96,7 @@ public sealed class DispatchActionExtensionGenerator : IIncrementalGenerator
 			return new ActionInfo(
 				MessageTypeFullName: typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 				MessageTypeName: GetSafeIdentifier(typeSymbol),
-				ResponseTypeFullName: responseType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+				ResponseTypeFullName: responseType.ToDisplayString(GeneratorDisplayFormats.TypeReference),
 				IsValueType: typeSymbol.IsValueType);
 		}
 

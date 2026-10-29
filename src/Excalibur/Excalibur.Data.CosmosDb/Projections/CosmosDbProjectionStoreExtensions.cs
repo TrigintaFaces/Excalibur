@@ -15,6 +15,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for registering Cosmos DB projection store services.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Each projection type gets its own named options instance, keyed by
+/// <see cref="CosmosDbProjectionContainerConvention.GetOptionsName{TProjection}"/>. Several projection
+/// stores therefore coexist with independent configurations — their own database, container, partition
+/// key path, throughput and time-to-live.
+/// </para>
+/// </remarks>
 public static class CosmosDbProjectionStoreExtensions
 {
 	/// <summary>
@@ -24,6 +32,10 @@ public static class CosmosDbProjectionStoreExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configureOptions">Action to configure projection store options.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// The action configures the named options instance belonging to <typeparamref name="TProjection"/>, so
+	/// it cannot alter the settings of a projection registered before or after it.
+	/// </remarks>
 	public static IServiceCollection AddCosmosDbProjectionStore<TProjection>(
 		this IServiceCollection services,
 		Action<CosmosDbProjectionStoreOptions> configureOptions)
@@ -32,17 +44,20 @@ public static class CosmosDbProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		// Configure options
-		_ = services.Configure(configureOptions);
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<CosmosDbProjectionStoreOptions>, CosmosDbProjectionStoreOptionsValidator>());
+		// Named options, keyed by the projection type, through the one function that produces that key.
+		// The unnamed instance is deliberately left alone: configuring it would make the LAST registration
+		// in a container decide the database and container for EVERY projection in it.
+		var optionsName = CosmosDbProjectionContainerConvention.GetOptionsName<TProjection>();
+		_ = services.Configure(optionsName, configureOptions);
+		WireOptionsValidation(services, optionsName);
 
-		// Register projection store
+		// Register projection store -- uses IOptionsMonitor to resolve named options
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
-			var options = sp.GetRequiredService<IOptions<CosmosDbProjectionStoreOptions>>();
+			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<CosmosDbProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<CosmosDbProjectionStore<TProjection>>>();
 
-			return new CosmosDbProjectionStore<TProjection>(options, logger);
+			return new CosmosDbProjectionStore<TProjection>(optionsMonitor, logger);
 		});
 
 		return services;
@@ -117,6 +132,12 @@ public static class CosmosDbProjectionStoreExtensions
 	/// <param name="databaseName">The shared Cosmos DB database name.</param>
 	/// <param name="configure">Action to register individual projection stores.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// The database and connection are described once; each projection keeps its own named options, so a
+	/// per-projection container override applies to that projection alone. In the example below
+	/// <c>CustomerProfile</c> is the only read model in <c>"customers"</c>; the other two stay in the
+	/// default <c>"projections"</c> container.
+	/// </remarks>
 	/// <example>
 	/// <code>
 	/// services.AddCosmosDbProjections("AccountEndpoint=...;AccountKey=...", "mydb", projections =>
@@ -176,5 +197,22 @@ public static class CosmosDbProjectionStoreExtensions
 		configure(registrar);
 
 		return services;
+	}
+
+	/// <summary>
+	/// Wires eager (fail-fast at startup) validation for a named projection-store options instance.
+	/// Registers the validator once (idempotent) and marks the named instance for <c>ValidateOnStart</c>,
+	/// so a misconfiguration surfaces at host start rather than only at the store's first use.
+	/// </summary>
+	/// <remarks>
+	/// The name is load-bearing: validation registered against the unnamed instance does not run for a
+	/// named one, so a per-projection registration that skipped this would never be validated at all.
+	/// </remarks>
+	private static void WireOptionsValidation(IServiceCollection services, string optionsName)
+	{
+		_ = services.AddOptions<CosmosDbProjectionStoreOptions>(optionsName).ValidateOnStart();
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<CosmosDbProjectionStoreOptions>,
+				CosmosDbProjectionStoreOptionsValidator>());
 	}
 }

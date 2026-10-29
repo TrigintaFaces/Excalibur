@@ -135,53 +135,36 @@ internal sealed class IndexAliasManager(IOpenSearchClient client, ILogger<IndexA
 	}
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<AliasDefinition>> GetAliasesAsync(
-		string? aliasPattern,
-		CancellationToken cancellationToken)
-	{
-		try
-		{
-			_logger.LogInformation("Getting aliases with pattern: {Pattern}", aliasPattern ?? "all");
-
-			var response = await _client.Indices.GetAliasAsync(
-				Indices.All,
-				a => a.Name(aliasPattern ?? "*"),
-				cancellationToken).ConfigureAwait(false);
-
-			if (response.IsValid)
-			{
-				var aliases = new List<AliasDefinition>();
-				if (response.Indices != null)
-				{
-					foreach (var indexEntry in response.Indices)
-					{
-						foreach (var alias in indexEntry.Value.Aliases)
-						{
-							aliases.Add(new AliasDefinition
-							{
-								AliasName = alias.Key,
-								Indices = [indexEntry.Key.ToString()],
-								FilterJson = SerializeOrNull(alias.Value.Filter),
-								IndexRouting = alias.Value.IndexRouting,
-								SearchRouting = alias.Value.SearchRouting,
-								IsWriteIndex = alias.Value.IsWriteIndex,
-							});
-						}
-					}
-				}
-
-				return aliases;
-			}
-
-			_logger.LogError("Failed to get aliases. Error: {Error}", response.DebugInformation);
-			return [];
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Failed to get aliases with pattern: {Pattern}", aliasPattern ?? "all");
-			return [];
-		}
-	}
+    public async Task<IEnumerable<AliasDefinition>> GetAliasesAsync(string? aliasPattern, CancellationToken cancellationToken)
+    {
+        // The pinned high-level response omits is_hidden. Read the full wire representation so a
+        // cutover never silently drops settings the SDK cannot round-trip.
+        var response = await _client.LowLevel.Indices.GetAliasAsync<global::OpenSearch.Net.StringResponse>(
+            aliasPattern ?? "*", null, cancellationToken).ConfigureAwait(false);
+        if (!response.Success)
+        {
+            throw new InvalidOperationException("The authoritative alias state could not be read.", response.OriginalException);
+        }
+        using var document = JsonDocument.Parse(response.Body);
+        var aliases = new List<AliasDefinition>();
+        foreach (var index in document.RootElement.EnumerateObject())
+        {
+            foreach (var alias in index.Value.GetProperty("aliases").EnumerateObject())
+            {
+                var value = alias.Value;
+                aliases.Add(new AliasDefinition
+                {
+                    AliasName = alias.Name, Indices = [index.Name],
+                    FilterJson = value.TryGetProperty("filter", out var filter) ? filter.Clone() : null,
+                    IndexRouting = value.TryGetProperty("index_routing", out var indexRouting) ? indexRouting.GetString() : null,
+                    SearchRouting = value.TryGetProperty("search_routing", out var searchRouting) ? searchRouting.GetString() : null,
+                    IsWriteIndex = value.TryGetProperty("is_write_index", out var writeIndex) ? writeIndex.GetBoolean() : null,
+                    IsHidden = value.TryGetProperty("is_hidden", out var hidden) ? hidden.GetBoolean() : null,
+                });
+            }
+        }
+        return aliases;
+    }
 
 	/// <inheritdoc />
 	public async Task<bool> UpdateAliasesAsync(IEnumerable<AliasOperation> operations, CancellationToken cancellationToken)
@@ -204,11 +187,20 @@ internal sealed class IndexAliasManager(IOpenSearchClient client, ILogger<IndexA
 				{
 					if (op.OperationType == AliasOperationType.Add)
 					{
-						_ = b.Add(a => a.Index(op.IndexName).Alias(op.AliasName));
+						var add = new AliasAddOperation { Index = op.IndexName, Alias = op.AliasName };
+                        if (op.ConfigurationJson is { } configuration)
+                        {
+                            if (configuration.TryGetProperty("filter", out var filter)) { add.Filter = new RawQuery(filter.GetRawText()); }
+                            if (configuration.TryGetProperty("index_routing", out var indexRouting)) { add.IndexRouting = indexRouting.GetString(); }
+                            if (configuration.TryGetProperty("search_routing", out var searchRouting)) { add.SearchRouting = searchRouting.GetString(); }
+                            if (configuration.TryGetProperty("is_write_index", out var writeIndex)) { add.IsWriteIndex = writeIndex.GetBoolean(); }
+                            if (configuration.TryGetProperty("is_hidden", out var hidden)) { add.IsHidden = hidden.GetBoolean(); }
+                        }
+                        _ = b.Add(new AliasAddAction { Add = add });
 					}
 					else
 					{
-						_ = b.Remove(r => r.Index(op.IndexName).Alias(op.AliasName));
+						_ = b.Add(new AliasRemoveAction { Remove = new AliasRemoveOperation { Index = op.IndexName, Alias = op.AliasName, MustExist = op.MustExist } });
 					}
 				}
 

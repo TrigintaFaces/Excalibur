@@ -6,6 +6,7 @@ using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Implementation;
 using Excalibur.EventSourcing.Snapshots;
+using Excalibur.EventSourcing.Projections;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -85,6 +86,7 @@ public static class EventSourcingServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IValidateOptions<EventSourcedRepositoryOptions>, EventSourcedRepositoryStagingCapabilityValidator>());
 		_ = services.AddOptions<EventSourcedRepositoryOptions>().ValidateOnStart();
+        ProjectionCapacity.Register(services);
 
 		// Non-keyed convenience aliases: forward to keyed "default" so consumers
 		// can inject IEventStore / ISnapshotStore directly without [FromKeyedServices("default")].

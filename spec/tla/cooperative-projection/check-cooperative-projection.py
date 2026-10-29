@@ -1,7 +1,7 @@
 """Check a proposed cooperative projection design, with known-red controls.
 
 Run with --java PATH --jar PATH. Exit 0: all requested answers observed;
-1: unexpected answer; 2: missing toolchain or timeout (REFUSE, never PASS).
+1: unexpected answer; 2: missing toolchain, timeout or exhausted heap (REFUSE).
 Retains configs, complete logs and TLC state artifacts in --output.
 """
 import argparse
@@ -20,9 +20,12 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--java', default=os.environ.get('TLA_JAVA', shutil.which('java')))
 parser.add_argument('--jar', default=os.environ.get('TLA_JAR'))
 parser.add_argument('--output', type=Path)
-parser.add_argument('--timeout', type=int, default=300)
+parser.add_argument('--timeout', type=int, default=1800)
+parser.add_argument('--heap-mb', type=int, default=4096)
 parser.add_argument('--only', nargs='+')
 args = parser.parse_args()
+if args.timeout <= 0 or args.heap_mb <= 0:
+    parser.error('--timeout and --heap-mb must be positive')
 if not args.java or not args.jar or not Path(args.java).is_file() or not Path(args.jar).is_file():
     print('REFUSE: provide existing --java and --jar paths; nothing checked.')
     sys.exit(2)
@@ -78,10 +81,23 @@ provenance = {
     'jar': jar,
     'jarSha256': hashlib.sha256(Path(jar).read_bytes()).hexdigest().upper(),
     'modelSha256': hashlib.sha256((here / 'CooperativeProjection.tla').read_bytes()).hexdigest().upper(),
+    'checkerSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest().upper(),
+    'heapMb': args.heap_mb,
+    'timeoutSeconds': args.timeout,
+    'workers': 2,
     'scope': '3 actors, 2 processes, 2 rows, 2 events; one crash/cancel per actor; FIFO local gates',
     'arms': [],
 }
 status = 0
+
+
+def observed_violations(log, expected):
+    invariants = re.findall(r'Invariant ([^\r\n]+?) is violated', log)
+    temporal = 'Temporal properties were violated' in log
+    unexpected = temporal or any(name not in (expected or set()) for name in invariants)
+    return invariants, unexpected
+
+
 for name, mixed, mutation, expected in arms:
     module = 'ProjectionModelSelfTest' if name == 'checker-self-test' else 'CooperativeProjection'
     if name == 'checker-self-test':
@@ -107,7 +123,7 @@ for name, mixed, mutation, expected in arms:
         if expected is None:
             cfg += 'PROPERTY Completion\n'
     (out / (name + '.cfg')).write_text(cfg, encoding='utf-8')
-    cmd = [java, '-XX:+UseParallelGC', '-Xmx1536m', '-cp', jar, 'tlc2.TLC',
+    cmd = [java, '-XX:+UseParallelGC', f'-Xmx{args.heap_mb}m', '-cp', jar, 'tlc2.TLC',
            '-workers', '2', '-deadlock', '-metadir', str(out / (name + '-states')),
            '-config', name + '.cfg', module + '.tla']
     started = time.monotonic()
@@ -117,18 +133,37 @@ for name, mixed, mutation, expected in arms:
     except subprocess.TimeoutExpired as exc:
         def text(value):
             return value.decode(errors='replace') if isinstance(value, bytes) else (value or '')
-        (out / (name + '.log')).write_text(text(exc.stdout) + text(exc.stderr), encoding='utf-8')
-        print(f'REFUSE {name}: timeout after {args.timeout}s; this is not a pass.', flush=True)
-        status = 2
-        break
+        log = text(exc.stdout) + text(exc.stderr)
+        (out / (name + '.log')).write_text(log, encoding='utf-8')
+        _, unexpected = observed_violations(log, expected)
+        verdict = 'FAIL' if unexpected else 'REFUSE'
+        print(f'{verdict} {name}: timeout after {args.timeout}s; this is not a pass.', flush=True)
+        provenance['arms'].append({'name': name, 'timedOut': True,
+                                   'correctAnswer': False if unexpected else None,
+                                   'seconds': round(time.monotonic() - started, 2)})
+        if unexpected:
+            status = 1
+        elif status != 1:
+            status = 2
+        continue
     (out / (name + '.log')).write_text(log, encoding='utf-8')
+    # Resource exhaustion is incomplete exploration, not a counterexample.
+    # Never mask an invariant/temporal violation already reported in this arm.
+    violations, unexpected = observed_violations(log, expected)
+    if 'OutOfMemoryError' in log and not unexpected:
+        provenance['arms'].append({'name': name, 'resourceExhausted': True,
+                                   'exitCode': result.returncode, 'correctAnswer': None,
+                                   'seconds': round(time.monotonic() - started, 2)})
+        print(f'REFUSE {name}: Java heap exhausted; this is not a pass.', flush=True)
+        if status != 1:
+            status = 2
+        continue
     if expected:
         wanted = {expected} if isinstance(expected, str) else set(expected)
-        correct = result.returncode != 0 and any(
-            f'Invariant {inv} is violated' in log for inv in wanted)
+        correct = result.returncode == 12 and bool(violations) and not unexpected
     else:
         wanted = None
-        correct = result.returncode == 0 and 'Model checking completed. No error has been found.' in log
+        correct = result.returncode == 0 and not unexpected and 'Model checking completed. No error has been found.' in log
     counts = re.findall(r'([\d,]+) states generated, ([\d,]+) distinct states found', log)
     entry = {'name': name,
              'expectedViolation': sorted(wanted) if wanted else None,

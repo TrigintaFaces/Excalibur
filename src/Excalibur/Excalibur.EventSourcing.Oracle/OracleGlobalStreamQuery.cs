@@ -42,14 +42,26 @@ namespace Excalibur.EventSourcing.Oracle;
 	"from. Its result carries each event's own tenant on the row, so a consumer that needs confinement " +
 	"filters there. Adding a tenant predicate here would not harden the statement -- it would silently " +
 	"narrow the stream to one partition and make every projection built on it incomplete.")]
-internal sealed class OracleGlobalStreamQuery : IGlobalStreamQuery
+internal sealed class OracleGlobalStreamQuery : IGlobalStreamQuery, IProjectionDestinationScope
 {
+    string IProjectionDestinationScope.Scope
+    {
+        get
+        {
+            using var connection = _connectionFactory();
+            return string.IsNullOrWhiteSpace(connection.DataSource)
+                ? string.Empty
+                : "oracle/" + Uri.EscapeDataString(connection.DataSource);
+        }
+    }
+
 	// EVENTTIMESTAMP is aliased to a QUOTED "Timestamp" because TIMESTAMP is an Oracle keyword; the same
 	// quoting the store's own read path uses.
 	private const string SelectColumns =
 		"POSITION AS Position, EVENTID AS EventId, AGGREGATEID AS AggregateId, " +
 		"AGGREGATETYPE AS AggregateType, EVENTTYPE AS EventType, EVENTDATA AS EventData, " +
-		"METADATA AS Metadata, VERSION AS Version, EVENTTIMESTAMP AS \"Timestamp\"";
+		"METADATA AS Metadata, VERSION AS Version, EVENTTIMESTAMP AS \"Timestamp\", " +
+		"NVL(TENANTID, '__untenanted__') AS TenantId";
 
 	private readonly Func<OracleConnection> _connectionFactory;
 	private readonly string _qualifiedTable;
@@ -166,6 +178,7 @@ internal sealed class OracleGlobalStreamQuery : IGlobalStreamQuery
 				row.Timestamp.ToUniversalTime())
 			{
 				GlobalPosition = (long)row.Position,
+				TenantId = row.TenantId,
 			});
 		}
 
@@ -189,5 +202,6 @@ internal sealed class OracleGlobalStreamQuery : IGlobalStreamQuery
 		byte[] EventData,
 		byte[]? Metadata,
 		decimal Version,
-		DateTimeOffset Timestamp);
+		DateTimeOffset Timestamp,
+		string TenantId);
 }

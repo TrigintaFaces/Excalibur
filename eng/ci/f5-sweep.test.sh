@@ -261,6 +261,22 @@ else
     fail "L-R: synthetic repository missing; committed-base controls did not execute"
 fi
 
+# Untracked-only source must never masquerade as an examined clean delta.
+if [ -d "$repo/.git" ]; then
+    printf 'public class Untracked { public string CompletedAt { get; set; } }\n' > "$repo/src/Pkg/Untracked.cs"
+    for scope in --working --all; do
+        for reporting in '' --report-only; do
+            untracked_out="$(cd "$repo" && bash "$GUARD" "$scope" --base HEAD $reporting 2>&1)"
+            untracked_rc=$?
+            if [ "$untracked_rc" -eq 4 ] && printf '%s' "$untracked_out" | grep -q 'Untracked.cs'; then
+                pass "U: $scope $reporting refuses and identifies untracked source"
+            else
+                fail "U: $scope $reporting hid untracked source (exit $untracked_rc)"
+            fi
+        done
+    done
+fi
+
 echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo "✅ f5-sweep.test.sh: ALL GREEN"

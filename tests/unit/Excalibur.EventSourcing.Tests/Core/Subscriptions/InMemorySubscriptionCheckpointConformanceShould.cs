@@ -11,18 +11,56 @@ namespace Excalibur.EventSourcing.Tests.Core.Subscriptions;
 [Trait("Pattern", "Conformance")]
 public sealed class InMemorySubscriptionCheckpointConformanceShould : SubscriptionCheckpointStoreConformanceTestKit
 {
+    [Fact]
+    public Task GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime_Test() => GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime();
+
+    [Fact]
+    public Task GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference_Test() => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference();
+
+
+	[Fact]
+	public Task RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement_Test() =>
+		RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement();
+
 	private readonly ISubscriptionCheckpointStore _store = new InMemorySubscriptionCheckpointStore();
 
 	protected override ISubscriptionCheckpointStore CreateStore() => _store;
 
 	[Fact]
-	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() => Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+	public Task Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint();
 
 	[Fact]
-	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() => Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+	public Task Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched_Test() =>
+		Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched();
 
 	[Fact]
-	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() => ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+	public Task Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound_Test() =>
+		Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound();
+
+	[Fact]
+	public Task Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply_Test() =>
+		Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply();
+
+	[Fact]
+	public Task ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Release_ShouldRemoveMemberAndItsCheckpoint_Atomically_Test() =>
+		Release_ShouldRemoveMemberAndItsCheckpoint_Atomically();
+
+	[Fact]
+	public Task Release_AbsentMember_ShouldReturnFalse_AndWriteNothing_Test() =>
+		Release_AbsentMember_ShouldReturnFalse_AndWriteNothing();
+
+	[Fact]
+	public Task Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent();
+
+
+
+
 
 	[Fact]
 	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() => Bind_CaseDistinctNames_ShouldRemainIndependent();
@@ -50,6 +88,12 @@ public sealed class InMemorySubscriptionCheckpointConformanceShould : Subscripti
 
 	[Fact]
 	public Task Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership_Test() => Advance_WithEqualPositions_ShouldCompareWithoutClaimingOwnership();
+
+	[Fact]
+	public Task Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip_Test() => Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip();
+
+	[Fact]
+	public Task Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors_Test() => Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors();
 
 	[Fact]
 	public Task Enumerate_ShouldReportStoredCheckpoints_Test() => Enumerate_ShouldReportStoredCheckpoints();

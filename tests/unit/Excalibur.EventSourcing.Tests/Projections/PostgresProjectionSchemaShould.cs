@@ -94,6 +94,28 @@ public sealed class PostgresProjectionSchemaShould
 	}
 
 	[Fact]
+	public void QualifyTheTableWithTheSchemaTheStoreAddresses()
+	{
+		// Every statement the store runs is schema-qualified, so a table created unqualified resolves
+		// through search_path and is a table the store may not find. The default is the RESOLVED one.
+		PostgresProjectionSchema.CreateTableScript("order_summary")
+			.ShouldContain("""CREATE TABLE IF NOT EXISTS "public"."order_summary" """.TrimEnd());
+
+		// Quoted, so the case is preserved exactly as configured -- matching the store, which quotes both.
+		PostgresProjectionSchema.CreateTableScript("OrderSummary", "Reporting")
+			.ShouldContain("""CREATE TABLE IF NOT EXISTS "Reporting"."OrderSummary" """.TrimEnd());
+	}
+
+	[Theory]
+	[InlineData("public other")]
+	[InlineData("\"public\"")]
+	[InlineData("public.other")]
+	[InlineData("")]
+	public void RefuseASchemaItWouldHaveToInterpolateBlindly(string schema) =>
+		_ = Should.Throw<ArgumentException>(
+			() => PostgresProjectionSchema.CreateTableScript("order_summary", schema));
+
+	[Fact]
 	public void AcceptTheNamesConsumersActuallyUse()
 	{
 		// LIVENESS, and the arm that stops the refusal above being satisfied by refusing everything.

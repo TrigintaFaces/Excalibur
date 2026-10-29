@@ -13,7 +13,7 @@ namespace Excalibur.EventSourcing.Sharding;
 /// to the correct tenant's shard based on the current <see cref="ITenantContext"/>.
 /// </summary>
 /// <typeparam name="TProjection">The projection type.</typeparam>
-internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionStore<TProjection>
+internal sealed partial class TenantRoutingProjectionStore<TProjection> : IProjectionStore<TProjection>
 	where TProjection : class
 {
 	private readonly ITenantStoreResolver<IProjectionStore<TProjection>> _resolver;
@@ -87,6 +87,20 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 	/// </exception>
 	private IProjectionStore<TProjection> ResolveStore() => _resolver.Resolve(TenantScope.FromContext(_tenantContext).TenantId);
 
+	private sealed class TenantBoundary(TenantRoutingProjectionStore<TProjection> outer) : IProjectionTenantBoundary
+	{
+		public ProjectionTenantBoundary Boundary
+		{
+			get
+			{
+				var expected = TenantScope.FromContext(outer._tenantContext).TenantId;
+				var actual = Projections.ProjectionTenantValidation.Read(outer.ResolveStore());
+				if (actual.TenantId != expected) { throw new InvalidOperationException("Tenant-to-shard routing alone cannot establish projection tenant confinement. The resolved store must enforce the requested partition."); }
+				return actual;
+			}
+		}
+	}
+
 	/// <summary>
 	/// Forwards the positioned-write capability, re-resolving the shard on every call.
 	/// </summary>
@@ -110,7 +124,19 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 	/// <returns>A routing view, or <see langword="null"/> when no shard provides the capability.</returns>
 	public object? GetService(Type serviceType)
 	{
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return new TenantBoundary(this); }
 		ArgumentNullException.ThrowIfNull(serviceType);
+        if (serviceType == typeof(IProjectionGenerationReaderFactory<TProjection>)
+            && ResolveStore().GetService(serviceType) is IProjectionGenerationReaderFactory<TProjection>)
+        {
+            return new GenerationReaderFactory(this);
+        }
+        if (serviceType == typeof(IAotProjectionGenerationReaderFactory<TProjection>)
+            && ResolveStore().GetService(serviceType) is IAotProjectionGenerationReaderFactory<TProjection>)
+        {
+            return new GeneratedReaderFactory(this);
+        }
+
 
 		if (serviceType.IsInstanceOfType(this))
 		{
@@ -139,6 +165,16 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 				? new TenantRoutingVisibilityBarrier(this)
 				: null;
 		}
+        if (serviceType == typeof(IProjectionDestinationScope))
+        {
+            return ResolveStore().GetService(serviceType) is IProjectionDestinationScope
+                ? new TenantRoutingDestinationScope(this) : null;
+        }
+        if (serviceType == typeof(IAsyncProjectionDestinationScope))
+        {
+            return ResolveStore().GetService(serviceType) is IAsyncProjectionDestinationScope
+                ? new TenantRoutingAsyncDestinationScope(this) : null;
+        }
 
 		return null;
 	}
@@ -151,6 +187,20 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 				?? throw new InvalidOperationException("The current tenant's projection store no longer provides its configured destination identity."))
 			.Identity;
 	}
+
+    private sealed class TenantRoutingDestinationScope(TenantRoutingProjectionStore<TProjection> outer) : IProjectionDestinationScope
+    {
+        public string Scope => (outer.ResolveStore().GetService(typeof(IProjectionDestinationScope)) as IProjectionDestinationScope
+            ?? throw new InvalidOperationException("The current tenant's store no longer provides its storage scope.")).Scope;
+    }
+
+    private sealed class TenantRoutingAsyncDestinationScope(TenantRoutingProjectionStore<TProjection> outer) : IAsyncProjectionDestinationScope
+    {
+        public ValueTask<string> GetScopeAsync(CancellationToken cancellationToken) =>
+            (outer.ResolveStore().GetService(typeof(IAsyncProjectionDestinationScope)) as IAsyncProjectionDestinationScope
+                ?? throw new InvalidOperationException("The current tenant's store no longer provides its asynchronous storage scope."))
+                .GetScopeAsync(cancellationToken);
+    }
 
 	private sealed class TenantRoutingVisibilityBarrier(TenantRoutingProjectionStore<TProjection> outer)
 		: IProjectionVisibilityBarrier
@@ -228,6 +278,28 @@ internal sealed class TenantRoutingProjectionStore<TProjection> : IProjectionSto
 
 		public Task<long> CountAsync(IDictionary<string, object>? filters, CancellationToken cancellationToken) =>
 			outer.CountAsync(filters, cancellationToken);
+
+		/// <inheritdoc />
+		/// <remarks>
+		/// <para>
+		/// This view is an <see cref="IProjectionStore{TProjection}"/> in its own right — the capability it
+		/// implements inherits that interface — so it is reachable by a capability probe. Without this member
+		/// it would inherit the interface's default implementation, which answers only for the instance
+		/// itself, and would therefore report that the tenant's shard has no capabilities at all.
+		/// </para>
+		/// <para>
+		/// It answers for itself on an instance match, because this view IS the tenant-routed form of the
+		/// positioned capability; handing back the shard's raw positioned store instead would bypass the
+		/// per-call shard resolution that every other member here performs. Anything else is delegated to
+		/// the routing store, which resolves the shard at the moment of the call rather than capturing one.
+		/// </para>
+		/// </remarks>
+		object? IServiceProvider.GetService(Type serviceType)
+		{
+			ArgumentNullException.ThrowIfNull(serviceType);
+
+			return serviceType.IsInstanceOfType(this) ? this : outer.GetService(serviceType);
+		}
 
 		private IPositionedProjectionStore<TProjection> Resolve() =>
 			outer.ResolveStore().GetService(typeof(IPositionedProjectionStore<TProjection>))

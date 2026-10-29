@@ -34,6 +34,13 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 		IClassFixture<SqlServerEventStoreContainerFixture>,
 		IAsyncLifetime
 {
+    [Fact]
+    public Task GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime_Test() => GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime();
+
+    [Fact]
+    public Task GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference_Test() => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference();
+
+
 	private const string CheckpointTable = "SubscriptionCheckpoints";
 
 	private readonly SqlServerEventStoreContainerFixture _fixture;
@@ -70,17 +77,45 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 		return services.BuildServiceProvider().GetRequiredService<ISubscriptionCheckpointStore>();
 	}
 
-	[Fact]
-	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
-		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+    [Fact]
+    public Task RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement_Test() =>
+        RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement();
 
 	[Fact]
-	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
-		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+	public Task Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint();
 
 	[Fact]
-	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
-		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+	public Task Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched_Test() =>
+		Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched();
+
+	[Fact]
+	public Task Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound_Test() =>
+		Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound();
+
+	[Fact]
+	public Task Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply_Test() =>
+		Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply();
+
+	[Fact]
+	public Task ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Release_ShouldRemoveMemberAndItsCheckpoint_Atomically_Test() =>
+		Release_ShouldRemoveMemberAndItsCheckpoint_Atomically();
+
+	[Fact]
+	public Task Release_AbsentMember_ShouldReturnFalse_AndWriteNothing_Test() =>
+		Release_AbsentMember_ShouldReturnFalse_AndWriteNothing();
+
+	[Fact]
+	public Task Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent();
+
+
+
+
 
 	[Fact]
 	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
@@ -119,6 +154,14 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 		ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne();
 
 	[Fact]
+	public Task Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip_Test() =>
+		Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip();
+
+	[Fact]
+	public Task Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors_Test() =>
+		Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors();
+
+	[Fact]
 	public Task Enumerate_ShouldReportStoredCheckpoints_Test() =>
 		Enumerate_ShouldReportStoredCheckpoints();
 
@@ -137,31 +180,15 @@ public sealed class SqlServerSubscriptionCheckpointStoreConformanceShould
 		await using var connection = _fixture.CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var sql = $"""
-			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{CheckpointTable}'
-				AND schema_id = SCHEMA_ID('{_fixture.SchemaName}'))
-			CREATE TABLE [{_fixture.SchemaName}].[{CheckpointTable}] (
-				[SubscriptionName] NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL,
-				[Position]         BIGINT NOT NULL,
-				[UpdatedAt]        DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-				CONSTRAINT [PK_{CheckpointTable}] PRIMARY KEY CLUSTERED ([SubscriptionName])
-			);
-			IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{CheckpointTable}Definitions'
-				AND schema_id = SCHEMA_ID('{_fixture.SchemaName}'))
-			CREATE TABLE [{_fixture.SchemaName}].[{CheckpointTable}Definitions] (
-				SubscriptionName NVARCHAR(255) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY,
-				-- CARRIES THE SHIPPED CHECK. This fixture omitted it, so the conformance run exercised
-				-- a table shape no consumer has: a store writing a malformed hash would have passed
-				-- here and failed against the real schema. Keep it identical to
-				-- Scripts/004_CreateSubscriptionCheckpointSchema.sql.
-				DefinitionHash VARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL
-					CHECK (LEN(DefinitionHash) = 64 AND DefinitionHash NOT LIKE '%[^0-9A-F]%')
-			);
-			""";
 
-#pragma warning disable CA2100 // Schema and table are test-controlled constants
-		await using var command = new SqlCommand(sql, connection);
+        foreach (var script in global::Tests.Shared.Helpers.ShippedSchemaScript.ReadSqlCmdBatches(
+            "src/Excalibur/Excalibur.EventSourcing.SqlServer/Scripts/004_CreateSubscriptionCheckpointSchema.sql"))
+        {
+            await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // Shipped provider SQL; only test-owned schema names are substituted.
+            command.CommandText = script.Replace("dbo.", $"[{_fixture.SchemaName}].", StringComparison.Ordinal);
 #pragma warning restore CA2100
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-	}
+            _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+    }
 }

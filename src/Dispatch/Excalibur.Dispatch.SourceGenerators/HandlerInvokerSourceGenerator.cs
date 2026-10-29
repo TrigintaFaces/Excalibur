@@ -84,7 +84,7 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 
 			handlerInterfaces.Add(new HandlerInterfaceInfo
 			{
-				InterfaceName = @interface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+				InterfaceName = @interface.ToDisplayString(GeneratorDisplayFormats.TypeReference),
 				MessageType = messageType,
 				ResultType = resultType,
 				HasResult = resultType != null
@@ -171,11 +171,11 @@ public sealed class HandlerInvokerSourceGenerator : IIncrementalGenerator
 		{
 			foreach (var @interface in handler.Interfaces)
 			{
-				var messageTypeName = @interface.MessageType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				var messageTypeName = @interface.MessageType.ToDisplayString(GeneratorDisplayFormats.TypeReference);
 
 				if (@interface.HasResult)
 				{
-					var resultTypeName = @interface.ResultType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+					var resultTypeName = @interface.ResultType!.ToDisplayString(GeneratorDisplayFormats.TypeReference);
 					_ = sb.AppendLine($"        HandlerInvokerRegistry.RegisterInvoker<{handler.FullName}, {messageTypeName}, {resultTypeName}>(");
 					_ = sb.AppendLine($"            static (handler, message, ct) => (({@interface.InterfaceName})handler).HandleAsync(message, ct));");
 				}

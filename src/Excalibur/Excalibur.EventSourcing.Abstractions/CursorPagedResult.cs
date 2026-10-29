@@ -67,7 +67,7 @@ public sealed class CursorPagedResult<T>(IEnumerable<T> items, int pageSize, lon
 	/// <value>
 	/// The total number of pages based on the page size and total records.
 	/// </value>
-	public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling(TotalRecords / (double)PageSize);
+	public long TotalPages => PageSize == 0 ? 0L : (TotalRecords / PageSize) + ((TotalRecords % PageSize) == 0 ? 0L : 1L);
 
 	/// <summary>
 	/// Gets the opaque continuation token for retrieving the next page.

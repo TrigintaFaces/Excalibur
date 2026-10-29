@@ -43,7 +43,8 @@ await using (var connection = new SqlConnection(connectionString))
 	// letters, digits or underscores for exactly this reason. There is no parameterised form of
 	// this DDL to prefer, and nothing here reaches user input.
 #pragma warning disable CA2100
-	command.CommandText = SqlServerProjectionSchema.CreateTableScript("SampleOrderSummary");
+	command.CommandText = SqlServerProjectionSchema.CreateTableScript(
+        Excalibur.EventSourcing.ProjectionVersionConvention.Qualify("SampleOrderSummary", typeof(OrderSummary), '_'));
 #pragma warning restore CA2100
 	_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 }

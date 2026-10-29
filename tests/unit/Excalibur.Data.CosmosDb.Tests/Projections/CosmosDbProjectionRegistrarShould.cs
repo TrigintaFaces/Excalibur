@@ -42,9 +42,9 @@ public sealed class CosmosDbProjectionRegistrarShould : UnitTestBase
 		services.AddCosmosDbProjections(SharedConnStr, SharedDbName, p => p.Add<ProjectionA>());
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<CosmosDbProjectionStoreOptions>>();
-		options.Value.Client.ConnectionString.ShouldBe(SharedConnStr);
-		options.Value.DatabaseName.ShouldBe(SharedDbName);
+		var options = NamedOptions<ProjectionA>(provider);
+		options.Client.ConnectionString.ShouldBe(SharedConnStr);
+		options.DatabaseName.ShouldBe(SharedDbName);
 	}
 
 	[Fact]
@@ -57,8 +57,7 @@ public sealed class CosmosDbProjectionRegistrarShould : UnitTestBase
 			p.Add<ProjectionA>(opts => opts.ContainerName = "custom_container"));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<CosmosDbProjectionStoreOptions>>();
-		options.Value.ContainerName.ShouldBe("custom_container");
+		NamedOptions<ProjectionA>(provider).ContainerName.ShouldBe("custom_container");
 	}
 
 	#endregion
@@ -91,8 +90,7 @@ public sealed class CosmosDbProjectionRegistrarShould : UnitTestBase
 			p => p.Add<ProjectionA>(opts => opts.ContainerName = "override"));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<CosmosDbProjectionStoreOptions>>();
-		options.Value.ContainerName.ShouldBe("override");
+		NamedOptions<ProjectionA>(provider).ContainerName.ShouldBe("override");
 	}
 
 	[Fact]
@@ -107,6 +105,38 @@ public sealed class CosmosDbProjectionRegistrarShould : UnitTestBase
 	}
 
 	#endregion
+
+	[Fact]
+	public void IsolateEachProjectionsContainerWhenRegisteredTogether()
+	{
+		var services = new ServiceCollection();
+		_ = services.AddLogging();
+
+		services.AddCosmosDbProjections(SharedConnStr, SharedDbName, p => p
+			.Add<ProjectionA>(opts => opts.ContainerName = "a_container")
+			.Add<ProjectionB>(opts => opts.ContainerName = "b_container"));
+
+		using var provider = services.BuildServiceProvider();
+
+		// Were these configured on the unnamed options instance, the last registration would decide the
+		// container for both and both reads would return "b_container".
+		NamedOptions<ProjectionA>(provider).ContainerName.ShouldBe("a_container");
+		NamedOptions<ProjectionB>(provider).ContainerName.ShouldBe("b_container");
+
+		// Both still carry the shared connection -- the isolation must not cost them the shared settings.
+		NamedOptions<ProjectionA>(provider).DatabaseName.ShouldBe(SharedDbName);
+		NamedOptions<ProjectionB>(provider).DatabaseName.ShouldBe(SharedDbName);
+	}
+
+	/// <summary>
+	/// Reads the options instance the registration configured for <typeparamref name="TProjection"/>, via
+	/// the same key the store uses. The unnamed <c>IOptions&lt;T&gt;</c> instance is never configured by a
+	/// projection registration, so reading it would only ever report the option defaults.
+	/// </summary>
+	private static CosmosDbProjectionStoreOptions NamedOptions<TProjection>(IServiceProvider provider)
+		where TProjection : class =>
+		provider.GetRequiredService<IOptionsMonitor<CosmosDbProjectionStoreOptions>>()
+			.Get(CosmosDbProjectionStore<TProjection>.OptionsName);
 
 	private sealed class ProjectionA { public string? Name { get; set; } }
 	private sealed class ProjectionB { public int Count { get; set; } }

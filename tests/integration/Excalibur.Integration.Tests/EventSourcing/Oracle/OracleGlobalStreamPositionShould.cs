@@ -56,6 +56,35 @@ public sealed class OracleGlobalStreamPositionShould
 {
 	private const string AggregateType = "Order";
 
+	[Fact]
+	[Trait("Pattern", "Regression")]
+	public async Task PreserveAuthoritativeTenantIdentityAcrossBothGlobalReadMethods()
+	{
+		_fixture.DockerAvailable.ShouldBeTrue();
+		await _fixture.EnsureInitializedAsync();
+		await _fixture.CleanupTableAsync();
+		string[] tenants = ["Acme", "acme", "__untenanted__"];
+		await using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+		foreach (var tenant in tenants)
+		{
+			var id = Guid.NewGuid().ToString("N");
+			await AppendAsync(Store(), id, -1);
+			await using var command = connection.CreateCommand();
+			command.BindByName = true;
+			command.CommandText = "UPDATE EVENTSTOREEVENTS SET TENANTID=:tenant WHERE AGGREGATEID=:id";
+			command.Parameters.Add("tenant", tenant);
+			command.Parameters.Add("id", id);
+			(await command.ExecuteNonQueryAsync()).ShouldBe(1);
+		}
+		var query = Query();
+		var all = await query.ReadAllAsync(GlobalStreamPosition.Start, 100, CancellationToken.None);
+		all.Select(row => row.TenantId).ShouldBe(tenants);
+		var filtered = await query.ReadByEventTypeAsync(all[0].EventType, GlobalStreamPosition.Start, 100, CancellationToken.None);
+		filtered.Select(row => row.TenantId).ShouldBe(tenants);
+		filtered.Select(row => row.EventId).ShouldBe(all.Select(row => row.EventId));
+	}
+
 	private readonly OracleEventStoreContainerFixture _fixture;
 
 	public OracleGlobalStreamPositionShould(OracleEventStoreContainerFixture fixture) => _fixture = fixture;

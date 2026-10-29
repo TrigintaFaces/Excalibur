@@ -48,12 +48,13 @@ its cause; inspect the underlying transport and workload when diagnosing an inci
   Preserve the event store; do not clear its events or retry previously committed commands.
 - Rebuild legacy numberless or unplaceable rows before enabling processing. Do not assign them a
   guessed position or retry the original command to repair them.
-- Stop old processors before changing a projection from Async to Inline. Changing the workset under an
-  existing subscription name is rejected. Use a new subscription name/revision and a deliberate
-  destination cutover if the projection semantics change. A new cursor alone cannot repair changed
-  projection semantics in an existing document.
-- Cooperating API and Jobs hosts must register the same Inline projection set, revision, source, and
-  destination configuration. Different endpoint lists fail closed even if operators know they reach
+- Stop old processors before changing a projection from Async to Inline. Keep the subscription name
+  stable when adding projections: each generation has its own binding and checkpoint. For changed
+  projection semantics, declare a new projection version and deliberately cut over its destination.
+  A new cursor alone cannot repair changed projection semantics in an existing document. See
+  [Evolving projections](../event-sourcing/projection-evolution.md) for the generation workflow.
+- Cooperating API and Jobs hosts must agree on each shared Inline member's definition, revision, source,
+  and destination configuration. Different endpoint lists fail closed even if operators know they reach
   one cluster. A rebuilt/replaced database or cluster requires a coordinated checkpoint reset/cutover;
   endpoint names do not identify physical data incarnations.
 

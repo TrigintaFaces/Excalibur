@@ -1237,9 +1237,12 @@ have not established.**
 
 **Affected: Marten `>= 7.0.0, <= 9.12.0`. Patched: `9.13.0`.**
 
-**Every version of our package that you can install declares `9.12.0`**, so the table below is about the
-version you get *by default*. **But if you have overridden Marten to any version from `7.0.0` onward, you
-are still affected** — pinning *backwards*, or to any 8.x, does not help. Only `9.13.0` or later does.
+**Versions up to and including `alpha.11` declare `9.12.0`; `alpha.12` and every version since declare
+`9.13.0`.** Re-verified against nuget.org on 2026-10-29: 16 versions of `Excalibur.Outbox.Marten` are
+published, the latest is `10.0.0-alpha.19`, and its manifest declares `9.13.0`. The table below is
+therefore about the versions you get *by default* **on `alpha.11` and earlier**. **But if you have
+overridden Marten to any version from `7.0.0` onward, you are still affected whichever of our versions
+you are on** — pinning *backwards*, or to any 8.x, does not help. Only `9.13.0` or later does.
 
 **The remedy is now a version, not a workaround: upgrade to `10.0.0-alpha.12` or later.** We verified
 this against the published manifest rather than our own source — `alpha.12` declares

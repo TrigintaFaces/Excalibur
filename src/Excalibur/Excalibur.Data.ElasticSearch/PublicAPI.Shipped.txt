@@ -1051,7 +1051,6 @@ Excalibur.Data.ElasticSearch.Projections.IProjectionRebuildManager.CancelRebuild
 Excalibur.Data.ElasticSearch.Projections.IProjectionRebuildManager.GetRebuildStatusAsync(string! operationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildStatus!>!
 Excalibur.Data.ElasticSearch.Projections.IProjectionRebuildManager.ListRebuildOperationsAsync(System.DateTime fromDate, System.DateTime toDate, string? projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildSummary!>!>!
 Excalibur.Data.ElasticSearch.Projections.IProjectionRebuildManager.StartRebuildAsync(Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildResult!>!
-Excalibur.Data.ElasticSearch.Projections.IProjectionRebuildManager.ValidateRebuildAsync(string! projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildValidation!>!
 Excalibur.Data.ElasticSearch.Projections.ISchemaEvolutionHandler
 Excalibur.Data.ElasticSearch.Projections.ISchemaEvolutionHandler.CompareSchemaAsync(string! sourceIndex, string! targetIndex, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.SchemaComparisonResult!>!
 Excalibur.Data.ElasticSearch.Projections.ISchemaEvolutionHandler.DryRunMigrationAsync(Excalibur.Data.ElasticSearch.Projections.SchemaMigrationPlan! plan, int sampleSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.SchemaMigrationDryRunResult!>!
@@ -1170,7 +1169,6 @@ Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.MaxDegreeOfPar
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.Metadata.init -> void
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.ProjectionRebuildRequest() -> void
-Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.ProjectionType.get -> string!
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.ProjectionType.init -> void
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.SourceIndexName.get -> string?
 Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.SourceIndexName.init -> void
@@ -2614,3 +2612,21 @@ virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.RemoveAsyn
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.SearchAsync(Elastic.Clients.Elasticsearch.SearchRequestDescriptor<TDocument!> searchRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Elastic.Clients.Elasticsearch.SearchResponse<TDocument!>!>!
 virtual Excalibur.Data.ElasticSearch.ElasticRepositoryBase<TDocument>.UpdateAsync(string! documentId, System.Collections.Generic.Dictionary<string!, object!>! updatedFields, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 virtual Excalibur.Data.ElasticSearch.SecureElasticRepositoryBase<TEntity>.IsIpInRange(string! ipAddress, string! rangeOrIp) -> bool
+Excalibur.Data.ElasticSearch.Projections.IProjectionRebuildManager.ValidateRebuildAsync(System.Type! projectionType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildValidation!>!
+Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildMechanism
+Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildMechanism.EventRefold = 1 -> Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildMechanism
+Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildMechanism.IndexCopy = 0 -> Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildMechanism
+Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.Mechanism.get -> Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildMechanism
+Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.ProjectionType.get -> System.Type!
+static Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention.GetOptionsName(System.Type! projectionType) -> string!
+static Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionIndexConvention.GetIndexName(Excalibur.Data.ElasticSearch.Projections.ElasticSearchProjectionStoreOptions! options, System.Type! projectionType) -> string!
+static Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.ForEventRefold<TProjection>() -> Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest!
+static Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest.ForIndexMove(System.Type! projectionType, string! sourceIndexName, string! targetIndexName) -> Excalibur.Data.ElasticSearch.Projections.ProjectionRebuildRequest!
+Excalibur.Data.ElasticSearch.IndexManagement.AliasGenerationRepoint
+Excalibur.Data.ElasticSearch.IndexManagement.AliasGenerationRepoint.AliasGenerationRepoint(Excalibur.Data.ElasticSearch.IndexManagement.IIndexAliasManager! aliases, string! aliasName) -> void
+Excalibur.Data.ElasticSearch.IndexManagement.AliasGenerationRepoint.GetActiveDestinationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Data.ElasticSearch.IndexManagement.AliasGenerationRepoint.RepointAsync(string! expectedDestination, string! destination, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.IsHidden.get -> bool?
+Excalibur.Data.ElasticSearch.IndexManagement.AliasDefinition.IsHidden.set -> void
+Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.MustExist.get -> bool
+Excalibur.Data.ElasticSearch.IndexManagement.AliasOperation.MustExist.init -> void

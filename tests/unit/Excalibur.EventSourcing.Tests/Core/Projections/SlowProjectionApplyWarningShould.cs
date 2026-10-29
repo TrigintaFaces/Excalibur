@@ -125,7 +125,7 @@ public sealed class SlowProjectionApplyWarningShould
 		using var host = new AsyncProjectionProcessingHost(
 			registry,
 			serializer,
-			new NullCheckpointStore(),
+			new InMemorySubscriptionCheckpointStore(),
 			Options.Create(new GlobalStreamProjectionOptions { SubscriptionScope = "unit-test", CheckpointInterval = 1 }),
 			provider,
 			logger,
@@ -138,42 +138,6 @@ public sealed class SlowProjectionApplyWarningShould
 		_ = await host.ProcessPendingAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
 		return logger.Warnings;
-	}
-
-	private sealed class NullCheckpointStore : ISubscriptionCheckpointStore
-	{
-		private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _definitions = new(StringComparer.Ordinal);
-
-		public Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
-		{
-			SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
-			cancellationToken.ThrowIfCancellationRequested();
-			var actual = _definitions.GetOrAdd(subscriptionName, definitionHash);
-			SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
-			return Task.CompletedTask;
-		}
-
-		private long? _position;
-
-		public Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken) =>
-			Task.FromResult(_position);
-
-		public Task SaveCheckpointAsync(string subscriptionName, long position, CancellationToken cancellationToken)
-		{
-			_position = position;
-			return Task.CompletedTask;
-		}
-
-		public Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
-			string subscriptionName, long? expectedPosition, long newPosition, CancellationToken cancellationToken)
-		{
-			_position = newPosition;
-			return Task.FromResult(CheckpointAdvanceOutcome.Advanced);
-		}
-
-		public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(
-			CancellationToken cancellationToken) =>
-			Task.FromResult<IReadOnlyList<SubscriptionCheckpoint>>([]);
 	}
 
 	// Records only warnings, which is the whole assertion surface here. A FakeItEasy fake of

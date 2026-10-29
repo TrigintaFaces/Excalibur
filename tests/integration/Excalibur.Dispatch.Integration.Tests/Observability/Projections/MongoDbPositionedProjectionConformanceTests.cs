@@ -33,13 +33,38 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 [Trait("Infrastructure", TestInfrastructure.MongoDB)]
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]
-public sealed class MongoDbPositionedProjectionConformanceTests : PositionedProjectionStoreConformanceTestKit
+public sealed class MongoDbPositionedProjectionConformanceTests : PositionedProjectionDestinationConformanceTestKit
 {
 	private readonly MongoDbContainerFixture _fixture;
 	private readonly string _tableName = $"positioned_projection_{Guid.NewGuid():N}";
 
 	public MongoDbPositionedProjectionConformanceTests(MongoDbContainerFixture fixture) => _fixture = fixture;
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadAnExactNextGenerationWithoutMovingTheWriter(bool escapedCollection)
+    {
+        var store = escapedCollection
+            ? new MongoDbProjectionStore<ConformanceProjection>(MonitorFor(_tableName + "/%literal"), NullLogger<MongoDbProjectionStore<ConformanceProjection>>.Instance)
+            : await CreateStoreAsync();
+        var next = escapedCollection
+            ? new MongoDbProjectionStore<ConformanceProjectionNextGeneration>(MonitorFor(_tableName + "/%literal"), NullLogger<MongoDbProjectionStore<ConformanceProjectionNextGeneration>>.Instance)
+            : await CreateNextGenerationStoreAsync();
+        await next.UpsertAsync("reader-row", new ConformanceProjectionNextGeneration { Id = "reader-row", Total = 37 }, CancellationToken.None);
+        var destination = ((IProjectionDestinationIdentity)next.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldNotBeNull();
+        (await reader.GetByIdAsync("reader-row", CancellationToken.None))!.Total.ShouldBe(37);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(37);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+        (await store.GetByIdAsync("reader-row", CancellationToken.None)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GateCutoverAndRouteAllReadsToTheSelectedGeneration() =>
+        await GenerationRoutingAcceptance.VerifyAsync(await CreateStoreAsync(), await CreateNextGenerationStoreAsync());
 	/// <summary>Wires the kit's own completeness check, which names any arm this suite forgot.</summary>
 	/// <returns>A task representing the check.</returns>
 	[Fact]
@@ -148,6 +173,74 @@ public sealed class MongoDbPositionedProjectionConformanceTests : PositionedProj
 	[Fact]
 	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
+
+	/// <summary>The store states which destination it is configured against.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Advertise_the_destination_it_is_configured_against_Test() =>
+		Advertise_the_destination_it_is_configured_against();
+
+	/// <summary>A generation reader reports one storage scope through both of its members.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Report_one_storage_scope_through_both_generation_reader_members_Test() =>
+		Report_one_storage_scope_through_both_generation_reader_members();
+
+	/// <summary>Moving the configured destination changes the identity the store advertises.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Change_the_identity_when_the_configured_destination_moves_Test() =>
+		Change_the_identity_when_the_configured_destination_moves();
+
+	/// <summary>A declared generation resolves a destination of its own, carrying its generation segment.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Resolve_a_distinct_destination_for_the_next_generation_Test() =>
+		Resolve_a_distinct_destination_for_the_next_generation();
+
+	/// <summary>The previous generation keeps serving its own documents while the next one builds.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Keep_the_previous_generation_readable_while_the_next_one_builds_Test() =>
+		Keep_the_previous_generation_readable_while_the_next_one_builds();
+
+	/// <inheritdoc />
+	protected override Task<IProjectionStore<ConformanceProjection>> CreateRelocatedStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjection>>(
+			new MongoDbProjectionStore<ConformanceProjection>(
+				MonitorFor(_tableName + "-moved"),
+				NullLogger<MongoDbProjectionStore<ConformanceProjection>>.Instance));
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Configured against the SAME collection as the baseline, so the declared generation is the only
+	/// difference between the two stores. Mongo provisions its own collection, so the next generation's
+	/// is created on first write.
+	/// </remarks>
+	protected override Task<IProjectionStore<ConformanceProjectionNextGeneration>>
+		CreateNextGenerationStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjectionNextGeneration>>(
+			new MongoDbProjectionStore<ConformanceProjectionNextGeneration>(
+				MonitorFor(_tableName),
+				NullLogger<MongoDbProjectionStore<ConformanceProjectionNextGeneration>>.Instance));
+
+	/// <summary>Serves one options instance, naming the collection, under every options name.</summary>
+	/// <param name="collectionName">The collection the store should address before versioning.</param>
+	/// <returns>A monitor answering with those options.</returns>
+	private Microsoft.Extensions.Options.IOptionsMonitor<MongoDbProjectionStoreOptions> MonitorFor(
+		string collectionName)
+	{
+		var monitor = A.Fake<Microsoft.Extensions.Options.IOptionsMonitor<MongoDbProjectionStoreOptions>>();
+		_ = A.CallTo(() => monitor.Get(A<string>._)).Returns(new MongoDbProjectionStoreOptions
+		{
+			ConnectionString = _fixture.ConnectionString,
+			DatabaseName = "positioned_conformance",
+			CollectionName = collectionName,
+		});
+
+		return monitor;
+	}
+
 	/// <inheritdoc />
 	protected override async Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
 	{
@@ -160,15 +253,8 @@ public sealed class MongoDbPositionedProjectionConformanceTests : PositionedProj
 
 		// The store provisions its own collection and indexes, so there is no external DDL to keep in
 		// step -- which is also why this provider has no analogue of the relational position column.
-		var options = Microsoft.Extensions.Options.Options.Create(new MongoDbProjectionStoreOptions
-		{
-			ConnectionString = _fixture.ConnectionString,
-			DatabaseName = "positioned_conformance",
-			CollectionName = _tableName,
-		});
-
 		return new MongoDbProjectionStore<ConformanceProjection>(
-			options,
+			MonitorFor(_tableName),
 			NullLogger<MongoDbProjectionStore<ConformanceProjection>>.Instance);
 	}
 

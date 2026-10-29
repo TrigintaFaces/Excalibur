@@ -15,3 +15,14 @@ public interface IProjectionDestinationScope
 	/// <summary>Gets the nonblank, credential-free cluster configuration identity.</summary>
 	string Scope { get; }
 }
+
+/// <summary>Resolves a storage scope when the actual service must supply account or resource metadata.</summary>
+/// <remarks>Resolve through the outer store capability chain. Successful resolution must pin subsequent operations
+/// to that scope. Failed or cancelled resolution must remain retryable; never return an unverified label.</remarks>
+public interface IAsyncProjectionDestinationScope
+{
+    /// <summary>Resolves the credential-free scope of the actual destination.</summary>
+    /// <param name="cancellationToken">Cancels metadata resolution.</param>
+    /// <returns>The verified storage scope.</returns>
+    ValueTask<string> GetScopeAsync(CancellationToken cancellationToken);
+}

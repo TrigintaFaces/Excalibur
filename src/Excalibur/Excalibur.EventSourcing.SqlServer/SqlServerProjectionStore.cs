@@ -10,6 +10,7 @@ using Dapper;
 
 using Excalibur.Data;
 using Excalibur.Dispatch;
+using Excalibur.EventSourcing.SqlServer.Requests;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>,
+public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
 	IPageableProjectionStore<TProjection>,
 	IPositionedProjectionStore<TProjection>
 	where TProjection : class
@@ -44,6 +45,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _qualifiedTable;
+	private readonly string _destinationIdentity;
 	private readonly ILogger<SqlServerProjectionStore<TProjection>> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
 	private readonly ITenantContext _tenantContext;
@@ -126,11 +128,36 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			throw new ArgumentException($"Schema name '{schemaName}' contains invalid characters. Only alphanumeric characters and underscores are allowed.", nameof(schemaName));
 		}
 
+		// THE DECLARED GENERATION PARTICIPATES IN THE TABLE, so a change to the read model's shape or
+		// fold addresses a new table rather than mutating the one already serving reads: the new
+		// generation folds from zero while the previous one keeps its cursor until the consumer cuts
+		// over. Applied AFTER the identifier check, so a rejection still names the table the consumer
+		// configured rather than one with a suffix they never wrote.
+		//
+		// AN UNDERSCORE, NOT THE HYPHEN A SEARCH INDEX USES: the identifier check above permits only
+		// alphanumerics and the underscore, so a hyphen would be rejected. Cross-provider name parity
+		// is therefore not available here and is not the contract -- each provider places the segment
+		// where it genuinely addresses a distinct destination.
+		//
+		// REASSIGNED ONCE, not applied twice: the qualified table and the destination identity below
+		// both read this one local, so they cannot derive the generation differently. The schema is
+		// left alone -- a generation moves the table, never the schema holding it.
+		resolvedName = ProjectionVersionConvention.Qualify(resolvedName, typeof(TProjection), '_');
 
 		// QUALIFIED ONCE, and used by every statement. Addressing the table unqualified made it resolve
 		// through the connection's default schema, so a consumer who set a schema got a table the store
 		// could not find -- the setting read as supported and did nothing.
-		_qualifiedTable = $"[{schemaName}].[{resolvedName}]";
+		// Composed by the package's single identifier-quoting helper, the same one the event, snapshot and
+		// materialized-view statements use, so a change to how identifiers are quoted cannot apply to some
+		// statements and not others.
+		_qualifiedTable = SqlTableName.Format(schemaName, resolvedName);
+
+		// The LOGICAL target, from the same resolved schema and table every statement addresses. The schema
+		// is part of it because SQL Server resolves an unqualified name through the caller's default schema,
+		// so the same table name in two schemas is two destinations. The RESOLVED default goes in, not an
+		// empty segment, so making the default explicit does not change the identity. No server, database or
+		// credential: a consumer's environments address one logical destination.
+		_destinationIdentity = $"sqlserver/{schemaName}/{resolvedName}";
 
 		// Converged on the single ProjectionSerializationDefaults read-model factory (camelCase +
 		// null-omission) so every projection store's wire shape stays byte-compatible on the read path.
@@ -139,9 +166,12 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
-	public async Task<TProjection?> GetByIdAsync(
+	public Task<TProjection?> GetByIdAsync(
 		string id,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+		GetByIdCoreAsync(id, json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions), cancellationToken);
+
+	private async Task<TProjection?> GetByIdCoreAsync(string id, Func<string, TProjection?> deserialize, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
@@ -151,25 +181,26 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
 		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 		var tenantPredicate = " AND " + TenantColumnPredicate;
-		var sql = $"SELECT Data FROM {_qualifiedTable} WHERE Id = @Id{tenantPredicate}";
+		var sql = $"SELECT Data FROM {_qualifiedTable} WHERE Id = @Id{tenantPredicate} AND (LastAppliedPosition IS NULL OR LastAppliedPosition <> @Retired)";
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", id);
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
 		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var json = await connection.QuerySingleOrDefaultAsync<string>(
-				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
-			.ConfigureAwait(false);
+		await using var command = CreateStoreCommand(connection, sql, parameters);
+        var scalar = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var json = scalar is null or DBNull ? null : (string)scalar;
 
 		if (json is null)
 		{
 			return null;
 		}
 
-		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
+		return deserialize(json);
 	}
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
@@ -222,7 +253,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 			MERGE {_qualifiedTable} WITH (UPDLOCK, HOLDLOCK) AS target
 			USING (SELECT @Id AS Id, @Data AS Data, @UpdatedAt AS UpdatedAt{sourceTenantSelect}) AS source
 			ON target.Id = source.Id{onTenantPredicate}
-			WHEN MATCHED THEN
+			WHEN MATCHED AND (target.LastAppliedPosition IS NULL OR target.LastAppliedPosition <> @Retired) THEN
 				UPDATE SET Data = source.Data, UpdatedAt = source.UpdatedAt,
 						   LastAppliedPosition = @UnplaceableSentinel
 			WHEN NOT MATCHED THEN
@@ -236,6 +267,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", id);
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
 		parameters.Add("@Data", json);
 		parameters.Add("@UpdatedAt", now);
 		parameters.Add("@TenantId", tenantId);
@@ -250,12 +282,17 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
+		var affected = await connection.ExecuteAsync(
 				new CommandDefinition(
 					sql,
 					parameters,
 					cancellationToken: cancellationToken))
 			.ConfigureAwait(false);
+
+		if (affected == 0)
+		{
+			throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+		}
 
 		_logger.LogDebug("Upserted projection {ProjectionType}/{Id}", typeof(TProjection).Name, id);
 	}
@@ -272,19 +309,29 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		// query is inexpressible. This store has no legitimate unscoped mode — its writes always stamp the
 		// TenantId discriminator — so it requires a tenant rather than degrading to default(TenantScope).
 		var tenantId = TenantScope.Scoped(_tenantContext.TenantId).TenantId;
-		var tenantPredicate = " AND " + TenantColumnPredicate;
-		var sql = $"DELETE FROM {_qualifiedTable} WHERE Id = @Id{tenantPredicate}";
+		var sql = $"""
+            MERGE {_qualifiedTable} WITH (UPDLOCK, HOLDLOCK) AS target
+            USING (SELECT @Id AS Id, @TenantId AS TenantId) AS source
+            ON target.Id = source.Id AND target.TenantId = source.TenantId
+            WHEN MATCHED THEN
+                UPDATE SET Data = @Data, UpdatedAt = @UpdatedAt, LastAppliedPosition = @Retired
+            WHEN NOT MATCHED THEN
+                INSERT (Id, Data, CreatedAt, UpdatedAt, TenantId, LastAppliedPosition)
+                VALUES (@Id, @Data, @UpdatedAt, @UpdatedAt, @TenantId, @Retired);
+            """;
 
 		var parameters = new DynamicParameters();
 		parameters.Add("@Id", id);
+		parameters.Add("@Data", "{}");
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
+		parameters.Add("@UpdatedAt", DateTimeOffset.UtcNow);
 		parameters.Add("@TenantId", tenantId);
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await connection.ExecuteAsync(
-				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
-			.ConfigureAwait(false);
+        await using var command = CreateStoreCommand(connection, sql, parameters);
+        _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
 		_logger.LogDebug("Deleted projection {ProjectionType}/{Id}", typeof(TProjection).Name, id);
 	}
@@ -292,10 +339,13 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
-	public async Task<IReadOnlyList<TProjection>> QueryAsync(
+	public Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+		QueryCoreAsync(filters, options, json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions), cancellationToken);
+
+	private async Task<IReadOnlyList<TProjection>> QueryCoreAsync(IDictionary<string, object>? filters, QueryOptions? options, Func<string, TProjection?> deserialize, CancellationToken cancellationToken)
 	{
 		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 		var orderByClause = BuildOrderByClause(options);
@@ -311,12 +361,11 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		var results = await connection.QueryAsync<string>(
-				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
-			.ConfigureAwait(false);
-		return results
-			.Select(json => JsonSerializer.Deserialize<TProjection>(json, _jsonOptions)!)
-			.ToList();
+		await using var command = CreateStoreCommand(connection, sql, parameters);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var results = new List<TProjection>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) { results.Add(deserialize(reader.GetString(0))!); }
+        return results;
 	}
 
 	/// <inheritdoc/>
@@ -327,21 +376,20 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 
 		var sql = $"""
-		           SELECT COUNT(*) FROM {_qualifiedTable}
+		           SELECT COUNT_BIG(*) FROM {_qualifiedTable}
 		           {whereClause}
 		           """;
 
 		await using var connection = _connectionFactory();
 		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-		return await connection.ExecuteScalarAsync<long>(
-				new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))
-			.ConfigureAwait(false);
+		await using var command = CreateStoreCommand(connection, sql, parameters);
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
 	}
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// Uses a single-roundtrip SQL query with <c>COUNT(*) OVER()</c> window function
+	/// Uses a single-roundtrip SQL query with <c>COUNT_BIG(*) OVER()</c> window function
 	/// to return both the page data and total count in one database call.
 	/// Falls back to <c>OFFSET/FETCH</c> for pagination.
 	/// </remarks>
@@ -356,18 +404,18 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        var offset = checked((pageNumber - 1) * pageSize);
 
 		var (whereClause, parameters) = BuildTenantScopedWhereClause(filters);
 		var orderByClause = BuildOrderByClause(options);
 
-		var offset = (pageNumber - 1) * pageSize;
 		parameters.Add("@PageOffset", offset);
 		parameters.Add("@PageSize", pageSize);
 
-		// Single-roundtrip: COUNT(*) OVER() returns total count alongside each row.
+		// Single-roundtrip: COUNT_BIG(*) OVER() returns total count alongside each row.
 		// When no rows match, we still need the count, so use a CTE approach.
 		var sql = $"""
-			SELECT Data, COUNT(*) OVER() AS TotalCount
+			SELECT Data, COUNT_BIG(*) OVER() AS TotalCount
 			FROM {_qualifiedTable}
 			{whereClause}
 			{orderByClause}
@@ -386,7 +434,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		if (rowList.Count == 0)
 		{
 			// No rows on this page — get the total count separately to report it
-			var countSql = $"SELECT COUNT(*) FROM {_qualifiedTable} {whereClause}";
+			var countSql = $"SELECT COUNT_BIG(*) FROM {_qualifiedTable} {whereClause}";
 			var totalCount = await connection.ExecuteScalarAsync<long>(
 					new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
@@ -404,7 +452,7 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	}
 
 	/// <summary>
-	/// Row type for paged query results including the total count from <c>COUNT(*) OVER()</c>.
+	/// Row type for paged query results including the total count from <c>COUNT_BIG(*) OVER()</c>.
 	/// </summary>
 	private sealed record PagedRow(string Data, long TotalCount);
 
@@ -441,6 +489,9 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 		whereClause = string.IsNullOrEmpty(whereClause)
 			? "WHERE " + TenantColumnPredicate
 			: whereClause + " AND " + TenantColumnPredicate;
+
+		parameters.Add("@Retired", ProjectionPosition.RetiredSentinel);
+		whereClause += " AND (LastAppliedPosition IS NULL OR LastAppliedPosition <> @Retired)";
 
 		return (whereClause, parameters);
 	}
@@ -663,4 +714,29 @@ public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionS
 	/// reading one tenant's row and writing another's.
 	/// </remarks>
 	private string RequireTenant() => TenantScope.Scoped(_tenantContext.TenantId).TenantId;
+
+	/// <inheritdoc cref="IServiceProvider.GetService" />
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+        if (serviceType == typeof(IProjectionDestinationScope))
+        {
+            var scope = ReadDestinationScope();
+            return scope is null ? null : new ConfiguredDestinationScope(scope);
+        }
+
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.Partition(_tenantContext.TenantId!); }
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			return new ConfiguredDestinationIdentity(_destinationIdentity);
+		}
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
+	}
 }

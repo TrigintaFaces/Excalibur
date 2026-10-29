@@ -39,7 +39,7 @@ namespace Excalibur.Data.MongoDB.Projections;
 		+ "serialization and error-category types are separate namespaces. Splitting the positioned "
 		+ "write into its own type would duplicate the document layout, which is the one thing the "
 		+ "conditional and unconditional writes must agree on exactly.")]
-public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IPageableProjectionStore<TProjection>,
+public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IPageableProjectionStore<TProjection>,
 	IPositionedProjectionStore<TProjection>, IAsyncDisposable
 	where TProjection : class
 {
@@ -83,9 +83,30 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	/// </remarks>
 	private const string MetaFieldPosition = "lastAppliedPosition";
 
+	/// <summary>
+	/// The options instance this store's settings live under.
+	/// </summary>
+	/// <remarks>
+	/// Internal, and here so a test can assert the registration configures the SAME name this store
+	/// will read. Without it a test can only compare the two against its own arithmetic, which stays
+	/// green if they ever diverge — and a divergence hands the store a default-valued options instance
+	/// while the consumer's overrides sit in a bucket nothing reads.
+	/// </remarks>
+	internal static readonly string OptionsName = MongoDbProjectionCollectionConvention.GetOptionsName<TProjection>();
+
 	private readonly MongoDbProjectionStoreOptions _options;
 	private readonly ILogger<MongoDbProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;
+
+	// THE RESOLVED COLLECTION, carrying the projection's declared generation, resolved ONCE in the
+	// constructor. A change to the read model's shape or fold addresses a new collection rather than
+	// mutating the one already serving reads: the new generation folds from zero while the previous one
+	// keeps its cursor until the consumer cuts over. Every statement, the index creation and the
+	// destination identity read this one field, so the physical collection and the advertised identity
+	// are one derivation rather than two that could disagree. _options.CollectionName is the
+	// UNVERSIONED configured value and must not be addressed directly.
+	private readonly string _collectionName;
+
 	private readonly bool _ownsClient;
 	private IMongoClient? _client;
 	private IMongoDatabase? _database;
@@ -102,48 +123,55 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 	private volatile bool _disposed;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="MongoDbProjectionStore{TProjection}"/> class.
+	/// Initializes a new instance of the <see cref="MongoDbProjectionStore{TProjection}"/> class
+	/// using the options instance named for this projection type.
 	/// </summary>
-	/// <param name="options">The projection store options.</param>
+	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
 	public MongoDbProjectionStore(
-		IOptions<MongoDbProjectionStoreOptions> options,
+		IOptionsMonitor<MongoDbProjectionStoreOptions> optionsMonitor,
 		ILogger<MongoDbProjectionStore<TProjection>> logger)
 	{
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_options = options.Value;
+		// Snapshot ONCE. The destination identity below is hashed into a durable fingerprint, so it
+		// must not vary over this store's lifetime even if the named options are reloaded.
+		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
+		_collectionName = MongoDbProjectionCollectionConvention.GetCollectionName<TProjection>(_options);
 		_ownsClient = true;
 
 		MongoDbConventionInitializer.EnsureRegistered();
 	}
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="MongoDbProjectionStore{TProjection}"/> class with an existing client.
+	/// Initializes a new instance of the <see cref="MongoDbProjectionStore{TProjection}"/> class with an
+	/// existing client, using the options instance named for this projection type.
 	/// </summary>
 	/// <param name="client">An existing MongoDB client.</param>
-	/// <param name="options">The projection store options.</param>
+	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
 	public MongoDbProjectionStore(
 		IMongoClient client,
-		IOptions<MongoDbProjectionStoreOptions> options,
+		IOptionsMonitor<MongoDbProjectionStoreOptions> optionsMonitor,
 		ILogger<MongoDbProjectionStore<TProjection>> logger)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
-		_options = options.Value;
+		// Snapshot ONCE -- see the parameterless-client constructor above.
+		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
+		_collectionName = MongoDbProjectionCollectionConvention.GetCollectionName<TProjection>(_options);
 		_database = client.GetDatabase(_options.DatabaseName);
-		_collection = _database.GetCollection<BsonDocument>(_options.CollectionName);
+		_collection = _database.GetCollection<BsonDocument>(_collectionName);
 
 		MongoDbConventionInitializer.EnsureRegistered();
 	}
@@ -171,7 +199,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 			.FirstOrDefaultAsync(cancellationToken)
 			.ConfigureAwait(false);
 
-		if (document is null)
+		if (document is null || ReadPosition(document).Kind == ProjectionPositionKind.Retired)
 		{
 			return null;
 		}
@@ -209,11 +237,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		// which a destroyed position is recorded as a never-established one.
 		var document = BuildDocument(id, projection, ProjectionPosition.Unplaceable);
 
-		var filter = Builders<BsonDocument>.Filter.Eq("_id", documentId);
-		var replaceOptions = new ReplaceOptions { IsUpsert = true };
-
-		_ = await _collection!.ReplaceOneAsync(filter, document, replaceOptions, cancellationToken)
-			.ConfigureAwait(false);
+		await ReplaceLiveAsync(documentId, document, cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -243,11 +267,8 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		_ = await _collection!.ReplaceOneAsync(
-			Builders<BsonDocument>.Filter.Eq("_id", CreateDocumentId(id)),
-			BuildDocument(id, projection, ProjectionPosition.Unnumbered),
-			new ReplaceOptions { IsUpsert = true },
-			cancellationToken).ConfigureAwait(false);
+		await ReplaceLiveAsync(CreateDocumentId(id),
+            BuildDocument(id, projection, ProjectionPosition.Unnumbered), cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -284,7 +305,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var result = await _collection!.ReplaceOneAsync(
-			Builders<BsonDocument>.Filter.Eq("_id", CreateDocumentId(id)),
+			Builders<BsonDocument>.Filter.And(Builders<BsonDocument>.Filter.Eq("_id", CreateDocumentId(id)), LiveFilter()),
 			BuildDocument(id, projection, ProjectionPosition.At(newPosition)),
 			new ReplaceOptions { IsUpsert = false },
 			cancellationToken).ConfigureAwait(false);
@@ -312,7 +333,18 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		var documentId = CreateDocumentId(id);
 		var filter = Builders<BsonDocument>.Filter.Eq("_id", documentId);
 
-		_ = await _collection!.DeleteOneAsync(filter, cancellationToken).ConfigureAwait(false);
+		var marker = new BsonDocument
+        {
+            ["_id"] = documentId,
+            [MetadataKey] = new BsonDocument
+            {
+                [MetaFieldId] = id,
+                [MetaFieldType] = _projectionType,
+                [MetaFieldPosition] = ProjectionPosition.RetiredSentinel,
+            },
+        };
+        _ = await _collection!.ReplaceOneAsync(filter, marker,
+            new ReplaceOptions { IsUpsert = true }, cancellationToken).ConfigureAwait(false);
 
 		LogDeleted(_projectionType, id);
 	}
@@ -393,12 +425,12 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
 		ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        var offset = checked((pageNumber - 1) * pageSize);
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
 		var filter = BuildFilter(filters);
 		var sort = BuildSort(options);
-		var offset = (pageNumber - 1) * pageSize;
 
 		// Execute data + count queries concurrently for single-roundtrip semantics
 		var dataTask = _collection!.Find(filter)
@@ -516,7 +548,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		var builder = Builders<BsonDocument>.Filter;
 
 		// Always filter by projection type (shared collection) — metadata is nested under _projection
-		var typeFilter = builder.Eq($"{MetadataKey}.{MetaFieldType}", _projectionType);
+		var typeFilter = builder.And(builder.Eq($"{MetadataKey}.{MetaFieldType}", _projectionType), LiveFilter());
 
 		if (filters is null || filters.Count == 0)
 		{
@@ -631,7 +663,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 				_client = new MongoClient(settings);
 				_database = _client.GetDatabase(_options.DatabaseName);
-				_collection = _database.GetCollection<BsonDocument>(_options.CollectionName);
+				_collection = _database.GetCollection<BsonDocument>(_collectionName);
 			}
 
 			if (_options.CreateIndexesOnInitialize)
@@ -645,7 +677,36 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		{
 			_ = _initLock.Release();
 		}
-		LogInitialized(_options.CollectionName, _projectionType);
+		LogInitialized(_collectionName, _projectionType);
+	}
+
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+        if (serviceType == typeof(IProjectionDestinationScope))
+        {
+            var scope = ReadDestinationScope();
+            return scope is null ? null : new ConfiguredDestinationScope(scope);
+        }
+
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			// The database qualifies the collection: a collection name alone repeats across databases, so two
+			// generations in different databases would hash to one destination. Logical target only -- the
+			// connection string, host and replica set differ between environments and would refuse a binding
+			// made elsewhere.
+			return new ConfiguredDestinationIdentity(
+				"mongodb/" + Uri.EscapeDataString(_options.DatabaseName) + "/" + Uri.EscapeDataString(_collectionName)
+                + "/" + Uri.EscapeDataString(_projectionType));
+		}
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
 	}
 
 	private async Task CreateIndexesAsync(CancellationToken cancellationToken)
@@ -706,6 +767,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 		}
 
 		var position = ReadPosition(document);
+		if (position.Kind == ProjectionPositionKind.Retired) { return (null, position); }
 		StripProjectionMetadata(document);
 		return (BsonSerializer.Deserialize<TProjection>(document), position);
 	}
@@ -777,7 +839,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 			// deleted projection would reinstate data that erasure removed.
 			var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
 
-			if (!current.Exists)
+			if (!current.Exists || current.Position.Kind == ProjectionPositionKind.Retired)
 			{
 				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 			}
@@ -823,10 +885,9 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 			// caller to retry would spin it forever.
 			var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
 
-			if (!current.Exists)
+			if (!current.Exists || current.Position.Kind == ProjectionPositionKind.Retired)
 			{
-				// Deleted between the insert and this read. The next attempt inserts it.
-				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
+				return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 			}
 
 			return current.Position.Kind == ProjectionPositionKind.Positioned
@@ -882,7 +943,7 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
 
-		if (!current.Exists)
+		if (!current.Exists || current.Position.Kind == ProjectionPositionKind.Retired)
 		{
 			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
 		}
@@ -939,6 +1000,29 @@ public sealed partial class MongoDbProjectionStore<TProjection> : IProjectionSto
 
 		return document;
 	}
+
+    private static FilterDefinition<BsonDocument> LiveFilter() =>
+        Builders<BsonDocument>.Filter.Ne($"{MetadataKey}.{MetaFieldPosition}", ProjectionPosition.RetiredSentinel);
+
+    private async Task ReplaceLiveAsync(BsonValue documentId, BsonDocument document, CancellationToken cancellationToken)
+    {
+        var filter = Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq("_id", documentId), LiveFilter());
+        try
+        {
+            _ = await _collection!.ReplaceOneAsync(filter, document,
+                new ReplaceOptions { IsUpsert = true }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            var current = await ReadCurrentPositionAsync(documentId, cancellationToken).ConfigureAwait(false);
+            if (current.Position.Kind == ProjectionPositionKind.Retired)
+            {
+                throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.", ex);
+            }
+            throw;
+        }
+    }
 
 	private async Task<(bool Exists, ProjectionPosition Position)> ReadCurrentPositionAsync(
 		BsonValue documentId,

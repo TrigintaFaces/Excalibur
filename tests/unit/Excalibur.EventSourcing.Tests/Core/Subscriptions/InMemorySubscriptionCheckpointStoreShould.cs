@@ -26,7 +26,7 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 		foreach (var store in stores)
 		{
 			var exception = await Should.ThrowAsync<ArgumentOutOfRangeException>(
-				() => store.AdvanceCheckpointAsync("sub", expected, next, CancellationToken.None));
+				() => store.AdvanceCheckpointAsync("sub", "Proj.A", Guid.NewGuid(), expected, next, CancellationToken.None));
 			exception.ParamName.ShouldBe(parameter);
 		}
 	}
@@ -39,28 +39,28 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 	public async Task RejectInvalidPositionsWithoutChangingCheckpoint(long? expected, long next, string parameter)
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
-		await store.AdvanceCheckpointAsync("existing", null, 10, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("existing", "Proj.A", null, 10, CancellationToken.None);
 		foreach (var name in new[] { "existing", "absent" })
 		{
 			var exception = await Should.ThrowAsync<ArgumentOutOfRangeException>(
-				() => store.AdvanceCheckpointAsync(name, expected, next, CancellationToken.None));
+				() => store.AdvanceBoundCheckpointAsync(name, "Proj.A", expected, next, CancellationToken.None));
 			exception.ParamName.ShouldBe(parameter);
 		}
 
-		(await store.GetCheckpointAsync("existing", CancellationToken.None)).ShouldBe(10);
-		(await store.GetCheckpointAsync("absent", CancellationToken.None)).ShouldBeNull();
+		(await store.GetCheckpointAsync("existing", "Proj.A", CancellationToken.None)).ShouldBe(10);
+		(await store.GetCheckpointAsync("absent", "Proj.A", CancellationToken.None)).ShouldBeNull();
 	}
 
 	[Fact]
 	public async Task AcceptEqualPositionsOnlyWhileTheExpectationMatches()
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
-		(await store.AdvanceCheckpointAsync("sub", null, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
-		(await store.AdvanceCheckpointAsync("sub", 0, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
-		(await store.AdvanceCheckpointAsync("sub", 0, long.MaxValue, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
-		(await store.AdvanceCheckpointAsync("sub", 0, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Superseded);
-		(await store.AdvanceCheckpointAsync("sub", long.MaxValue, long.MaxValue, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
-		(await store.GetCheckpointAsync("sub", CancellationToken.None)).ShouldBe(long.MaxValue);
+		(await store.AdvanceBoundCheckpointAsync("sub", "Proj.A", null, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.AdvanceBoundCheckpointAsync("sub", "Proj.A", 0, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.AdvanceBoundCheckpointAsync("sub", "Proj.A", 0, long.MaxValue, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.AdvanceBoundCheckpointAsync("sub", "Proj.A", 0, 0, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Superseded);
+		(await store.AdvanceBoundCheckpointAsync("sub", "Proj.A", long.MaxValue, long.MaxValue, CancellationToken.None)).ShouldBe(CheckpointAdvanceOutcome.Advanced);
+		(await store.GetCheckpointAsync("sub", "Proj.A", CancellationToken.None)).ShouldBe(long.MaxValue);
 	}
 
 	[Fact]
@@ -70,7 +70,7 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 		var store = new InMemorySubscriptionCheckpointStore();
 
 		// Act
-		var result = await store.GetCheckpointAsync("unknown", CancellationToken.None);
+		var result = await store.GetCheckpointAsync("unknown", "Proj.A", CancellationToken.None);
 
 		// Assert
 		result.ShouldBeNull();
@@ -81,10 +81,10 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 	{
 		// Arrange
 		var store = new InMemorySubscriptionCheckpointStore();
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 42L, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 42L, CancellationToken.None);
 
 		// Act
-		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
+		var result = await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(42L);
@@ -95,11 +95,11 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 	{
 		// Arrange
 		var store = new InMemorySubscriptionCheckpointStore();
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10L, CancellationToken.None);
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: 10L, 20L, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 10L, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: 10L, 20L, CancellationToken.None);
 
 		// Act
-		var result = await store.GetCheckpointAsync("sub-1", CancellationToken.None);
+		var result = await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None);
 
 		// Assert
 		result.ShouldBe(20L);
@@ -110,12 +110,12 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 	{
 		// Arrange
 		var store = new InMemorySubscriptionCheckpointStore();
-		await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 100L, CancellationToken.None);
-		await store.AdvanceCheckpointAsync("sub-2", expectedPosition: null, 200L, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 100L, CancellationToken.None);
+		await store.AdvanceBoundCheckpointAsync("sub-2", "Proj.A", expectedPosition: null, 200L, CancellationToken.None);
 
 		// Act & Assert
-		(await store.GetCheckpointAsync("sub-1", CancellationToken.None)).ShouldBe(100L);
-		(await store.GetCheckpointAsync("sub-2", CancellationToken.None)).ShouldBe(200L);
+		(await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None)).ShouldBe(100L);
+		(await store.GetCheckpointAsync("sub-2", "Proj.A", CancellationToken.None)).ShouldBe(200L);
 	}
 
 	[Fact]
@@ -126,9 +126,9 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
-			() => store.GetCheckpointAsync(null!, CancellationToken.None));
+			() => store.GetCheckpointAsync(null!, "Proj.A", CancellationToken.None));
 		await Should.ThrowAsync<ArgumentException>(
-			() => store.GetCheckpointAsync("", CancellationToken.None));
+			() => store.GetCheckpointAsync("", "Proj.A", CancellationToken.None));
 	}
 
 	[Fact]
@@ -139,27 +139,27 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentException>(
-			() => store.AdvanceCheckpointAsync(null!, null, 1L, CancellationToken.None));
+			() => store.AdvanceBoundCheckpointAsync(null!, "Proj.A", null, 1L, CancellationToken.None));
 		await Should.ThrowAsync<ArgumentException>(
-			() => store.AdvanceCheckpointAsync("", null, 1L, CancellationToken.None));
+			() => store.AdvanceBoundCheckpointAsync("", "Proj.A", null, 1L, CancellationToken.None));
 	}
 
 	[Fact]
 	public async Task RefuseAnAdvanceWhoseExpectedPositionIsStale()
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
-		_ = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10L, CancellationToken.None);
-		_ = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: 10L, 20L, CancellationToken.None);
+		_ = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 10L, CancellationToken.None);
+		_ = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: 10L, 20L, CancellationToken.None);
 
 		// A second reader still believes the checkpoint is at 10. Under a blind write it would drag the
 		// mark back from 20 to 15 and every event in between would be delivered again.
-		var outcome = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: 10L, 15L, CancellationToken.None);
+		var outcome = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: 10L, 15L, CancellationToken.None);
 
 		outcome.ShouldBe(
 			CheckpointAdvanceOutcome.Superseded,
 			"an advance from a stale expected position must be refused, not applied");
 
-		(await store.GetCheckpointAsync("sub-1", CancellationToken.None)).ShouldBe(
+		(await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None)).ShouldBe(
 			20L,
 			"a refused advance must leave the stored position untouched -- reporting the refusal is not " +
 			"enough if the write happened anyway");
@@ -169,15 +169,15 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 	public async Task RefuseACreateWhenACheckpointAlreadyExists()
 	{
 		var store = new InMemorySubscriptionCheckpointStore();
-		_ = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10L, CancellationToken.None);
+		_ = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 10L, CancellationToken.None);
 
 		// "No checkpoint yet" is a distinct prior state, so a caller holding that belief must lose to the
 		// writer that created one. A store treating null as "overwrite whatever is there" would pass the
 		// stale-expected arm above and still clobber here.
-		var outcome = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 5L, CancellationToken.None);
+		var outcome = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 5L, CancellationToken.None);
 
 		outcome.ShouldBe(CheckpointAdvanceOutcome.Superseded);
-		(await store.GetCheckpointAsync("sub-1", CancellationToken.None)).ShouldBe(10L);
+		(await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None)).ShouldBe(10L);
 	}
 
 	[Fact]
@@ -186,12 +186,12 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 		// LIVENESS. Without this, a store that refused EVERY advance would satisfy both arms above.
 		var store = new InMemorySubscriptionCheckpointStore();
 
-		var created = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: null, 10L, CancellationToken.None);
-		var moved = await store.AdvanceCheckpointAsync("sub-1", expectedPosition: 10L, 20L, CancellationToken.None);
+		var created = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: null, 10L, CancellationToken.None);
+		var moved = await store.AdvanceBoundCheckpointAsync("sub-1", "Proj.A", expectedPosition: 10L, 20L, CancellationToken.None);
 
 		created.ShouldBe(CheckpointAdvanceOutcome.Advanced);
 		moved.ShouldBe(CheckpointAdvanceOutcome.Advanced);
-		(await store.GetCheckpointAsync("sub-1", CancellationToken.None)).ShouldBe(20L);
+		(await store.GetCheckpointAsync("sub-1", "Proj.A", CancellationToken.None)).ShouldBe(20L);
 	}
 
 
@@ -204,4 +204,50 @@ public sealed class InMemorySubscriptionCheckpointStoreShould
 		// Assert
 		store.ShouldBeAssignableTo<ISubscriptionCheckpointStore>();
 	}
+    [Fact]
+    public async Task RejectRetiredWorkBeforeAndAfterRebinding()
+    {
+        var store = new InMemorySubscriptionCheckpointStore();
+        var definition = new SubscriptionMember("A", new string('A', 64), "memory/a");
+        var first = (await store.BindSubscriptionAsync("stable", [definition], CancellationToken.None)).Members.Single();
+        first.BindingId.ShouldNotBe(Guid.Empty);
+        (await store.ReleaseSubscriptionMemberAsync("stable", "A", first.BindingId, CancellationToken.None)).ShouldBeTrue();
+        (await store.AdvanceCheckpointAsync("stable", "A", first.BindingId, null, 99, CancellationToken.None))
+            .ShouldBe(CheckpointAdvanceOutcome.Superseded);
+        (await store.ReadSubscriptionAsync("stable", CancellationToken.None)).Members.ShouldBeEmpty();
+        var second = (await store.BindSubscriptionAsync("stable", [definition], CancellationToken.None)).Members.Single();
+        second.BindingId.ShouldNotBe(first.BindingId);
+        (await store.AdvanceCheckpointAsync("stable", "A", first.BindingId, null, 99, CancellationToken.None))
+            .ShouldBe(CheckpointAdvanceOutcome.Superseded);
+        (await store.ReleaseSubscriptionMemberAsync("stable", "A", first.BindingId, CancellationToken.None)).ShouldBeFalse();
+        (await store.AdvanceCheckpointAsync("stable", "A", second.BindingId, null, 5, CancellationToken.None))
+            .ShouldBe(CheckpointAdvanceOutcome.Advanced);
+        var snapshot = await store.ReadSubscriptionAsync("stable", CancellationToken.None);
+        snapshot.Members.Single().BindingId.ShouldBe(second.BindingId);
+        snapshot.Members.Single().Position.ShouldBe(5);
+        // A returned snapshot must not change as the store advances.
+        await store.AdvanceCheckpointAsync("stable", "A", second.BindingId, 5, 6, CancellationToken.None);
+        snapshot.Members.Single().Position.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task KeepBothGenerationsUnderTheSameSubscriptionName()
+    {
+        var store = new InMemorySubscriptionCheckpointStore();
+        var firstKey = SubscriptionKeys.ProjectionKey(typeof(SecondGeneration), 1);
+        var nextKey = SubscriptionKeys.ProjectionKey(typeof(SecondGeneration));
+        nextKey.ShouldBe(firstKey + ":v2");
+        var first = (await store.BindSubscriptionAsync("stable",
+            [new SubscriptionMember(firstKey, new string('A', 64), "memory/a")], CancellationToken.None)).Members.Single();
+        await store.AdvanceCheckpointAsync("stable", firstKey, first.BindingId, null, 100, CancellationToken.None);
+        var roster = await store.BindSubscriptionAsync("stable",
+            [new SubscriptionMember(nextKey, new string('B', 64), "memory/a-v2")], CancellationToken.None);
+        roster.Members.Count.ShouldBe(2);
+        roster.Members.Single(m => m.ProjectionKey == firstKey).Position.ShouldBe(100);
+        roster.Members.Single(m => m.ProjectionKey == nextKey).Position.ShouldBeNull();
+    }
+
+    [ProjectionVersion(2)]
+    private sealed class SecondGeneration;
+
 }

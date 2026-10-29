@@ -57,7 +57,7 @@ public sealed class PostgresMaterializedViewAtomicityShould : IClassFixture<Post
 		await using (var cmd = connection.CreateCommand())
 		{
 			cmd.CommandText = """
-				CREATE TABLE IF NOT EXISTS materialized_views (
+				CREATE TABLE IF NOT EXISTS public.materialized_views (
 					tenant_id  TEXT NOT NULL,
 					view_name  TEXT NOT NULL,
 					view_id    TEXT NOT NULL,
@@ -66,7 +66,7 @@ public sealed class PostgresMaterializedViewAtomicityShould : IClassFixture<Post
 					updated_at TIMESTAMPTZ NOT NULL,
 					PRIMARY KEY (tenant_id, view_name, view_id)
 				);
-				CREATE TABLE IF NOT EXISTS materialized_view_positions (
+				CREATE TABLE IF NOT EXISTS public.materialized_view_positions (
 					tenant_id  TEXT NOT NULL,
 					view_name  TEXT NOT NULL,
 					position   BIGINT NOT NULL,

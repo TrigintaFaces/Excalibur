@@ -41,7 +41,7 @@ public sealed class ProjectionCheckpointContiguityShould
 		var checkpointStore = await RunOnePageAsync(firstPosition: 2).ConfigureAwait(false);
 
 		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(
-				A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>.That.IsGreaterThan(0), A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -54,7 +54,7 @@ public sealed class ProjectionCheckpointContiguityShould
 		var checkpointStore = await RunOnePageAsync(firstPosition: 1).ConfigureAwait(false);
 
 		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(
-				A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceOrMore();
 	}
 
@@ -94,11 +94,11 @@ public sealed class ProjectionCheckpointContiguityShould
 		A.CallTo(() => eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
 		A.CallTo(() => eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(A.Fake<IDomainEvent>());
 
-		var checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
-		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		var checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
+		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(
-				A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(CheckpointAdvanceOutcome.Advanced));
 
 		using var serviceProvider = new ServiceCollection().AddSingleton(globalStreamQuery).BuildServiceProvider();

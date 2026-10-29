@@ -98,6 +98,7 @@ public sealed class Order : AggregateRoot
 /// <summary>
 /// The QUERYABLE read model — a list screen, so it has to be stored and cannot be computed per read.
 /// </summary>
+[Excalibur.EventSourcing.ProjectionVersion(1)]
 public sealed class OrderSummary
 {
 	/// <summary>Gets or sets the order identifier, copied from the event envelope.</summary>

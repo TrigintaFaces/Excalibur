@@ -68,7 +68,7 @@ public sealed class EnableProjectionProcessingShould
 	{
 		// Arrange — register a custom checkpoint store before calling EnableProjectionProcessing
 		var services = new ServiceCollection();
-		var customStore = A.Fake<ISubscriptionCheckpointStore>();
+		var customStore = SubscriptionCheckpointTestSetup.CreateFake();
 		services.AddSingleton(customStore);
 
 		var builder = CreateBuilder(services);

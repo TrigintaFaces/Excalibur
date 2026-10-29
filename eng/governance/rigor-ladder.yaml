@@ -102,13 +102,65 @@ seams:
     #
     # It also makes the artifact-exists-is-not-rung-discharged trap STRUCTURAL rather than hypothetical:
     # tests/property/Excalibur.EventSourcing.Properties/PositionedProjectionProperties.cs matches the
-    # r3_artifact glob, so a claimed R3 on this row would RESOLVE against a suite that covers ONE of the
-    # seven -- and that suite's generator cannot currently reach the precondition of the defect its own
-    # never-fold-twice arm names. Do not claim R3 here on the strength of that file resolving.
+    # r3_artifact glob but covers the positioned-fold guarantee, not every guarantee in this file.
+    # Its generator now emits existing unnumbered rows and deletion schedules. The named never-fold
+    # arm requires terminal refusal with unchanged row/position for the unnumbered precondition and
+    # requires that this precondition was sampled. Adoption and absent-precondition generator mutants
+    # must redden that named arm (piema6); a passing file-pattern check alone proves none of this.
     #
     # Splitting this into one row per guarantee is the right shape and is NOT done here: the coverage
     # oracle is bidirectional on architecture_md paths, so seven rows would need seven files or a gate
     # change. Tracked; the rung assignment is the architect's.
+    #
+    # R3 ALSO EXISTS FOR THE ROSTER, AND THE ROW VERDICT DELIBERATELY DOES NOT MOVE.
+    # tests/property/Excalibur.EventSourcing.Properties/SubscriptionRosterProperties.cs discharges R3 for
+    # the SUBSCRIPTION ROSTER / attestation guarantee only: 4 generated arms over 400 cases each, binding
+    # AsyncProjectionProcessingHost.UnattestableMembers directly, and non-vacuous in BOTH directions --
+    # a production mutation returning an empty set reddens it, AND a generator mutation that makes the
+    # divergence unreachable reddens its own non-vacuity guard rather than passing silently.
+    #
+    # The roster suite says nothing about the other guarantees on this file: tenant isolation, atomic append,
+    # append reporting, stored message identity, global stream ordering, or position-conditional
+    # projection writes. Promoting this row to met: [R1, R2, R3] would assert R3 over all seven on the
+    # strength of these partial suites, which is exactly what the warning above forbids. The row stays
+    # honest and the detail lives here until the row is split.
+    #
+    # R4 is likewise UNVERIFIED, and a reader should not infer otherwise from the existence of
+    # spec/tla/cooperative-projection/. That model carries a CORRESPONDENCE WITHDRAWN block for its
+    # manifest binder: it models a single scalar bound first-writer-wins, where a host with a different
+    # workset is REFUSED, and production now admits such a host and refuses only its attestation. Its
+    # other arms (page gate, row CAS, prefix, checkpoint coverage, visibility) are unaffected. It is also
+    # not invoked by spec/tla/check-models.sh, so nothing reddens if it regresses.
+    # SubscriptionRoster.tla preserves the no-witness counterexamples, including the stale-roster
+    # window and the independent local-quantifier defect. Keep the expected failures so rejected
+    # designs cannot silently turn green.
+    #
+    # READ THIS BEFORE CALLING THOSE COUNTEREXAMPLES "HISTORICAL". An earlier revision of this
+    # comment said they "are not the current shipped protocol", which invites a reader to conclude
+    # the bad state is unreachable. It is not. Verified against the shipped C# 2026-10-29:
+    # AsyncProjectionProcessingHost.cs:258 reads the roster ONCE and attests from that same snapshot
+    # at :270-274, with no third read and none possible. A member bound after that read is therefore
+    # not covered, and the save still reports success. What changed is the CLAIM, not the state
+    # space: the strong invariant InvNoFalseFresh was RESTATED, not discharged.
+    #
+    # The restatement is now honest in the code as well as the prose: the save-time receipt is a
+    # distinct value (ProjectionFreshness.Attested) from the read-time verdict (Fresh), which is
+    # issued only after IProjectionSessionReader re-validates roster identity, binding, position and
+    # destination around the data read. Before that split one value stood for both strengths, so no
+    # assertion could tell a receipt from a verdict.
+    #
+    # The earlier window -- a bind between the roster read and the fold -- IS genuinely closed, by
+    # the progress-independent identity fingerprint at SubscriptionRoster.cs:68-80 compared at
+    # AsyncProjectionProcessingHost.cs:259. Do not read the correction above as withdrawing that.
+    # BindingLifetime.tla models the current bounded lifetime/read protocol: unique epochs,
+    # nullable/zero checkpoints, captured advance/release, producer observation receipts, and
+    # consumer-owned witness -> data -> validation. Check-BindingLifetime.ps1 retains hashes,
+    # exact commands, TLC logs/state counts, mutation counterexamples and reachability probes.
+    # Its explicit scope does NOT prove SQL atomicity/isolation, physical projection folding,
+    # crash durability, hash collision resistance, tenant routing or generation-pointer cutover.
+    # Those premises have separate real-engine/runtime evidence. The complete architecture row
+    # still covers multiple guarantees and is NOT promoted to R4 from one bounded roster model.
+    # Run both the historical harness and current lifetime checker before citing their results.
     met: [R1, R2]
     unmet: [R3, R4]
 

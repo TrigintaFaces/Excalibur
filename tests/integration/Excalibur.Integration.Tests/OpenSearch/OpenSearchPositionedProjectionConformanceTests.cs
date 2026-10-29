@@ -36,13 +36,44 @@ namespace Excalibur.Integration.Tests.OpenSearch;
 [Trait("Component", "Projections")]
 [Collection(OpenSearchTestCollection.CollectionName)]
 public sealed class OpenSearchPositionedProjectionConformanceTests
-	: PositionedProjectionStoreConformanceTestKit, IClassFixture<OpenSearchContainerFixture>
+	: PositionedProjectionDestinationConformanceTestKit, IClassFixture<OpenSearchContainerFixture>
 {
 	private readonly OpenSearchContainerFixture _fixture;
 	private readonly string _indexSuffix = Guid.NewGuid().ToString("N");
 
 	public OpenSearchPositionedProjectionConformanceTests(OpenSearchContainerFixture fixture) =>
 		_fixture = fixture;
+
+    [Fact]
+    public async Task PageBeyondTheSearchDefaultAndRejectInvalidSorting()
+    {
+        var store = await CreateStoreAsync();
+        await Task.WhenAll(Enumerable.Range(1, 23).Select(value => store.UpsertAsync("page-" + value,
+            new ConformanceProjection { Id = "page-" + value, Total = value }, CancellationToken.None)));
+        var options = new QueryOptions(Skip: 999, Take: 1, OrderBy: nameof(ConformanceProjection.Total), Descending: true);
+        var page = await store.QueryPagedAsync(null, 3, 7, options, CancellationToken.None);
+        page.TotalItems.ShouldBe(23);
+        page.Items.Select(row => row.Total).ShouldBe(Enumerable.Range(3, 7).Reverse());
+        var beyond = await store.QueryPagedAsync(null, 5, 7, options, CancellationToken.None);
+        beyond.Items.ShouldBeEmpty();
+        beyond.TotalItems.ShouldBe(23);
+        (await store.DistinctValuesAsync(nameof(ConformanceProjection.Total), null, CancellationToken.None)).Count.ShouldBe(23);
+        await Should.ThrowAsync<Exception>(() => store.QueryAsync(null,
+            new QueryOptions(OrderBy: "unmapped-sort-field"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RefuseCountAndQueryAfterTheDestinationDisappears()
+    {
+        var store = await CreateStoreAsync();
+        await store.UpsertAsync("row", new ConformanceProjection { Id = "row", Total = 1 }, CancellationToken.None);
+        var identity = ((IProjectionDestinationIdentity)store.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var index = identity["opensearch/".Length..];
+        var client = new OpenSearchClient(new ConnectionSettings(_fixture.Endpoint));
+        (await client.Indices.DeleteAsync(index)).IsValid.ShouldBeTrue();
+        await Should.ThrowAsync<InvalidOperationException>(() => store.CountAsync(null, CancellationToken.None));
+        await Should.ThrowAsync<InvalidOperationException>(() => store.QueryAsync(null, null, CancellationToken.None));
+    }
 
 	/// <summary>Wires the kit's own completeness check, which names any arm this suite forgot.</summary>
 	/// <returns>A task representing the check.</returns>
@@ -152,6 +183,69 @@ public sealed class OpenSearchPositionedProjectionConformanceTests
 	[Fact]
 	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
+
+	/// <summary>The store states which destination it is configured against.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Advertise_the_destination_it_is_configured_against_Test() =>
+		Advertise_the_destination_it_is_configured_against();
+
+	/// <summary>A generation reader reports one storage scope through both of its members.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Report_one_storage_scope_through_both_generation_reader_members_Test() =>
+		Report_one_storage_scope_through_both_generation_reader_members();
+
+	/// <summary>Moving the configured destination changes the identity the store advertises.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Change_the_identity_when_the_configured_destination_moves_Test() =>
+		Change_the_identity_when_the_configured_destination_moves();
+
+	/// <summary>A declared generation resolves a destination of its own, carrying its generation segment.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Resolve_a_distinct_destination_for_the_next_generation_Test() =>
+		Resolve_a_distinct_destination_for_the_next_generation();
+
+	/// <summary>The previous generation keeps serving its own documents while the next one builds.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Keep_the_previous_generation_readable_while_the_next_one_builds_Test() =>
+		Keep_the_previous_generation_readable_while_the_next_one_builds();
+
+	/// <inheritdoc />
+	protected override Task<IProjectionStore<ConformanceProjection>> CreateRelocatedStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjection>>(
+			new OpenSearchProjectionStore<ConformanceProjection>(
+				new OpenSearchClient(new ConnectionSettings(_fixture.Endpoint)),
+				new SingleNamedOptionsMonitor(OptionsFor("positioned-conformance-moved-" + _indexSuffix)),
+				NullLogger<OpenSearchProjectionStore<ConformanceProjection>>.Instance));
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Configured against the SAME index name as the baseline. A configured index name is used verbatim
+	/// by this provider, so the generation segment is the ONLY difference between the two destinations —
+	/// which makes the side-by-side arm here as strong as it gets: remove the generation from the
+	/// composition and both generations address one index.
+	/// </remarks>
+	protected override Task<IProjectionStore<ConformanceProjectionNextGeneration>>
+		CreateNextGenerationStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjectionNextGeneration>>(
+			new OpenSearchProjectionStore<ConformanceProjectionNextGeneration>(
+				new OpenSearchClient(new ConnectionSettings(_fixture.Endpoint)),
+				new SingleNamedOptionsMonitor(OptionsFor("positioned-conformance-" + _indexSuffix)),
+				NullLogger<OpenSearchProjectionStore<ConformanceProjectionNextGeneration>>.Instance));
+
+	/// <summary>Builds store options addressing a given index name.</summary>
+	/// <param name="indexName">The index the store should address before versioning.</param>
+	/// <returns>The options.</returns>
+	private OpenSearchProjectionStoreOptions OptionsFor(string indexName) => new()
+	{
+		NodeUri = _fixture.Endpoint.ToString(),
+		IndexName = indexName,
+	};
+
 	/// <inheritdoc />
 	protected override Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
 	{
@@ -160,18 +254,12 @@ public sealed class OpenSearchPositionedProjectionConformanceTests
 			+ "skipped, because an arm that passes by being skipped is indistinguishable from one that "
 			+ "passed by working, and every property under test is decided by the server.");
 
-		var options = new OpenSearchProjectionStoreOptions
-		{
-			NodeUri = _fixture.Endpoint.ToString(),
-			IndexName = "positioned-conformance-" + _indexSuffix,
-		};
-
 		var client = new OpenSearchClient(new ConnectionSettings(_fixture.Endpoint));
 
 		return Task.FromResult<IProjectionStore<ConformanceProjection>>(
 			new OpenSearchProjectionStore<ConformanceProjection>(
 				client,
-				new SingleNamedOptionsMonitor(options),
+				new SingleNamedOptionsMonitor(OptionsFor("positioned-conformance-" + _indexSuffix)),
 				NullLogger<OpenSearchProjectionStore<ConformanceProjection>>.Instance));
 	}
 

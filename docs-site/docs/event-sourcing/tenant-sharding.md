@@ -171,6 +171,48 @@ Each provider has a dedicated extension method that registers its `ITenantStoreR
 | **Firestore** | `Excalibur.EventSourcing.Firestore` | `builder.UseFirestoreTenantEventStore()` |
 | **Elasticsearch** | `Excalibur.Data.ElasticSearch` | `builder.UseElasticSearchTenantProjectionStore<T>()` |
 
+## Tenant-Isolated Projections
+
+**The table above registers tenant *event stores*. Projection stores are a separate question, and the
+answer is not the same for every provider** -- so do not read event-store support as projection support.
+
+A projection store isolates tenants by one of two mechanisms, never both:
+
+| mechanism | how | registered through |
+|---|---|---|
+| **Routing** | each tenant gets its own index, container or table; the store itself holds one tenant's data | `ITenantStoreResolver<IProjectionStore<T>>`, consumed by the tenant-routing store |
+| **Row confinement** | one store holds every tenant; each statement carries a tenant predicate | the store declares a tenant partition, and the tenant-scoped decorator enforces it |
+
+What each provider supports today:
+
+| Provider | Routing | Row confinement |
+|----------|---------|-----------------|
+| **PostgreSQL** | -- | Yes |
+| **SQL Server** | -- | Yes |
+| **Elasticsearch** | Yes (`UseElasticSearchTenantProjectionStore<T>()`) | -- |
+| **OpenSearch** | Yes (`UseOpenSearchTenantProjectionStore<T>()`) | -- |
+| **Cosmos DB** | -- | -- |
+| **MongoDB** | -- | -- |
+| **DynamoDB** | -- | -- |
+| **Firestore** | -- | -- |
+| **In-Memory** | -- | -- |
+
+**The four providers with neither are the ones to plan around.** Cosmos DB, MongoDB, DynamoDB and
+Firestore projection stores declare themselves estate-wide -- they apply no tenant predicate, and no
+per-tenant resolver ships for them. Wrapping one in the tenant-scoped decorator does not silently
+degrade: it throws, because the decorator refuses to advertise confinement its inner store does not
+enforce. That is the intended behaviour and it fails closed, but it fails at run time, so choose the
+provider with the isolation you need rather than discovering it then.
+
+If you need tenant-isolated projections on one of those four, the supported shapes are: keep the read
+model in PostgreSQL or SQL Server and confine it by row; keep it in Elasticsearch or OpenSearch and
+route per tenant; or give each tenant its own application deployment, where isolation is a deployment
+property rather than a store one.
+
+Estate-wide is a legitimate choice, not a defect -- a read model that genuinely serves every tenant
+(an operator dashboard, a cross-tenant report) wants exactly that. The declaration exists so the
+framework can tell the two apart instead of guessing.
+
 ### SQL Server Example
 
 ```csharp

@@ -1,4 +1,4 @@
--- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 -- SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 -- ddl-migration: provisioning-only {projection_table_name} - Earlier alpha projection tables require fresh provisioning and replay; CREATE does not narrow existing tenant columns.
 --
@@ -8,7 +8,8 @@
 -- per-projection option, so there is no fixed set of tables to create. Replace the token below once
 -- per projection, or generate the script instead:
 --
---     PostgresProjectionSchema.CreateTableScript("order_summary")
+--     PostgresProjectionSchema.CreateTableScript("order_summary")              -- schema "public"
+--     PostgresProjectionSchema.CreateTableScript("order_summary", "reporting")  -- a named schema
 --
 -- Prefer the generated form. It emits this same definition from the sentinel the store itself reads,
 -- so it cannot drift from the queries the store runs; this file is here because 001-004 are here and
@@ -44,12 +45,13 @@
 -- identifier folds to lower case in Postgres -- a quoted mixed-case column would be unreachable from
 -- those queries. The TABLE name is quoted by the store, so it is case-sensitive exactly as given.
 --
--- THERE IS NO SCHEMA QUALIFIER, also on purpose. The store addresses the table unqualified, so it
--- resolves through search_path. Creating the table in a named schema produces a table the store
--- cannot find unless the connection's search_path includes it; set search_path on the connection
--- instead of qualifying here.
+-- THE SCHEMA QUALIFIER MUST MATCH THE STORE'S. Every statement the store runs is qualified from its
+-- own configured schema (PostgresProjectionStoreOptions.SchemaName, default "public"), so a table
+-- created in a different schema is a table the store cannot find -- with no error until the first
+-- read. If you set SchemaName, change the qualifier below to the same value. It is quoted, so its
+-- case is preserved exactly as written: "Public" is not "public".
 
-CREATE TABLE IF NOT EXISTS "{projection_table_name}" (
+CREATE TABLE IF NOT EXISTS "public"."{projection_table_name}" (
     id VARCHAR(450) NOT NULL,
     tenant_id VARCHAR(64) NOT NULL,
     data JSONB NOT NULL,

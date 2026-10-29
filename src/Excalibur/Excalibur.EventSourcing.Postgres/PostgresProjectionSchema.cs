@@ -25,11 +25,11 @@ namespace Excalibur.EventSourcing.Postgres;
 /// what keeps the two from drifting.
 /// </para>
 /// <para>
-/// <b>There is no schema parameter, deliberately.</b> The store addresses the table unqualified, so
-/// it resolves through <c>search_path</c>. A script that created the table in a named schema would
-/// produce a table the store cannot find unless the connection's <c>search_path</c> happened to
-/// include it — a knob the consuming code cannot honour is worse than no knob. Set
-/// <c>search_path</c> on the connection if the table does not belong in the default schema.
+/// <b>The schema is a parameter, and it must match the store's.</b> Every statement the store runs
+/// is qualified from its own configured schema, so a table created in a different schema is a table
+/// the store cannot find — with no error until the first read. Pass the same value the store is
+/// configured with; both default to <c>public</c>. Both identifiers are quoted, so their case is
+/// preserved exactly as given and <c>Public</c> is not <c>public</c>.
 /// </para>
 /// <para>
 /// <b>It does not create the table for you.</b> A store that silently created a missing table would
@@ -52,20 +52,22 @@ public static class PostgresProjectionSchema
 	/// Builds the <c>CREATE TABLE</c> script for a projection table, idempotently.
 	/// </summary>
 	/// <param name="tableName">The table name, matching the store's configured table name.</param>
+	/// <param name="schema">The schema to create it in, matching the store's configured schema.</param>
 	/// <returns>A script that creates the table if it does not already exist.</returns>
 	/// <exception cref="ArgumentException">
-	/// The name is empty, whitespace, or contains a character that is not a letter, a digit or an
-	/// underscore. The identifier is interpolated into the script, so it is restricted rather than
-	/// quoted-and-hoped: a table name is a deployment-time constant, never user input.
+	/// A name is empty, whitespace, or contains a character that is not a letter, a digit or an
+	/// underscore. The identifiers are interpolated into the script, so they are restricted rather than
+	/// quoted-and-hoped: these names are deployment-time constants, never user input.
 	/// </exception>
-	public static string CreateTableScript(string tableName)
+	public static string CreateTableScript(string tableName, string schema = "public")
 	{
-		var table = RequireIdentifier(tableName);
+		var table = RequireIdentifier(tableName, nameof(tableName));
+		var owner = RequireIdentifier(schema, nameof(schema));
 
 		return string.Format(
 			CultureInfo.InvariantCulture,
 			"""
-			CREATE TABLE IF NOT EXISTS "{0}" (
+			CREATE TABLE IF NOT EXISTS "{9}"."{0}" (
 			    {1} VARCHAR(450) NOT NULL,
 			    {2} VARCHAR({8}) NOT NULL,
 			    {3} JSONB NOT NULL,
@@ -85,13 +87,14 @@ public static class PostgresProjectionSchema
 			ProjectionPosition.UnplaceableSentinel.ToString(CultureInfo.InvariantCulture),
 			// DERIVED, NEVER A LITERAL -- see the note on the SqlServer generator. A literal drifted from
 			// the shipped script as soon as either was edited.
-			Excalibur.Dispatch.TenantId.MaxLength.ToString(CultureInfo.InvariantCulture));
+			Excalibur.Dispatch.TenantId.MaxLength.ToString(CultureInfo.InvariantCulture),
+			owner);
 	}
 
 	// Interpolated, so restricted. See the exception remark on CreateTableScript.
-	private static string RequireIdentifier(string value)
+	private static string RequireIdentifier(string value, string paramName)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(value);
+		ArgumentException.ThrowIfNullOrWhiteSpace(value, paramName);
 
 		foreach (var character in value)
 		{
@@ -100,8 +103,8 @@ public static class PostgresProjectionSchema
 				throw new ArgumentException(
 					$"'{value}' is not a usable Postgres identifier here: only letters, digits and "
 					+ "underscores are accepted, because the name is interpolated into the generated "
-					+ "script. Rename the table, or create it with your own migration tooling.",
-					nameof(value));
+					+ "script. Rename it, or create the table with your own migration tooling.",
+					paramName);
 			}
 		}
 

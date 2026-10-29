@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using System.Collections.Concurrent;
@@ -136,8 +136,10 @@ internal static class SqliteTableInitializer
 	/// <remarks>
 	/// Every other store in this package creates its own table on first use, and a checkpoint store that
 	/// did not would be the one SQLite store a consumer had to provision by hand -- failing with "no such
-	/// table" on a path where every sibling simply works. There is no reconcile stage: the table has one
-	/// shape and has never had another.
+	/// table" on a path where every sibling simply works. There is no reconcile stage: creation is
+	/// create-if-absent and nothing here alters an existing table. The companion definitions table
+	/// changed shape once, to one row per projection, and is not migrated -- see the declaration on
+	/// <see cref="CheckpointsTableDdl(string)"/>.
 	/// </remarks>
 	internal static async Task EnsureCheckpointsTableAsync(
 		SqliteConnection connection,
@@ -180,20 +182,24 @@ internal static class SqliteTableInitializer
 	/// would share one checkpoint and each would skip whatever the other had consumed.
 	/// </remarks>
 	internal static string CheckpointsTableDdl(string table) =>
-		// ddl-migration: provisioning-only {table}Definitions - This companion table is created on first binding; existing checkpoint rows stay in the separate base table, verified by the SQLite checkpoint conformance regression.
+		// ddl-migration: provisioning-only - Greenfield member-lifetime schema; no legacy state migration.
 		$"""
 		CREATE TABLE IF NOT EXISTS [{table}] (
-			SubscriptionName TEXT NOT NULL COLLATE BINARY,
-			-- The last position PROCESSED, never the next to fetch. Global-stream reads are exclusive of
-			-- the cursor, so the two conventions must not be mixed.
-			Position         INTEGER NOT NULL,
-			UpdatedAt        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (SubscriptionName)
+		    SubscriptionName TEXT NOT NULL COLLATE BINARY,
+		    ProjectionKey TEXT NOT NULL COLLATE BINARY,
+		    DefinitionHash TEXT NOT NULL COLLATE BINARY CHECK (length(DefinitionHash) = 64 AND DefinitionHash NOT GLOB '*[^0-9A-F]*'),
+		    Destination TEXT NOT NULL COLLATE BINARY,
+		    DestinationScope TEXT NULL COLLATE BINARY,
+		    BindingId TEXT NOT NULL COLLATE BINARY UNIQUE,
+		    Position INTEGER NULL CHECK (Position IS NULL OR Position >= 0),
+		    PRIMARY KEY (SubscriptionName, ProjectionKey)
 		);
-		CREATE TABLE IF NOT EXISTS [{table}Definitions] (
-			SubscriptionName TEXT NOT NULL COLLATE BINARY PRIMARY KEY,
-			DefinitionHash TEXT NOT NULL COLLATE BINARY
-				CHECK (length(DefinitionHash) = 64 AND DefinitionHash NOT GLOB '*[^0-9A-F]*')
+		CREATE TABLE IF NOT EXISTS [{table}Readers] (
+		    SubscriptionName TEXT NOT NULL COLLATE BINARY,
+		    ReaderName TEXT NOT NULL COLLATE BINARY,
+		    Revision TEXT NOT NULL COLLATE BINARY,
+		    BindingId TEXT NOT NULL COLLATE BINARY REFERENCES [{table}](BindingId),
+		    PRIMARY KEY (SubscriptionName, ReaderName)
 		);
 		""";
 

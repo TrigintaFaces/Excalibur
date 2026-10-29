@@ -1090,6 +1090,7 @@ virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.SqlP
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.SqlProvider_ValidateRequest_ShouldAcceptAValidRequestAndRejectAnInvalidOne() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.TestConnectionAsync_ShouldReachTheDatabase_WithoutAnExplicitInitialize() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PersistenceProviderConformanceTestKit.TransactionScope_DisposedSynchronously_ShouldReleaseEnlistedConnections() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.Report_one_storage_scope_through_both_generation_reader_members() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Admit_exactly_one_of_two_writers_racing_from_one_read() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Advance_from_the_position_it_read() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.PositionedProjectionStoreConformanceTestKit.Apply_the_same_refold_twice_without_changing_the_result() -> System.Threading.Tasks.Task!
@@ -1275,10 +1276,7 @@ virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTest
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithMatchingExpectedPosition_ShouldBeAccepted() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WithStaleExpectedPosition_ShouldBeSupersededAndChangeNothing() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_CaseDistinctNames_ShouldRemainIndependent() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne() -> System.Threading.Tasks.Task!
-virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Enumerate_ShouldReportStoredCheckpoints() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GenerateSubscriptionName() -> string!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GetCheckpoint_ForUnknownSubscription_ShouldReturnNull() -> System.Threading.Tasks.Task!
@@ -1291,3 +1289,32 @@ virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.CleanupAsync() 
 virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.CrashMidStep_ResumesFromLastCompletedStep_ExactlyOnce() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.DelayedRestart_ResumesAndCompletesExactlyOnce() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.WorkflowConformanceTestKit.DuplicateDelivery_AppliesEachActivityExactlyOnce() -> System.Threading.Tasks.Task!
+const Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.DefaultProjectionKey = "Proj.A" -> string!
+static Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Member(string! projectionKey, char fingerprintFill, string! destination = "dest-a") -> Excalibur.EventSourcing.Subscriptions.SubscriptionMember!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Release_AbsentMember_ShouldReturnFalse_AndWriteNothing() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.Release_ShouldRemoveMemberAndItsCheckpoint_Atomically() -> System.Threading.Tasks.Task!
+Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration
+Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration.ConformanceProjectionNextGeneration() -> void
+Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration.Id.get -> string!
+Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration.Id.set -> void
+Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration.Total.get -> int
+Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration.Total.set -> void
+Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit
+Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.PositionedProjectionDestinationConformanceTestKit() -> void
+abstract Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.CreateNextGenerationStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IProjectionStore<Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration!>!>!
+abstract Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.CreateRelocatedStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IProjectionStore<Excalibur.Testing.Conformance.ConformanceProjection!>!>!
+virtual Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.Advertise_the_destination_it_is_configured_against() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.Change_the_identity_when_the_configured_destination_moves() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.Keep_the_previous_generation_readable_while_the_next_one_builds() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.PositionedProjectionDestinationConformanceTestKit.Resolve_a_distinct_destination_for_the_next_generation() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference() -> System.Threading.Tasks.Task!

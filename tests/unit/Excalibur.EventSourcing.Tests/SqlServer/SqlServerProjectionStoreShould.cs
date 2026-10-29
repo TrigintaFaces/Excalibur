@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Reflection;
 using System.Text.Json;
 
 using Excalibur.EventSourcing.SqlServer;
@@ -26,6 +27,33 @@ public sealed class SqlServerProjectionStoreShould : UnitTestBase
 {
 	private readonly ILogger<SqlServerProjectionStore<TestProjection>> _logger =
 		NullLoggerFactory.CreateLogger<SqlServerProjectionStore<TestProjection>>();
+
+	#region Qualified Table Name
+
+	[Fact]
+	public void QualifiedTableName_BracketsBothIdentifiersExactlyAsTheHelperDoes()
+	{
+		// Arrange -- the composed name every statement in this store interpolates. Pinned because it is now
+		// produced by the package's single identifier-quoting helper instead of being hand-rolled here: the
+		// emitted string must stay byte-identical, so one quoting rule governs every statement.
+		var store = new SqlServerProjectionStore<TestProjection>(
+			"Server=localhost;Database=TestDb;TrustServerCertificate=True",
+			_logger,
+			TestTenantContext.SingleTenantDefault,
+			tableName: "OrderSummary",
+			jsonOptions: null,
+			schemaName: "Reporting");
+
+		// Act
+		var qualified = (string)typeof(SqlServerProjectionStore<TestProjection>)
+			.GetField("_qualifiedTable", BindingFlags.Instance | BindingFlags.NonPublic)!
+			.GetValue(store)!;
+
+		// Assert
+		qualified.ShouldBe("[Reporting].[OrderSummary]");
+	}
+
+	#endregion Qualified Table Name
 
 	#region Simple Constructor Tests (Connection String)
 

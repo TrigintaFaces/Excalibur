@@ -28,6 +28,23 @@ public sealed class ProjectionSessionReaderShould
         (await pending).Freshness.ShouldBe(ProjectionFreshness.BoundExpired);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [Trait("Pattern", "Regression")]
+    public async Task RefuseFreshnessWhenTheRosterChangesDuringTheDocumentRead(bool rebind)
+    {
+        var (reader, checkpoints, _, _) = Build(beforeRead: state =>
+        {
+            if (rebind) { state.BindingId = Guid.NewGuid(); }
+            else { state.IncludeSibling = true; }
+        });
+        checkpoints.Checkpoint = 100;
+        var result = await reader.ReadAsync<Row>("row", new SaveResult(1, 100, ProjectionFreshness.NotRequested), CancellationToken.None);
+        result.Freshness.ShouldBe(ProjectionFreshness.BoundExpired);
+        checkpoints.Reads.ShouldBe(2);
+    }
+
 	private const string Subscription = "projections";
 
 	// Real time, not the fake clock: this exists so a wait that never terminates FAILS rather than hangs
@@ -41,29 +58,71 @@ public sealed class ProjectionSessionReaderShould
 
 	private sealed class StubCheckpoints : ISubscriptionCheckpointStore
 	{
-		private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _definitions = new(StringComparer.Ordinal);
+		private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, string ProjectionKey), SubscriptionMember> _members = new();
 
-		public Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+		// Mirrors InMemorySubscriptionCheckpointStore rather than stubbing the contract away: GetOrAdd is
+		// the atomic claim, the read-back returns the WHOLE roster for the subscription, and a divergence
+		// refuses per member. A double that merely returned an empty roster would make every host under
+		// test believe it hosts everything, which is the one belief the roster exists to deny.
+		public Task<SubscriptionRoster> BindSubscriptionAsync(
+			string subscriptionName,
+			IReadOnlyList<SubscriptionMember> members,
+			CancellationToken cancellationToken)
 		{
-			SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+			SubscriptionDefinitionValidation.Validate(subscriptionName, members);
 			cancellationToken.ThrowIfCancellationRequested();
-			var actual = _definitions.GetOrAdd(subscriptionName, definitionHash);
-			SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
-			return Task.CompletedTask;
+			foreach (var member in members)
+			{
+				var stored = _members.GetOrAdd((subscriptionName, member.ProjectionKey), member);
+				SubscriptionDefinitionValidation.RequireMemberMatch(subscriptionName, member, stored);
+			}
+
+			IReadOnlyList<SubscriptionMember> roster =
+			[
+				.. _members
+					.Where(entry => string.Equals(entry.Key.Subscription, subscriptionName, StringComparison.Ordinal))
+					.Select(static entry => entry.Value)
+			];
+			return Task.FromResult(new SubscriptionRoster(subscriptionName, roster));
 		}
+
+		public Task<bool> ReleaseSubscriptionMemberAsync(
+			string subscriptionName,
+			string projectionKey,
+            Guid bindingId,
+			CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			return Task.FromResult(_members.TryRemove((subscriptionName, projectionKey), out _));
+		}
+
+        public Guid BindingId { get; set; } = Guid.NewGuid();
+        public bool IncludeSibling { get; set; }
+        public Task<SubscriptionRoster> ReadSubscriptionAsync(string subscriptionName, CancellationToken cancellationToken)
+        {
+            Reads++;
+            var member = new SubscriptionMember(SubscriptionKeys.ProjectionKey(typeof(Row)),
+                SubscriptionKeys.DefinitionFingerprint(string.Empty, "1", typeof(Row).Assembly.GetName().Name!, SubscriptionKeys.ProjectionKey(typeof(Row)), "19:estate/test-cluster9:test:rows"), "test:rows")
+                    { BindingId = BindingId, Position = Checkpoint, DestinationScope = "estate/test-cluster" };
+            return Task.FromResult(new SubscriptionRoster(subscriptionName, IncludeSibling
+                ? [member, new SubscriptionMember("Sibling", new string('B', 64), "test:sibling") { BindingId = Guid.Parse("d77d2516-07b6-4612-a1ab-99814c98d75d") }]
+                : [member]));
+        }
 
 		public long? Checkpoint { get; set; }
 
 		public int Reads { get; private set; }
 
-		public Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken)
+		public Task<long?> GetCheckpointAsync(
+			string subscriptionName, string projectionKey, CancellationToken cancellationToken)
 		{
 			Reads++;
 			return Task.FromResult(Checkpoint);
 		}
 
 		public Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
-			string subscriptionName, long? expected, long position, CancellationToken cancellationToken) =>
+			string subscriptionName, string projectionKey, Guid bindingId, long? expected, long position,
+			CancellationToken cancellationToken) =>
 			Task.FromResult(CheckpointAdvanceOutcome.Advanced);
 
 		public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(
@@ -72,14 +131,17 @@ public sealed class ProjectionSessionReaderShould
 	}
 
 	private static (ProjectionSessionReader Reader, StubCheckpoints Checkpoints, ProjectionHealthState Health, FakeTimeProvider Clock)
-		Build(TimeSpan? bound = null)
+		Build(TimeSpan? bound = null, Action<StubCheckpoints>? beforeRead = null)
 	{
 		var services = new ServiceCollection();
-		var store = new TestProjectionStore<Row>();
+		var checkpoints = new StubCheckpoints();
+        var store = new TestProjectionStore<Row>("test:rows") { BeforeRead = () => beforeRead?.Invoke(checkpoints) };
+        ProjectionStoreOperations<Row>.Legacy(store).DestinationScope.ShouldBe("estate/test-cluster");
+        AsyncProjectionProcessingHost.DestinationDescriptor(ProjectionMode.Async, "test:rows", "estate/test-cluster")
+            .ShouldBe("19:estate/test-cluster9:test:rows");
 		_ = services.AddSingleton<IProjectionStore<Row>>(store);
 		var sp = services.BuildServiceProvider();
 
-		var checkpoints = new StubCheckpoints();
 		var health = new ProjectionHealthState();
 		var clock = new FakeTimeProvider();
 
@@ -113,19 +175,16 @@ public sealed class ProjectionSessionReaderShould
 	}
 
 	[Fact]
-	public async Task ReportFresh_WhenTheInProcessMarkHasPassedTheToken()
-	{
-		// The in-process mark alone must be enough. A quiet host never persists a checkpoint, so a reader
-		// that consulted only durable state would wait out its bound against a caught-up projection.
-		var (reader, checkpoints, health, _) = Build();
-		using var safety = Safety();
-		health.RecordApplied(AsyncProjectionProcessingHost.CheckpointNameFor(Subscription, typeof(Row)), 150);
-
-		var read = await reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token);
-
-		read.Freshness.ShouldBe(ProjectionFreshness.Fresh);
-		checkpoints.Reads.ShouldBe(0, "the durable checkpoint should not be needed once this process has applied past the token");
-	}
+    public async Task RefuseAnUnfencedInProcessMark()
+    {
+        var (reader, checkpoints, health, clock) = Build(TimeSpan.FromMilliseconds(100));
+        using var safety = Safety();
+        health.RecordApplied(AsyncProjectionProcessingHost.CheckpointNameFor(Subscription, typeof(Row)), 150);
+        var reading = reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token).AsTask();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        (await reading).Freshness.ShouldBe(ProjectionFreshness.BoundExpired);
+        checkpoints.Reads.ShouldBeGreaterThan(0);
+    }
 
 	[Fact]
 	public async Task ReportFresh_FromTheDurableCheckpoint_WhenAnotherProcessApplied()
@@ -162,12 +221,12 @@ public sealed class ProjectionSessionReaderShould
 	{
 		// LIVENESS. Without this arm an implementation that always reported BoundExpired would satisfy
 		// every assertion above, and a wait that never succeeds is indistinguishable from one that works.
-		var (reader, _, health, clock) = Build(TimeSpan.FromSeconds(30));
+		var (reader, checkpoints, _, clock) = Build(TimeSpan.FromSeconds(30));
 		using var safety = Safety();
 
 		var reading = reader.ReadAsync<Row>("row-1", new SaveResult(1, 100, ProjectionFreshness.NotRequested), safety.Token).AsTask();
 
-		health.RecordApplied(AsyncProjectionProcessingHost.CheckpointNameFor(Subscription, typeof(Row)), 100);
+		checkpoints.Checkpoint = 100;
 		clock.Advance(TimeSpan.FromMilliseconds(50));
 
 		var read = await reading;
@@ -187,7 +246,7 @@ public sealed class ProjectionSessionReaderShould
 		// Nothing asserted resolvability, so nothing caught it. This does.
 		var services = new ServiceCollection();
 		_ = services.AddLogging();
-		_ = services.AddSingleton<IProjectionStore<Row>>(new TestProjectionStore<Row>());
+		_ = services.AddSingleton<IProjectionStore<Row>>(new TestProjectionStore<Row>("test:rows"));
 		_ = services.AddExcalibur(x => x.AddEventSourcing(es => es.UseEventNotification()));
 
 		using var provider = services.BuildServiceProvider();
@@ -207,7 +266,7 @@ public sealed class ProjectionSessionReaderShould
 		// BoundExpired -- "we do not know" -- rather than hang.
 		using var safety = Safety();
 		var services = new ServiceCollection();
-		_ = services.AddSingleton<IProjectionStore<Row>>(new TestProjectionStore<Row>());
+		_ = services.AddSingleton<IProjectionStore<Row>>(new TestProjectionStore<Row>("test:rows"));
 		var sp = services.BuildServiceProvider();
 
 		var reader = new ProjectionSessionReader(
@@ -238,23 +297,58 @@ public sealed class ProjectionSessionReaderShould
 	// Models an unresponsive checkpoint store: the read is accepted and never answers.
 	private sealed class NeverCompletingCheckpoints : ISubscriptionCheckpointStore
 	{
-		private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _definitions = new(StringComparer.Ordinal);
+		private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, string ProjectionKey), SubscriptionMember> _members = new();
 
-		public Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+		// Mirrors InMemorySubscriptionCheckpointStore rather than stubbing the contract away: GetOrAdd is
+		// the atomic claim, the read-back returns the WHOLE roster for the subscription, and a divergence
+		// refuses per member. A double that merely returned an empty roster would make every host under
+		// test believe it hosts everything, which is the one belief the roster exists to deny.
+		public Task<SubscriptionRoster> BindSubscriptionAsync(
+			string subscriptionName,
+			IReadOnlyList<SubscriptionMember> members,
+			CancellationToken cancellationToken)
 		{
-			SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
+			SubscriptionDefinitionValidation.Validate(subscriptionName, members);
 			cancellationToken.ThrowIfCancellationRequested();
-			var actual = _definitions.GetOrAdd(subscriptionName, definitionHash);
-			SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
-			return Task.CompletedTask;
+			foreach (var member in members)
+			{
+				var stored = _members.GetOrAdd((subscriptionName, member.ProjectionKey), member);
+				SubscriptionDefinitionValidation.RequireMemberMatch(subscriptionName, member, stored);
+			}
+
+			IReadOnlyList<SubscriptionMember> roster =
+			[
+				.. _members
+					.Where(entry => string.Equals(entry.Key.Subscription, subscriptionName, StringComparison.Ordinal))
+					.Select(static entry => entry.Value)
+			];
+			return Task.FromResult(new SubscriptionRoster(subscriptionName, roster));
 		}
 
-		public Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken) =>
+		public Task<bool> ReleaseSubscriptionMemberAsync(
+			string subscriptionName,
+			string projectionKey,
+            Guid bindingId,
+			CancellationToken cancellationToken)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			return Task.FromResult(_members.TryRemove((subscriptionName, projectionKey), out _));
+		}
+
+        public async Task<SubscriptionRoster> ReadSubscriptionAsync(string subscriptionName, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new SubscriptionRoster(subscriptionName, []);
+        }
+
+		public Task<long?> GetCheckpointAsync(
+			string subscriptionName, string projectionKey, CancellationToken cancellationToken) =>
 			Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ContinueWith(
 				static _ => (long?)null, TaskScheduler.Default);
 
 		public Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
-			string subscriptionName, long? expected, long position, CancellationToken cancellationToken) =>
+			string subscriptionName, string projectionKey, Guid bindingId, long? expected, long position,
+			CancellationToken cancellationToken) =>
 			Task.FromResult(CheckpointAdvanceOutcome.Advanced);
 
 		public Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(

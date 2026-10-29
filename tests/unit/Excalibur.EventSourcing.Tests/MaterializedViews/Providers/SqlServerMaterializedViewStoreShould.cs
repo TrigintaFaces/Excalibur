@@ -217,6 +217,38 @@ public sealed class SqlServerMaterializedViewStoreShould
 	}
 
 	[Fact]
+	public void Constructor_AcceptCustomSchemaName()
+	{
+		// Arrange
+		var connectionString = "Server=localhost;Database=test;";
+		var logger = NullLogger<SqlServerMaterializedViewStore>.Instance;
+
+		// Act
+		var store = new SqlServerMaterializedViewStore(
+			connectionString,
+			logger,
+			TenantViewFixture.SingleTenant,
+			schemaName: "reporting");
+
+		// Assert
+		store.ShouldNotBeNull();
+	}
+
+	[Theory]
+	[InlineData("dbo].[other")]
+	[InlineData("re.porting")]
+	[InlineData("")]
+	public void Constructor_RejectAnUnusableSchemaName(string schemaName) =>
+		// The schema is interpolated into every statement and bracket-delimited, so a bracket or a dot
+		// inside it would escape the delimiting and make the destination ambiguous. Restricted before
+		// composition, exactly as the two table names already are.
+		Should.Throw<ArgumentException>(() => new SqlServerMaterializedViewStore(
+			"Server=localhost;Database=test;",
+			NullLogger<SqlServerMaterializedViewStore>.Instance,
+			TenantViewFixture.SingleTenant,
+			schemaName: schemaName));
+
+	[Fact]
 	public void Constructor_AcceptCustomJsonSerializerOptions()
 	{
 		// Arrange

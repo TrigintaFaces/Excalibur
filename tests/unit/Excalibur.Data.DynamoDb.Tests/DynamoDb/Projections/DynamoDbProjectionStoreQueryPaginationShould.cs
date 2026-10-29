@@ -150,7 +150,7 @@ public sealed class DynamoDbProjectionStoreQueryPaginationShould
 	private static DynamoDbProjectionStore<TestProjection> CreateStore(IAmazonDynamoDB client) =>
 		new(
 			client,
-			Microsoft.Extensions.Options.Options.Create(new DynamoDbProjectionStoreOptions
+			new SingleNamedProjectionOptionsMonitor(new DynamoDbProjectionStoreOptions
 			{
 				TableName = "Projections",
 				PartitionKeyName = PartitionKeyName,
@@ -160,7 +160,7 @@ public sealed class DynamoDbProjectionStoreQueryPaginationShould
 
 	private static Dictionary<string, AttributeValue> BuildItem(string id)
 	{
-		var projectionType = typeof(TestProjection).Name;
+		var projectionType = DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TestProjection>();
 		return new Dictionary<string, AttributeValue>
 		{
 			[PartitionKeyName] = new() { S = $"{projectionType}#{id}" },
@@ -178,7 +178,7 @@ public sealed class DynamoDbProjectionStoreQueryPaginationShould
 	}
 
 	private static Dictionary<string, AttributeValue> KeyFor(string id) =>
-		new() { [PartitionKeyName] = new() { S = $"{typeof(TestProjection).Name}#{id}" } };
+		new() { [PartitionKeyName] = new() { S = $"{DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TestProjection>()}#{id}" } };
 
 	/// <summary>
 	/// Serves the scripted scan pages in order and records the <c>ExclusiveStartKey</c> each request

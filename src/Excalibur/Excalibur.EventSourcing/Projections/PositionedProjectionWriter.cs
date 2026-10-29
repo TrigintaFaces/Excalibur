@@ -112,6 +112,11 @@ internal static class PositionedProjectionWriter<TProjection>
 	/// the callers actually need.
 	/// </para>
 	/// </remarks>
+	internal static bool AlreadyFolded(ProjectionPosition storedPosition, long? eventPosition) =>
+		storedPosition.Kind == ProjectionPositionKind.Retired
+		|| (storedPosition.Kind == ProjectionPositionKind.Positioned
+			&& eventPosition is { } position && position <= storedPosition.Value);
+
 	internal static bool AlreadyFolded(long? storedPosition, long? eventPosition) =>
 		eventPosition is { } position && storedPosition is { } stored && position <= stored;
 

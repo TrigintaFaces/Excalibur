@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using System.Security.Cryptography;
-using System.Text;
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing.DependencyInjection;
 using Excalibur.EventSourcing.Subscriptions;
@@ -67,12 +65,8 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 		// not one event -- a silent success, in the one method a host-less consumer relies on.
 		_ = _services.GetRequiredService<IEventNotificationBroker>();
 
-		if (_services.GetRequiredService<IProjectionRegistry>().GetByMode(ProjectionMode.Inline).Count == 0)
-		{
-			return new ProjectionProcessingResult(0, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None);
-		}
-
 		var host = await HostAsync().WaitAsync(token).ConfigureAwait(false);
+
 		return await host.ProcessThroughAsync(null, required: null, token).ConfigureAwait(false);
 	}
 
@@ -139,15 +133,37 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 		}
 	}
 
-	internal async Task<ProjectionFreshness> CompleteAsync(
+	internal async Task<ProjectionCompletion> CompleteAsync(
 		EventNotificationContext context,
 		IReadOnlyList<IDomainEvent> events)
 	{
-		ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(events);
+        try
+        {
+            return await CompleteCoreAsync(context, events).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            // This boundary includes registry/options resolution and provider initialization. SDKs
+            // can wrap outages in configuration-shaped exceptions; the append is already durable.
+            // Startup and explicit processing retain their original fail-fast behavior.
+            _logger.LogError(error,
+                "Inline processing failed after committing position {Position} for aggregate {AggregateId}. "
+                + "The events are durable; projection progress is unconfirmed. Do not repeat the command.",
+                context.GlobalPosition, context.AggregateId);
+            return new ProjectionCompletion(ProjectionFreshness.BoundExpired);
+        }
+    }
 
+    private async Task<ProjectionCompletion> CompleteCoreAsync(EventNotificationContext context,
+        IReadOnlyList<IDomainEvent> events)
+    {
 		if (_services.GetRequiredService<IProjectionRegistry>().GetByMode(ProjectionMode.Inline).Count == 0)
 		{
-			return ProjectionFreshness.NotRequested;
+			// THE ROSTER IS READ BEFORE THE ANSWER, not after. This return cannot reach the processing
+			// loop, so the quantifier enforced inside it never runs here and the roster is this path's
+			// only source for it. See NothingOwedAsync for why an unhosted member is not NotRequested.
+			return new ProjectionCompletion(await NothingOwedWithoutAHostAsync(context).ConfigureAwait(false));
 		}
 
 		if (context.GlobalPosition is not > 0)
@@ -162,7 +178,7 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 				+ "for aggregate {AggregateId}. The events are committed; the read model cannot be advanced "
 				+ "and will stay behind until a positioned event store is configured.",
 				context.AggregateId);
-			return ProjectionFreshness.BoundExpired;
+			return new ProjectionCompletion(ProjectionFreshness.BoundExpired);
 		}
 
 		// A BULK WRITER OPTED OUT OF THE PER-SAVE WAIT. Checked before the host is touched, because
@@ -175,12 +191,11 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 		// safe direction: the caller already owes that one call for the batch as a whole.
 		if (InlineProjectionWait.IsSuppressed)
 		{
-			return ProjectionFreshness.Deferred;
+			return new ProjectionCompletion(ProjectionFreshness.Deferred);
 		}
 
 		using var bound = new CancellationTokenSource(_notificationOptions.Value.PostCommitTimeout, _clock);
 		Task<ProjectionProcessingResult>? work = null;
-        var processing = false;
 		try
 		{
 			var host = await HostAsync().WaitAsync(bound.Token).ConfigureAwait(false);
@@ -198,9 +213,11 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 			var required = host.RequiredRegistrations(committedTypes);
 			if (required.Count == 0)
 			{
-				// This save feeds no Inline projection. Nothing was waited for and nothing is claimed --
-				// the same honest answer as a host with no Inline projection registered at all.
-				return ProjectionFreshness.NotRequested;
+				// THE ROSTER IS READ BEFORE THE ANSWER, not after. RequiredRegistrations reads the LOCAL
+				// registry, which is silent about members bound by another deployment, so an empty
+				// required set says only that no projection THIS process hosts consumes these events.
+				// Returning NotRequested on that alone was the defect; the roster decides.
+				return new ProjectionCompletion(await NothingOwedAsync(host, context, bound.Token).ConfigureAwait(false));
 			}
 
 			// RETRY EXACTLY ONE HALT REASON, AND ONLY INSIDE THE BUDGET THE CALLER ALREADY GRANTED.
@@ -220,12 +237,14 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 			var backoff = TimeSpan.FromMilliseconds(25);
 			while (true)
 			{
-				processing = true;
 				work = host.ProcessThroughAsync(context.GlobalPosition, required, bound.Token);
 				var result = await work.WaitAsync(bound.Token).ConfigureAwait(false);
 				if (result.Outcome == ProjectionProcessingOutcome.CaughtUp)
 				{
-					return ProjectionFreshness.Fresh;
+					// Attested, not Fresh: this is what the save OBSERVED against the roster it read, and the
+					// roster can change before the caller reads. Fresh is the read-time verdict that
+					// IProjectionSessionReader issues after re-validating against current state.
+					return new ProjectionCompletion(ProjectionFreshness.Attested, result.Attestation);
 				}
 
 				if (result.HaltReason != ProjectionHaltReason.PrefixUnavailable)
@@ -234,7 +253,7 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 						"Inline projections did not reach position {Position} for aggregate {AggregateId}: {Reason}. "
 						+ "The events are committed; the read model is behind. Do not repeat the command.",
 						context.GlobalPosition.Value, context.AggregateId, result.HaltReason);
-					return ProjectionFreshness.BoundExpired;
+					return new ProjectionCompletion(ProjectionFreshness.BoundExpired);
 				}
 
 				await Task.Delay(backoff, _clock, bound.Token).ConfigureAwait(false);
@@ -260,20 +279,79 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 				+ "perform one index refresh per event. Wrap the batch in InlineProjectionWait.Suppress() and call "
 				+ "IProjectionProcessor.ProcessPendingAsync once when it finishes.",
 				context.GlobalPosition.Value, context.AggregateId);
+			return new ProjectionCompletion(ProjectionFreshness.BoundExpired);
+		}
+
+
+	}
+
+	/// <summary>
+	/// "Nothing was owed" -- but only when the durable roster permits this process to say it.
+	/// </summary>
+	/// <remarks>
+	/// A save with no local Inline work still cannot report that nothing is owed while the subscription's
+	/// roster holds a member this process does not host. The roster deliberately does NOT record which
+	/// event types each member consumes -- storing that was considered and rejected -- so this process
+	/// cannot determine whether an absent member consumes the events just committed. Lacking that it
+	/// cannot establish the freshness property at all, and the conclusion for a save that cannot establish
+	/// it is that the read model may be behind. NotRequested would assert a fact this process has no basis
+	/// for, and NotRequested tells the caller nobody owes a follow-up -- so the caller would read a member
+	/// that is behind, and nothing downstream would ever learn it had.
+	/// <para>
+	/// NotRequested stays correct for the narrow case it was written for: the roster is empty or fully
+	/// hosted here, AND no local Inline projection needed these events.
+	/// </para>
+	/// </remarks>
+	private async Task<ProjectionFreshness> NothingOwedAsync(
+		AsyncProjectionProcessingHost host,
+		EventNotificationContext context,
+		CancellationToken token)
+	{
+		var unattestable = await host.UnattestableMembersAsync(token).ConfigureAwait(false);
+		if (unattestable.Count == 0)
+		{
+			return ProjectionFreshness.NotRequested;
+		}
+
+		_logger.LogWarning(
+			"This save fed no Inline projection hosted here, but the subscription roster holds members "
+			+ "this process does not host ({Members}) for aggregate {AggregateId}. Whether those members "
+			+ "consume these events is not recorded, so freshness cannot be established. The events are "
+			+ "committed; the read model may be behind. Do not repeat the command.",
+			string.Join(", ", unattestable), context.AggregateId);
+		return ProjectionFreshness.BoundExpired;
+	}
+
+	/// <summary>The same roster question, on the path that has not created the host yet.</summary>
+	/// <remarks>
+	/// This path previously could not fail at all, so every failure reaching it is NEWLY reachable and
+	/// must be reported rather than thrown: the events are already durable, and an exception here would
+	/// tell the caller a committed save failed when it did not.
+	/// <para>
+	/// That includes the composition with NO checkpoint store registered, where the host cannot be built.
+	/// The answer is the same as for any other unreadable roster -- the roster could not be read, so
+	/// freshness cannot be established -- and it does not strand a working consumer: a composition with
+	/// Inline projections and no checkpoint store is refused at startup, so reaching this branch means
+	/// the read model genuinely cannot be advanced.
+	/// </para>
+	/// </remarks>
+	private async Task<ProjectionFreshness> NothingOwedWithoutAHostAsync(EventNotificationContext context)
+	{
+		using var bound = new CancellationTokenSource(_notificationOptions.Value.PostCommitTimeout, _clock);
+		try
+		{
+			var host = await HostAsync().WaitAsync(bound.Token).ConfigureAwait(false);
+			return await NothingOwedAsync(host, context, bound.Token).ConfigureAwait(false);
+		}
+		catch (Exception error)
+		{
+			_logger.LogError(error,
+				"The subscription roster could not be read while completing a save for aggregate "
+				+ "{AggregateId}, so no Inline projection can be attested. The events are committed; the "
+				+ "read model may be behind. Do not repeat the command.",
+				context.AggregateId);
 			return ProjectionFreshness.BoundExpired;
 		}
-        catch (Exception error) when (processing || error is System.IO.IOException
-            or System.Data.Common.DbException or HttpRequestException or TimeoutException or OperationCanceledException)
-        {
-            // Append already succeeded. Preserve its token and report unconfirmed projection progress.
-            // Configuration failures during host validation still fail fast at their original boundary.
-            _logger.LogError(error,
-                "Inline processing failed after committing position {Position} for aggregate {AggregateId}. "
-                + "The events are durable; projection progress is unconfirmed. Do not repeat the command.",
-                context.GlobalPosition.Value, context.AggregateId);
-            return ProjectionFreshness.BoundExpired;
-        }
-
 	}
 
 	private async Task ObserveAsync(Task work)
@@ -281,6 +359,12 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 		try { await work.ConfigureAwait(false); }
 		catch (Exception error) { _logger.LogError(error, "Inline processing failed after its foreground deadline."); }
 	}
+
+    internal async Task<SubscriptionRoster> ReadRosterAsync(CancellationToken token) =>
+        await (await HostAsync().WaitAsync(token).ConfigureAwait(false)).ReadRosterAsync(token).ConfigureAwait(false);
+
+    internal async Task<string> DestinationFingerprintAsync(Type projectionType, string? identity, string? scope, CancellationToken token) =>
+        (await HostAsync().WaitAsync(token).ConfigureAwait(false)).DestinationFingerprint(projectionType, identity, scope);
 
 	internal async Task<bool> HasAppliedAsync(Type projectionType, long position, CancellationToken token) =>
 		await (await HostAsync().WaitAsync(token).ConfigureAwait(false))
@@ -292,28 +376,13 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
         return await CreateHostAsync().ConfigureAwait(false);
     }
 
-    private async Task<AsyncProjectionProcessingHost> CreateHostAsync()
+    private Task<AsyncProjectionProcessingHost> CreateHostAsync()
     {
 		var registry = _services.GetRequiredService<IProjectionRegistry>();
 		var configured = _services.GetRequiredService<IOptions<GlobalStreamProjectionOptions>>().Value;
 		ValidateName(configured);
 		var source = _services.GetService<InlineProjectionSource>();
-		if (source is not null && !ReferenceEquals(source.Query, _services.GetRequiredService<Excalibur.EventSourcing.Queries.IGlobalStreamQuery>()))
-		{
-			throw new InvalidOperationException("The global event reader was replaced independently of its SQL Inline checkpoint binding. "
-				+ "Configure a source-affine reader/checkpoint pair; automatic Inline setup cannot certify this composition.");
-		}
-		var checkpoints = source?.Checkpoints;
-		if (checkpoints is null)
-		{
-			if (_services.GetService<ISubscriptionCheckpointDurability>() is null
-				&& _services.GetService<InMemoryProjectionCheckpointAcknowledgement>() is null)
-			{
-				throw new InvalidOperationException("Inline projections require a durable checkpoint store. "
-					+ "UseSqlServer supplies one automatically; other providers must register their checkpoint store.");
-			}
-			checkpoints = _services.GetRequiredService<ISubscriptionCheckpointStore>();
-		}
+		var checkpoints = ResolveCheckpoints(_services);
 		var scopeIdentity = configured.SubscriptionScope;
 		if (string.IsNullOrWhiteSpace(scopeIdentity))
 		{
@@ -321,38 +390,49 @@ internal sealed class InlineProjectionCoordinator : IAsyncDisposable
 			{
 				throw new InvalidOperationException("Set GlobalStreamProjectionOptions.SubscriptionScope for this custom Inline event source.");
 			}
-			await using var scope = _services.CreateAsyncScope();
-			var registrations = registry.GetByMode(ProjectionMode.Inline);
-			var probes = scope.ServiceProvider.GetServices<IPositionedProjectionProbe>().ToDictionary(p => p.ProjectionType);
-			var parts = new List<string> { source.Identity };
-			foreach (var registration in registrations.OrderBy(r => r.ProjectionType.FullName, StringComparer.Ordinal))
-			{
-				var destination = probes.TryGetValue(registration.ProjectionType, out var probe)
-					? probe.GetDestinationScope(scope.ServiceProvider) : null;
-				if (string.IsNullOrWhiteSpace(destination))
-				{
-					throw new InvalidOperationException($"Projection '{registration.ProjectionType.Name}' cannot identify its cluster automatically. "
-						+ "Set GlobalStreamProjectionOptions.SubscriptionScope to a shared source/destination name.");
-				}
-				parts.Add(destination);
-			}
-			var descriptor = new StringBuilder();
-			foreach (var part in parts) { descriptor.Append(part.Length).Append(':').Append(part); }
-			scopeIdentity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(descriptor.ToString())));
+            scopeIdentity = source.Identity;
 		}
 		var options = new GlobalStreamProjectionOptions
 		{
-			ProjectionName = "Inline:" + configured.ProjectionName,
+			ProjectionName = SubscriptionName(configured),
 			SubscriptionScope = scopeIdentity,
 			SubscriptionRevision = configured.SubscriptionRevision,
 			BatchSize = configured.BatchSize,
 			IdlePollingInterval = configured.IdlePollingInterval,
 		};
 		ValidateEffectiveOptions(options);
-		return new AsyncProjectionProcessingHost(registry, _services.GetRequiredService<IEventSerializer>(),
+		return Task.FromResult(new AsyncProjectionProcessingHost(registry, _services.GetRequiredService<IEventSerializer>(),
 			checkpoints, Options.Create(options), _services, _services.GetRequiredService<ILogger<AsyncProjectionProcessingHost>>(),
-			_notificationOptions, _clock, ProjectionMode.Inline);
+			_notificationOptions, _clock, ProjectionMode.Inline) { RequireDestinationScope = string.IsNullOrWhiteSpace(configured.SubscriptionScope) });
 	}
+
+    internal static string SubscriptionName(GlobalStreamProjectionOptions options)
+    {
+        ValidateName(options);
+        return "Inline:" + options.ProjectionName;
+    }
+
+    internal static ISubscriptionCheckpointStore ResolveCheckpoints(IServiceProvider services)
+    {
+        var source = services.GetService<InlineProjectionSource>();
+		if (source is not null && !ReferenceEquals(source.Query, services.GetRequiredService<Excalibur.EventSourcing.Queries.IGlobalStreamQuery>()))
+		{
+			throw new InvalidOperationException("The global event reader was replaced independently of its SQL Inline checkpoint binding. "
+				+ "Configure a source-affine reader/checkpoint pair; automatic Inline setup cannot certify this composition.");
+		}
+		var checkpoints = source?.Checkpoints;
+		if (checkpoints is null)
+		{
+			if (services.GetService<ISubscriptionCheckpointDurability>() is null
+				&& services.GetService<InMemoryProjectionCheckpointAcknowledgement>() is null)
+			{
+				throw new InvalidOperationException("Inline projections require a durable checkpoint store. "
+					+ "UseSqlServer supplies one automatically; other providers must register their checkpoint store.");
+			}
+			checkpoints = services.GetRequiredService<ISubscriptionCheckpointStore>();
+		}
+        return checkpoints;
+    }
 
 	private static void ValidateName(GlobalStreamProjectionOptions options)
 	{

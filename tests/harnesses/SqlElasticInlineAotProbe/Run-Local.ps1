@@ -6,7 +6,7 @@ $database = "InlineNative_$runId"
 $run = Join-Path $repo "artifacts/native-inline/$runId"
 New-Item -ItemType Directory -Path $run -Force | Out-Null
 $project = Join-Path $PSScriptRoot 'SqlElasticInlineAotProbe.csproj'
-$publishArgs = @('publish', $project, '-c', 'Release', '-r', 'win-x64', '-p:BuildExamplesAndTests=true',
+$publishArgs = @('publish', $project, '-c', 'Release', '-r', 'win-x64', '-p:BuildExamplesAndTests=true', '-m:1', '-nr:false', '-p:UseSharedCompilation=false',
     "-p:NuGetLockFilePath=obj/native-inline/$runId/packages.lock.json", '-p:RestorePackagesWithLockFile=true')
 if ($Diagnostic) { $publishArgs += @('-p:ILLinkTreatWarningsAsErrors=false', '-p:TreatWarningsAsErrors=false') }
 & dotnet @publishArgs > (Join-Path $run 'publish.log') 2>&1
@@ -71,7 +71,7 @@ try {
         Run-Native pending $pending
         $failedAttempts = 0
         foreach ($i in 1..60) {
-            $failedAttempts = @(Select-String -Path $recoveryLog -Pattern 'Error dispatching events to async projection').Count
+            $failedAttempts = @(Select-String -Path $recoveryLog -Pattern 'Error dispatching events to async projection|Async projection processing host encountered an error\.').Count
             if ($failedAttempts -ge 3) { break }
             if ($recovery.HasExited) { throw 'Recovery worker exited during outage.' }
             Start-Sleep -Seconds 1

@@ -77,7 +77,7 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
-        var store = ProjectionStoreOperations<TProjection>.Legacy(_serviceProvider.GetRequiredService<IProjectionStore<TProjection>>());
+        var store = ProjectionStoreOperations<TProjection>.Legacy(_serviceProvider.GetRequiredService<IProjectionStore<TProjection>>()).WithCapacity(_serviceProvider);
         await ReapplyCoreAsync(aggregateId, aggregateType, store, _serviceProvider, cancellationToken).ConfigureAwait(false);
     }
 

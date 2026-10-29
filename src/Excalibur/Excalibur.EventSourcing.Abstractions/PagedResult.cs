@@ -110,7 +110,7 @@ public sealed class PagedResult<T>
 	/// <value>
 	/// The total number of pages, calculated based on the page size.
 	/// </value>
-	public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling(TotalItems / (double)PageSize);
+	public long TotalPages => PageSize == 0 ? 0L : (TotalItems / PageSize) + ((TotalItems % PageSize) == 0 ? 0L : 1L);
 
 	/// <summary>
 	/// Gets a value indicating whether indicates whether there is a next page available.

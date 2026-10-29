@@ -49,7 +49,7 @@ public sealed class InMemoryProjectionRegistryShould
 	}
 
 	[Fact]
-	public void ReplaceExistingRegistrationForSameType()
+	public void RefuseASecondRegistrationInADifferentModeAndKeepTheFirst()
 	{
 		// Arrange
 		var first = CreateRegistration(typeof(OrderSummary), ProjectionMode.Ephemeral);
@@ -57,12 +57,28 @@ public sealed class InMemoryProjectionRegistryShould
 
 		// Act
 		_registry.Register(first);
-		_registry.Register(second);
-		var result = _registry.GetRegistration(typeof(OrderSummary));
+		var error = Should.Throw<InvalidOperationException>(() => _registry.Register(second));
 
-		// Assert -- second registration replaces first (R27.37)
-		result.ShouldNotBeNull();
-		result.Mode.ShouldBe(ProjectionMode.Async);
+		// Assert -- the cross-mode registration is refused, and refusing leaves the first intact
+		// rather than half-applying it.
+		error.Message.ShouldContain(nameof(OrderSummary), Case.Sensitive);
+		error.Message.ShouldContain(nameof(ProjectionMode.Ephemeral), Case.Sensitive);
+		error.Message.ShouldContain(nameof(ProjectionMode.Async), Case.Sensitive);
+		_registry.GetRegistration(typeof(OrderSummary)).ShouldNotBeNull().Mode.ShouldBe(ProjectionMode.Ephemeral);
+	}
+
+	/// <summary>
+	/// The boundary of the refusal above: a SAME-mode re-registration still replaces in place.
+	/// </summary>
+	[Fact]
+	public void ReplaceAnExistingRegistrationInTheSameMode()
+	{
+		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Async));
+		var second = CreateRegistration(typeof(OrderSummary), ProjectionMode.Async);
+
+		_registry.Register(second);
+
+		_registry.GetRegistration(typeof(OrderSummary)).ShouldBeSameAs(second);
 	}
 
 	[Fact]

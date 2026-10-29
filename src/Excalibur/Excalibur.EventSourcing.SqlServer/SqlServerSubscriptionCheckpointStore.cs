@@ -1,65 +1,33 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
-using Dapper;
-
+using System.Data;
+using System.Data.Common;
+using System.Globalization;
 using Excalibur.EventSourcing.Subscriptions;
-using Excalibur.EventSourcing.SqlServer.Requests;
-
 using Microsoft.Data.SqlClient;
+using Excalibur.EventSourcing.SqlServer.Requests;
 
 namespace Excalibur.EventSourcing.SqlServer;
 
-/// <summary>
-/// A durable <see cref="ISubscriptionCheckpointStore"/> backed by SQL Server.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <b>Why a durable store is not optional.</b> The gapless global position exists so a catch-up
-/// subscriber can hold one number and never look back. An in-memory checkpoint forfeits that on every
-/// process start: the subscription replays the whole stream, which on an append-only store grows without
-/// bound, and every projection is rebuilt from zero after a restart or a deployment.
-/// </para>
-/// <para>
-/// <b>The advance is a compare-and-set, and every statement here is a single atomic one.</b> Two
-/// instances of the same subscription share one checkpoint row and race for it. A read-then-write would
-/// let the slower instance overwrite the faster one's progress with a lower mark, and the events between
-/// the two marks would then be delivered a second time — so the caller states the value it believes is
-/// current, and the store reports whether that belief held.
-/// </para>
-/// <para>
-/// <b>The two prior states are distinct.</b> A caller passing <see langword="null"/> claims there is no
-/// checkpoint at all, and it must LOSE to a writer that has since created one — otherwise the instance
-/// that started second would reset a live subscription to its own position. That is why the null case is
-/// an insert guarded by the primary key rather than an upsert: an upsert would silently make the two
-/// prior states interchangeable and quietly reintroduce the overwrite this contract exists to prevent.
-/// </para>
-/// <para>
-/// No tenant term appears anywhere in this store, deliberately. A subscription reads the global stream of
-/// the store it is attached to; under tenant sharding each shard is its own database with its own
-/// position sequence, so it carries its own copy of this table and its own checkpoints.
-/// </para>
-/// </remarks>
-internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckpointStore
+/// <summary>Persists each member lifetime and its nullable cursor in one atomic row.</summary>
+internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckpointStore, IProjectionGenerationStore, IProjectionDestinationScope
 {
-	/// <summary>SQL Server error numbers for a unique-constraint and a unique-index violation.</summary>
-	/// <remarks>
-	/// The same logical collision is reported under either number depending on how the uniqueness was
-	/// declared, so both mean "a row already existed" here.
-	/// </remarks>
-	private const int UniqueConstraintViolation = 2627;
-	private const int UniqueIndexViolation = 2601;
+    string IProjectionDestinationScope.Scope
+    {
+        get
+        {
+            using var connection = _connectionFactory();
+            return string.IsNullOrWhiteSpace(connection.DataSource) || string.IsNullOrWhiteSpace(connection.Database)
+                ? string.Empty
+                : "sqlserver/" + Uri.EscapeDataString(connection.DataSource) + "/" + Uri.EscapeDataString(connection.Database);
+        }
+    }
 
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _table;
-	private readonly string _definitionsTable;
+	private readonly RelationalProjectionGenerationStore _generations;
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="SqlServerSubscriptionCheckpointStore"/> class.
-	/// </summary>
-	/// <param name="connectionString">The connection string for the checkpoint database.</param>
-	/// <param name="schema">The schema holding the checkpoint table. Default: "dbo".</param>
-	/// <param name="table">The checkpoint table name. Default: "SubscriptionCheckpoints".</param>
 	internal SqlServerSubscriptionCheckpointStore(
 		string connectionString,
 		string schema = "dbo",
@@ -83,197 +51,159 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 
 		_connectionFactory = connectionFactory;
 		_table = SqlTableName.Format(schema, table);
-		var definitionsTable = table + "Definitions";
-		if (definitionsTable.Length > 128)
-		{
-			throw new ArgumentException("The derived subscription definitions table name exceeds the provider identifier limit.", nameof(table));
-		}
-
-		_definitionsTable = SqlTableName.Format(schema, definitionsTable);
+		_generations = new(OpenAsync, Command, static error => error is SqlException { Number: 1205 or 2601 or 2627 or 547 }, _table, SqlTableName.Format(schema, table + "Readers"));
 	}
 
-	/// <inheritdoc />
-	public async Task BindSubscriptionAsync(string subscriptionName, string definitionHash, CancellationToken cancellationToken)
+
+
+	public Task<ProjectionGeneration?> ReadGenerationAsync(string subscriptionName, string readerName, CancellationToken cancellationToken) =>
+		_generations.ReadGenerationAsync(subscriptionName, readerName, cancellationToken);
+
+	public Task<bool> TrySetGenerationAsync(string subscriptionName, string readerName, Guid? expectedRevision,
+		string projectionKey, Guid bindingId, long minimumPosition, CancellationToken cancellationToken) =>
+		_generations.TrySetGenerationAsync(subscriptionName, readerName, expectedRevision, projectionKey, bindingId, minimumPosition, cancellationToken);
+
+	public Task<bool> TryRemoveGenerationAsync(string subscriptionName, string readerName, Guid expectedRevision, CancellationToken cancellationToken) =>
+		_generations.TryRemoveGenerationAsync(subscriptionName, readerName, expectedRevision, cancellationToken);
+
+	public async Task<SubscriptionRoster> BindSubscriptionAsync(string subscriptionName,
+		IReadOnlyList<SubscriptionMember> members, CancellationToken cancellationToken)
 	{
-		SubscriptionDefinitionValidation.Validate(subscriptionName, definitionHash);
-		cancellationToken.ThrowIfCancellationRequested();
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		try
+		SubscriptionDefinitionValidation.Validate(subscriptionName, members);
 		{
-#pragma warning disable CA2100 // Identifiers validated in the constructor
-			_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection, new CommandDefinition(
-				$"INSERT INTO {_definitionsTable} (SubscriptionName, DefinitionHash) VALUES (@Name, @Hash);",
-				Parameters(subscriptionName, hash: definitionHash),
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-		}
-		catch (SqlException ex) when (ex.Number is UniqueConstraintViolation or UniqueIndexViolation)
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		foreach (var member in members)
 		{
-			// The immutable primary-key winner is compared below. A collision never overwrites it.
+			await using var command = Command(connection,
+				$"INSERT INTO {_table} (SubscriptionName, ProjectionKey, DefinitionHash, Destination, BindingId, DestinationScope) VALUES (@Name, @Key, @Hash, @Destination, @BindingId, @Scope)",
+				("Name", subscriptionName), ("Key", member.ProjectionKey), ("Hash", member.DefinitionHash),
+				("Destination", member.Destination), ("BindingId", Guid.NewGuid().ToString("D")), ("Scope", member.DestinationScope));
+			try { _ = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false); }
+			catch (SqlException error) when (error.Number is 2601 or 2627) { /* The existing row wins; validate its definition below. */ }
 		}
-
-		// No operation in this contract changes or deletes a definition. A separate read after the
-		// insert therefore observes the same immutable winner even when another instance won first.
-#pragma warning disable CA2100 // Identifiers validated in the constructor
-		var actual = await SqlServerParameterSet.ExecuteScalarAsync<string>(connection, new CommandDefinition(
-			$"SELECT DefinitionHash FROM {_definitionsTable} WHERE SubscriptionName = @Name",
-			Parameters(subscriptionName),
-			cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-		SubscriptionDefinitionValidation.RequireMatch(subscriptionName, definitionHash, actual);
+		}
+		var roster = await ReadSubscriptionAsync(subscriptionName, cancellationToken).ConfigureAwait(false);
+		var stored = roster.Members.ToDictionary(static member => member.ProjectionKey, StringComparer.Ordinal);
+		foreach (var member in members)
+		{
+			if (!stored.TryGetValue(member.ProjectionKey, out var bound))
+			{
+				throw new InvalidOperationException("A member was retired while binding the subscription. Retry the binding.");
+			}
+			SubscriptionDefinitionValidation.RequireMemberMatch(subscriptionName, member, bound);
+		}
+		return roster;
 	}
 
-	/// <inheritdoc />
-	public async Task<long?> GetCheckpointAsync(string subscriptionName, CancellationToken cancellationToken)
+	public async Task<SubscriptionRoster> ReadSubscriptionAsync(string subscriptionName, CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-		return await SqlServerParameterSet.ExecuteScalarAsync<long?>(connection,
-			new CommandDefinition(
-				$"SELECT Position FROM {_table} WHERE SubscriptionName = @Name;",
-				Parameters(subscriptionName),
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-	}
-
-	/// <inheritdoc />
-	public async Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(
-		string subscriptionName,
-		long? expectedPosition,
-		long newPosition,
-		CancellationToken cancellationToken)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(subscriptionName);
-		ArgumentOutOfRangeException.ThrowIfNegative(newPosition);
-		if (expectedPosition is { } prior)
+		SubscriptionDefinitionValidation.ValidateName(subscriptionName, nameof(subscriptionName), 255);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"SELECT ProjectionKey, DefinitionHash, Destination, BindingId, Position, DestinationScope FROM {_table} WHERE SubscriptionName = @Name", ("Name", subscriptionName));
+		await using var snapshot = await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken).ConfigureAwait(false);
+		command.Transaction = snapshot;
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+		var members = new List<SubscriptionMember>();
+		while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			ArgumentOutOfRangeException.ThrowIfNegative(prior, nameof(expectedPosition));
-			ArgumentOutOfRangeException.ThrowIfLessThan(newPosition, prior);
+			members.Add(new SubscriptionMember(reader.GetString(0), reader.GetString(1),
+				(await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false)) ? string.Empty : reader.GetString(2))
+			{
+				BindingId = Guid.Parse(reader.GetString(3)),
+                DestinationScope = await reader.IsDBNullAsync(5, cancellationToken).ConfigureAwait(false) ? null : reader.GetString(5),
+				Position = (await reader.IsDBNullAsync(4, cancellationToken).ConfigureAwait(false)) ? null : Convert.ToInt64(reader.GetValue(4), CultureInfo.InvariantCulture),
+			});
 		}
-
-
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-		return expectedPosition is { } expected
-			? await UpdateAsync(connection, subscriptionName, expected, newPosition, cancellationToken)
-				.ConfigureAwait(false)
-			: await InsertAsync(connection, subscriptionName, newPosition, cancellationToken)
-				.ConfigureAwait(false);
+		return new SubscriptionRoster(subscriptionName, members.AsReadOnly());
 	}
 
-	/// <inheritdoc />
-	public async Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(
-		CancellationToken cancellationToken)
+	public async Task<bool> ReleaseSubscriptionMemberAsync(string subscriptionName, string projectionKey,
+		Guid bindingId, CancellationToken cancellationToken)
 	{
-		await using var connection = _connectionFactory();
-		await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+		SubscriptionDefinitionValidation.ValidateBinding(subscriptionName, projectionKey, bindingId);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"DELETE FROM {_table} WHERE SubscriptionName = @Name AND ProjectionKey = @Key AND BindingId = @BindingId",
+			("Name", subscriptionName), ("Key", projectionKey), ("BindingId", bindingId.ToString("D")));
+		try { return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1; }
+		catch (DbException error) when (error is SqlException { Number: 1205 or 2601 or 2627 or 547 }) { return false; }
+	}
 
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-		using var command = new SqlServerParameterSet().CreateCommand(connection,
-			new CommandDefinition(
-				$"SELECT SubscriptionName, Position FROM {_table};",
-				cancellationToken: cancellationToken));
-		using var rows = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-#pragma warning restore CA2100
+	public async Task<long?> GetCheckpointAsync(string subscriptionName, string projectionKey, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.ValidateName(subscriptionName, nameof(subscriptionName), 255);
+		SubscriptionDefinitionValidation.ValidateName(projectionKey, nameof(projectionKey), 512);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"SELECT Position FROM {_table} WHERE SubscriptionName = @Name AND ProjectionKey = @Key",
+			("Name", subscriptionName), ("Key", projectionKey));
+		var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+		return value is null or DBNull ? null : Convert.ToInt64(value, CultureInfo.InvariantCulture);
+	}
 
+	public async Task<CheckpointAdvanceOutcome> AdvanceCheckpointAsync(string subscriptionName, string projectionKey,
+		Guid bindingId, long? expectedPosition, long newPosition, CancellationToken cancellationToken)
+	{
+		SubscriptionDefinitionValidation.ValidateAdvance(subscriptionName, projectionKey, bindingId, expectedPosition, newPosition);
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		var expected = expectedPosition.HasValue ? "Position = @Expected" : "Position IS NULL";
+		await using var command = Command(connection,
+			$"UPDATE {_table} SET Position = @Position WHERE SubscriptionName = @Name AND ProjectionKey = @Key AND BindingId = @BindingId AND {expected}",
+			("Position", newPosition), ("Name", subscriptionName), ("Key", projectionKey), ("BindingId", bindingId.ToString("D")));
+		if (expectedPosition is { } prior) { AddParameter(command, "Expected", prior); }
+		return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1
+			? CheckpointAdvanceOutcome.Advanced : CheckpointAdvanceOutcome.Superseded;
+	}
+
+	public async Task<IReadOnlyList<SubscriptionCheckpoint>> EnumerateCheckpointsAsync(CancellationToken cancellationToken)
+	{
+		await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+		await using var command = Command(connection,
+			$"SELECT SubscriptionName, ProjectionKey, Position FROM {_table} WHERE Position IS NOT NULL");
+		await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 		var checkpoints = new List<SubscriptionCheckpoint>();
-		while (await rows.ReadAsync(cancellationToken).ConfigureAwait(false))
+		while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			checkpoints.Add(new SubscriptionCheckpoint(rows.GetString(0), rows.GetInt64(1)));
+			checkpoints.Add(new SubscriptionCheckpoint(reader.GetString(0), reader.GetString(1),
+				Convert.ToInt64(reader.GetValue(2), CultureInfo.InvariantCulture)));
 		}
 		return checkpoints;
 	}
 
-	/// <summary>
-	/// Advances a checkpoint the caller believes is at <paramref name="expected"/>.
-	/// </summary>
-	/// <remarks>
-	/// One statement. The predicate carries the expectation, so the row is matched and written in the same
-	/// atomic operation and no interleaving can slip between the two. Nothing updated means the row is not
-	/// where the caller believed -- another instance moved it, or it does not exist at all -- and both are
-	/// the caller having lost the race.
-	/// </remarks>
-	private async Task<CheckpointAdvanceOutcome> UpdateAsync(
-		SqlConnection connection,
-		string subscriptionName,
-		long expected,
-		long newPosition,
-		CancellationToken cancellationToken)
+	private async Task<DbConnection> OpenAsync(CancellationToken cancellationToken)
 	{
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-		var affected = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
-			new CommandDefinition(
-				$"""
-				UPDATE {_table}
-				SET Position = @NewPosition, UpdatedAt = SYSDATETIMEOFFSET()
-				WHERE SubscriptionName = @Name AND Position = @Expected;
-				""",
-				Parameters(subscriptionName, newPosition, expected),
-				cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
-
-		return affected == 1 ? CheckpointAdvanceOutcome.Advanced : CheckpointAdvanceOutcome.Superseded;
-	}
-
-	/// <summary>
-	/// Creates a checkpoint the caller believes does not yet exist.
-	/// </summary>
-	/// <remarks>
-	/// A plain INSERT, with the primary key doing the work. Two instances starting together both believe
-	/// there is no checkpoint; exactly one insert wins and the other is refused by the key, which is the
-	/// outcome the contract wants. An upsert here would let the loser overwrite the winner and rewind a
-	/// subscription that had already moved on.
-	/// </remarks>
-	private async Task<CheckpointAdvanceOutcome> InsertAsync(
-		SqlConnection connection,
-		string subscriptionName,
-		long newPosition,
-		CancellationToken cancellationToken)
-	{
+		var connection = _connectionFactory();
 		try
 		{
-#pragma warning disable CA2100 // Table name validated by SqlIdentifierValidator in SqlTableName.Format
-			_ = await SqlServerParameterSet.ExecuteNonQueryAsync(connection,
-				new CommandDefinition(
-					$"""
-					INSERT INTO {_table} (SubscriptionName, Position, UpdatedAt)
-					VALUES (@Name, @NewPosition, SYSDATETIMEOFFSET());
-					""",
-					Parameters(subscriptionName, newPosition),
-					cancellationToken: cancellationToken)).ConfigureAwait(false);
-#pragma warning restore CA2100
+			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+			return connection;
+		}
+		catch { await connection.DisposeAsync().ConfigureAwait(false); throw; }
+	}
 
-			return CheckpointAdvanceOutcome.Advanced;
-		}
-		catch (SqlException ex) when (ex.Number is UniqueConstraintViolation or UniqueIndexViolation)
-		{
-			// A row already exists, so the caller's "there is no checkpoint" belief was wrong. This is an
-			// ordinary outcome of the race, not a fault, and it is reported rather than thrown.
-			return CheckpointAdvanceOutcome.Superseded;
-		}
+	private static DbCommand Command(DbConnection connection, string sql, params (string Name, object? Value)[] parameters)
+	{
+		var command = connection.CreateCommand();
+#pragma warning disable CA2100 // Only provider-owned SQL and constructor-validated identifiers reach this helper.
+		command.CommandText = sql;
+#pragma warning restore CA2100
+		foreach (var (name, value) in parameters) { AddParameter(command, name, value); }
+		return command;
+	}
+
+	private static void AddParameter(DbCommand command, string name, object? value)
+	{
+		var parameter = command.CreateParameter();
+		parameter.ParameterName = name;
+		parameter.DbType = value is long ? DbType.Int64 : DbType.String;
+		parameter.Value = value ?? DBNull.Value;
+		_ = command.Parameters.Add(parameter);
 	}
 
 	private static Func<SqlConnection> CreateConnectionFactory(string connectionString)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
 		return () => new SqlConnection(connectionString);
-	}
-
-	private static SqlServerParameterSet Parameters(string name, long? position = null, long? expected = null, string? hash = null)
-	{
-		var parameters = new SqlServerParameterSet();
-		parameters.Add("Name", name);
-		if (position is not null) { parameters.Add("NewPosition", position.Value); }
-		if (expected is not null) { parameters.Add("Expected", expected.Value); }
-		if (hash is not null) { parameters.Add("Hash", hash); }
-		return parameters;
 	}
 }

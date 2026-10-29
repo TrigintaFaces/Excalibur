@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 using Excalibur.Dispatch;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.EventSourcing.Projections;
 
@@ -63,6 +64,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 	private readonly IProjectionStore<TProjection>? _store;
 	private readonly IPositionedProjectionStore<TProjection>? _positioned;
 	private readonly IServiceProvider _serviceProvider;
+	private readonly ProjectionTenantBoundary? _boundary;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionReplayFold{TProjection}"/> class.
@@ -81,6 +83,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 		_store = store;
 		_positioned = positioned;
 		_serviceProvider = serviceProvider;
+		_boundary = store is null ? null : ProjectionTenantValidation.Read(store);
 
 		// REFUSED HERE, BEFORE ANY ROW IS WRITTEN, and that placement is the point: a replay that
 		// discovered this halfway through would leave the projection partly rebuilt, which is worse than
@@ -125,6 +128,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 	/// <param name="version">The aggregate version this event carries.</param>
 	/// <param name="timestamp">The event's timestamp.</param>
 	/// <param name="globalPosition">The event's position in the global stream.</param>
+	/// <param name="tenantId">Authoritative stored tenant provenance; null means unknown.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
 	/// <see langword="true"/> when a handler folded the event; <see langword="false"/> when this
@@ -139,7 +143,8 @@ internal sealed class ProjectionReplayFold<TProjection>
 		long version,
 		DateTimeOffset timestamp,
 		long? globalPosition,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		string? tenantId = null)
 	{
 		// An event this projection does not handle produces NO KEY. Deriving one anyway would create an
 		// empty row for every aggregate that ever appeared in the global stream.
@@ -148,7 +153,12 @@ internal sealed class ProjectionReplayFold<TProjection>
 			return false;
 		}
 
-		var projectionEvent = new ProjectionEvent(domainEvent, aggregateId, globalPosition);
+		if (globalPosition is not null && _store is not null)
+		{
+			VerifyBoundary();
+			ProjectionTenantValidation.Validate(_boundary!, tenantId);
+		}
+		var projectionEvent = new ProjectionEvent(domainEvent, aggregateId, globalPosition, tenantId);
 
 		// THE SAME derivation the live apply path uses. That is the whole repair.
 		var projectionId = _projection.DeriveProjectionId(projectionEvent);
@@ -232,6 +242,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 
 		foreach (var (projectionId, folded) in _states)
 		{
+			VerifyBoundary();
 			var newPosition = _foldedTo.TryGetValue(projectionId, out var highest) ? (long?)highest : null;
 
 			if (newPosition is not { } advanceTo)
@@ -262,13 +273,13 @@ internal sealed class ProjectionReplayFold<TProjection>
 				// because it cannot run. The reachability was asserted and never measured.
 				if (_positioned is not null)
 				{
-					await _positioned.UpsertUnnumberedAsync(projectionId, folded, cancellationToken)
+					await WriteAsync(token => _positioned.UpsertUnnumberedAsync(projectionId, folded, token), cancellationToken)
 						.ConfigureAwait(false);
 				}
 				else
 				{
 					// This store records no position at all, so there is no third state to state.
-					await _store.UpsertAsync(projectionId, folded, cancellationToken).ConfigureAwait(false);
+					await WriteAsync(token => _store.UpsertAsync(projectionId, folded, token), cancellationToken).ConfigureAwait(false);
 				}
 
 				continue;
@@ -277,12 +288,15 @@ internal sealed class ProjectionReplayFold<TProjection>
 			if (_positioned is null)
 			{
 				// The store records no position, so nothing can be conditional on one.
-				await _store.UpsertAsync(projectionId, folded, cancellationToken).ConfigureAwait(false);
+				await WriteAsync(token => _store.UpsertAsync(projectionId, folded, token), cancellationToken).ConfigureAwait(false);
 
 				continue;
 			}
 
 			var observed = _readPositions[projectionId];
+
+			// Retirement is terminal within this destination, including explicit rebuilds.
+			if (observed.Position.Kind == ProjectionPositionKind.Retired) { continue; }
 
 			// THREE ROUTES, from the three observations the read distinguishes. The old single call
 			// passed the collapsed number, which sent all three down the advancing write and relied on
@@ -294,19 +308,27 @@ internal sealed class ProjectionReplayFold<TProjection>
 				// INSERT-IF-ABSENT. No row was there to fold onto, so claiming absence is a true claim.
 				// A writer that created the row in the meantime wins, and the refusal is reported as
 				// Superseded -- which the predicate below treats as the conflict it is.
-				result = await _positioned
-					.UpsertAtPositionAsync(projectionId, folded, null, advanceTo, cancellationToken)
+				result = await RunAsync(ProjectionCapacityKind.Write, token => _positioned.UpsertAtPositionAsync(projectionId, folded, null, advanceTo, token), cancellationToken)
 					.ConfigureAwait(false);
 			}
+            else if (observed.Position.Kind == ProjectionPositionKind.Positioned && observed.Position.Value == advanceTo)
+            {
+                // A complete replay may repair state without changing its event ordinal.
+                // Ordinary advancing writes deliberately reject that operation.
+                var repair = await RunAsync(ProjectionCapacityKind.Write, token => _positioned.RefoldAtPositionAsync(projectionId, folded, advanceTo, token), cancellationToken).ConfigureAwait(false);
+                if (repair.Outcome is not (ProjectionRefoldOutcome.Applied or ProjectionRefoldOutcome.Vanished))
+                {
+                    throw new InvalidOperationException("A projection changed while its offline rebuild was repairing the current position.");
+                }
+                continue;
+            }
 			else if (observed.Position.Kind == ProjectionPositionKind.Positioned)
 			{
 				// THE ORDINARY ADVANCE, from the number the row actually held. Its refusal is the only
 				// thing that surfaces a live writer racing the rebuild, which is why positioned rows are
 				// NOT sent down the unconditional route below: doing so would trade contention detection
 				// for the whole rebuild to solve a problem only numberless rows have.
-				result = await _positioned
-					.UpsertAtPositionAsync(
-						projectionId, folded, observed.Position.Value, advanceTo, cancellationToken)
+				result = await RunAsync(ProjectionCapacityKind.Write, token => _positioned.UpsertAtPositionAsync(projectionId, folded, observed.Position.Value, advanceTo, token), cancellationToken)
 					.ConfigureAwait(false);
 			}
 			else
@@ -326,8 +348,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 				// outcome -- the member is unconditional on position so it cannot be superseded, and it
 				// IS the rebuild so it cannot ask for one. A third member added to
 				// ProjectionRebuildOutcome would need a branch here.
-				_ = await _positioned
-					.RebuildAtPositionAsync(projectionId, folded, advanceTo, cancellationToken)
+				_ = await RunAsync(ProjectionCapacityKind.Write, token => _positioned.RebuildAtPositionAsync(projectionId, folded, advanceTo, token), cancellationToken)
 					.ConfigureAwait(false);
 
 				continue;
@@ -392,6 +413,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 					+ "the projection's processor to be stopped. Stop it and re-run the rebuild.");
 			}
 		}
+		VerifyBoundary();
 	}
 
 	/// <summary>
@@ -418,6 +440,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 	[RequiresDynamicCode("Projection loading goes through IProjectionStore, which serializes the projection type reflectively.")]
 	private async Task<TProjection> TouchAsync(string projectionId, CancellationToken cancellationToken)
 	{
+		VerifyBoundary();
 		if (_states.TryGetValue(projectionId, out var existing))
 		{
 			return existing;
@@ -431,8 +454,7 @@ internal sealed class ProjectionReplayFold<TProjection>
 		var observed = new ReadObservation(RowExisted: false, ProjectionPosition.Unnumbered);
 		if (_positioned is not null)
 		{
-			var (stored, readAtPos) = await _positioned
-				.GetWithPositionAsync(projectionId, cancellationToken)
+			var (stored, readAtPos) = await RunAsync(ProjectionCapacityKind.Read, token => _positioned.GetWithPositionAsync(projectionId, token), cancellationToken)
 				.ConfigureAwait(false);
 
 			observed = new ReadObservation(stored is not null, readAtPos);
@@ -462,6 +484,14 @@ internal sealed class ProjectionReplayFold<TProjection>
 		}
 	}
 
+	private void VerifyBoundary()
+	{
+		if (_store is not null && ProjectionTenantValidation.Read(_store) != _boundary)
+		{
+			throw new InvalidOperationException("The projection destination changed tenant boundary during its rebuild. Accumulated state cannot be moved to another partition.");
+		}
+	}
+
 	/// <summary>
 	/// What one first-touch read of a projection id actually observed.
 	/// </summary>
@@ -482,5 +512,14 @@ internal sealed class ProjectionReplayFold<TProjection>
 	/// possible: the information is gone by then.
 	/// </para>
 	/// </remarks>
+
 	private readonly record struct ReadObservation(bool RowExisted, ProjectionPosition Position);
+    private Task<TResult> RunAsync<TResult>(ProjectionCapacityKind kind, Func<CancellationToken, Task<TResult>> operation, CancellationToken token) =>
+        _store is not null && _serviceProvider.GetService<ProjectionCapacity>() is { } capacity
+            ? capacity.ExecuteStoreAsync(_store, kind, ct => { VerifyBoundary(); return new ValueTask<TResult>(operation(ct)); }, token).AsTask()
+            : operation(token);
+
+    private Task WriteAsync(Func<CancellationToken, Task> operation, CancellationToken token) =>
+        RunAsync(ProjectionCapacityKind.Write, async ct => { await operation(ct).ConfigureAwait(false); return true; }, token);
+
 }

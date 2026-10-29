@@ -166,6 +166,7 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 								IndexRouting = alias.Value.IndexRouting,
 								SearchRouting = alias.Value.SearchRouting,
 								IsWriteIndex = alias.Value.IsWriteIndex,
+								IsHidden = alias.Value.IsHidden,
 							});
 						}
 					}
@@ -175,12 +176,12 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 			}
 
 			_logger.LogError("Failed to get aliases. Error: {Error}", response.DebugInformation);
-			return [];
+			throw new InvalidOperationException("The authoritative alias state could not be read.");
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Failed to get aliases with pattern: {Pattern}", aliasPattern ?? "all");
-			return [];
+			throw;
 		}
 	}
 
@@ -218,13 +219,14 @@ public sealed class IndexAliasManager(ElasticsearchClient client, ILogger<IndexA
 						addAction.IndexRouting = config.IndexRouting;
 						addAction.SearchRouting = config.SearchRouting;
 						addAction.IsWriteIndex = config.IsWriteIndex;
+						addAction.IsHidden = config.IsHidden;
 					}
 
 					actions.Add(new IndexUpdateAliasesAction { Add = addAction });
 				}
 				else
 				{
-					actions.Add(new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = op.IndexName, Alias = op.AliasName } });
+					actions.Add(new IndexUpdateAliasesAction { Remove = new RemoveAction { Index = op.IndexName, Alias = op.AliasName, MustExist = op.MustExist } });
 				}
 			}
 

@@ -63,6 +63,30 @@ public sealed class InMemoryProjectionStore<
 	where TProjection : class
 {
 	private readonly ConcurrentDictionary<string, Entry> _projections = new(StringComparer.Ordinal);
+	private readonly DestinationIdentity _destination = new("inmemory/" +
+		ProjectionVersionConvention.Qualify(typeof(TProjection).FullName ?? typeof(TProjection).Name, typeof(TProjection), '-'));
+	// A new dictionary is a new destination, even within the same process. Never let surviving
+	// checkpoints certify a newly empty instance as populated.
+	private readonly DestinationScope _scope = new("inmemory/" + Guid.NewGuid().ToString("N"));
+
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
+		if (serviceType == typeof(IProjectionDestinationIdentity)) { return _destination; }
+		if (serviceType == typeof(IProjectionDestinationScope)) { return _scope; }
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	private sealed class DestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
+	}
+
+	private sealed class DestinationScope(string scope) : IProjectionDestinationScope
+	{
+		public string Scope { get; } = scope;
+	}
 
 	// Every write that can REFUSE is serialized here. The refusals compare the stored position and then
 	// write, and a concurrent writer landing between those two steps is exactly the lost update the
@@ -78,7 +102,7 @@ public sealed class InMemoryProjectionStore<
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		return Task.FromResult(_projections.TryGetValue(id, out var entry) ? Rehydrate(entry) : null);
+		return Task.FromResult(_projections.TryGetValue(id, out var entry) && !IsRetired(entry) ? Rehydrate(entry) : null);
 	}
 
 	/// <inheritdoc />
@@ -95,6 +119,7 @@ public sealed class InMemoryProjectionStore<
 		// and the next conditional write would skip real events as already-applied.
 		lock (_writes)
 		{
+			ThrowIfRetired(id);
 			_projections[id] = NewEntry(projection, ProjectionPosition.Unplaceable.ToStored());
 		}
 
@@ -111,8 +136,8 @@ public sealed class InMemoryProjectionStore<
 		// store: a rebuild that raced a delete would otherwise reinstate what the erasure removed.
 		lock (_writes)
 		{
-			// Discarded deliberately: the contract says deleting an absent projection succeeds silently.
-			_ = _projections.TryRemove(id, out _);
+			// Retain only a terminal key marker, including deletion before the first insert.
+			_projections[id] = RetiredEntry;
 		}
 
 		return Task.CompletedTask;
@@ -168,7 +193,7 @@ public sealed class InMemoryProjectionStore<
 		cancellationToken.ThrowIfCancellationRequested();
 
 		return filters is null || filters.Count == 0
-			? Task.FromResult((long)_projections.Count)
+			? Task.FromResult(_projections.Values.LongCount(entry => !IsRetired(entry)))
 			: Task.FromResult(MatchingEntries(filters).LongCount());
 	}
 
@@ -193,7 +218,7 @@ public sealed class InMemoryProjectionStore<
 		}
 
 		return Task.FromResult<(TProjection?, ProjectionPosition)>(
-			(Rehydrate(entry), ProjectionPosition.FromStored(entry.StoredPosition)));
+			(IsRetired(entry) ? null : Rehydrate(entry), ProjectionPosition.FromStored(entry.StoredPosition)));
 	}
 
 	/// <inheritdoc />
@@ -207,6 +232,7 @@ public sealed class InMemoryProjectionStore<
 
 		lock (_writes)
 		{
+			ThrowIfRetired(id);
 			_projections[id] = NewEntry(projection, ProjectionPosition.Unnumbered.ToStored());
 		}
 
@@ -253,6 +279,11 @@ public sealed class InMemoryProjectionStore<
 				return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Applied, newPosition));
 			}
 
+			if (IsRetired(entry))
+			{
+				return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null));
+			}
+
 			// BOTH conjuncts, and neither substitutes for the other: the equality orders concurrent writers
 			// against each other, the inequality orders this writer against its own past -- which is what a
 			// redelivery is, and it satisfies the equality by construction.
@@ -294,7 +325,7 @@ public sealed class InMemoryProjectionStore<
 		{
 			// No create arm: an absent row means the projection was deleted, and re-folding the stream is
 			// precisely the write that would reinstate what the erasure removed.
-			if (!_projections.TryGetValue(id, out var entry))
+			if (!_projections.TryGetValue(id, out var entry) || IsRetired(entry))
 			{
 				return Task.FromResult(new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null));
 			}
@@ -335,7 +366,7 @@ public sealed class InMemoryProjectionStore<
 			// Unconditional on POSITION -- a state folded from an empty seed has no prior prefix to be
 			// conditional on -- but conditional on the row EXISTING, which is a different question and the
 			// one a rebuild still has to ask.
-			if (!_projections.ContainsKey(id))
+			if (!_projections.TryGetValue(id, out var entry) || IsRetired(entry))
 			{
 				return Task.FromResult(new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished));
 			}
@@ -351,8 +382,8 @@ public sealed class InMemoryProjectionStore<
 	// the rows that MATCHED, instead of every row in the store.
 	private IEnumerable<Entry> MatchingEntries(IDictionary<string, object>? filters) =>
 		filters is null || filters.Count == 0
-			? _projections.Values
-			: _projections.Values.Where(entry => filters.All(filter => Satisfies(entry.FilterValues, filter)));
+			? _projections.Values.Where(static entry => !IsRetired(entry))
+			: _projections.Values.Where(entry => !IsRetired(entry) && filters.All(filter => Satisfies(entry.FilterValues, filter)));
 
 	[RequiresUnreferencedCode("Deserializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Deserializes the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -557,6 +588,19 @@ public sealed class InMemoryProjectionStore<
 			?? throw new InvalidOperationException(
 				$"The stored snapshot for a {typeof(TProjection).Name} projection deserialized to null. "
 				+ "The projection type must round-trip through System.Text.Json.");
+
+	private static readonly Entry RetiredEntry = new([], ProjectionPosition.RetiredSentinel,
+		new Dictionary<string, object?>());
+
+	private static bool IsRetired(Entry entry) => entry.StoredPosition == ProjectionPosition.RetiredSentinel;
+
+	private void ThrowIfRetired(string id)
+	{
+		if (_projections.TryGetValue(id, out var entry) && IsRetired(entry))
+		{
+			throw new InvalidOperationException($"Projection '{id}' is retired. Rebuild into a new physical generation.");
+		}
+	}
 
 	private sealed record Entry(
 		byte[] Snapshot,

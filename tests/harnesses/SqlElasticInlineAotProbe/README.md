@@ -127,3 +127,11 @@ in a trimmed application still makes preservation of reflected types the applica
 The entry point has no warning suppressions; public API and dependency diagnostics fail strict publishing. This evidence does not cover Entra
 authentication, Always Encrypted/UDTs, Linux, arbitrary serializers, or arbitrary projection query shapes.
 
+
+## Generation routing verification (2026-10-29 UTC)
+
+The updated native probe also exercises exact-generation get/query/count using generated JSON metadata for Elasticsearch and SQL Server, verifies that reader pointers prevent retirement of their target binding, and decommissions the Elasticsearch reader with a revision compare-and-set. SQL reads target a different table from the configured writer to detect accidental version requalification or fallback to the writer destination.
+
+The diagnostic runtime run at `artifacts/native-inline/33725e0953b54633a07460f392611443` passed these checks together with API-only, worker-only, concurrent writers, aggregate reload, checkpoint CAS, metadata mapping, append reconciliation and same-process outage recovery. It also verifies terminal retirement through generated reads, queries, counts and guarded writes. The run configures shared storage admission to one; native telemetry verifies an observed peak of one admitted storage operation. An unfiltered live-row control proves retired rows disappear from query/count results rather than merely failing an unrelated filter.
+
+The strict publication verdict at `artifacts/inline-native-aot-final-eac4f95e8dd24c6ba268b11b8248fe15/verdict.json` matches the approved multiset of 58 diagnostics, including the failing MSBuild diagnostic. Exercising deletion initially exposed two additional Dapper diagnostics; SQL deletion now uses a parameterized database command and those diagnostics are absent. The baseline was not relaxed. This is runtime evidence, not NativeAOT certification.

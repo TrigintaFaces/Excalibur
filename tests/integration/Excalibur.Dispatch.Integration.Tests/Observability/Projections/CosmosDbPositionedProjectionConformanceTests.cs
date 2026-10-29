@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class CosmosDbPositionedProjectionConformanceTests
-	: PositionedProjectionStoreConformanceTestKit, IClassFixture<CosmosDbCdcContainerFixture>
+	: PositionedProjectionDestinationConformanceTestKit, IClassFixture<CosmosDbCdcContainerFixture>
 {
 	private readonly CosmosDbCdcContainerFixture _fixture;
 	private readonly string _containerName = $"positioned{Guid.NewGuid():N}";
@@ -43,6 +43,50 @@ public sealed class CosmosDbPositionedProjectionConformanceTests
 	public CosmosDbPositionedProjectionConformanceTests(CosmosDbCdcContainerFixture fixture) =>
 		_fixture = fixture;
 
+    [Fact]
+    public async Task ReadAnExactNextGenerationWithoutMovingTheWriter()
+    {
+        var store = await CreateStoreAsync();
+        var next = await CreateNextGenerationStoreAsync();
+        await next.UpsertAsync("reader-row", new ConformanceProjectionNextGeneration { Id = "reader-row", Total = 37 }, CancellationToken.None);
+        var destination = ((IProjectionDestinationIdentity)next.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldNotBeNull();
+        (await reader.GetByIdAsync("reader-row", CancellationToken.None))!.Total.ShouldBe(37);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(37);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+        (await store.GetByIdAsync("reader-row", CancellationToken.None)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ReadPagedAndCursorResultsWithTheDefaultSdkSerializer()
+    {
+        var store = await CreateStoreAsync();
+        foreach (var index in Enumerable.Range(1, 3))
+        {
+            await store.UpsertAsync("row-" + index, new ConformanceProjection { Id = "row-" + index, Total = index }, CancellationToken.None);
+        }
+        var pageable = (IPageableProjectionStore<ConformanceProjection>)store.GetService(typeof(IPageableProjectionStore<ConformanceProjection>))!;
+        var page = await pageable.QueryPagedAsync(null, 2, 1, null, CancellationToken.None);
+        page.Items.ShouldHaveSingleItem().Total.ShouldBe(2);
+        var cursorStore = (ICursorProjectionStore<ConformanceProjection>)store.GetService(typeof(ICursorProjectionStore<ConformanceProjection>))!;
+        var totals = new List<int>();
+        string? cursor = null;
+        do
+        {
+            var result = await cursorStore.QueryCursorAsync(null, cursor, 1, CancellationToken.None);
+            totals.AddRange(result.Items.Select(item => item.Total));
+            cursor = result.NextCursor;
+            totals.Count.ShouldBeLessThanOrEqualTo(3);
+        } while (cursor is not null);
+        totals.ShouldBe([1, 2, 3]);
+        (await store.CountAsync(new Dictionary<string, object> { ["Total"] = 2 }, CancellationToken.None)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task GateCutoverAndRouteAllReadsToTheSelectedGeneration() =>
+        await GenerationRoutingAcceptance.VerifyAsync(await CreateStoreAsync(), await CreateNextGenerationStoreAsync());
 	/// <summary>Wires the kit's own completeness check, which names any arm this suite forgot.</summary>
 	/// <returns>A task representing the check.</returns>
 	[Fact]
@@ -151,6 +195,84 @@ public sealed class CosmosDbPositionedProjectionConformanceTests
 	[Fact]
 	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
+
+	/// <summary>The store states which destination it is configured against.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Advertise_the_destination_it_is_configured_against_Test() =>
+		Advertise_the_destination_it_is_configured_against();
+
+	/// <summary>A generation reader reports one storage scope through both of its members.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Report_one_storage_scope_through_both_generation_reader_members_Test() =>
+		Report_one_storage_scope_through_both_generation_reader_members();
+
+	/// <summary>Moving the configured destination changes the identity the store advertises.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Change_the_identity_when_the_configured_destination_moves_Test() =>
+		Change_the_identity_when_the_configured_destination_moves();
+
+	/// <summary>A declared generation resolves a destination of its own, carrying its generation segment.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Resolve_a_distinct_destination_for_the_next_generation_Test() =>
+		Resolve_a_distinct_destination_for_the_next_generation();
+
+	/// <summary>The previous generation keeps serving its own documents while the next one builds.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Keep_the_previous_generation_readable_while_the_next_one_builds_Test() =>
+		Keep_the_previous_generation_readable_while_the_next_one_builds();
+
+	/// <inheritdoc />
+	protected override Task<IProjectionStore<ConformanceProjection>> CreateRelocatedStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjection>>(
+			new CosmosDbProjectionStore<ConformanceProjection>(
+				MonitorFor(_containerName + "-moved"),
+				NullLogger<CosmosDbProjectionStore<ConformanceProjection>>.Instance,
+				_fixture.Client));
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Configured against the SAME container as the baseline, so the declared generation is the only
+	/// difference. The container the generation resolves to is created on first use, which is what
+	/// <c>CreateContainerIfNotExists</c> is for.
+	/// </remarks>
+	protected override Task<IProjectionStore<ConformanceProjectionNextGeneration>>
+		CreateNextGenerationStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjectionNextGeneration>>(
+			new CosmosDbProjectionStore<ConformanceProjectionNextGeneration>(
+				MonitorFor(_containerName),
+				NullLogger<CosmosDbProjectionStore<ConformanceProjectionNextGeneration>>.Instance,
+				_fixture.Client));
+
+	/// <summary>Serves one options instance, naming the container, under every options name.</summary>
+	/// <param name="containerName">The container the store should address before versioning.</param>
+	/// <returns>A monitor answering with those options.</returns>
+	private IOptionsMonitor<CosmosDbProjectionStoreOptions> MonitorFor(string containerName)
+	{
+		var options = new CosmosDbProjectionStoreOptions
+		{
+			DatabaseName = CosmosDbCdcContainerFixture.DatabaseId,
+			ContainerName = containerName,
+			CreateContainerIfNotExists = true,
+			// Supplied even though the fixture's client is injected: the options validate themselves in
+			// the constructor and refuse to be constructed without one, independently of whether a
+			// client is going to be handed in.
+			Client = { ConnectionString = _fixture.ConnectionString },
+		};
+
+		// The store resolves its settings from the NAMED options instance belonging to its projection
+		// type. Which name that is, and that the registration configures the same one, is locked by the
+		// unit arms; here the monitor just has to answer, so this kit exercises the real round trip.
+		var optionsMonitor = A.Fake<IOptionsMonitor<CosmosDbProjectionStoreOptions>>();
+		_ = A.CallTo(() => optionsMonitor.Get(A<string>._)).Returns(options);
+
+		return optionsMonitor;
+	}
+
 	/// <inheritdoc />
 	protected override Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
 	{
@@ -160,20 +282,9 @@ public sealed class CosmosDbPositionedProjectionConformanceTests
 			+ "passed by working, and both the ETag condition and the serializer round trip are decided "
 			+ "by the service.");
 
-		var options = Microsoft.Extensions.Options.Options.Create(new CosmosDbProjectionStoreOptions
-		{
-			DatabaseName = CosmosDbCdcContainerFixture.DatabaseId,
-			ContainerName = _containerName,
-			CreateContainerIfNotExists = true,
-			// Supplied even though the fixture's client is injected: the options validate themselves in
-			// the constructor and refuse to be constructed without one, independently of whether a
-			// client is going to be handed in.
-			Client = { ConnectionString = _fixture.ConnectionString },
-		});
-
 		return Task.FromResult<IProjectionStore<ConformanceProjection>>(
 			new CosmosDbProjectionStore<ConformanceProjection>(
-				options,
+				MonitorFor(_containerName),
 				NullLogger<CosmosDbProjectionStore<ConformanceProjection>>.Instance,
 				_fixture.Client));
 	}

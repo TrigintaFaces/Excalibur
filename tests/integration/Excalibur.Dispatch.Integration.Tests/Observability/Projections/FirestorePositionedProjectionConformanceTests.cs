@@ -7,6 +7,7 @@ using Excalibur.Testing.Conformance;
 
 using Google.Cloud.Firestore;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Testcontainers.Firestore;
@@ -22,10 +23,14 @@ namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 public sealed class FirestorePositionedProjectionContainerFixture : ContainerFixtureBase
 {
 	private FirestoreContainer? _container;
+	private ServiceProvider? _services;
 
 	/// <summary>Gets the emulator-connected Firestore client.</summary>
 	/// <value>The client the store under test writes through.</value>
 	public FirestoreDb Db { get; private set; } = null!;
+
+    /// <summary>Gets the endpoint of this fixture's emulator.</summary>
+    public string Endpoint => _container!.GetEmulatorEndpoint();
 
 	/// <summary>Gets the emulator project id.</summary>
 	/// <value>A fixed id; the emulator does not validate it.</value>
@@ -44,20 +49,13 @@ public sealed class FirestorePositionedProjectionContainerFixture : ContainerFix
 
 		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 
-		// EmulatorOnly and an explicit Endpoint are MUTUALLY EXCLUSIVE, and the sibling Firestore
-		// fixtures in this tree already say so: EmulatorOnly makes the SDK build its own channel from
-		// FIRESTORE_EMULATOR_HOST, so supplying Endpoint as well throws from GaxPreconditions before a
-		// single request is sent. Setting only Endpoint is worse than failing -- the SDK then behaves as
-		// though this were a real deployment and the emulator rejects admin-ish calls with
-		// PermissionDenied. The variable is set from THIS fixture's own container, so it cannot point at
-		// a foreign emulator.
-		Environment.SetEnvironmentVariable("FIRESTORE_EMULATOR_HOST", _container.GetEmulatorEndpoint());
-
-		Db = await new FirestoreDbBuilder
-		{
-			ProjectId = ProjectId,
-			EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly,
-		}.BuildAsync(cancellationToken).ConfigureAwait(false);
+		// Use the supported registration so transport identity is bound to this exact client.
+		// The explicit emulator endpoint needs no process-global environment mutation.
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddExcaliburFirestore(builder => builder.ProjectId(ProjectId).EmulatorHost(Endpoint));
+		_services = services.BuildServiceProvider();
+		Db = _services.GetRequiredService<FirestoreDb>();
 	}
 
 	/// <inheritdoc/>
@@ -65,6 +63,10 @@ public sealed class FirestorePositionedProjectionContainerFixture : ContainerFix
 	{
 		try
 		{
+			if (_services is not null)
+			{
+				await _services.DisposeAsync().ConfigureAwait(false);
+			}
 			if (_container is not null)
 			{
 				await _container.DisposeAsync().ConfigureAwait(false);
@@ -101,7 +103,7 @@ public sealed class FirestorePositionedProjectionContainerFixture : ContainerFix
 [Trait(TraitNames.Category, TestCategories.Integration)]
 [Trait(TraitNames.Component, TestComponents.Core)]
 public sealed class FirestorePositionedProjectionConformanceTests
-	: PositionedProjectionStoreConformanceTestKit,
+	: PositionedProjectionDestinationConformanceTestKit,
 		IClassFixture<FirestorePositionedProjectionContainerFixture>
 {
 	private readonly FirestorePositionedProjectionContainerFixture _fixture;
@@ -110,6 +112,59 @@ public sealed class FirestorePositionedProjectionConformanceTests
 	public FirestorePositionedProjectionConformanceTests(
 		FirestorePositionedProjectionContainerFixture fixture) => _fixture = fixture;
 
+    [Fact]
+    public async Task ReadGenerationUsingTheExactFrameworkCreatedClientEndpoint()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddLogging();
+        services.AddExcaliburFirestore(f => f.ProjectId(_fixture.ProjectId).EmulatorHost(_fixture.Endpoint));
+        services.AddFirestoreProjectionStore<ConformanceProjection>(o => o.CollectionName = _collection);
+        await using var provider = services.BuildServiceProvider();
+        var store = provider.GetRequiredService<IProjectionStore<ConformanceProjection>>();
+        await store.UpsertAsync("scope-row", new ConformanceProjection { Id = "scope-row", Total = 21 }, CancellationToken.None);
+        var scope = ((IProjectionDestinationScope)store.GetService(typeof(IProjectionDestinationScope))!).Scope;
+        var destination = ((IProjectionDestinationIdentity)store.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldBe(scope);
+        (await reader.GetByIdAsync("scope-row", CancellationToken.None))!.Total.ShouldBe(21);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(21);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ReadAnExactNextGenerationWithoutMovingTheWriter()
+    {
+        await using var provider = CreateGenerationProvider();
+        var store = provider.GetRequiredService<IProjectionStore<ConformanceProjection>>();
+        var next = provider.GetRequiredService<IProjectionStore<ConformanceProjectionNextGeneration>>();
+        await next.UpsertAsync("reader-row", new ConformanceProjectionNextGeneration { Id = "reader-row", Total = 37 }, CancellationToken.None);
+        var destination = ((IProjectionDestinationIdentity)next.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        var factory = (IProjectionGenerationReaderFactory<ConformanceProjection>)store.GetService(typeof(IProjectionGenerationReaderFactory<ConformanceProjection>))!;
+        await using var reader = factory.OpenReader(destination);
+        (await reader.GetDestinationScopeAsync(CancellationToken.None)).ShouldNotBeNull();
+        (await reader.GetByIdAsync("reader-row", CancellationToken.None))!.Total.ShouldBe(37);
+        (await reader.QueryAsync(null, null, CancellationToken.None)).ShouldHaveSingleItem().Total.ShouldBe(37);
+        (await reader.CountAsync(null, CancellationToken.None)).ShouldBe(1);
+        (await store.GetByIdAsync("reader-row", CancellationToken.None)).ShouldBeNull();
+    }
+    [Fact]
+    public async Task GateCutoverAndRouteAllReadsToTheSelectedGeneration()
+    {
+        await using var provider = CreateGenerationProvider();
+        await GenerationRoutingAcceptance.VerifyAsync(provider.GetRequiredService<IProjectionStore<ConformanceProjection>>(),
+            provider.GetRequiredService<IProjectionStore<ConformanceProjectionNextGeneration>>());
+    }
+
+    private ServiceProvider CreateGenerationProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddExcaliburFirestore(f => f.ProjectId(_fixture.ProjectId).EmulatorHost(_fixture.Endpoint));
+        services.AddFirestoreProjectionStore<ConformanceProjection>(o => o.CollectionName = _collection);
+        services.AddFirestoreProjectionStore<ConformanceProjectionNextGeneration>(o => o.CollectionName = _collection);
+        return services.BuildServiceProvider();
+    }
 	/// <summary>Wires the kit's own completeness check, which names any arm this suite forgot.</summary>
 	/// <returns>A task representing the check.</returns>
 	[Fact]
@@ -218,6 +273,67 @@ public sealed class FirestorePositionedProjectionConformanceTests
 	[Fact]
 	public Task Rebuild_must_not_resurrect_a_deleted_row_Test() => Rebuild_must_not_resurrect_a_deleted_row();
 
+
+	/// <summary>The store states which destination it is configured against.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Advertise_the_destination_it_is_configured_against_Test() =>
+		Advertise_the_destination_it_is_configured_against();
+
+	/// <summary>A generation reader reports one storage scope through both of its members.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Report_one_storage_scope_through_both_generation_reader_members_Test() =>
+		Report_one_storage_scope_through_both_generation_reader_members();
+
+	/// <summary>Moving the configured destination changes the identity the store advertises.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Change_the_identity_when_the_configured_destination_moves_Test() =>
+		Change_the_identity_when_the_configured_destination_moves();
+
+	/// <summary>A declared generation resolves a destination of its own, carrying its generation segment.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Resolve_a_distinct_destination_for_the_next_generation_Test() =>
+		Resolve_a_distinct_destination_for_the_next_generation();
+
+	/// <summary>The previous generation keeps serving its own documents while the next one builds.</summary>
+	/// <returns>A task representing the arm.</returns>
+	[Fact]
+	public Task Keep_the_previous_generation_readable_while_the_next_one_builds_Test() =>
+		Keep_the_previous_generation_readable_while_the_next_one_builds();
+
+	/// <inheritdoc />
+	protected override Task<IProjectionStore<ConformanceProjection>> CreateRelocatedStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjection>>(
+			new FirestoreProjectionStore<ConformanceProjection>(
+				_fixture.Db,
+				new SingleNamedFirestoreProjectionOptions(new FirestoreProjectionStoreOptions
+				{
+					CollectionName = _collection + "-moved",
+					ProjectId = _fixture.ProjectId,
+				}),
+				NullLogger<FirestoreProjectionStore<ConformanceProjection>>.Instance));
+
+	/// <inheritdoc />
+	/// <remarks>
+	/// Configured against the SAME collection as the baseline, because this provider puts the generation
+	/// in the per-projection subcollection segment: the new generation folds into its own subcollection
+	/// under the collection already configured. Firestore creates a subcollection on first write.
+	/// </remarks>
+	protected override Task<IProjectionStore<ConformanceProjectionNextGeneration>>
+		CreateNextGenerationStoreAsync() =>
+		Task.FromResult<IProjectionStore<ConformanceProjectionNextGeneration>>(
+			new FirestoreProjectionStore<ConformanceProjectionNextGeneration>(
+				_fixture.Db,
+				new SingleNamedFirestoreProjectionOptions(new FirestoreProjectionStoreOptions
+				{
+					CollectionName = _collection,
+					ProjectId = _fixture.ProjectId,
+				}),
+				NullLogger<FirestoreProjectionStore<ConformanceProjectionNextGeneration>>.Instance));
+
 	/// <inheritdoc />
 	protected override Task<IProjectionStore<ConformanceProjection>> CreateStoreAsync()
 	{
@@ -226,7 +342,7 @@ public sealed class FirestorePositionedProjectionConformanceTests
 			+ "skipped, because an arm that passes by being skipped is indistinguishable from one that "
 			+ "passed by working, and the transaction semantics under test belong to the service.");
 
-		var options = Microsoft.Extensions.Options.Options.Create(new FirestoreProjectionStoreOptions
+		var options = new SingleNamedFirestoreProjectionOptions(new FirestoreProjectionStoreOptions
 		{
 			CollectionName = _collection,
 			ProjectId = _fixture.ProjectId,

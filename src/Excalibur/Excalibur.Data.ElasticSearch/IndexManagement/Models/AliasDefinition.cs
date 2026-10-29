@@ -11,6 +11,10 @@ namespace Excalibur.Data.ElasticSearch.IndexManagement;
 /// </summary>
 public sealed class AliasDefinition
 {
+    /// <summary>Gets or sets whether the alias is hidden.</summary>
+    /// <value>The cluster's hidden-alias setting.</value>
+    public bool? IsHidden { get; set; }
+
 	/// <summary>
 	/// Gets the name of the alias.
 	/// </summary>

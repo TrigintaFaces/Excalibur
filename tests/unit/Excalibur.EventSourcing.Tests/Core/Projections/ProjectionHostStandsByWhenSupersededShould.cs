@@ -39,7 +39,7 @@ public sealed class ProjectionHostStandsByWhenSupersededShould
 		A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
-	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+	private readonly ISubscriptionCheckpointStore _checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
 	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
 
@@ -68,7 +68,7 @@ public sealed class ProjectionHostStandsByWhenSupersededShould
 
 		// The mark is always taken by someone else.
 		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(
-				A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.ReturnsLazily((_) =>
 			{
 				superseded.TrySetResult();
@@ -109,7 +109,7 @@ public sealed class ProjectionHostStandsByWhenSupersededShould
 
 		ArrangeOneEventPerPoll(null);
 
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.ReturnsLazily((_) =>
 			{
 				if (supersededOnce)
@@ -121,7 +121,7 @@ public sealed class ProjectionHostStandsByWhenSupersededShould
 			});
 
 		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(
-				A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+				A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.ReturnsLazily((_) =>
 			{
 				supersededOnce = true;
@@ -139,7 +139,7 @@ public sealed class ProjectionHostStandsByWhenSupersededShould
 
 		// Re-reading the checkpoint AFTER losing is what adopting the other reader's mark looks like
 		// from outside the host.
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustHaveHappened(2, Times.OrMore);
 	}
 
@@ -153,7 +153,7 @@ public sealed class ProjectionHostStandsByWhenSupersededShould
 
 		var domainEvent = A.Fake<IDomainEvent>();
 
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		A.CallTo(() => _globalStreamQuery.ReadAllAsync(

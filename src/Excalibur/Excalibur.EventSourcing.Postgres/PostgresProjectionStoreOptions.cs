@@ -32,6 +32,26 @@ public sealed class PostgresProjectionStoreOptions
 	public string? TableName { get; set; }
 
 	/// <summary>
+	/// Gets or sets the schema holding the projection table.
+	/// </summary>
+	/// <value>The schema name. Defaults to <c>public</c>.</value>
+	/// <remarks>
+	/// <para>
+	/// <b>Honoured by every statement the store runs, which is the only form of this setting worth
+	/// having.</b> The store previously addressed the table unqualified, so it resolved through the
+	/// connection's <c>search_path</c> — a setting the store neither configured nor read, which made two
+	/// deployments with the same table name under different search paths address different tables while
+	/// being indistinguishable to this framework.
+	/// </para>
+	/// <para>
+	/// <b>Case is significant.</b> The store quotes both identifiers, and Postgres preserves the case
+	/// inside double quotes, so <c>public</c> and <c>Public</c> name two different schemas. The value is
+	/// used exactly as written: only letters, digits and underscores are accepted.
+	/// </para>
+	/// </remarks>
+	public string SchemaName { get; set; } = "public";
+
+	/// <summary>
 	/// Gets or sets the JSON serializer options for projection data.
 	/// </summary>
 	/// <remarks>

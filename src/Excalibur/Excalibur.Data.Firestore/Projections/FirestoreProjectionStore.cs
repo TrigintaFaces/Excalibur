@@ -27,8 +27,8 @@ namespace Excalibur.Data.Firestore.Projections;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed class FirestoreProjectionStore<TProjection>
-	: IProjectionStore<TProjection>, IPositionedProjectionStore<TProjection>
+public sealed partial class FirestoreProjectionStore<TProjection>
+	: IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IPositionedProjectionStore<TProjection>
 	where TProjection : class
 {
 	/// <summary>
@@ -40,6 +40,7 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// able to collide with it.
 	/// </remarks>
 	private const string PositionKey = "_pos";
+	private const string RetiredKey = "_retired";
 
 	/// <summary>
 	/// Reserved document field holding the write-only flat query index — a map of the projection's
@@ -50,6 +51,12 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// </summary>
 	private const string QueryFieldsKey = "_q";
 
+	/// <summary>
+	/// The named options instance this store's settings are read from.
+	/// </summary>
+	internal static readonly string OptionsName =
+		FirestoreProjectionCollectionConvention.GetOptionsName<TProjection>();
+
 	private readonly FirestoreDb _db;
 	private readonly FirestoreProjectionStoreOptions _options;
 	private readonly string _projectionType;
@@ -59,20 +66,25 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// Initializes a new instance of the <see cref="FirestoreProjectionStore{TProjection}"/> class.
 	/// </summary>
 	/// <param name="db">The Firestore database instance.</param>
-	/// <param name="options">The projection store options.</param>
+	/// <param name="optionsMonitor">The options monitor the projection's named settings are read from.</param>
 	/// <param name="logger">The logger instance.</param>
+	/// <remarks>
+	/// Both the settings and the projection's path segment are snapshotted here, once. The resolved
+	/// collection is hashed into a durable destination fingerprint, so a store whose destination varied
+	/// per call would describe a collection it does not address.
+	/// </remarks>
 	public FirestoreProjectionStore(
 		FirestoreDb db,
-		IOptions<FirestoreProjectionStoreOptions> options,
+		IOptionsMonitor<FirestoreProjectionStoreOptions> optionsMonitor,
 		ILogger<FirestoreProjectionStore<TProjection>> logger)
 	{
 		ArgumentNullException.ThrowIfNull(db);
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_db = db;
-		_options = options.Value;
-		_projectionType = typeof(TProjection).Name;
+		_options = optionsMonitor.Get(OptionsName);
+		_projectionType = FirestoreProjectionCollectionConvention.GetProjectionSegment<TProjection>();
 		_jsonOptions = ProjectionSerializationDefaults.CreateReadModelOptions();
 	}
 
@@ -111,12 +123,7 @@ public sealed class FirestoreProjectionStore<TProjection>
 		//
 		// The sentinel rides the same single Set as the state, so there is no window in which a
 		// destroyed position is recorded as a never-established one.
-		var docRef = GetCollection().Document(id);
-		await docRef
-			.SetAsync(
-				BuildDocument(projection, ProjectionPosition.Unplaceable),
-				cancellationToken: cancellationToken)
-			.ConfigureAwait(false);
+		await SetLiveAsync(id, BuildDocument(projection, ProjectionPosition.Unplaceable), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -141,11 +148,7 @@ public sealed class FirestoreProjectionStore<TProjection>
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 		ArgumentNullException.ThrowIfNull(projection);
 
-		await GetCollection().Document(id)
-			.SetAsync(
-				BuildDocument(projection, ProjectionPosition.Unnumbered),
-				cancellationToken: cancellationToken)
-			.ConfigureAwait(false);
+		await SetLiveAsync(id, BuildDocument(projection, ProjectionPosition.Unnumbered), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -188,6 +191,11 @@ public sealed class FirestoreProjectionStore<TProjection>
 			{
 				var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 					.ConfigureAwait(false);
+
+				if (snapshot.Exists && ReadPosition(snapshot).Kind == ProjectionPositionKind.Retired)
+				{
+					return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
+				}
 
 				if (!snapshot.Exists)
 				{
@@ -263,6 +271,11 @@ public sealed class FirestoreProjectionStore<TProjection>
 			{
 				var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 					.ConfigureAwait(false);
+
+				if (snapshot.Exists && ReadPosition(snapshot).Kind == ProjectionPositionKind.Retired)
+				{
+					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
+				}
 
 				if (expectedPosition is null)
 				{
@@ -362,6 +375,11 @@ public sealed class FirestoreProjectionStore<TProjection>
 				var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken)
 					.ConfigureAwait(false);
 
+				if (snapshot.Exists && ReadPosition(snapshot).Kind == ProjectionPositionKind.Retired)
+				{
+					return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
+				}
+
 				if (!snapshot.Exists)
 				{
 					return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
@@ -427,6 +445,7 @@ public sealed class FirestoreProjectionStore<TProjection>
 		// placed" became "this state was never placed" -- the one distinction a positioned writer has
 		// to act on. The encoding is the shared one, never this provider's own sentinel.
 		data[PositionKey] = position.ToStored();
+		data[RetiredKey] = false;
 
 		return data;
 	}
@@ -438,6 +457,20 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// document written before this field existed IS a complete fold, only its coordinate is unknown,
 	/// so it reads as UNNUMBERED rather than UNPLACEABLE. Every provider goes through FromStored so the eight of them cannot drift.
 	/// </remarks>
+    private async Task SetLiveAsync(string id, Dictionary<string, object> document, CancellationToken cancellationToken)
+    {
+        var docRef = GetCollection().Document(id);
+        await _db.RunTransactionAsync(async transaction =>
+        {
+            var snapshot = await transaction.GetSnapshotAsync(docRef, cancellationToken).ConfigureAwait(false);
+            if (snapshot.Exists && ReadPosition(snapshot).Kind == ProjectionPositionKind.Retired)
+            {
+                throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+            }
+            transaction.Set(docRef, document);
+        }, options: null, cancellationToken).ConfigureAwait(false);
+    }
+
 	private static ProjectionPosition ReadPosition(DocumentSnapshot snapshot) =>
 		ProjectionPosition.FromStored(
 			snapshot.TryGetValue<long>(PositionKey, out var position) ? position : null);
@@ -446,7 +479,12 @@ public sealed class FirestoreProjectionStore<TProjection>
 	public async Task DeleteAsync(string id, CancellationToken cancellationToken)
 	{
 		var docRef = GetCollection().Document(id);
-		await docRef.DeleteAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+		await docRef.SetAsync(new Dictionary<string, object>
+        {
+            [PositionKey] = ProjectionPosition.RetiredSentinel,
+            [RetiredKey] = true,
+            ["projectionType"] = _projectionType,
+        }, cancellationToken: cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc/>
@@ -492,6 +530,7 @@ public sealed class FirestoreProjectionStore<TProjection>
 	/// </summary>
 	private static Query ApplyFilters(Query query, IDictionary<string, object>? filters)
 	{
+		query = query.WhereEqualTo(RetiredKey, false);
 		if (filters is null || filters.Count == 0)
 		{
 			return query;
@@ -669,13 +708,38 @@ public sealed class FirestoreProjectionStore<TProjection>
 		return $"{char.ToLowerInvariant(propertyName[0])}{propertyName[1..]}";
 	}
 
+	/// <inheritdoc />
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+        if (serviceType == typeof(IProjectionDestinationScope))
+        {
+            return FirestoreClientScope.Get(_db);
+        }
+
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			// Taken from the SAME expression every read and write resolves, so the fingerprint cannot
+			// describe a collection this store does not address. The path carries the project, the
+			// database and the full collection path -- a collection name alone repeats across projects
+			// and parent documents -- and carries no endpoint: the emulator host lives on the channel,
+			// not on the resource path, so the identity names the logical target in either environment.
+			return new ConfiguredDestinationIdentity("firestore/" + GetCollection().Path);
+		}
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
 	private CollectionReference GetCollection()
 	{
-		return _db.Collection(_options.CollectionName).Document(_projectionType).Collection("items");
+		return _generationCollection ?? _db.Collection(_options.CollectionName).Document(_projectionType).Collection("items");
 	}
 
 	private TProjection? DeserializeDocument(DocumentSnapshot snapshot)
 	{
+		if (ReadPosition(snapshot).Kind == ProjectionPositionKind.Retired) { return null; }
 		if (!snapshot.TryGetValue<string>("data", out var json) || json is null)
 		{
 			return null;
@@ -684,5 +748,10 @@ public sealed class FirestoreProjectionStore<TProjection>
 #pragma warning disable IL2026, IL3050 // Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code
 		return JsonSerializer.Deserialize<TProjection>(json, _jsonOptions);
 #pragma warning restore IL2026, IL3050
+	}
+
+	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
 	}
 }

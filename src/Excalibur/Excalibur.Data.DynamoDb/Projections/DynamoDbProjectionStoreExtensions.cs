@@ -22,6 +22,13 @@ public static class DynamoDbProjectionStoreExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional configuration action.</param>
 	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// Settings are bound to the options instance named
+	/// <see cref="DynamoDbProjectionTableConvention.GetOptionsName{TProjection}"/>, so several projection
+	/// types registered in one container each keep their own table name instead of sharing the last
+	/// delegate's. Validation is registered against the same name — validation attached to the unnamed
+	/// instance does not validate a named one.
+	/// </remarks>
 	public static IServiceCollection AddDynamoDbProjectionStore<TProjection>(
 		this IServiceCollection services,
 		Action<DynamoDbProjectionStoreOptions>? configure = null)
@@ -29,9 +36,16 @@ public static class DynamoDbProjectionStoreExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
+		var optionsName = DynamoDbProjectionTableConvention.GetOptionsName<TProjection>();
+		var builder = services.AddOptions<DynamoDbProjectionStoreOptions>(optionsName)
+			.Validate(
+				static options => !string.IsNullOrWhiteSpace(options.TableName),
+				"DynamoDbProjectionStoreOptions.TableName must be a non-empty DynamoDB table name.")
+			.ValidateOnStart();
+
 		if (configure != null)
 		{
-			services.Configure(configure);
+			_ = builder.Configure(configure);
 		}
 
 		services.TryAddSingleton<IProjectionStore<TProjection>, DynamoDbProjectionStore<TProjection>>();

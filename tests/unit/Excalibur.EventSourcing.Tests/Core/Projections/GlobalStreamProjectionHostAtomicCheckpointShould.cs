@@ -33,7 +33,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 	private readonly IGlobalStreamQuery _globalStreamQuery = A.Fake<IGlobalStreamQuery>();
 	private readonly IGlobalStreamProjection<GlobalStreamTestState> _projection = A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
-	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+	private readonly ISubscriptionCheckpointStore _checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
 	private readonly ICursorMapStore _cursorMapStore = A.Fake<ICursorMapStore>();
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
 	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
@@ -59,7 +59,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 		var domainEvent = A.Fake<IDomainEvent>();
 		var cursorSaveAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		var callCount = 0;
@@ -103,7 +103,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 		// FIRST then throws on cursor save → AdvanceCheckpointAsync happened → this assertion is RED.
 		A.CallTo(() => _cursorMapStore.SaveCursorMapAsync(A<string>._, A<IReadOnlyDictionary<string, long>>._, A<CancellationToken>._))
 			.MustHaveHappened();
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -122,7 +122,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 		var domainEvent = A.Fake<IDomainEvent>();
 		var saveAttempts = 0;
 
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		var iteration = 0;
@@ -209,7 +209,7 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 		IReadOnlyDictionary<string, long>? savedMap = null;
 		var cursorSaved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		var callCount = 0;
@@ -263,6 +263,8 @@ public sealed class GlobalStreamProjectionHostAtomicCheckpointShould
 		// (l55sbl). Back the scope with a REAL provider registering the fakes; the cursor map is registered
 		// only when this test enables it (else GetService(ICursorMapStore) returns null — the pre-l55sbl null arg).
 		var services = new ServiceCollection();
+        ProjectionCapacity.Register(services);
+        services.Configure<ProjectionCapacityOptions>(options => options.MaxConcurrentOperations = 1);
 		_ = services.AddSingleton(_globalStreamQuery);
 		_ = services.AddSingleton(_projection);
 		_ = services.AddSingleton(_checkpointStore);

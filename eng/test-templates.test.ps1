@@ -7,7 +7,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($ScriptUnderTest,[ref]$tokens,[ref]$errors)
 if ($errors) { throw 'Template script did not parse.' }
-$names=@('Test-ScaffoldBuilds','Assert-TemplateDatabaseSelection','Get-TemplateVariants','Save-TemplateNativeReceipt','Assert-TemplatePackageConsumption','Remove-TemplateTemporaryDirectory','Test-TemplateInstallation','Assert-TemplateTrx','Assert-TemplateCleanupTree')
+$names=@('Test-ScaffoldBuilds','Assert-TemplateDatabaseSelection','Get-TemplateVariants','Save-TemplateNativeReceipt','Assert-TemplatePackageConsumption','Remove-TemplateTemporaryDirectory','Test-TemplateInstallation','Assert-TemplateTrx','Assert-TemplateCleanupTree','Get-TemplateInputHash')
 foreach($name in $names) {
     $functions=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true))
     if($functions.Count -ne 1){throw "Expected one production function $name"}
@@ -20,6 +20,22 @@ if(-not $fixture.StartsWith($tempParent,[StringComparison]::OrdinalIgnoreCase)){
 [void][IO.Directory]::CreateDirectory($fixture)
 $originalPath=$env:PATH
 try {
+    $inputFile=Join-Path $fixture 'tracked-input.cs'
+    $absent=Get-TemplateInputHash $inputFile
+    if($absent -cne 'deleted' -or (Get-TemplateInputHash $inputFile) -cne $absent){throw 'Stable tracked deletion was not represented.'}
+    Set-Content -LiteralPath $inputFile 'first content'
+    $present=Get-TemplateInputHash $inputFile
+    if($present -ceq $absent -or $present -cne (Get-FileHash -LiteralPath $inputFile -Algorithm SHA256).Hash){throw 'Restoration did not change input identity.'}
+    Set-Content -LiteralPath $inputFile 'changed content'
+    if((Get-TemplateInputHash $inputFile) -ceq $present){throw 'Content mutation was not detected.'}
+    Remove-Item -LiteralPath $inputFile
+    if((Get-TemplateInputHash $inputFile) -ceq $present){throw 'Deletion during verification was not detected.'}
+    [void][IO.Directory]::CreateDirectory($inputFile)
+    $directoryRefused=$false
+    try{Get-TemplateInputHash $inputFile}catch{$directoryRefused=$_.Exception.Message -match 'not a file'}
+    if(-not $directoryRefused){throw 'Directory replacement was accepted as a deleted file.'}
+    Remove-Item -LiteralPath $inputFile
+    Write-Host 'PASS: tracked deletion, restoration, byte mutation and directory replacement controls.'
     $worker=Join-Path $fixture 'native-fixture.ps1'
     @'
 $stage=$args[0]

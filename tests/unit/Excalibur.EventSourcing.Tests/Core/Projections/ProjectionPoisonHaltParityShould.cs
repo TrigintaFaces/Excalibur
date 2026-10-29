@@ -70,8 +70,8 @@ public sealed class ProjectionPoisonHaltParityShould
 			.Invokes(() => deserializeObserved.TrySetResult())
 			.Returns((IDomainEvent)null!); // poison: null deserialization (the silently-dropped case)
 
-		var checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
-		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		var checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
+		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		using var serviceProvider = new ServiceCollection().AddSingleton(globalStreamQuery).BuildServiceProvider();
@@ -99,7 +99,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert — the checkpoint must NEVER be persisted past the unapplied poison event.
-		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>.That.IsGreaterThan(0), A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -221,8 +221,8 @@ public sealed class ProjectionPoisonHaltParityShould
 		A.CallTo(() => eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
 		A.CallTo(() => eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(A.Fake<IDomainEvent>());
 
-		var checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
-		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		var checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
+		A.CallTo(() => checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		// Real container so ApplyInScopeAsync's CreateAsyncScope() works; it also resolves the stream query.
@@ -253,7 +253,7 @@ public sealed class ProjectionPoisonHaltParityShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert — the checkpoint must NEVER be persisted past the event whose apply faulted.
-		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>.That.IsGreaterThan(0), A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

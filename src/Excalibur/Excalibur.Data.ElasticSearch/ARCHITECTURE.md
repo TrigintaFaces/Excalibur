@@ -119,9 +119,35 @@ start-up.**
 
 Stated so it can be falsified:
 
-- An index name resolves to `{IndexPrefix}-{IndexName ?? simple type name}`, lowercased. The default
+- An index name resolves to `{IndexPrefix}-{IndexName ?? simple type name}`, lowercased, followed by
+  `-v{n}` when the projection declares `[ProjectionVersion(n)]` with `n` greater than 1. The default
   uses the projection's **simple** type name, so two types with one simple name in different
   namespaces resolve to one index.
+- **A projection that declares no version, and one that declares version 1, resolve to the SAME index.**
+  A generation segment appears only from 2 onward. This is the load-bearing half: every read model
+  written before generations existed declares nothing, so a rule that appended unconditionally would
+  rename every index this provider addresses, each folding from zero and each abandoning a cursor that
+  was serving correctly. Adopting `[ProjectionVersion(1)]` on a live read model is therefore free and
+  moves nothing.
+  Evidence: `ProjectionVersionDestinationShould` —
+  `ResolveTheUnchangedIndexAndIdentityForAProjectionDeclaringNoGeneration` pins the unversioned name as a
+  literal rather than recomputing it through the convention, so a drift in the convention reddens it;
+  `ResolveADifferentIndexAndIdentityWhenTheDeclaredGenerationIsBumped` is its safety counterpart.
+- **A version bump is a new destination, not a migration of the old one.** The new generation
+  folds from the event stream while the previous generation keeps its cursor and serves readers.
+  `ProjectionGenerationCutover` gates the framework reader pointer on a recorded cursor, verified
+  destination scope, and the configured maximum lag. Its revision comparison protects the durable
+  pointer against stale transitions.
+- **Native aliases and retirement are separate administrative operations.** Framework cutover does
+  not automatically swap a search alias or release the old binding. If direct search clients use an
+  alias, serialize all alias administration, verify its resolved target after the swap, and retain
+  both generations if the result is uncertain. A native alias comparison uses destination names;
+  it does not fence an A-to-B operation across an intervening A-to-C-to-A sequence.
+  Retire the old binding explicitly only after the rollback window and old readers/writers drain.
+
+  Evidence: `ProjectionGenerationCutoverConformance` exercises absent-cursor and excessive-lag
+  refusal, plus `CutOverAndRetainThePreviousGenerationWhenTheNewOneIsWithinTheThreshold`.
+  The retained old binding is intentional; no cross-system atomic transaction is claimed.
 - Their **options buckets do not collide** — those are keyed on the full type name — so no other part
   of the registration path notices.
 - A composition in which two distinct projection types resolve to the **same index on the same
@@ -160,6 +186,9 @@ overlap is unknowable at start-up and the failure it prevents is silent.
 | the contract's declared exception | `Projections/ElasticSearchProjectionIndexIdentityValidator.cs` — resolving options is wrapped, so a consumer's options failure is reported as this contract's `InvalidOperationException` rather than escaping as `OptionsValidationException` |
 | the index string, derived once | `Projections/ElasticSearchProjectionIndexConvention.cs` — `GetIndexName`, the same call `ElasticSearchProjectionStore`'s constructors make |
 | the registered population | `Projections/ElasticSearchProjectionStoreExtensions.cs` — `ProjectionOptionsNameClaims`, populated by `ClaimOptionsName` on every registration path |
+| the cutover's gate, ordering and verification | **not here** — `Projections/ProjectionGenerationCutover.cs` in the event-sourcing package, `CutOverAsync`. Provider-agnostic on purpose: a provider that re-derived the gate could disagree with the others about when a cutover is safe |
+| the alias swap, and its read-back | `IndexManagement/AliasGenerationRepoint.cs` — `RepointAsync` submits the removals and the add as ONE alias update, which Elasticsearch applies atomically; `GetActiveDestinationAsync` asks the cluster, never its own last write |
+| an ambiguous alias refused rather than resolved | same file — `GetActiveDestinationAsync` reports `null` for zero indices and for two, so an alias spanning both generations cannot satisfy the verification |
 | reachable from a host | `Projections/ElasticSearchProjectionStoreExtensions.cs` — `WireIndexIdentityValidation` registers both `IHostedService` and `IStartupPrerequisiteValidator` |
 
 The check runs where the whole registration set is known. A single registration cannot see its future
@@ -195,6 +224,18 @@ with liveness throughout.
 | `AllowProjectionsWithDistinctSimpleNames` | over-broad grouping |
 | `StartHostedServicesForADistinctlyNamedComposition` | a hosted check that throws on a legitimate composition |
 
+The cutover arms are separate because they need a running Elasticsearch: the alias swap and its read-back
+are decided by the engine, and a faked alias manager answers whatever it was told.
+`ElasticSearchProjectionGenerationCutoverShould`, 4 arms, never skipped — the engine's availability is
+asserted, because an arm that returns early when it is absent reports PASS and establishes nothing.
+
+| arm | what it RED-detects |
+|---|---|
+| `NotRepointTheAliasWhenTheNewGenerationHasNoCursor` | a missing cursor read as a position — the threshold is deliberately wide enough that only the presence check can refuse, so the arm binds that check and not the comparison beside it |
+| `NotRepointTheAliasWhenTheNewGenerationsLagExceedsTheThreshold` | the threshold comparison dropped or inverted |
+| `NotReleaseThePreviousGenerationWhenTheSwapIsNotVerified` | the release ordered before the verification; the repoint really runs and really moves the alias, onto an index other than the one requested |
+| `RepointTheAliasAndReleaseThePreviousGenerationWhenTheNewOneIsWithinTheThreshold` | a cutover that is safe by never cutting over, which satisfies all three arms above |
+
 ---
 
 ## Consumer obligations
@@ -203,6 +244,26 @@ with liveness throughout.
   `Index.IndexName`, or separate them with `Index.IndexPrefix`. The refusal names both types.
 - **An index name is live coordination state.** Changing one points the store at a different index and
   orphans whatever is in the old one; it is a migration, not a settings change.
+- **Bumping `[ProjectionVersion]` creates an empty index and nothing fills it for you.** A consumer who
+  bumps without running a rebuild serves an **empty read model** from the new generation. Plan the bump,
+  the re-fold and the reader cutover as one operation, and keep capacity for two live generations while
+  it runs. The re-fold reads the event stream, so its cost is time rather than downtime — for a large
+  store that time is substantial. **The cutover follows the re-fold and does not perform one**: it moves
+  readers and releases the previous generation, nothing more.
+- **The lag threshold is yours to size, and there is deliberately no default.** No value is universally
+  safe, so this provider supplies none rather than one that implies it is. The two ends of the range
+  behave very differently: an idle stream reaches a lag of zero trivially, so almost any threshold passes
+  at once, while a stream under sustained write load may never reach a small threshold at all, because
+  the head advances as fast as the re-fold consumes it. A threshold below your write rate is a cutover
+  that never happens rather than one that happens carefully. Size it against how stale a reader may be
+  at the instant of the swap, then check it is reachable.
+- **Readers must query the alias, not the index.** The cutover moves an alias. A reader holding a
+  concrete index name is not repointed by it and keeps reading the previous generation after its cursor
+  has been released.
+- **The declared version is read once, when the store is constructed.** Changing the attribute requires a
+  process restart to take effect. That is deliberate: the destination identity is composed in the
+  constructor and hashed into durable state, so a version that could change under a running store would
+  make the advertised identity untrue.
 - **A host-less consumer must call `ValidateStartupGates()`** after building the provider. A host that
   starts its services reaches the check without it.
 
@@ -227,6 +288,20 @@ with liveness throughout.
   mutates an index name through a change token afterwards is outside this guarantee.
 - **The refusal is unconditional, not evidence of overlap.** Two projections on one index are refused
   whether or not their document ids would ever have collided.
+- **The lag reading is a point-in-time snapshot, and nothing makes it fresh at the moment of the swap.**
+  The stream can advance, and another host can bind a roster member, between the cursor being read and
+  the alias being repointed. What bounds that window is the post-swap verification, not the read being
+  current: the previous generation is released only after the alias is observed resolving to the new
+  index. A guarantee that the decision were taken on a reading nothing could overtake is **not** claimed
+  here.
+- **A roster read taken before an attestation can itself be overtaken.** That is a property of the
+  subscription roster rather than of the cutover, and the cutover inherits it. The verification above is
+  what the cutover does about it; it does not close the roster window in general.
+- **Nothing stops a cutover from running while a re-fold is still in flight.** The gate measures how far
+  behind the new generation is and nothing more; if the threshold admits a generation that is still
+  filling, readers see it still filling.
+- **No property-based coverage of the gate, and no model of it.** The arms sample the lag, cursor and
+  verification space by hand.
 - **No property-based coverage and no model.** The arms above are examples chosen by hand; they sample
   the composition space rather than generate it. This guarantee is verified at the contract-and-arm
   level only — treat it as unproven against compositions nobody thought of.

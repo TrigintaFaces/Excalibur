@@ -67,7 +67,7 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 	/// <param name="client">The Elasticsearch client.</param>
 	/// <param name="optionsMonitor">
 	/// Options monitor for resolving the projection index name.
-	/// The named options key is the projection type name (<c>"OrderSearchProjection"</c>).
+	/// The named options key is the projection's FULL type name, which the convention derives.
 	/// </param>
 	/// <remarks>
 	/// Uses <see cref="ElasticSearchProjectionIndexConvention"/> to resolve the
@@ -80,7 +80,7 @@ public sealed class OrderFullTextSearchRepository : ElasticRepositoryBase<OrderS
 		: base(
 			client,
 			ElasticSearchProjectionIndexConvention.GetIndexName<OrderSearchProjection>(
-				optionsMonitor.Get(nameof(OrderSearchProjection))))
+				optionsMonitor.Get(ElasticSearchProjectionIndexConvention.GetOptionsName<OrderSearchProjection>())))
 	{
 	}
 

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Reflection;
+
 using Excalibur.EventSourcing.SqlServer;
 using Excalibur.EventSourcing.SqlServer.DependencyInjection;
 
@@ -209,6 +211,61 @@ public sealed class SqlServerEventSourcingBuilderMaterializedViewShould
 		descriptor.ShouldNotBeNull();
 		descriptor!.Lifetime.ShouldBe(ServiceLifetime.Singleton);
 	}
+
+	[Fact]
+	public void CarryTheSchemaFromTheBuilderIntoTheRegisteredStore()
+	{
+		// Arrange -- the builder facade is the only surface a consumer who configures through UseSqlServer
+		// has. A schemaName it accepts and drops would leave every statement on [dbo], which is exactly the
+		// defect a signature-only test cannot see.
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddOptions();
+
+		// Act
+		var esBuilder = new Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder(services);
+		esBuilder.UseSqlServer(sql =>
+		{
+			sql.ConnectionString("Server=localhost;Database=EventStore;TrustServerCertificate=True")
+			   .UseMaterializedViewStore("MatViews", "MatPositions", "reporting");
+		});
+
+		using var provider = services.BuildServiceProvider();
+		var store = provider.GetRequiredService<Excalibur.EventSourcing.IMaterializedViewStore>();
+
+		// Assert -- both tables the store addresses carry the schema the builder was given.
+		Qualified(store, "_qualifiedViewTable").ShouldBe("[reporting].[MatViews]");
+		Qualified(store, "_qualifiedPositionTable").ShouldBe("[reporting].[MatPositions]");
+	}
+
+	[Fact]
+	public void DefaultTheSchemaToDbo_WhenTheBuilderDoesNotSetIt()
+	{
+		// Arrange -- the liveness half: threading the parameter must not move a consumer who omits it.
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddOptions();
+
+		// Act
+		var esBuilder = new Excalibur.EventSourcing.DependencyInjection.ExcaliburEventSourcingBuilder(services);
+		esBuilder.UseSqlServer(sql =>
+		{
+			sql.ConnectionString("Server=localhost;Database=EventStore;TrustServerCertificate=True")
+			   .UseMaterializedViewStore("MatViews", "MatPositions");
+		});
+
+		using var provider = services.BuildServiceProvider();
+		var store = provider.GetRequiredService<Excalibur.EventSourcing.IMaterializedViewStore>();
+
+		// Assert
+		Qualified(store, "_qualifiedViewTable").ShouldBe("[dbo].[MatViews]");
+		Qualified(store, "_qualifiedPositionTable").ShouldBe("[dbo].[MatPositions]");
+	}
+
+	private static string Qualified(object store, string fieldName) =>
+		(string)store.GetType()
+			.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!
+			.GetValue(store)!;
 
 	[Fact]
 	public void NotRegisterIMaterializedViewStore_WhenUseMaterializedViewStoreNotCalled()

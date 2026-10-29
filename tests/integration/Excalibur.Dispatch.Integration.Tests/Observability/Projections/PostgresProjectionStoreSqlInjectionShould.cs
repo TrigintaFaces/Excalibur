@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 #pragma warning disable CS8618 // _store is set in InitializeAsync().
@@ -55,7 +55,7 @@ public sealed class PostgresProjectionStoreSqlInjectionShould : IClassFixture<Po
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync();
 		_ = await connection.ExecuteAsync($"""
-			CREATE TABLE IF NOT EXISTS "{TableName}" (
+			CREATE TABLE IF NOT EXISTS "public"."{TableName}" (
 				id VARCHAR(450) NOT NULL PRIMARY KEY,
 				data JSONB NOT NULL,
 				created_at TIMESTAMPTZ NOT NULL,
@@ -84,7 +84,7 @@ public sealed class PostgresProjectionStoreSqlInjectionShould : IClassFixture<Po
 
 		await using var connection = new NpgsqlConnection(_fixture.ConnectionString);
 		await connection.OpenAsync();
-		_ = await connection.ExecuteAsync($"DROP TABLE IF EXISTS \"{TableName}\"");
+		_ = await connection.ExecuteAsync($"DROP TABLE IF EXISTS \"public\".\"{TableName}\"");
 	}
 
 	// SAFETY — an injection-shaped FILTER property name is rejected (ArgumentException), never interpolated raw.

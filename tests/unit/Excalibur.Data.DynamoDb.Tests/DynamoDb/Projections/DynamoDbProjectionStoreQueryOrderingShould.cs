@@ -208,7 +208,7 @@ public sealed class DynamoDbProjectionStoreQueryOrderingShould
 	private static DynamoDbProjectionStore<TestProjection> CreateStore(IAmazonDynamoDB client) =>
 		new(
 			client,
-			Microsoft.Extensions.Options.Options.Create(new DynamoDbProjectionStoreOptions
+			new SingleNamedProjectionOptionsMonitor(new DynamoDbProjectionStoreOptions
 			{
 				TableName = "Projections",
 				PartitionKeyName = PartitionKeyName,
@@ -221,7 +221,7 @@ public sealed class DynamoDbProjectionStoreQueryOrderingShould
 
 	private static Dictionary<string, AttributeValue> Item(string id, int rank)
 	{
-		var projectionType = typeof(TestProjection).Name;
+		var projectionType = DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TestProjection>();
 		return new Dictionary<string, AttributeValue>
 		{
 			[PartitionKeyName] = new() { S = $"{projectionType}#{id}" },
@@ -240,7 +240,7 @@ public sealed class DynamoDbProjectionStoreQueryOrderingShould
 	}
 
 	private static Dictionary<string, AttributeValue> KeyFor(string id) =>
-		new() { [PartitionKeyName] = new() { S = $"{typeof(TestProjection).Name}#{id}" } };
+		new() { [PartitionKeyName] = new() { S = $"{DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TestProjection>()}#{id}" } };
 
 	/// <summary>
 	/// Serves scripted scan pages in order and counts the requests, so the arms can assert both what

@@ -1,20 +1,24 @@
 {
-  "STALE": true,
-  "staleReason": "DO NOT CITE. These results were produced against model SHA-256 B247303C6234AF0218AC3A29D119C14FCAB28957E9F981256EA7D1709357B0C6. Compare that against the live model before reading any line below it: sha256sum spec/tla/cooperative-projection/CooperativeProjection.tla. A mismatch means these arms never evaluated the model in the tree. The current hash is deliberately NOT recorded here -- a cached hash decays on the next edit, and this marker already decayed once that way. What changed: the search-visibility barrier became a modeled step (previously neither modeled nor declared in ABSTRACTED, which is the defect this supersedes), the row-CAS outcome mapping and the per-action correspondence were stated, and two invariants were added (VisibleNeverExceedsWritten, CheckpointVisibility) that these runs never evaluated. Nine arms exist now, not seven. Regenerate with check-cooperative-projection.py before any rung claim rests on this file.",
-  "markedStaleOn": "2026-10-22",
-  "jarSha256": "5BD7B64DB99AE4C6C35F290DE5E809C0EE41AF43F8699CF696099FFB6452B1E2",
-  "modelSha256": "B247303C6234AF0218AC3A29D119C14FCAB28957E9F981256EA7D1709357B0C6",
-  "scope": "3 actors, 2 processes, 2 rows, 2 events; one crash/cancel per actor; FIFO local gates",
+  "java": "C:\\Users\\thoma\\tools\\tla\\jdk-21.0.12.1+1-jre\\bin\\java.exe",
+  "javaVersion": "openjdk version \"21.0.12.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-21.0.12.1+1 (build 21.0.12.1+1-LTS, mixed mode, sharing)\n",
+  "jar": "C:\\Users\\thoma\\tools\\tla\\tla2tools.jar",
+  "jarSha256": "936A262061C914694DFD669A543BE24573C45D5AA0FF20A8B96B23D01E050E88",
+  "modelSha256": "A3A25B8D4F303DD9DF1EFB8342F1C0771D79412AB5EE5CB49FDABE03B14C954D",
+  "checkerSha256": "4D658D47A87572FCCB45B42B5E05A6EE2446A7D3FE9BF00596C332C9E20DE01F",
+  "heapMb": 4096,
+  "timeoutSeconds": 1800,
+  "workers": 2,
+  "scope": "3 actors, 2 processes, 2 rows, 2 events; one crash/cancel/barrier fault per actor; FIFO local gates; discarded scratch canonicalized only on Release/Crash",
   "arms": [
     {
       "name": "healthy",
       "expectedViolation": null,
       "exitCode": 0,
       "correctAnswer": true,
-      "seconds": 113.23,
+      "seconds": 187.58,
       "stateCounts": [
-        "5661908",
-        "1845287"
+        "11722817",
+        "3290469"
       ]
     },
     {
@@ -22,18 +26,20 @@
       "expectedViolation": null,
       "exitCode": 0,
       "correctAnswer": true,
-      "seconds": 1.24,
+      "seconds": 1.88,
       "stateCounts": [
-        "31008",
-        "14001"
+        "39464",
+        "15953"
       ]
     },
     {
       "name": "skip-manifest-check",
-      "expectedViolation": "ManifestAgreement",
+      "expectedViolation": [
+        "ManifestAgreement"
+      ],
       "exitCode": 12,
       "correctAnswer": true,
-      "seconds": 0.52,
+      "seconds": 1.08,
       "stateCounts": [
         "12",
         "12"
@@ -41,51 +47,100 @@
     },
     {
       "name": "blind-stale-row-write",
-      "expectedViolation": "RowNeverRewinds",
+      "expectedViolation": [
+        "RowNeverRewinds"
+      ],
       "exitCode": 12,
       "correctAnswer": true,
-      "seconds": 1.17,
+      "seconds": 1.78,
       "stateCounts": [
-        "158730",
-        "59977"
+        "163401",
+        "56286"
       ]
     },
     {
       "name": "premature-checkpoint",
-      "expectedViolation": "CheckpointCoverage",
+      "expectedViolation": [
+        "CheckpointCoverage",
+        "CheckpointVisibility"
+      ],
       "exitCode": 12,
       "correctAnswer": true,
-      "seconds": 0.61,
+      "seconds": 0.98,
       "stateCounts": [
-        "665",
-        "352"
+        "1258",
+        "578"
       ]
     },
     {
       "name": "cancel-waiter-overrelease",
-      "expectedViolation": "GateOwnership",
+      "expectedViolation": [
+        "GateOwnership"
+      ],
       "exitCode": 12,
       "correctAnswer": true,
-      "seconds": 0.55,
+      "seconds": 0.91,
       "stateCounts": [
         "9",
         "9"
       ]
     },
     {
-      "name": "checker-self-test",
-      "expectedViolation": "NeverThree",
+      "name": "skip-barrier",
+      "expectedViolation": [
+        "CheckpointVisibility"
+      ],
       "exitCode": 12,
       "correctAnswer": true,
-      "seconds": 0.44,
+      "seconds": 1.11,
+      "stateCounts": [
+        "2099",
+        "904"
+      ]
+    },
+    {
+      "name": "skip-barrier-when-not-writing",
+      "expectedViolation": [
+        "CheckpointVisibility"
+      ],
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 1.33,
+      "stateCounts": [
+        "38469",
+        "14319"
+      ]
+    },
+    {
+      "name": "barrier-fault-acknowledges",
+      "expectedViolation": [
+        "CheckpointVisibility"
+      ],
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 1.01,
+      "stateCounts": [
+        "3945",
+        "1595"
+      ]
+    },
+    {
+      "name": "checker-self-test",
+      "expectedViolation": [
+        "NeverThree"
+      ],
+      "exitCode": 12,
+      "correctAnswer": true,
+      "seconds": 0.99,
       "stateCounts": [
         "4",
         "4"
       ]
     }
   ],
-  "checkedDate": "2026-10-22",
-  "tlcVersion": "2026.10.20.183001 (rev d2e1472)",
-  "javaVersion": "Microsoft OpenJDK 21.0.8",
-  "limitation": "Design-model evidence only; not a full R4 discharge or production refinement proof."
+  "checkedAtUtc": "2026-10-29T00:48:56.718403+00:00",
+  "evidenceDirectory": "artifacts/cooperative-projection-release/GU0t2F",
+  "canonicalLog": "C:\\Users\\thoma\\AppData\\Local\\Temp\\dispatch-alpha-models-canonical-reviewed.log",
+  "STALE": false,
+  "productionAdmissionCorrespondence": "withdrawn: historical scalar manifest; current roster lifetime is checked separately"
 }

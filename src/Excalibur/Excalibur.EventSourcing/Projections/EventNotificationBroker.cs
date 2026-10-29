@@ -72,7 +72,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		Justification = "MakeGenericType is used to resolve event notification handlers. Register handlers explicitly for AOT scenarios.")]
 	[UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
 		Justification = "Handler types are preserved through DI registration.")]
-	public async Task<ProjectionFreshness> NotifyAsync(
+	public async Task<ProjectionCompletion> NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context)
 	{
@@ -83,7 +83,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		{
 			// Nothing was committed, so there is nothing for a projection to catch up to and no wait was
 			// requested. Distinct from a wait that was requested and did not complete.
-			return ProjectionFreshness.NotRequested;
+			return new ProjectionCompletion(ProjectionFreshness.NotRequested);
 		}
 
 		var opts = _options.Value;
@@ -128,7 +128,7 @@ internal sealed class EventNotificationBroker : IEventNotificationBroker
 		// No Inline projection is registered, so nothing was waited for. This is not a degraded answer:
 		// an Async-only host never asked for read-your-writes at the save, and saying "not requested"
 		// keeps that distinguishable from a wait that was asked for and did not complete.
-		return ProjectionFreshness.NotRequested;
+		return new ProjectionCompletion(ProjectionFreshness.NotRequested);
 	}
 
 	private async Task ObserveTimedOutNotificationAsync(Task notifications)

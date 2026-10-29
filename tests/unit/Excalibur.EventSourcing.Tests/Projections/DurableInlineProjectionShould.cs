@@ -16,6 +16,30 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Pattern", "Integration")]
 public sealed class DurableInlineProjectionShould
 {
+    [Fact]
+    public async Task AddAProjectionWithoutChangingTheAutomaticSubscriptionScope()
+    {
+        var fixture = new Pipeline(1);
+        await using var first = fixture.CreateProvider(automaticScope: true);
+        (await Notify(first, 1)).ShouldBe(ProjectionFreshness.Attested);
+        const string name = "Inline:AsyncProjectionProcessingHost";
+        var before = (await fixture.Checkpoints.ReadSubscriptionAsync(name, CancellationToken.None)).Members.Single();
+        await using var expanded = fixture.CreateProvider(automaticScope: true, configure: services =>
+        {
+            services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
+            var builder = A.Fake<IEventSourcingBuilder>();
+            A.CallTo(() => builder.Services).Returns(services);
+            builder.AddProjection<OrderSummary>(p => p.Inline().When<TestOrderPlaced>((row, _) => row.EventCount++));
+        });
+        (await Notify(expanded, 1)).ShouldBe(ProjectionFreshness.Attested);
+        var roster = await fixture.Checkpoints.ReadSubscriptionAsync(name, CancellationToken.None);
+        roster.Members.Count.ShouldBe(2);
+        var unchanged = roster.Members.Single(m => m.ProjectionKey == before.ProjectionKey);
+        unchanged.BindingId.ShouldBe(before.BindingId);
+        unchanged.DefinitionHash.ShouldBe(before.DefinitionHash);
+        unchanged.Position.ShouldBe(before.Position);
+    }
+
 	[Fact]
 	public void RegisterForegroundProcessingAndRecoveryWithoutASecondEnableCall()
 	{
@@ -74,7 +98,7 @@ public sealed class DurableInlineProjectionShould
 			// VACUOUSLY now that cursors are keyed per projection: no such cursor exists, so the store
 			// answers null for any question about it, and the arm would stop binding anything at all.
 			(await fixture.Checkpoints.GetCheckpointAsync(
-				$"Inline:AsyncProjectionProcessingHost:{typeof(Counter).FullName}", CancellationToken.None))
+				"Inline:AsyncProjectionProcessingHost", typeof(Counter).FullName!, CancellationToken.None))
 				.ShouldBeNull("the cursor must not advance over a write whose acknowledgement was lost");
 		}
 		fixture.LoseWriteAcknowledgement = false;
@@ -125,7 +149,7 @@ public sealed class DurableInlineProjectionShould
 		var fixture = new Pipeline(1);
 		await using var provider = fixture.CreateProvider();
 
-		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Fresh);
+		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Attested);
 		(await fixture.Store.GetByIdAsync("row", CancellationToken.None)).ShouldNotBeNull().Count.ShouldBe(1);
 	}
 
@@ -150,7 +174,7 @@ public sealed class DurableInlineProjectionShould
 				"the inner scope must restore the OUTER suppression, not clear suppression entirely");
 		}
 
-		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Fresh,
+		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Attested,
 			"once every scope has ended the wait is in force again");
 	}
 
@@ -309,6 +333,104 @@ public sealed class DurableInlineProjectionShould
 		fixture.Writes.ShouldBe(1);
 	}
 
+    [Fact]
+    public async Task CompleteHealthyForegroundWorkWithoutStartingAnUnrelatedBlockedScopeLookup()
+    {
+        var blocked = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fixture = new Pipeline(1) { ScopeResult = blocked.Task };
+        await using var provider = fixture.CreateProvider(automaticScope: true, configure: services =>
+        {
+            services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
+            var builder = A.Fake<IEventSourcingBuilder>();
+            A.CallTo(() => builder.Services).Returns(services);
+            builder.AddProjection<OrderSummary>(p => p.Inline().When<TestOrderShipped>((row, _) => row.EventCount++));
+        });
+        try
+        {
+            var completion = await provider.GetRequiredService<IEventNotificationBroker>().NotifyAsync(
+                [new TestOrderShipped()], new EventNotificationContext("row", "Order", 1, DateTimeOffset.UtcNow, GlobalPosition: 1))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            completion.Freshness.ShouldBe(ProjectionFreshness.Attested);
+            fixture.ScopeResolutionCalls.ShouldBe(0);
+            fixture.Writes.ShouldBe(0);
+        }
+        finally { blocked.TrySetResult("test-cluster"); }
+    }
+
+    [Theory]
+    [InlineData(false, 0, false)]
+    [InlineData(true, 0, false)]
+    [InlineData(false, 1, false)]
+    [InlineData(true, 1, false)]
+    [InlineData(false, 1, true)]
+    [InlineData(true, 1, true)]
+    public async Task IsolateScopeDiscoveryFailureWithoutAttestingTheMissingMember(bool alreadyBound, int count, bool tombstone)
+    {
+        var fixture = new Pipeline(count, tombstone);
+        await using var provider = fixture.CreateProvider(automaticScope: true, configure: services =>
+        {
+            services.AddSingleton<IProjectionStore<OrderSummary>>(new TestProjectionStore<OrderSummary>());
+            var builder = A.Fake<IEventSourcingBuilder>();
+            A.CallTo(() => builder.Services).Returns(services);
+            builder.AddProjection<OrderSummary>(p => p.Inline().When<TestOrderPlaced>((row, _) => row.EventCount++));
+        });
+        _ = provider.GetRequiredService<IEventNotificationBroker>();
+        using var host = new AsyncProjectionProcessingHost(provider.GetRequiredService<IProjectionRegistry>(),
+            provider.GetRequiredService<IEventSerializer>(), fixture.Checkpoints,
+            Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions { ProjectionName = "scope-isolation", SubscriptionScope = "test" }),
+            provider, Microsoft.Extensions.Logging.Abstractions.NullLogger<AsyncProjectionProcessingHost>.Instance,
+            mode: ProjectionMode.Inline) { RequireDestinationScope = true };
+        if (alreadyBound) { _ = await host.HasAppliedAsync(typeof(Counter), 0, CancellationToken.None); }
+        fixture.ScopeFailure = new InvalidOperationException("scope discovery unavailable");
+        var healthy = await host.ProcessThroughAsync(count, [typeof(OrderSummary)], CancellationToken.None);
+        healthy.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
+        healthy.Attestation.ShouldNotBeNull();
+        var whole = await host.ProcessPendingAsync(CancellationToken.None);
+        whole.Outcome.ShouldBe(ProjectionProcessingOutcome.Halted);
+        whole.Attestation.ShouldBeNull();
+        var roster = await fixture.Checkpoints.ReadSubscriptionAsync("scope-isolation", CancellationToken.None);
+        roster.Members.Single(m => m.ProjectionKey == SubscriptionKeys.ProjectionKey(typeof(OrderSummary))).Position.ShouldBe(count);
+        roster.Members.FirstOrDefault(m => m.ProjectionKey == SubscriptionKeys.ProjectionKey(typeof(Counter)))?.Position.ShouldBeNull();
+        fixture.Writes.ShouldBe(0);
+        fixture.ScopeFailure = null;
+        (await host.ProcessPendingAsync(CancellationToken.None)).Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
+        var recovered = await fixture.Checkpoints.ReadSubscriptionAsync("scope-isolation", CancellationToken.None);
+        recovered.Members.Single(m => m.ProjectionKey == SubscriptionKeys.ProjectionKey(typeof(Counter))).Position.ShouldBe(count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreserveCommittedOutcomeWhenRegistryOrTimeoutOptionsResolutionFails(bool optionsFail)
+    {
+        var fixture = new Pipeline(1);
+        await using var provider = fixture.CreateProvider();
+        _ = provider.GetRequiredService<IEventNotificationBroker>();
+        var services = A.Fake<IServiceProvider>();
+        A.CallTo(() => services.GetService(A<Type>._)).Throws(new InvalidOperationException("registry factory failed"));
+        var options = A.Fake<Microsoft.Extensions.Options.IOptions<EventNotificationOptions>>();
+        A.CallTo(() => options.Value).Throws(new Microsoft.Extensions.Options.OptionsValidationException(
+            "", typeof(EventNotificationOptions), ["timeout configuration invalid"]));
+        await using var coordinator = new InlineProjectionCoordinator(optionsFail ? provider : services, options,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InlineProjectionCoordinator>.Instance);
+        var completion = await coordinator.CompleteAsync(
+            new EventNotificationContext("row", "Order", 1, DateTimeOffset.UtcNow, GlobalPosition: 1), [new TestOrderPlaced()]);
+        completion.Freshness.ShouldBe(ProjectionFreshness.BoundExpired);
+        completion.Attestation.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task PreserveCommittedSaveAndRetryWhenScopeDiscoveryFailsDuringInitialization()
+    {
+        var fixture = new Pipeline(1) { ScopeFailure = new InvalidOperationException("provider wrapped connection refusal") };
+        await using var provider = fixture.CreateProvider(automaticScope: true);
+        (await Notify(provider, 1)).ShouldBe(ProjectionFreshness.BoundExpired);
+        fixture.Writes.ShouldBe(0);
+        fixture.ScopeFailure = null;
+        (await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Attested);
+        fixture.Writes.ShouldBe(1);
+    }
+
 	[Fact]
 	public async Task CompleteOnlyTheRequestedPrefixBeforeALaterPoisonEvent()
 	{
@@ -326,11 +448,10 @@ public sealed class DurableInlineProjectionShould
 	{
 		var fixture = new Pipeline(1);
 		await using var provider = fixture.CreateProvider(replaceReader: true);
-		// Still an EXCEPTION, deliberately: a reader replaced independently of its checkpoint binding is a
-		// misconfiguration, not a read model that is merely behind. Freshness describes whether the wait
-		// succeeded; it must not be used to report a composition that can never work.
-		var error = await Should.ThrowAsync<InvalidOperationException>(() => Notify(provider, 1));
-		error.Message.ShouldContain("replaced independently");
+        (await Notify(provider, 1)).ShouldBe(ProjectionFreshness.BoundExpired);
+        var error = await Should.ThrowAsync<InvalidOperationException>(() =>
+            provider.GetRequiredService<IProjectionProcessor>().ProcessPendingAsync(CancellationToken.None));
+        error.Message.ShouldContain("replaced independently");
 		fixture.Writes.ShouldBe(0);
 	}
 
@@ -347,8 +468,8 @@ public sealed class DurableInlineProjectionShould
 
 		// The first read sees no readable prefix -> Halted/PrefixUnavailable. The save must wait inside
 		// its budget rather than telling the caller a durable write is pending.
-		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Fresh,
-			"a transient prefix must be waited out and then reported FRESH, not merely not-thrown");
+		(await Notify(provider, 1)).ShouldBe(ProjectionFreshness.Attested,
+			"a transient prefix must be waited out and then reported Attested, not merely not-thrown");
 
 		(await fixture.Store.GetByIdAsync("row", CancellationToken.None)).ShouldNotBeNull().Count.ShouldBe(1);
 		fixture.Writes.ShouldBe(1, "the retry must fold the prefix once, not rewrite the document per attempt");
@@ -364,9 +485,9 @@ public sealed class DurableInlineProjectionShould
 		fixture.Writes.ShouldBe(0);
 	}
 
-	private static Task<ProjectionFreshness> Notify(ServiceProvider provider, long? token) =>
-		provider.GetRequiredService<IEventNotificationBroker>().NotifyAsync([new TestOrderPlaced()],
-			new EventNotificationContext("row", "Order", token ?? 1, DateTimeOffset.UtcNow, GlobalPosition: token));
+	private static async Task<ProjectionFreshness> Notify(ServiceProvider provider, long? token) =>
+		(await provider.GetRequiredService<IEventNotificationBroker>().NotifyAsync([new TestOrderPlaced()],
+			new EventNotificationContext("row", "Order", token ?? 1, DateTimeOffset.UtcNow, GlobalPosition: token))).Freshness;
 
     [Fact]
     public async Task ReturnTheCommittedTokenWhenTheGlobalReadFailsAfterAppend()
@@ -419,11 +540,14 @@ public sealed class DurableInlineProjectionShould
 		/// </summary>
 		internal int EmptyReadsBeforeProgress { get; set; }
         internal Exception? ReadFailure { get; set; }
+        internal Exception? ScopeFailure { get; set; }
+        internal Task<string>? ScopeResult { get; set; }
+        internal int ScopeResolutionCalls { get; private set; }
 
-		internal Pipeline(int count)
+		internal Pipeline(int count, bool tombstone = false)
 		{
 			var events = Enumerable.Range(1, count).Select(i => new StoredEvent(i.ToString(), "row", "Order",
-				"placed", BitConverter.GetBytes(i), null, i, DateTimeOffset.UtcNow) { GlobalPosition = i }).ToArray();
+				tombstone ? ErasedEventMarker.EventType : "placed", BitConverter.GetBytes(i), null, i, DateTimeOffset.UtcNow) { GlobalPosition = i }).ToArray();
 			A.CallTo(() => _query.GetHeadPositionAsync(A<CancellationToken>._)).Returns(count);
 			A.CallTo(() => _query.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
 				.ReturnsLazily((GlobalStreamPosition p, int n, CancellationToken _) =>
@@ -445,6 +569,16 @@ public sealed class DurableInlineProjectionShould
 			var destination = A.Fake<IProjectionDestinationScope>();
 			A.CallTo(() => destination.Scope).Returns("test-cluster");
 			A.CallTo(() => _facade.GetService(typeof(IProjectionDestinationScope))).Returns(destination);
+        A.CallTo(() => _facade.GetService(typeof(IProjectionTenantBoundary))).Returns(ProjectionTenantBoundary.EstateWide);
+            var asyncDestination = A.Fake<IAsyncProjectionDestinationScope>();
+            A.CallTo(() => asyncDestination.GetScopeAsync(A<CancellationToken>._))
+                .ReturnsLazily(() =>
+                {
+                    ScopeResolutionCalls++;
+                    return ScopeResult is { } pending ? new ValueTask<string>(pending)
+                        : ScopeFailure is { } error ? ValueTask.FromException<string>(error) : ValueTask.FromResult("test-cluster");
+                });
+            A.CallTo(() => _facade.GetService(typeof(IAsyncProjectionDestinationScope))).Returns(asyncDestination);
 			A.CallTo(() => _positioned.GetWithPositionAsync(A<string>._, A<CancellationToken>._))
 				.ReturnsLazily((string id, CancellationToken ct) => Store.GetWithPositionAsync(id, ct));
 			A.CallTo(() => _positioned.UpsertAtPositionAsync(A<string>._, A<Counter>._, A<long?>._, A<long>._, A<CancellationToken>._))

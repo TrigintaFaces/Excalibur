@@ -59,8 +59,8 @@ public sealed class DynamoDbProjectionStoreCursorShould
 		public bool Match { get; set; }
 	}
 
-	private static IOptions<DynamoDbProjectionStoreOptions> CreateOptions() =>
-		Microsoft.Extensions.Options.Options.Create(new DynamoDbProjectionStoreOptions
+	private static IOptionsMonitor<DynamoDbProjectionStoreOptions> CreateOptions() =>
+		new SingleNamedProjectionOptionsMonitor(new DynamoDbProjectionStoreOptions
 		{
 			TableName = "Projections",
 			PartitionKeyName = PartitionKeyName,
@@ -78,7 +78,7 @@ public sealed class DynamoDbProjectionStoreCursorShould
 	/// </summary>
 	private static Dictionary<string, AttributeValue> BuildItem(string id, bool match)
 	{
-		var projectionType = typeof(TestProjection).Name;
+		var projectionType = DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TestProjection>();
 		return new Dictionary<string, AttributeValue>
 		{
 			[PartitionKeyName] = new() { S = $"{projectionType}#{id}" },
@@ -98,7 +98,7 @@ public sealed class DynamoDbProjectionStoreCursorShould
 
 	private static Dictionary<string, AttributeValue> KeyFor(string id)
 	{
-		var projectionType = typeof(TestProjection).Name;
+		var projectionType = DynamoDbProjectionTableConvention.GetProjectionDiscriminator<TestProjection>();
 		return new Dictionary<string, AttributeValue>
 		{
 			[PartitionKeyName] = new() { S = $"{projectionType}#{id}" },

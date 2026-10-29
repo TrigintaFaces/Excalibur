@@ -55,7 +55,7 @@ public sealed class ErasedEventAsyncProjectionHostShould
 	private const long TombstoneGlobalPosition = 1;
 
 	private readonly InMemoryProjectionRegistry _registry = new();
-	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+	private readonly ISubscriptionCheckpointStore _checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
 	private readonly IGlobalStreamQuery _globalStreamQuery = A.Fake<IGlobalStreamQuery>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
 
@@ -139,7 +139,7 @@ public sealed class ErasedEventAsyncProjectionHostShould
 		{
 			await host.StopAsync(CancellationToken.None);
 		}
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>.That.IsGreaterThan(0), A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 
@@ -182,8 +182,8 @@ public sealed class ErasedEventAsyncProjectionHostShould
 			.Throws(new InvalidOperationException("the serializer must never be asked to resolve a tombstone"));
 
 		var checkpointed = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_ = A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
-			.Invokes((string _, long? _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
+		_ = A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
+			.Invokes((string _, string _, Guid _, long? _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
 			.Returns(Task.FromResult(CheckpointAdvanceOutcome.Advanced));
 
 		var host = CreateHost();
@@ -234,7 +234,7 @@ public sealed class ErasedEventAsyncProjectionHostShould
 		await ((BackgroundService)host).StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - nothing checkpointed: the poison event stays unread for the next poll.
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>.That.IsGreaterThan(0), A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 }
@@ -265,7 +265,7 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 	private readonly IGlobalStreamProjection<GlobalStreamTestState> _projection =
 		A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
-	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+	private readonly ISubscriptionCheckpointStore _checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
 	private readonly ICursorMapStore _cursorMapStore = A.Fake<ICursorMapStore>();
 	private readonly IServiceProvider _serviceProvider = A.Fake<IServiceProvider>();
 	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
@@ -308,7 +308,7 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 		A.CallTo(() => scope.ServiceProvider).Returns(services.BuildServiceProvider());
 		A.CallTo(() => _scopeFactory.CreateScope()).Returns(scope);
 
-		_ = A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		_ = A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		return new GlobalStreamProjectionHost<GlobalStreamTestState>(
@@ -340,8 +340,8 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 			.Returns(Task.CompletedTask);
 
 		var checkpointed = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_ = A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
-			.Invokes((string _, long? _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
+		_ = A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
+			.Invokes((string _, string _, Guid _, long? _, long position, CancellationToken _) => checkpointed.TrySetResult(position))
 			.Returns(Task.FromResult(CheckpointAdvanceOutcome.Advanced));
 
 		var host = CreateHost();
@@ -403,7 +403,7 @@ public sealed class ErasedEventGlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - neither surface advanced: the poison event stays unread for the next poll.
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>.That.IsGreaterThan(0), A<CancellationToken>._))
 			.MustNotHaveHappened();
 		A.CallTo(() => _cursorMapStore.SaveCursorMapAsync(
 				A<string>._, A<IReadOnlyDictionary<string, long>>._, A<CancellationToken>._))

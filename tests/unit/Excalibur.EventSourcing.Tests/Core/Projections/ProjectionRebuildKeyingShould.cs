@@ -140,6 +140,19 @@ public sealed class ProjectionRebuildKeyingShould
 			+ "another writer moved. It is the stored STATE that a rebuild discards, not the position");
 	}
 
+    [Fact]
+    public async Task RepairStateAtTheSamePositionWithoutPretendingToAdvance()
+    {
+        var store = new RecordingProjectionStore();
+        store.Seed("agg-1", new CountProjection { Count = 999 }, position: 2);
+        var projection = new MultiStreamProjection<CountProjection>();
+        projection.AddHandler<Counted>((state, _) => state.Count++);
+        var service = BuildService(store, projection, Stored("agg-1", 1), Stored("agg-1", 2));
+        await service.RebuildAsync<CountProjection>(TestContext.Current.CancellationToken);
+        (await store.GetWithPositionAsync("agg-1", TestContext.Current.CancellationToken)).Projection!.Count.ShouldBe(2);
+        (await service.GetStatusAsync<CountProjection>(TestContext.Current.CancellationToken)).State.ShouldBe(ProjectionRebuildState.Completed);
+    }
+
 	/// <summary>A superseded write is a CONFLICT for a rebuild, never a completed one.</summary>
 	/// <remarks>
 	/// The live settle predicate treats "the row is already at or beyond the position I attempted" as
@@ -284,7 +297,7 @@ public sealed class ProjectionRebuildKeyingShould
 	{
 		var globalQuery = A.Fake<IGlobalStreamQuery>();
 		var serializer = A.Fake<IEventSerializer>();
-		var serviceProvider = A.Fake<IServiceProvider>();
+		var serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<CountProjection>();
 
 		A.CallTo(() => serviceProvider.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => serviceProvider.GetService(typeof(MultiStreamProjection<CountProjection>))).Returns(projection);
@@ -309,7 +322,7 @@ public sealed class ProjectionRebuildKeyingShould
 		return new ProjectionRebuildService(
 			serviceProvider,
 			serializer,
-			Options.Create(new ProjectionRebuildOptions { BatchSize = 100 }),
+			Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true,  BatchSize = 100 }),
 			NullLogger<ProjectionRebuildService>.Instance);
 	}
 
@@ -350,6 +363,7 @@ public sealed class ProjectionRebuildKeyingShould
 		public void Seed(string id, CountProjection state, long? position) => _rows[id] = (state, position);
 
 		public object? GetService(Type serviceType) =>
+            serviceType == typeof(IProjectionTenantBoundary) ? ProjectionTenantBoundary.EstateWide :
 			serviceType == typeof(IPositionedProjectionStore<CountProjection>) ? this : null;
 
 		// The unnumbered write: a complete fold whose prefix has no global position number.

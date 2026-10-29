@@ -66,6 +66,12 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 	/// </summary>
 	internal string? MaterializedViewPositionTableName { get; private set; }
 
+	/// <summary>
+	/// Gets the schema holding both materialized view tables. Never null -- the resolved default,
+	/// so the registration passes the same value the store would have resolved for itself.
+	/// </summary>
+	internal string MaterializedViewSchemaName { get; private set; } = "dbo";
+
 	// --- Connection overloads (last-wins: each clears the others) ---
 
 	/// <inheritdoc/>
@@ -174,20 +180,24 @@ internal sealed class SqlServerEventSourcingBuilder : ISqlServerEventSourcingBui
 		EnableMaterializedViewStore = true;
 		MaterializedViewTableName = null;
 		MaterializedViewPositionTableName = null;
+		MaterializedViewSchemaName = "dbo";
 		return this;
 	}
 
 	/// <inheritdoc/>
 	public ISqlServerEventSourcingBuilder UseMaterializedViewStore(
 		string viewTableName,
-		string positionTableName)
+		string positionTableName,
+		string schemaName = "dbo")
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewTableName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(positionTableName);
+		ArgumentException.ThrowIfNullOrWhiteSpace(schemaName);
 
 		EnableMaterializedViewStore = true;
 		MaterializedViewTableName = viewTableName;
 		MaterializedViewPositionTableName = positionTableName;
+		MaterializedViewSchemaName = schemaName;
 		return this;
 	}
 

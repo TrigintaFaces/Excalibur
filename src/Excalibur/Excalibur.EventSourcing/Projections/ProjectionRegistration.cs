@@ -15,6 +15,7 @@ namespace Excalibur.EventSourcing.Projections;
 /// Its position in the global stream, or <see langword="null"/> on the save path, where the event is
 /// being committed and no global position has been assigned yet.
 /// </param>
+/// <param name="TenantId">Authoritative stored tenant provenance for a numbered event; null means unknown.</param>
 /// <remarks>
 /// <para>
 /// <b>Why the aggregate id travels PER EVENT rather than once per call.</b> It used to arrive on the
@@ -32,7 +33,8 @@ namespace Excalibur.EventSourcing.Projections;
 internal readonly record struct ProjectionEvent(
 	IDomainEvent Domain,
 	string AggregateId,
-	long? GlobalPosition);
+	long? GlobalPosition,
+	string? TenantId = null);
 
 
 /// <summary>

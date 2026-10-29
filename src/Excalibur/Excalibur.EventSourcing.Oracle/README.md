@@ -9,6 +9,12 @@ Provides:
 
 Data access uses Dapper over `Oracle.ManagedDataAccess.Core` (ODP.NET). No EntityFramework.
 
+## Database requirements
+
+Oracle Database **19c or later** is required, matching the ODP.NET 23 driver requirements. See [Oracle system requirements](https://docs.oracle.com/en/database/oracle/oracle-database/23/odpnt/InstallSystemRequirements.html).
+
+Subscription and projection keys use ordinal, case-sensitive identity. The checkpoint script requests `COLLATE BINARY`; on databases with `MAX_STRING_SIZE=STANDARD`, it falls back to the default column declaration. Store comparisons still explicitly use `COLLATE BINARY`, including when a session uses linguistic, case-insensitive comparisons. Changing `MAX_STRING_SIZE` is not required. Oracle documents that the expression-level operator remains available without enabling data-bound column collations in its [collation guide](https://docs.oracle.com/en/database/oracle/oracle-database/19/nlspg/linguistic-sorting-and-matching.html).
+
 ## Schema
 
 The stores do **not** create their tables at runtime. Provision them before the first append, by

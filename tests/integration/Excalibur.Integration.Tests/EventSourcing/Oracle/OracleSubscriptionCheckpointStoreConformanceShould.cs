@@ -35,6 +35,25 @@ public sealed class OracleSubscriptionCheckpointStoreConformanceShould
 		IClassFixture<OracleEventStoreContainerFixture>,
 		IAsyncLifetime
 {
+    [Fact]
+    public Task GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime_Test() => GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime();
+
+    [Fact]
+    public Task GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference_Test() => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference();
+
+    [Fact]
+    public async Task KeepIndependentReaderRetirementRacesSafeWithAnIndexedChildKey()
+    {
+        await using var connection = _fixture.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM USER_IND_COLUMNS WHERE TABLE_NAME = :TableName AND COLUMN_NAME = 'BINDINGID' AND COLUMN_POSITION = 1";
+        command.Parameters.Add(new OracleParameter("TableName", (CheckpointTable + "READERS").ToUpperInvariant()));
+        Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture).ShouldBeGreaterThan(0);
+        await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference()));
+    }
+
+
 	private const string CheckpointTable = "SUBSCRIPTIONCHECKPOINTS";
 
 	private readonly OracleEventStoreContainerFixture _fixture;
@@ -64,22 +83,63 @@ public sealed class OracleSubscriptionCheckpointStoreConformanceShould
 
 		var services = new ServiceCollection();
 		_ = services.AddOracleSubscriptionCheckpointStore(
-			() => new OracleConnection(connectionString), _fixture.Schema, CheckpointTable);
+			() =>
+            {
+                var connection = new OracleConnection(connectionString);
+                connection.StateChange += (_, change) =>
+                {
+                    if (change.CurrentState != System.Data.ConnectionState.Open) { return; }
+                    using var command = connection.CreateCommand();
+                    command.CommandText = "ALTER SESSION SET NLS_COMP=LINGUISTIC";
+                    command.ExecuteNonQuery();
+                    command.CommandText = "ALTER SESSION SET NLS_SORT=BINARY_CI";
+                    command.ExecuteNonQuery();
+                };
+                return connection;
+            }, _fixture.Schema, CheckpointTable);
 
 		return services.BuildServiceProvider().GetRequiredService<ISubscriptionCheckpointStore>();
 	}
 
-	[Fact]
-	public Task Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint_Test() =>
-		Bind_IdenticalDefinition_ShouldJoinWithoutCreatingCheckpoint();
+    [Fact]
+    public Task RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement_Test() =>
+        RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement();
 
 	[Fact]
-	public Task Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint_Test() =>
-		Bind_DifferentDefinition_ShouldRefuseWithoutChangingCheckpoint();
+	public Task Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint_Test() =>
+		Bind_IdenticalRoster_ShouldJoinWithoutCreatingCheckpoint();
 
 	[Fact]
-	public Task ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne_Test() =>
-		ConcurrentBindings_WithDifferentDefinitions_ShouldAcceptExactlyOne();
+	public Task Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched_Test() =>
+		Bind_NewMember_ShouldBeAdditive_AndLeaveSiblingCheckpointsUntouched();
+
+	[Fact]
+	public Task Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound_Test() =>
+		Bind_ChangedMemberFingerprint_ShouldRefuseNamingThatProjection_AndLeaveOthersBound();
+
+	[Fact]
+	public Task Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply_Test() =>
+		Bind_ShouldReturnRosterIncludingMembersTheCallerDidNotSupply();
+
+	[Fact]
+	public Task ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne_Test() =>
+		ConcurrentBindings_OfOneMember_WithDifferentFingerprints_ShouldAcceptExactlyOne();
+
+	[Fact]
+	public Task Release_ShouldRemoveMemberAndItsCheckpoint_Atomically_Test() =>
+		Release_ShouldRemoveMemberAndItsCheckpoint_Atomically();
+
+	[Fact]
+	public Task Release_AbsentMember_ShouldReturnFalse_AndWriteNothing_Test() =>
+		Release_AbsentMember_ShouldReturnFalse_AndWriteNothing();
+
+	[Fact]
+	public Task Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent_Test() =>
+		Bind_CaseDistinctProjectionKeys_ShouldRemainIndependent();
+
+
+
+
 
 	[Fact]
 	public Task Bind_CaseDistinctNames_ShouldRemainIndependent_Test() =>
@@ -118,6 +178,14 @@ public sealed class OracleSubscriptionCheckpointStoreConformanceShould
 		ConcurrentAdvances_FromTheSamePosition_ShouldAcceptExactlyOne();
 
 	[Fact]
+	public Task Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip_Test() =>
+		Advance_WhenNameAndKeyTogetherExceedTheNameWidth_ShouldRoundTrip();
+
+	[Fact]
+	public Task Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors_Test() =>
+		Advance_CaseDistinctProjectionKeys_ShouldRemainDistinctCursors();
+
+	[Fact]
 	public Task Enumerate_ShouldReportStoredCheckpoints_Test() =>
 		Enumerate_ShouldReportStoredCheckpoints();
 
@@ -133,27 +201,15 @@ public sealed class OracleSubscriptionCheckpointStoreConformanceShould
 		await using var connection = _fixture.CreateConnection();
 		await connection.OpenAsync().ConfigureAwait(false);
 
-		var sql =
-			"DECLARE n NUMBER; BEGIN "
-			+ $"SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = '{CheckpointTable}'; "
-			+ "IF n = 0 THEN EXECUTE IMMEDIATE '"
-			+ $"CREATE TABLE {CheckpointTable} ("
-			+ "SUBSCRIPTIONNAME VARCHAR2(255) NOT NULL, "
-			+ "POSITION NUMBER(19) NOT NULL, "
-			+ "UPDATEDAT TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, "
-			+ $"CONSTRAINT PK_{CheckpointTable} PRIMARY KEY (SUBSCRIPTIONNAME))'; "
-			+ "END IF; "
-			+ $"SELECT COUNT(*) INTO n FROM USER_TABLES WHERE TABLE_NAME = '{CheckpointTable}DEFINITIONS'; "
-			+ "IF n = 0 THEN EXECUTE IMMEDIATE '"
-			+ $"CREATE TABLE {CheckpointTable}DEFINITIONS ("
-			+ "SUBSCRIPTIONNAME VARCHAR2(255) NOT NULL PRIMARY KEY, "
-			+ "DEFINITIONHASH VARCHAR2(64 BYTE) NOT NULL)'; "
-			+ "END IF; END;";
 
-#pragma warning disable CA2100 // Table name is a test-controlled constant
-		await using var command = connection.CreateCommand();
-		command.CommandText = sql;
+        foreach (var script in global::Tests.Shared.Helpers.ShippedSchemaScript.ReadOracleUnits(
+            "src/Excalibur/Excalibur.EventSourcing.Oracle/Scripts/003_CreateSubscriptionCheckpointSchema.sql"))
+        {
+            await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // Shipped provider SQL; only test-owned schema names are substituted.
+            command.CommandText = script.Replace("EXCALIBUR.SUBSCRIPTIONCHECKPOINTS", CheckpointTable, StringComparison.Ordinal);
 #pragma warning restore CA2100
-		_ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-	}
+            _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+    }
 }

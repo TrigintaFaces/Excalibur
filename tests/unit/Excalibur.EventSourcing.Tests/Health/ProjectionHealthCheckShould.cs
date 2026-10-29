@@ -34,6 +34,11 @@ public sealed class ProjectionHealthCheckShould
 {
 	private const string Subscription = "AsyncProjectionProcessingHost";
 
+	// A cursor is addressed by the pair, so an arm about one cursor still has to name its projection.
+	// Lag is reported per subscription, so which projection it is does not matter here -- only that the
+	// pair is the key.
+	private const string ProjectionKey = "Proj.A";
+
 	private readonly ProjectionHealthState _state = new();
 
 	[Fact]
@@ -244,7 +249,8 @@ public sealed class ProjectionHealthCheckShould
 		var result = await check.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
 
 		result.Status.ShouldBe(HealthStatus.Healthy);
-		(await checkpoints.GetCheckpointAsync(Subscription, TestContext.Current.CancellationToken)).ShouldBeNull();
+		(await checkpoints.GetCheckpointAsync(
+			Subscription, ProjectionKey, TestContext.Current.CancellationToken)).ShouldBeNull();
 	}
 
 	[Fact]
@@ -401,8 +407,8 @@ public sealed class ProjectionHealthCheckShould
 		// LIVENESS, and the arm that stops the two above being satisfied by a check that never reports
 		// healthy. A subscription that HAS a checkpoint at the head is the good case and must pass.
 		var checkpoints = new InMemorySubscriptionCheckpointStore();
-		_ = await checkpoints.AdvanceCheckpointAsync(
-			Subscription, null, 10, TestContext.Current.CancellationToken).ConfigureAwait(false);
+		_ = await checkpoints.AdvanceBoundCheckpointAsync(
+			Subscription, ProjectionKey, null, 10, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
 		var head = A.Fake<IGlobalStreamQuery>();
 		A.CallTo(() => head.GetHeadPositionAsync(A<CancellationToken>._)).Returns(10L);

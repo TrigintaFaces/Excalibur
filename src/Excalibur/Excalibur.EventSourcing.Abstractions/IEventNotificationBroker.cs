@@ -36,7 +36,8 @@ public interface IEventNotificationBroker
 	/// <returns>
 	/// Whether this save's <c>Inline</c> projections reached the context's global position:
 	/// <see cref="ProjectionFreshness.NotRequested"/> when no projection is registered <c>Inline</c>,
-	/// <see cref="ProjectionFreshness.Fresh"/> when they folded the prefix through it, and
+	/// <see cref="ProjectionFreshness.Attested"/> when they were observed to have folded the prefix
+	/// through it against the roster as it then stood, and
 	/// <see cref="ProjectionFreshness.BoundExpired"/> when the bounded wait ended first. The value is
 	/// RETURNED rather than thrown because the events are already committed: an exception here reports a
 	/// failed save that did not fail, and every retry policy in the ecosystem would repeat the command.
@@ -59,7 +60,7 @@ public interface IEventNotificationBroker
 	/// own clock, so an unresponsive store still cannot hold a save open forever.
 	/// </para>
 	/// </remarks>
-	Task<ProjectionFreshness> NotifyAsync(
+	Task<ProjectionCompletion> NotifyAsync(
 		IReadOnlyList<IDomainEvent> events,
 		EventNotificationContext context);
 }

@@ -9,6 +9,7 @@ using Excalibur.Dispatch;
 using Excalibur.Dispatch.Versioning;
 using Excalibur.EventSourcing.Diagnostics;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -26,20 +27,21 @@ namespace Excalibur.EventSourcing.Projections;
 /// and projection application to registered <see cref="MultiStreamProjection{TProjection}"/> instances.
 /// </para>
 /// </remarks>
-internal sealed partial class ProjectionRebuildService : IProjectionRebuildService
+internal sealed partial class ProjectionRebuildService : IProjectionRebuildService, IDisposable
 {
 	private readonly IServiceProvider _serviceProvider;
+	private readonly SemaphoreSlim _rebuildCapacity;
 	private readonly IEventSerializer _eventSerializer;
 	private readonly IOptions<ProjectionRebuildOptions> _options;
 	private readonly ILogger<ProjectionRebuildService> _logger;
 	private readonly IUpcastingPipeline? _upcastingPipeline;
 	private readonly bool _enableAutoUpcast;
-	private readonly ConcurrentDictionary<string, ProjectionRebuildStatus> _statuses = new();
+	private readonly ConcurrentDictionary<Type, ProjectionRebuildStatus> _statuses = new();
 
 	// Per-projection in-progress claim set: a rebuild atomically claims its projection name here so a
 	// second concurrent StartRebuild for the same projection is rejected rather than interleaving replays and
 	// racing the final UpsertAsync. Released in a finally so a later rebuild (after this one finishes) proceeds.
-	private readonly ConcurrentDictionary<string, byte> _rebuildsInProgress = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<Type, byte> _rebuildsInProgress = new();
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionRebuildService"/> class.
@@ -58,6 +60,9 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		_eventSerializer = eventSerializer ?? throw new ArgumentNullException(nameof(eventSerializer));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		var maximum = options.Value.MaxParallelism;
+		ArgumentOutOfRangeException.ThrowIfLessThan(maximum, 1);
+		_rebuildCapacity = new SemaphoreSlim(maximum, maximum);
 
 		// Apply the same upcasting the write side uses so a rebuilt read model does not diverge from the write
 		// model on an evolved event schema. Optional: resolved from DI, never fails.
@@ -80,12 +85,72 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		return _upcastingPipeline.Upcast(domainEvent) as IDomainEvent ?? domainEvent;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Removes this projection's subscription member and its checkpoint, so a rebuild folds from zero.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection being rebuilt.</typeparam>
+	/// <param name="services">The rebuild execution scope.</param>
+	/// <param name="store">The actual rebuild store.</param>
+	/// <param name="mode">The registered projection mode.</param>
+	/// <param name="cancellationToken">Cancellation token.</param>
+	/// <returns>A task that completes when the member has been released, or when there was none.</returns>
+	private async Task ReleaseSubscriptionMemberAsync<TProjection>(IServiceProvider services,
+        IProjectionStore<TProjection> store, ProjectionMode mode, CancellationToken cancellationToken) where TProjection : class
+    {
+        var source = mode == ProjectionMode.Inline ? services.GetService<InlineProjectionSource>() : null;
+        var checkpoints = source?.Checkpoints ?? services.GetService<Subscriptions.ISubscriptionCheckpointStore>()
+            ?? throw new InvalidOperationException("Projection rebuild requires a subscription checkpoint store.");
+        checkpoints = ProjectionCapacitySource.Checkpoints(services, checkpoints);
+        var options = services.GetService<IOptions<GlobalStreamProjectionOptions>>()?.Value
+            ?? throw new InvalidOperationException("Projection rebuild requires configured subscription options.");
+        var name = (mode == ProjectionMode.Inline ? "Inline:" : string.Empty) + options.ProjectionName;
+        var key = Subscriptions.SubscriptionKeys.ProjectionKey(typeof(TProjection));
+        var roster = await checkpoints.ReadSubscriptionAsync(name, cancellationToken).ConfigureAwait(false);
+        var member = roster.Members.FirstOrDefault(m => m.ProjectionKey == key);
+        if (member is null) { return; }
+        var identity = (store.GetService(typeof(IProjectionDestinationIdentity)) as IProjectionDestinationIdentity)?.Identity;
+        var cluster = services.GetService<ProjectionCapacity>() is { } capacity
+            ? await capacity.ReadScopeAsync(store, cancellationToken).ConfigureAwait(false)
+            : store.GetService(typeof(IAsyncProjectionDestinationScope)) is IAsyncProjectionDestinationScope asyncScope
+            ? await asyncScope.GetScopeAsync(cancellationToken).ConfigureAwait(false)
+            : (store.GetService(typeof(IProjectionDestinationScope)) as IProjectionDestinationScope)?.Scope;
+        var actualScope = ProjectionTenantValidation.Scope(store, cluster);
+        if (string.IsNullOrWhiteSpace(identity) || string.IsNullOrWhiteSpace(actualScope)
+            || member.Destination != identity || member.DestinationScope != actualScope)
+        {
+            throw new InvalidOperationException("The rebuild destination and tenant boundary do not match the bound projection. Its lifetime has not been retired.");
+        }
+        if (!await checkpoints.ReleaseSubscriptionMemberAsync(name, key, member.BindingId, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException($"Projection '{key}' changed lifetime while preparing its rebuild.");
+        }
+        LogRebuildReleasedMember(name, key);
+    }
+
+    /// <inheritdoc />
+    public async Task RebuildAsync<TProjection>(CancellationToken cancellationToken) where TProjection : class, new()
+    {
+        ProjectionCapacity.ValidateAdmission(ProjectionCapacityKind.Rebuild);
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        await RebuildCoreAsync<TProjection>(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static ValueTask<IReadOnlyList<StoredEvent>> ReadEventsAsync(IServiceProvider services, Queries.IGlobalStreamQuery query,
+        Queries.GlobalStreamPosition position, int count, CancellationToken token) =>
+        ProjectionCapacitySource.ReadAsync(services, query, ct => query.ReadAllAsync(position, count, ct), token);
+
+    private static ValueTask<long> ReadHeadAsync(IServiceProvider services, Queries.IGlobalStreamQuery query, CancellationToken token) =>
+        ProjectionCapacitySource.ReadAsync(services, query, query.GetHeadPositionAsync, token);
+
+    private static Queries.IGlobalStreamQuery? ResolveQuery(IServiceProvider services, ProjectionMode mode) =>
+        (mode == ProjectionMode.Inline ? services.GetService<InlineProjectionSource>()?.Query : null)
+        ?? services.GetService<Queries.IGlobalStreamQuery>();
+
 	[UnconditionalSuppressMessage("AOT", "IL2026",
 		Justification = "Event deserialization during rebuild uses IEventSerializer which consumers configure with preserved types.")]
 	[UnconditionalSuppressMessage("AOT", "IL3050",
 		Justification = "Event deserialization during rebuild uses IEventSerializer which consumers configure.")]
-	public async Task RebuildAsync<TProjection>(CancellationToken cancellationToken)
+	private async Task RebuildCoreAsync<TProjection>(IServiceProvider services, CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
 		var projectionName = typeof(TProjection).Name;
@@ -93,7 +158,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		// Reject an overlapping rebuild of the same projection: the atomic TryAdd claim ensures only
 		// one rebuild per projection runs at a time, so two starts cannot interleave reindex/upsert and leave
 		// the read model partially overwritten. A second concurrent start fails fast instead of racing.
-		if (!_rebuildsInProgress.TryAdd(projectionName, 0))
+		if (!_rebuildsInProgress.TryAdd(typeof(TProjection), 0))
 		{
 			LogRebuildAlreadyInProgress(projectionName);
 			throw new InvalidOperationException(
@@ -102,21 +167,26 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 
 		LogRebuildStarted(projectionName);
 
-		_statuses[projectionName] = new ProjectionRebuildStatus(
+		_statuses[typeof(TProjection)] = new ProjectionRebuildStatus(
 			projectionName,
 			ProjectionRebuildState.Rebuilding,
 			Progress: 0,
 			LastRebuiltAt: null);
 
+		var capacityAcquired = false;
 		try
-		{
-			// Resolve the global stream query for reading events
-			if (_serviceProvider.GetService(typeof(Queries.IGlobalStreamQuery))
-				is not Queries.IGlobalStreamQuery globalQuery)
+        {
+            await _rebuildCapacity.WaitAsync(cancellationToken).ConfigureAwait(false);
+            capacityAcquired = true;
+            cancellationToken.ThrowIfCancellationRequested();
+            var registered = services.GetService<IProjectionRegistry>()?.GetRegistration(typeof(TProjection));
+            var mode = registered?.Mode ?? ProjectionMode.Async;
+            // Resolve the global stream query from the same source that owns this mode's checkpoint.
+			if (ResolveQuery(services, mode) is not { } globalQuery)
 			{
 				LogNoGlobalQueryRegistered(projectionName);
 
-				_statuses[projectionName] = new ProjectionRebuildStatus(
+				_statuses[typeof(TProjection)] = new ProjectionRebuildStatus(
 					projectionName,
 					ProjectionRebuildState.Failed,
 					Progress: 0,
@@ -126,11 +196,11 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 			}
 
 			// Resolve the multi-stream projection -- check DI first, then IProjectionRegistry (for registered projections)
-			var projection = _serviceProvider.GetService(typeof(MultiStreamProjection<TProjection>))
+			var projection = services.GetService(typeof(MultiStreamProjection<TProjection>))
 				as MultiStreamProjection<TProjection>;
 
 			if (projection is null
-				&& _serviceProvider.GetService(typeof(IProjectionRegistry)) is IProjectionRegistry registry)
+				&& services.GetService(typeof(IProjectionRegistry)) is IProjectionRegistry registry)
 			{
 				var registration = registry.GetRegistration(typeof(TProjection));
 				projection = registration?.Projection as MultiStreamProjection<TProjection>;
@@ -140,7 +210,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 			{
 				LogNoProjectionRegistered(projectionName);
 
-				_statuses[projectionName] = new ProjectionRebuildStatus(
+				_statuses[typeof(TProjection)] = new ProjectionRebuildStatus(
 					projectionName,
 					ProjectionRebuildState.Failed,
 					Progress: 0,
@@ -149,11 +219,55 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				return;
 			}
 
-			var store = _serviceProvider.GetService(typeof(IProjectionStore<TProjection>))
-				as IProjectionStore<TProjection>;
-			var positioned = store is null
-				? null
-				: PositionedProjectionWriter<TProjection>.Resolve(store);
+            var store = services.GetService(typeof(IProjectionStore<TProjection>)) as IProjectionStore<TProjection>
+                ?? throw new InvalidOperationException($"No projection store is registered for '{projectionName}'.");
+            if (!_options.Value.OfflineRebuildAcknowledged)
+            {
+                throw new InvalidOperationException("In-place rebuild requires OfflineRebuildAcknowledged after all writers and other rebuilds have stopped and drained. For online evolution, populate a separate projection generation and switch its reader pointer.");
+            }
+            if (services.GetService<ProjectionCapacity>() is { } capacity)
+            {
+                var resource = await capacity.ResolveResourceAsync(store, cancellationToken).ConfigureAwait(false);
+                _ = await capacity.ExecuteAsync(resource, ProjectionCapacityKind.Rebuild, async token =>
+                {
+                    await ReplayProjectionAsync(services, projection, store, mode, globalQuery, token).ConfigureAwait(false);
+                    return true;
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await ReplayProjectionAsync(services, projection, store, mode, globalQuery, cancellationToken).ConfigureAwait(false);
+            }
+		}
+		catch (Exception ex)
+		{
+			_statuses[typeof(TProjection)] = new ProjectionRebuildStatus(
+				projectionName,
+				ProjectionRebuildState.Failed,
+				Progress: 0,
+				LastRebuiltAt: null);
+
+			LogRebuildFailed(projectionName, ex);
+			throw;
+		}
+		finally
+		{
+			if (capacityAcquired) { _rebuildCapacity.Release(); }
+			// Release the claim so a subsequent rebuild of this projection can proceed once this one ends
+			// (success, failure, or cancellation).
+			_ = _rebuildsInProgress.TryRemove(typeof(TProjection), out _);
+		}
+	}
+
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "Rebuild uses the consumer-configured event serializer and projection metadata.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Rebuild uses the consumer-configured event serializer and projection metadata.")]
+    private async Task ReplayProjectionAsync<TProjection>(IServiceProvider services, MultiStreamProjection<TProjection> projection,
+        IProjectionStore<TProjection> store, ProjectionMode mode, Queries.IGlobalStreamQuery globalQuery, CancellationToken cancellationToken)
+        where TProjection : class, new()
+    {
+        var projectionName = typeof(TProjection).Name;
+
+            var positioned = PositionedProjectionWriter<TProjection>.Resolve(store);
 
 			// PER PROJECTION ID, not one state for the whole run.
 			//
@@ -168,7 +282,8 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 			// The fold itself lives in ProjectionReplayFold, which documents the three places a replay
 			// must NOT reuse the live apply path: the seed, the already-folded filter, and the settle
 			// predicate.
-			var fold = new ProjectionReplayFold<TProjection>(projection, store, positioned, _serviceProvider);
+			var fold = new ProjectionReplayFold<TProjection>(projection, store, positioned, services);
+            await ReleaseSubscriptionMemberAsync(services, store, mode, cancellationToken).ConfigureAwait(false);
 
 			var position = new Queries.GlobalStreamPosition(0, DateTimeOffset.MinValue);
 			var opts = _options.Value;
@@ -176,7 +291,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var events = await globalQuery.ReadAllAsync(position, opts.BatchSize, cancellationToken)
+				var events = await ReadEventsAsync(services, globalQuery, position, opts.BatchSize, cancellationToken)
 					.ConfigureAwait(false);
 
 				if (events.Count == 0)
@@ -192,7 +307,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 					//
 					// The head position separates them: if the stream has advanced beyond us and we were
 					// still handed nothing, the run was withheld rather than exhausted.
-					var head = await globalQuery.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+					var head = await ReadHeadAsync(services, globalQuery, cancellationToken).ConfigureAwait(false);
 					if (head > position.Position)
 					{
 						// HALT, the same way a poison event halts below, and for the same reason: the partial
@@ -252,7 +367,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 								storedEvent.Version,
 								storedEvent.Timestamp,
 								storedEvent.GlobalPosition,
-								cancellationToken)
+								cancellationToken, storedEvent.TenantId)
 							.ConfigureAwait(false);
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
@@ -289,9 +404,10 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 			else
 			{
 				var registration =
-					(_serviceProvider.GetService(typeof(IProjectionRegistry)) as IProjectionRegistry)
+					(services.GetService(typeof(IProjectionRegistry)) as IProjectionRegistry)
 						?.GetRegistration(typeof(TProjection));
 
+				cancellationToken.ThrowIfCancellationRequested();
 				await fold.FlushAsync(
 						registration?.SearchTextComputer,
 						registration?.SearchTextSetter,
@@ -302,36 +418,15 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 				LogRebuildPersisted(projectionName);
 			}
 
-			_statuses[projectionName] = new ProjectionRebuildStatus(
+			cancellationToken.ThrowIfCancellationRequested();
+			_statuses[typeof(TProjection)] = new ProjectionRebuildStatus(
 				projectionName,
 				ProjectionRebuildState.Completed,
 				Progress: 100,
 				LastRebuiltAt: DateTimeOffset.UtcNow);
 
 			LogRebuildCompleted(projectionName, totalProcessed);
-		}
-		catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
-		{
-			throw;
-		}
-		catch (Exception ex)
-		{
-			_statuses[projectionName] = new ProjectionRebuildStatus(
-				projectionName,
-				ProjectionRebuildState.Failed,
-				Progress: 0,
-				LastRebuiltAt: null);
-
-			LogRebuildFailed(projectionName, ex);
-			throw;
-		}
-		finally
-		{
-			// Release the claim so a subsequent rebuild of this projection can proceed once this one ends
-			// (success, failure, or cancellation).
-			_ = _rebuildsInProgress.TryRemove(projectionName, out _);
-		}
-	}
+    }
 
 	/// <inheritdoc />
 	public Task<ProjectionRebuildStatus> GetStatusAsync<TProjection>(CancellationToken cancellationToken)
@@ -339,7 +434,7 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	{
 		var projectionName = typeof(TProjection).Name;
 
-		var status = _statuses.TryGetValue(projectionName, out var found)
+		var status = _statuses.TryGetValue(typeof(TProjection), out var found)
 			? found
 			: new ProjectionRebuildStatus(
 				projectionName,
@@ -357,6 +452,9 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 		return Task.FromResult(result);
 	}
 
+	/// <inheritdoc />
+	public void Dispose() => _rebuildCapacity.Dispose();
+
 	#region Logging
 
 	[LoggerMessage(EventSourcingEventId.ProjectionRebuilt, LogLevel.Information,
@@ -370,6 +468,15 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
 	[LoggerMessage(EventSourcingEventId.ProjectionError, LogLevel.Error,
 		"Projection rebuild failed for {ProjectionName}")]
 	private partial void LogRebuildFailed(string projectionName, Exception ex);
+
+	/// <remarks>
+	/// Information, not Debug: a rebuild resetting a durable cursor is an operational event an operator
+	/// wants in the record, because it is the point from which the projection re-folds its whole history.
+	/// </remarks>
+	[LoggerMessage(EventSourcingEventId.ProjectionRebuildReleasedMember, LogLevel.Information,
+		"Rebuild released subscription member '{ProjectionKey}' from '{SubscriptionName}'; "
+		+ "that projection will re-bind and fold from the beginning.")]
+	private partial void LogRebuildReleasedMember(string subscriptionName, string projectionKey);
 
 	[LoggerMessage(EventSourcingEventId.ProjectionRebuildAlreadyInProgress, LogLevel.Warning,
 		"Rebuild rejected for {ProjectionName}: a rebuild is already in progress")]

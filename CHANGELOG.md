@@ -17,6 +17,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — projection evolution and consistency
+
+- Keep subscription names stable when adding projections. Each projection member has its own checkpoint
+  lifetime, definition and destination; changed projection meaning requires an intentional generation.
+- Populate a separate physical generation from events and switch readers through a checked cutover.
+  Generation readers and session receipts validate the destination and actual tenant boundary.
+- Snapshots remain optional aggregate-loading optimizations. Projection population and rebuilding use
+  the event stream, not aggregate snapshots.
+- In-place repairs require stopped and drained writers/readers. `ProjectionRebuildOptions.MaxParallelism`
+  now enforces a cancellation-safe limit per service instance, including destination writes.
+- Projection processing and replay share bounded storage admission across scopes, with separate read, write
+  and rebuild limits, an application-wide backstop, FIFO queues and admission metrics.
+- Rebuild history identifies projection types by fully qualified name. Its optional type filter now expects
+  that exact name, so namespace-distinct projections remain distinguishable.
+- Oracle persistence requires Oracle Database 19c or later; checkpoint comparisons remain binary under
+  case-insensitive session settings, without requiring a change to `MAX_STRING_SIZE`.
+
+See [projection evolution](docs-site/docs/event-sourcing/projection-evolution.md) for setup and limits.
+
+### Changed (breaking) — terminal projection deletion and page totals
+
+- `IProjectionStore<T>.DeleteAsync` retires the key within its tenant and physical generation, including
+  an absent key. It removes the payload and retains a minimal durable marker. Subsequent conditional
+  writes report `Vanished`; blind writes fail. Populate a new generation to reuse the logical key.
+  Queries, counts and pages exclude retirement metadata. This does not erase source events or cancel
+  in-flight handlers and external effects.
+- `PagedResult<T>.TotalPages` and `CursorPagedResult<T>.TotalPages` now return `long`, calculated with
+  integer arithmetic. Offset APIs still reject offsets outside their supported integer range.
+- SQL Server projection counts use `COUNT_BIG`. Generic paging obtains the full count separately from
+  its bounded page query. Distinct-value fallback refuses truncated results. OpenSearch query/count
+  errors propagate instead of becoming empty results.
+
+### Native AOT boundary
+
+Generated serialization and exact-generation reader paths are exercised by the native probe. The
+reviewed SqlClient dependency limitation remains accepted for this alpha; the complete SQL Server to
+Elasticsearch native path is **not AOT certified**. See the
+[native probe](tests/harnesses/SqlElasticInlineAotProbe/README.md) for the strict publication policy.
+
+
 ## [10.0.0-alpha.19] - 2026-10-26
 
 ### Changed (breaking) — `BackoffStrategy` names three growth laws; jitter is a separate switch

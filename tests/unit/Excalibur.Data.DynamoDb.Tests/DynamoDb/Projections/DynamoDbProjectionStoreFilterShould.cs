@@ -57,8 +57,8 @@ public sealed class DynamoDbProjectionStoreFilterShould
 		public int Score { get; set; }
 	}
 
-	private static IOptions<DynamoDbProjectionStoreOptions> CreateOptions() =>
-		Microsoft.Extensions.Options.Options.Create(new DynamoDbProjectionStoreOptions
+	private static IOptionsMonitor<DynamoDbProjectionStoreOptions> CreateOptions() =>
+		new SingleNamedProjectionOptionsMonitor(new DynamoDbProjectionStoreOptions
 		{
 			TableName = "Projections",
 			// Skip EnsureTableAsync's DescribeTable round-trip so the fake only sees the Scan.
@@ -168,7 +168,7 @@ public sealed class DynamoDbProjectionStoreFilterShould
 
 	// ── AC-P1.4 / FR-P1.1 ── null/empty filter → unchanged (discriminator only) ──
 	[Fact]
-	public async Task QueryAsync_WithNullFilter_IssuesDiscriminatorOnly()
+	public async Task QueryAsync_WithNullFilter_ExcludesRetiredRows()
 	{
 		var captured = new List<ScanRequest>();
 		var store = CreateStore(CreateCapturingClient(captured, Dataset()));
@@ -176,12 +176,13 @@ public sealed class DynamoDbProjectionStoreFilterShould
 		_ = await store.QueryAsync(filters: null, options: null, CancellationToken.None);
 
 		var request = captured.ShouldHaveSingleItem();
-		request.FilterExpression.ShouldBe("#proj.#type = :projType");
-		request.FilterExpression.ShouldNotContain("AND");
+		request.FilterExpression.ShouldBe("#proj.#type = :projType AND (attribute_not_exists(#proj.#retiredPosition) OR #proj.#retiredPosition <> :retired)");
+		request.ExpressionAttributeValues[":retired"].N.ShouldBe("-3");
+		request.ExpressionAttributeNames["#retiredPosition"].ShouldBe("lastAppliedPosition");
 	}
 
 	[Fact]
-	public async Task QueryAsync_WithEmptyFilter_IssuesDiscriminatorOnly()
+	public async Task QueryAsync_WithEmptyFilter_ExcludesRetiredRows()
 	{
 		var captured = new List<ScanRequest>();
 		var store = CreateStore(CreateCapturingClient(captured, Dataset()));
@@ -189,7 +190,9 @@ public sealed class DynamoDbProjectionStoreFilterShould
 		_ = await store.QueryAsync(new Dictionary<string, object>(), options: null, CancellationToken.None);
 
 		var request = captured.ShouldHaveSingleItem();
-		request.FilterExpression.ShouldBe("#proj.#type = :projType");
+		request.FilterExpression.ShouldBe("#proj.#type = :projType AND (attribute_not_exists(#proj.#retiredPosition) OR #proj.#retiredPosition <> :retired)");
+		request.ExpressionAttributeValues[":retired"].N.ShouldBe("-3");
+		request.ExpressionAttributeNames["#retiredPosition"].ShouldBe("lastAppliedPosition");
 	}
 
 	// ── EC-P1.1 ── multiple filter keys all AND-combined ─────────────────────────
@@ -240,8 +243,14 @@ public sealed class DynamoDbProjectionStoreFilterShould
 
 		var request = captured.ShouldHaveSingleItem();
 		request.FilterExpression.ShouldContain("AND");
-		// The reserved discriminator binding must remain intact and unambiguous.
-		request.ExpressionAttributeValues[":projType"].S.ShouldBe(nameof(RegionProjection));
+		// The reserved discriminator binding must remain intact and unambiguous -- and it must be the
+		// FULLY-QUALIFIED discriminator, so a read never matches a same-named projection from another
+		// namespace sharing this table.
+		request.ExpressionAttributeValues[":projType"].S.ShouldBe(
+			DynamoDbProjectionTableConvention.GetProjectionDiscriminator<RegionProjection>());
+		request.ExpressionAttributeValues[":projType"].S.ShouldNotBe(
+			nameof(RegionProjection),
+			"an unqualified discriminator reads another namespace's same-named projection's items");
 		request.ExpressionAttributeValues.Values.ShouldContain(v => v.S == "custom");
 	}
 

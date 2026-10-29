@@ -39,8 +39,8 @@ namespace Excalibur.Data.OpenSearch.Projections;
 		+ "low-level transport types are separate namespaces. Splitting the positioned write into its own "
 		+ "type would duplicate the document layout, which is the one thing the conditional and "
 		+ "unconditional writes must agree on exactly.")]
-public sealed class OpenSearchProjectionStore<TProjection>
-	: IProjectionStore<TProjection>, IPositionedProjectionStore<TProjection>
+public sealed partial class OpenSearchProjectionStore<TProjection>
+	: IProjectionStore<TProjection>, IPositionedProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>
 	where TProjection : class
 {
 	/// <summary>
@@ -91,6 +91,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 #pragma warning restore CA2000
 
 		_client = new OpenSearchClient(settings);
+        _destinationScope = CaptureDestinationScope(_client);
 	}
 
 	/// <summary>
@@ -111,6 +112,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
+        _destinationScope = CaptureDestinationScope(_client);
 		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
 		_logger = logger;
@@ -121,21 +123,9 @@ public sealed class OpenSearchProjectionStore<TProjection>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	public async Task<TProjection?> GetByIdAsync(string id, CancellationToken cancellationToken)
-	{
-		await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
-
-		var response = await _client.GetAsync<TProjection>(
-			id,
-			g => g.Index(_indexName),
-			cancellationToken).ConfigureAwait(false);
-
-		if (!response.Found)
-		{
-			return null;
-		}
-
-		return response.Source;
-	}
+    {
+        return (await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false)).Projection;
+    }
 
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -244,7 +234,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		{
 			var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
 
-			if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+			if (read.Position.Kind == ProjectionPositionKind.Retired || read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 			{
 				return new ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
 			}
@@ -278,35 +268,48 @@ public sealed class OpenSearchProjectionStore<TProjection>
 	/// the document carries, and that difference belongs in the caller rather than in two copies of the
 	/// request.
 	/// </remarks>
+	[RequiresUnreferencedCode("Projection deserialization uses the configured source serializer.")]
+	[RequiresDynamicCode("Projection deserialization uses the configured source serializer.")]
 	private async Task IndexUnconditionallyAsync(
 		string id,
 		string document,
 		CancellationToken cancellationToken)
-	{
-		var response = await _client.LowLevel.IndexAsync<StringResponse>(
-			_indexName,
-			id,
-			PostData.String(document),
-			new IndexRequestParameters { Refresh = Refresh.WaitFor },
-			cancellationToken).ConfigureAwait(false);
-
-		// A rejected index used to return here indistinguishable from a successful one, so a caller
-		// that had lost its write was told it had made it.
-		if (!response.Success)
-		{
-			throw IndexingFailure(id, response);
-		}
-	}
+    {
+        for (var attempt = 0; attempt < ConditionalWriteAttempts; attempt++)
+        {
+            var read = await ReadForUpdateAsync(id, cancellationToken, materialize: false).ConfigureAwait(false);
+            if (read.Position.Kind == ProjectionPositionKind.Retired)
+            {
+                throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+            }
+            var request = new IndexRequestParameters { Refresh = Refresh.WaitFor };
+            if (read.SequenceNumber is { } sequence && read.PrimaryTerm is { } term)
+            {
+                request.IfSequenceNumber = sequence;
+                request.IfPrimaryTerm = term;
+            }
+            else
+            {
+                request.OpType = OpType.Create;
+            }
+            var response = await _client.LowLevel.IndexAsync<StringResponse>(_indexName, id,
+                PostData.String(document), request, cancellationToken).ConfigureAwait(false);
+            if (response.Success) { return; }
+            if (!IsVersionConflict(response)) { throw IndexingFailure(id, response); }
+        }
+        throw new InvalidOperationException("Projection write exhausted its concurrency retry limit.");
+    }
 
 	/// <inheritdoc/>
 	public async Task DeleteAsync(string id, CancellationToken cancellationToken)
 	{
 		await EnsureIndexAsync(cancellationToken).ConfigureAwait(false);
 
-		await _client.DeleteAsync<TProjection>(
-			id,
-			d => d.Index(_indexName),
-			cancellationToken).ConfigureAwait(false);
+        var marker = new JsonObject { [PositionField] = ProjectionPosition.RetiredSentinel };
+        var response = await _client.LowLevel.IndexAsync<StringResponse>(_indexName, id,
+            PostData.String(marker.ToJsonString()), new IndexRequestParameters { Refresh = Refresh.WaitFor },
+            cancellationToken).ConfigureAwait(false);
+        if (!response.Success) { throw IndexingFailure(id, response); }
 	}
 
 	/// <inheritdoc/>
@@ -341,13 +344,14 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			if (options?.OrderBy != null)
 			{
 				s.Sort(sort => sort.Field(
-					options.OrderBy,
+					ResolveSortField(options.OrderBy),
 					options.Descending ? SortOrder.Descending : SortOrder.Ascending));
 			}
 
 			return s;
 		}, cancellationToken).ConfigureAwait(false);
 
+		RequireValidResponse(response, "query");
 		return response.Documents.ToList();
 	}
 
@@ -362,8 +366,27 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			c => c.Index(_indexName).Query(BuildQuery(filters)),
 			cancellationToken).ConfigureAwait(false);
 
+		RequireValidResponse(response, "count");
 		return response.Count;
 	}
+
+    private static void RequireValidResponse(IResponse response, string operation)
+    {
+        if (!response.IsValid)
+        {
+            throw new InvalidOperationException($"OpenSearch projection {operation} failed: {response.ServerError?.Error?.Reason ?? response.OriginalException?.Message ?? "Invalid server response"}", response.OriginalException);
+        }
+    }
+
+    [RequiresUnreferencedCode("Resolving a CLR sort property requires preserved projection properties.")]
+    private string ResolveSortField(string field)
+    {
+        // CLR names use the same client field inference as serialization. Explicit wire paths pass through.
+        var property = typeof(TProjection).GetProperty(field);
+        if (property is null) { return field; }
+        var inferred = _client.Infer.Field(new Field(property));
+        return property.PropertyType == typeof(string) ? inferred + ".keyword" : inferred;
+    }
 
 	// Translates the caller's filter dictionary into an OpenSearch query. Empty/null filters match all;
 	// otherwise every (field, value) pair becomes an exact-match term, AND-combined (bool must). String
@@ -375,7 +398,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 	{
 		if (filters is null || filters.Count == 0)
 		{
-			return static q => q.MatchAll();
+			return static q => q.Bool(b => b.MustNot(n => n.Term(t => t.Field(PositionField).Value(ProjectionPosition.RetiredSentinel))));
 		}
 
 		return q =>
@@ -388,7 +411,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 				query &= q.Term(t => t.Field(fieldName).Value(filter.Value));
 			}
 
-			return query ?? q.MatchAll();
+			return (query ?? q.MatchAll()) & !q.Term(t => t.Field(PositionField).Value(ProjectionPosition.RetiredSentinel));
 		};
 	}
 
@@ -404,8 +427,49 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		// included) so a consumer-supplied IndexPrefix/IndexName or environment-derived segment
 		// (e.g. "Development") cannot produce an invalid index name.
 #pragma warning disable CA1308 // OpenSearch index names must be lowercase
-		return composed.ToLowerInvariant();
+		var lowered = composed.ToLowerInvariant();
 #pragma warning restore CA1308
+
+		// THE DECLARED GENERATION PARTICIPATES IN THE INDEX, so a change to the read model's shape or
+		// fold addresses a new index rather than mutating the one already serving reads: the new
+		// generation folds from zero while the previous one keeps its cursor until the consumer cuts
+		// over. A projection declaring no generation, or the first, resolves to exactly the name it
+		// resolved to before.
+		//
+		// A HYPHEN, the separator this method already composes a prefix with and one an index name
+		// permits. Applied to the fully resolved, already-lowercased name, so a configured IndexName
+		// override is versioned the same way the default type name is -- naming your index does not
+		// opt out of generations -- and the segment itself is digits, so the result stays lowercase.
+		//
+		// RESOLVED ONCE HERE, because both constructors assign _indexName from this method and the
+		// destination identity is composed from that same field: the physical index and the advertised
+		// identity are one derivation, not two that could disagree.
+		return ProjectionVersionConvention.Qualify(lowered, typeof(TProjection), '-');
+	}
+
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+        if (serviceType == typeof(IAsyncProjectionDestinationScope)) { return new ConcreteDestinationScope(this); }
+        if (serviceType == typeof(IProjectionDestinationScope))
+        {
+            var scope = ReadDestinationScope();
+            return scope is null ? null : new ConfiguredDestinationScope(scope);
+        }
+
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
+		if (serviceType == typeof(IProjectionDestinationIdentity))
+		{
+			return new ConfiguredDestinationIdentity("opensearch/" + _indexName);
+		}
+
+		return serviceType.IsInstanceOfType(this) ? this : null;
+	}
+
+	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
+	{
+		public string Identity { get; } = identity;
 	}
 
 	private async Task EnsureIndexAsync(CancellationToken cancellationToken)
@@ -417,6 +481,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 
 		var exists = await _client.Indices.ExistsAsync(_indexName, ct: cancellationToken)
 			.ConfigureAwait(false);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (!exists.Exists)
 		{
@@ -426,6 +491,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 					.NumberOfShards(_options.NumberOfShards)
 					.NumberOfReplicas(_options.NumberOfReplicas)),
 				cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
 
 			// Raise rather than serve: the shard and replica counts live in this request, so a store that
 			// carried on after a failed create would have the first write auto-create the index without
@@ -550,9 +616,10 @@ public sealed class OpenSearchProjectionStore<TProjection>
 				// resolves by creating.
 				if (conflicting.SequenceNumber is null || conflicting.PrimaryTerm is null)
 				{
-					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
+					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 				}
 
+				if (conflicting.Position.Kind == ProjectionPositionKind.Retired) { return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null); }
 				return conflicting.Position.Kind == ProjectionPositionKind.Positioned
 					? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, conflicting.Position.Value)
 					: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
@@ -563,7 +630,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 
 		var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
 
-		if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+		if (read.Position.Kind == ProjectionPositionKind.Retired || read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 		{
 			// Gone: deleted, which is how erasure removes personal data. Re-folding the event stream
 			// would reinstate it, so this is settled rather than retried.
@@ -627,7 +694,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 
 		var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
 
-		if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+		if (read.Position.Kind == ProjectionPositionKind.Retired || read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 		{
 			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
 		}
@@ -722,6 +789,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 			// unnumbered write landing in that window is exactly what moves the sequence number and causes
 			// this conflict. Reporting Superseded for a numberless row would hand the caller a null position
 			// to retry against, forever.
+			if (current.Position.Kind == ProjectionPositionKind.Retired) { return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null); }
 			return current.Position.Kind == ProjectionPositionKind.Positioned
 				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Position.Value)
 				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
@@ -742,7 +810,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 	/// </remarks>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	private async Task<PositionedRead> ReadForUpdateAsync(string id, CancellationToken cancellationToken)
+	private async Task<PositionedRead> ReadForUpdateAsync(string id, CancellationToken cancellationToken, bool materialize = true)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
@@ -802,7 +870,7 @@ public sealed class OpenSearchProjectionStore<TProjection>
 		_ = source.Remove(PositionField);
 
 		return new PositionedRead(
-			Deserialize(source),
+			!materialize || position.Kind == ProjectionPositionKind.Retired ? null : Deserialize(source),
 			position,
 			envelope["_seq_no"]?.GetValue<long>(),
 			envelope["_primary_term"]?.GetValue<long>());

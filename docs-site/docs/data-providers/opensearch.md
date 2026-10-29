@@ -8,6 +8,17 @@ description: OpenSearch provider with projections, index state management, healt
 
 Built on `OpenSearch.Client`. Covers projections, index state management (ISM), health checks, dead letter handling, materialized views, and tenant sharding.
 
+## Projection tenant isolation
+
+This provider's projection store is **estate-wide**: it does not add a tenant predicate to
+projection reads or writes. A tenant routing rule or tenant-presence decorator does not add row
+isolation when tenants share a destination. Row-discriminator multi-tenancy refuses an unmarked
+projection store during registration.
+
+Use an explicitly estate-wide read model for cross-tenant processing. For tenant-confined projections,
+use a store that enforces the partition, such as SQL Server or PostgreSQL, together with a source
+isolated to that tenant. See [projection tenant boundaries](../event-sourcing/projections.md#tenant-boundaries-during-global-stream-processing).
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -325,3 +336,12 @@ OpenSearch is a search/analytics projection of the audit trail, not a compliance
 - [Projections](../event-sourcing/projections.md) -- Projection concepts and builder API
 - [Audit Logging Providers](../observability/audit-logging-providers.md) -- All audit backend configurations
 - [Event Store Providers](../event-sourcing/providers.md) -- Event store provider comparison
+
+
+### Projection query failures and sorting
+
+Projection queries and counts propagate server failures; a failed query is never reported as an empty
+result. `QueryOptions.OrderBy` accepts a CLR property name and uses the client’s field-name inference.
+String properties use the `.keyword` subfield supplied by the default dynamic mapping. For a custom
+mapping, pass its explicit wire field path, such as `name.raw` or a lowercase keyword field. An unmapped
+or unsortable field fails explicitly.

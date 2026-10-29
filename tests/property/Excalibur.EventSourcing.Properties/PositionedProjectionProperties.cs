@@ -41,6 +41,7 @@ namespace Excalibur.EventSourcing.Properties;
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "EventSourcing")]
+[Trait("Pattern", "EventSourcing")]
 public sealed class PositionedProjectionProperties
 {
 	/// <summary>How many generated schedules to run. Each is an independent delivery history.</summary>
@@ -56,10 +57,12 @@ public sealed class PositionedProjectionProperties
 	[Fact]
 	public async Task Hold_the_fold_invariant_across_generated_delivery_schedules()
 	{
+        var deletionCases = 0;
 		for (var caseIndex = 0; caseIndex < Cases; caseIndex++)
 		{
 			var seed = RootSeed + caseIndex;
 			var generated = GenerateCase(seed);
+            if (generated.Pre != PreState.PresentUnnumbered && generated.DeleteAfter.Count > 0) { deletionCases++; }
 
 			var failure = await RunAsync(generated).ConfigureAwait(false);
 
@@ -77,6 +80,7 @@ public sealed class PositionedProjectionProperties
 				+ "Shortest case that still breaks it:" + Environment.NewLine
 				+ Describe(shortest));
 		}
+        Assert.True(deletionCases > 0, "The generator must exercise terminal deletion of writable keys.");
 	}
 
 	/// <summary>
@@ -91,6 +95,7 @@ public sealed class PositionedProjectionProperties
 	[Fact]
 	public async Task Never_fold_an_event_twice_across_generated_delivery_schedules()
 	{
+		var unnumberedCases = 0;
 		for (var caseIndex = 0; caseIndex < Cases; caseIndex++)
 		{
 			var seed = RootSeed + 100_000 + caseIndex;
@@ -101,6 +106,10 @@ public sealed class PositionedProjectionProperties
 			var provider = Provider(store);
 
 			Seed(store, generated);
+			if (generated.Pre == PreState.PresentUnnumbered)
+			{
+				unnumberedCases++;
+			}
 
 			var refused = false;
 
@@ -115,14 +124,22 @@ public sealed class PositionedProjectionProperties
 							CancellationToken.None)
 						.ConfigureAwait(false);
 				}
-				catch (InvalidOperationException) when (generated.Pre == PreState.PresentUnnumbered)
+				catch (InvalidOperationException error) when (generated.Pre == PreState.PresentUnnumbered)
 				{
-					// The terminal refusal of an unplaceable row. The sibling arm asserts that it wrote
-					// nothing; here it simply ends the schedule, because no further delivery can be folded
-					// into a row the contract has refused.
+					// A terminal refusal must leave the original row intact.
+					Assert.Contains("THIS WILL NOT RESOLVE ON RETRY", error.Message);
 					refused = true;
 				}
 
+				if (generated.Pre == PreState.PresentUnnumbered)
+				{
+					Assert.True(refused, $"seed {seed}: a row carrying NO position was adopted instead of refused."
+						+ Environment.NewLine + Describe(generated));
+					Assert.NotNull(store.Get(ProjectionId));
+					Assert.Equal(0, store.Get(ProjectionId)!.Total);
+					Assert.Null(store.PositionOf(ProjectionId));
+					break;
+				}
 				if (generated.DeleteAfter.Contains(batchIndex))
 				{
 					store.Remove(ProjectionId);
@@ -139,7 +156,62 @@ public sealed class PositionedProjectionProperties
 				+ $"{delivered.ToString(CultureInfo.InvariantCulture)} distinct ones, so at least one was "
 				+ "applied more than once." + Environment.NewLine + Describe(generated));
 		}
+		Assert.True(unnumberedCases > 0, "The generator must exercise existing rows carrying no position.");
 	}
+
+    [Fact]
+    public async Task FoldRedirectedKeysExactlyOnceAcrossGeneratedOverlaps()
+    {
+        var exercisedAheadOverride = 0;
+        for (var caseIndex = 0; caseIndex < Cases; caseIndex++)
+        {
+            var seed = RootSeed + 200_000 + caseIndex;
+            var random = new Random(seed);
+            var primaryPrefix = random.Next(0, 5);
+            var overridePrefix = random.Next(primaryPrefix + 1, primaryPrefix + 7);
+            var store = new CountingStore();
+            if (primaryPrefix > 0) { store.SeedRow(ProjectionId, new Counter { Total = primaryPrefix }, primaryPrefix); }
+            store.SeedRow("shared", new Counter { Total = overridePrefix }, overridePrefix);
+            exercisedAheadOverride++;
+            var services = new ServiceCollection();
+            services.AddSingleton<IProjectionStore<Counter>>(store);
+            services.AddTransient<RouteToShared>();
+            using var provider = services.BuildServiceProvider();
+            var builder = new ProjectionBuilder<Counter>(services);
+            builder.WhenHandledBy<Counted, RouteToShared>();
+            var registry = new InMemoryProjectionRegistry();
+            builder.Build(registry);
+            var apply = registry.GetRegistration(typeof(Counter))!.InlineApply!;
+            var deliveredThrough = 0;
+            var schedule = new List<long[]>();
+            for (var batchIndex = 0; batchIndex < random.Next(3, 12); batchIndex++)
+            {
+                var end = overridePrefix + 1 + random.Next(0, 8);
+                var batch = Enumerable.Range(1, end).Select(static value => (long)value).ToArray();
+                schedule.Add(batch);
+                await apply(ToEvents(batch), Context(), provider, CancellationToken.None).ConfigureAwait(false);
+                deliveredThrough = Math.Max(deliveredThrough, end);
+                var correct = store.Get(ProjectionId)?.Total == Math.Max(primaryPrefix, deliveredThrough)
+                    && store.Get("shared")?.Total == Math.Max(overridePrefix, deliveredThrough);
+                Assert.True(correct,
+                    $"seed {seed}: redirected fold violated the prefix invariant. "
+                    + $"Initial primary={primaryPrefix}, override={overridePrefix}; shortest failing batch prefix "
+                    + string.Join(";", schedule.Select(static values => $"[{string.Join(",", values)}]")));
+            }
+        }
+        Assert.True(exercisedAheadOverride > 0, "The generator must put the override ahead of its primary.");
+    }
+
+    private sealed class RouteToShared : IProjectionEventHandler<Counter, Counted>
+    {
+        public Task HandleAsync(Counter state, Counted @event, ProjectionHandlerContext context,
+            CancellationToken cancellationToken)
+        {
+            context.OverrideProjectionId = "shared";
+            state.Total++;
+            return Task.CompletedTask;
+        }
+    }
 
 	/// <summary>
 	/// Runs a schedule and returns a description of the broken invariant, or null when it held.
@@ -152,11 +224,7 @@ public sealed class PositionedProjectionProperties
 
 		Seed(store, generated);
 
-		// The delivered set is CLEARED at each deletion, and that is the oracle's correctness rather than
-		// bookkeeping: once the row is gone, the events folded into it are gone too, so counting them
-		// against the surviving total would manufacture a failure the implementation never caused. An
-		// earlier version of this oracle summed the whole schedule, which is sound only while nothing
-		// deletes -- the condition the generator used to guarantee by never generating a deletion.
+		// Retirement is terminal within a generation; history is never reset by deletion.
 		var delivered = new HashSet<long>();
 
 		for (var batchIndex = 0; batchIndex < generated.Schedule.Count; batchIndex++)
@@ -201,7 +269,6 @@ public sealed class PositionedProjectionProperties
 			if (generated.DeleteAfter.Contains(batchIndex))
 			{
 				store.Remove(ProjectionId);
-				delivered.Clear();
 			}
 		}
 
@@ -215,10 +282,17 @@ public sealed class PositionedProjectionProperties
 				+ "it would be missing from the read model while the position claimed otherwise.";
 		}
 
+        if (generated.DeleteAfter.Count > 0)
+        {
+            var read = await store.GetWithPositionAsync(ProjectionId, CancellationToken.None).ConfigureAwait(false);
+            return read.Projection is null && read.Position.Kind == ProjectionPositionKind.Retired
+                ? null : "a key was recreated after terminal deletion within the same generation";
+        }
+
 		var storedPosition = store.PositionOf(ProjectionId);
 		var storedTotal = store.Get(ProjectionId)?.Total ?? 0;
 
-		// The oracle: everything delivered since the last deletion, at or below the stored position,
+		// The oracle for a live key: everything delivered at or below the stored position,
 		// counted once each.
 		var expected = delivered.Count(position => storedPosition is { } at && position <= at);
 
@@ -505,8 +579,10 @@ public sealed class PositionedProjectionProperties
 	/// Implements the interface directly so the suite binds the CONTRACT rather than re-testing a
 	/// first-party base class that would supply the member under test.
 	/// </remarks>
-	private sealed class CountingStore : IPositionedProjectionStore<Counter>
+	private sealed class CountingStore : IPositionedProjectionStore<Counter>, IProjectionTenantBoundary
 	{
+		public ProjectionTenantBoundary Boundary => ProjectionTenantBoundary.EstateWide;
+		private readonly HashSet<string> _retired = new(StringComparer.Ordinal);
 		private readonly Dictionary<string, (Counter State, long? Position)> _rows =
 			new(StringComparer.Ordinal);
 
@@ -516,7 +592,11 @@ public sealed class PositionedProjectionProperties
 		internal void SeedRow(string id, Counter state, long? position) => _rows[id] = (state, position);
 
 		/// <summary>Removes the row, modelling a delete beneath a running projection.</summary>
-		internal bool Remove(string id) => _rows.Remove(id);
+		internal bool Remove(string id)
+		{
+			_ = _retired.Add(id);
+			return _rows.Remove(id);
+		}
 
 		internal long? PositionOf(string id) => _rows.TryGetValue(id, out var r) ? r.Position : null;
 
@@ -530,12 +610,13 @@ public sealed class PositionedProjectionProperties
 			string id, CancellationToken cancellationToken) =>
 			Task.FromResult(_rows.TryGetValue(id, out var r)
 				? (Clone(r.State), ProjectionPosition.FromStored(r.Position))
-				: ((Counter?)null, ProjectionPosition.Unnumbered));
+				: ((Counter?)null, _retired.Contains(id) ? ProjectionPosition.Retired : ProjectionPosition.Unplaceable));
 
 		public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(
 			string id, Counter projection, long? expectedPosition, long newPosition,
 			CancellationToken cancellationToken)
 		{
+			if (_retired.Contains(id)) { return Task.FromResult(new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null)); }
 			var present = _rows.TryGetValue(id, out var existing);
 			var stored = present ? existing.Position : null;
 
@@ -612,13 +693,14 @@ public sealed class PositionedProjectionProperties
 
 		public Task UpsertAsync(string id, Counter projection, CancellationToken cancellationToken)
 		{
+			if (_retired.Contains(id)) { throw new InvalidOperationException("Projection key is retired."); }
 			_rows[id] = (Clone(projection), PositionOf(id));
 			return Task.CompletedTask;
 		}
 
 		public Task DeleteAsync(string id, CancellationToken cancellationToken)
 		{
-			_ = _rows.Remove(id);
+			_ = Remove(id);
 			return Task.CompletedTask;
 		}
 

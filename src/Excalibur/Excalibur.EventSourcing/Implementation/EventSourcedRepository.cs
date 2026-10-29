@@ -576,7 +576,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// When no broker is registered in DI, this is a no-op (zero behavioral change).
 		// NotRequested until a broker says otherwise: no broker, or no Inline projection, means no wait was
 		// ever asked for -- which is a different answer from a wait that was asked for and did not finish.
-		var projections = ProjectionFreshness.NotRequested;
+		var completion = new ProjectionCompletion(ProjectionFreshness.NotRequested);
 		if (_eventNotificationBroker is not null)
 		{
 			var context = new EventNotificationContext(
@@ -588,7 +588,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 			// No token passed, and none accepted: the events above are already durable, so the caller's
 			// cancellation can no longer undo anything here -- it can only leave the read model behind
 			// while reporting the durable save as failed. The broker bounds this phase on its own clock.
-			projections = await _eventNotificationBroker.NotifyAsync(uncommittedEvents, context)
+			completion = await _eventNotificationBroker.NotifyAsync(uncommittedEvents, context)
 				.ConfigureAwait(false);
 		}
 
@@ -679,7 +679,7 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 		// Snapshots above are best-effort and deliberately cannot fail the save, so the token is reported
 		// regardless of how they went: it describes the durable events, not the derived copies.
-		return new SaveResult(aggregate.Version, sessionToken, projections);
+		return new SaveResult(aggregate.Version, sessionToken, completion.Freshness) { Attestation = completion.Attestation };
 	}
 
 	/// <inheritdoc />

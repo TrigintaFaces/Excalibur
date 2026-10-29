@@ -39,8 +39,17 @@ namespace Excalibur.EventSourcing.Erasure;
 /// <b>Known gap, stated rather than left to be discovered:</b> where personal data is unavoidably
 /// embedded in a transaction event &#8212; the buyer's name on an invoice &#8212; there is no supported
 /// way to erase the name and keep the invoice. Whole-aggregate tombstoning is the only mechanism, so the
-/// choice is to destroy the record or to retain the personal data. Returning fewer aggregates and
-/// handling the embedded case in your own retention process is the honest workaround today.
+/// choice is to destroy the record or to retain the personal data.
+/// </para>
+/// <para>
+/// <b>Retaining it is a DECLARED decision, not a gap you work around privately.</b> Return fewer
+/// aggregates, and declare the retention through <c>AddErasureRetention</c>: an
+/// <see cref="Excalibur.Compliance.ErasureRetention"/> names the aggregate type, the tenant partition,
+/// the <c>LegalHoldBasis</c> you are relying on, a written justification, and the retention period. The
+/// declaration is what makes the choice auditable &#8212; the basis and justification are recorded
+/// against the erasure rather than living in a process of your own that the erasure record cannot see.
+/// Declaring a retention does not erase the embedded field; it states, on the record, that you are
+/// keeping it and why.
 /// </para>
 /// <para>
 /// Common strategies for locating the aggregates that hold personal data:

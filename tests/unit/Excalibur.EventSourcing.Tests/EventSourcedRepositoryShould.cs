@@ -920,7 +920,7 @@ public sealed class EventSourcedRepositoryShould
 			{
 				capturedEvents = events;
 			})
-			.Returns(Task.FromResult(ProjectionFreshness.NotRequested));
+			.Returns(Task.FromResult(new ProjectionCompletion(ProjectionFreshness.NotRequested)));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
@@ -972,7 +972,7 @@ public sealed class EventSourcedRepositoryShould
 			{
 				capturedEvents = events;
 			})
-			.Returns(Task.FromResult(ProjectionFreshness.NotRequested));
+			.Returns(Task.FromResult(new ProjectionCompletion(ProjectionFreshness.NotRequested)));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,
@@ -1095,7 +1095,7 @@ public sealed class EventSourcedRepositoryShould
 		_ = A.CallTo(() => broker.NotifyAsync(
 				A<IReadOnlyList<IDomainEvent>>._,
 				A<EventNotificationContext>._))
-			.Returns(Task.FromResult(ProjectionFreshness.NotRequested));
+			.Returns(Task.FromResult(new ProjectionCompletion(ProjectionFreshness.NotRequested)));
 
 		var repository = new EventSourcedRepository<TestAggregate>(
 			eventStore,

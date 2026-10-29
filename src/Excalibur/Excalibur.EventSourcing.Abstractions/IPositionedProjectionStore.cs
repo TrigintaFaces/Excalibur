@@ -19,7 +19,7 @@ public enum ProjectionAdvanceOutcome
 	Superseded,
 
 	/// <summary>
-	/// The projection does not exist. It was deleted after the caller read it.
+	/// The projection key is retired, or a required existing row is absent.
 	/// </summary>
 	/// <remarks>
 	/// Distinct from <see cref="Superseded"/> on purpose, and the distinction is load-bearing: the
@@ -251,15 +251,11 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// <param name="id">The projection identifier.</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>
-	/// The projection and its position. The projection is <see langword="null"/> when none exists.
-	/// The position is one of three states rather than a number with a missing case -- see
-	/// <see cref="ProjectionPosition"/>. Only <see cref="ProjectionPositionKind.Positioned"/> can be
-	/// advanced from: the other two carry no number for a positioned write to match, so both are refused.
-	/// Both are refused with <see cref="ProjectionAdvanceOutcome.Unplaceable"/>, which reports only that
-	/// there was no number to advance from, and both are repaired by
-	/// <see cref="RebuildAtPositionAsync"/>. WHICH of the two a row is in is a question about the row, and
-	/// this read is where it is answered -- the write's result does not carry it, because the write's result
-	/// is not an observation of the row.
+	/// The projection and its position, read atomically. A retired key returns a null projection
+	/// with <see cref="ProjectionPositionKind.Retired"/>; an ordinary missing key returns null
+	/// without that marker. Only an existing <see cref="ProjectionPositionKind.Positioned"/> row
+	/// can be advanced from. Existing Unnumbered and Unplaceable rows require a complete rebuild;
+	/// a retired key rejects all writes within its physical generation.
 	/// </returns>
 	/// <remarks>
 	/// <b>One call, deliberately.</b> Reading the state and the position separately admits a writer
@@ -308,7 +304,7 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// alike and reports only that there was no number to advance from.
 	/// </para>
 	/// <para>
-	/// <b>The caller states which of the three states it is producing; the store never infers it.</b>
+	/// <b>The caller states which live state it is producing; the store never infers it.</b>
 	/// Inferring it would require the store to distinguish creating a row from updating one, in the same
 	/// atomic action that writes the state -- and four of the document providers cannot do that at all,
 	/// while the two that can could only do it with a second write whose crash window records a
@@ -355,12 +351,8 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// <para>
-	/// Thrown when <paramref name="newPosition"/> is negative. A negative is not merely meaningless, it
-	/// is UNREADABLE BACK: only two of the eight providers fold a negative to "no position" on read, so
-	/// on the other six a planted negative returns as an ordinary position and the write filter matches
-	/// it. Refusing it at the entry point makes that inexpressible rather than defended unevenly.
-	/// </para>
-	/// <para>
+	/// Thrown when <paramref name="newPosition"/> is negative. Negative values are reserved
+	/// for storage sentinels, including terminal retirement, and cannot be event positions.
 	/// Also thrown when <paramref name="expectedPosition"/> is negative. The negatives are the sentinel
 	/// space for the states that carry no number, so a caller passing one would be naming a sentinel as
 	/// the position it read -- which is how a refused numberless row becomes adoptable again through a
@@ -415,9 +407,8 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown when <paramref name="atPosition"/> is negative. See the note on
-	/// <see cref="UpsertAtPositionAsync"/>: a negative cannot be read back correctly on six of the eight
-	/// providers, so it is refused rather than stored.
+	/// Thrown when <paramref name="atPosition"/> is negative. Negative values are reserved for
+	/// storage sentinels, including terminal retirement, and cannot be event positions.
 	/// </exception>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -461,7 +452,7 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// <b>It MUST NOT create the row, exactly as <see cref="RefoldAtPositionAsync"/> must not.</b> An
 	/// absent row means the projection was DELETED, deletion is how erasure removes personal data, and a
 	/// rebuild that recreated it would reinstate what the erasure removed -- a whole-stream replay is
-	/// precisely the write that can reconstruct it. Every implementation is UPDATE-only: there is no
+	/// precisely the write that can reconstruct it. Every implementation refuses retired keys and is UPDATE-only: there is no
 	/// create arm to avoid taking, and <see cref="ProjectionRebuildOutcome.Vanished"/> is how the store
 	/// reports that it found nothing.
 	/// </para>
@@ -469,7 +460,7 @@ public interface IPositionedProjectionStore<TProjection> : IProjectionStore<TPro
 	/// <b>The projection's processor MUST be stopped before you call this.</b> The operation is
 	/// unconditional on position, so it cannot detect a concurrent advance -- those are the same check,
 	/// and giving it up is the deliberate price of being able to overwrite a row whose stored number is
-	/// unusable. It overwrites whatever it finds and reports only whether the row still exists. A rebuild
+	/// unusable. It refuses retired keys and reports whether an existing live row was updated. A rebuild
 	/// already requires a stopped processor, so this states the precondition the caller is already under
 	/// rather than adding a check that cannot be built.
 	/// </para>

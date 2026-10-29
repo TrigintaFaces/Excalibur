@@ -410,3 +410,11 @@ static Microsoft.Extensions.DependencyInjection.OpenSearchServiceCollectionExten
 static Microsoft.Extensions.DependencyInjection.OpenSearchTenantShardingExtensions.UseOpenSearchTenantProjectionStore<TProjection>(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! section, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.OpenSearchProjectionStoreExtensions.AddOpenSearchProjections(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! section, System.Action<Excalibur.Data.OpenSearch.Projections.OpenSearchProjectionRegistrar!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Data.OpenSearch.IndexManagement.AliasGenerationRepoint
+Excalibur.Data.OpenSearch.IndexManagement.AliasGenerationRepoint.AliasGenerationRepoint(Excalibur.Data.OpenSearch.IndexManagement.IIndexAliasManager! aliases, string! aliasName) -> void
+Excalibur.Data.OpenSearch.IndexManagement.AliasGenerationRepoint.GetActiveDestinationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Data.OpenSearch.IndexManagement.AliasGenerationRepoint.RepointAsync(string! expectedDestination, string! destination, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.IsHidden.get -> bool?
+Excalibur.Data.OpenSearch.IndexManagement.AliasDefinition.IsHidden.set -> void
+Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.MustExist.get -> bool
+Excalibur.Data.OpenSearch.IndexManagement.AliasOperation.MustExist.init -> void

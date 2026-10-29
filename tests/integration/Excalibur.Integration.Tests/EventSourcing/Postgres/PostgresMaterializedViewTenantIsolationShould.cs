@@ -79,7 +79,7 @@ public sealed class PostgresMaterializedViewTenantIsolationShould : IClassFixtur
 		// produces; if the two drift, the store's ON CONFLICT target no longer matches a real constraint
 		// and every save throws rather than silently misbehaving.
 		cmd.CommandText = """
-			CREATE TABLE IF NOT EXISTS materialized_views (
+			CREATE TABLE IF NOT EXISTS public.materialized_views (
 				tenant_id  TEXT NOT NULL,
 				view_name  TEXT NOT NULL,
 				view_id    TEXT NOT NULL,
@@ -88,7 +88,7 @@ public sealed class PostgresMaterializedViewTenantIsolationShould : IClassFixtur
 				updated_at TIMESTAMPTZ NOT NULL,
 				PRIMARY KEY (tenant_id, view_name, view_id)
 			);
-			CREATE TABLE IF NOT EXISTS materialized_view_positions (
+			CREATE TABLE IF NOT EXISTS public.materialized_view_positions (
 				tenant_id  TEXT NOT NULL,
 				view_name  TEXT NOT NULL,
 				position   BIGINT NOT NULL,

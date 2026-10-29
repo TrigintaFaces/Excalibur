@@ -44,7 +44,7 @@ public interface IProjectionRebuildManager
 	/// </summary>
 	/// <param name="fromDate"> The start date for the query. </param>
 	/// <param name="toDate"> The end date for the query. </param>
-	/// <param name="projectionType"> Optional filter by projection type. </param>
+	/// <param name="projectionType"> Optional exact filter by fully qualified projection type name (for example, typeof(OrderProjection).FullName). </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A collection of rebuild operation summaries. </returns>
 	Task<IEnumerable<ProjectionRebuildSummary>> ListRebuildOperationsAsync(
@@ -54,12 +54,18 @@ public interface IProjectionRebuildManager
 		CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Validates that a projection can be rebuilt without Tests.Shared.Handlers.TestInfrastructure.
+	/// Validates that a projection can be rebuilt, and reports what a rebuild would find.
 	/// </summary>
-	/// <param name="projectionType"> The type of projection to validate. </param>
+	/// <param name="projectionType"> The projection type to validate. </param>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	/// <returns> A validation result indicating whether the rebuild is possible. </returns>
+	/// <remarks>
+	/// Takes the TYPE rather than its name because a projection's declared generation lives on the
+	/// type. A caller holding only a name cannot resolve one, so validation would report on the first
+	/// generation's index while the store writes to the generation the type declares -- a confident
+	/// answer about an index the rebuild is not targeting.
+	/// </remarks>
 	Task<ProjectionRebuildValidation> ValidateRebuildAsync(
-		string projectionType,
+		Type projectionType,
 		CancellationToken cancellationToken);
 }

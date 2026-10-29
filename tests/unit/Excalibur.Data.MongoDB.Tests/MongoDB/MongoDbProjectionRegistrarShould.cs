@@ -42,9 +42,12 @@ public sealed class MongoDbProjectionRegistrarShould : UnitTestBase
 		services.AddMongoDbProjections(SharedConnStr, SharedDbName, p => p.Add<ProjectionA>());
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>();
-		options.Value.ConnectionString.ShouldBe(SharedConnStr);
-		options.Value.DatabaseName.ShouldBe(SharedDbName);
+		// Read the instance NAMED for ProjectionA, through the same function the registration and the
+		// store use. Reading the unnamed instance would pass on a default-valued bucket nothing writes.
+		var options = provider.GetRequiredService<IOptionsMonitor<MongoDbProjectionStoreOptions>>()
+			.Get(MongoDbProjectionCollectionConvention.GetOptionsName<ProjectionA>());
+		options.ConnectionString.ShouldBe(SharedConnStr);
+		options.DatabaseName.ShouldBe(SharedDbName);
 	}
 
 	[Fact]
@@ -57,8 +60,11 @@ public sealed class MongoDbProjectionRegistrarShould : UnitTestBase
 			p.Add<ProjectionA>(opts => opts.CollectionName = "custom_collection"));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>();
-		options.Value.CollectionName.ShouldBe("custom_collection");
+		// Read the instance NAMED for ProjectionA, through the same function the registration and the
+		// store use. Reading the unnamed instance would pass on a default-valued bucket nothing writes.
+		var options = provider.GetRequiredService<IOptionsMonitor<MongoDbProjectionStoreOptions>>()
+			.Get(MongoDbProjectionCollectionConvention.GetOptionsName<ProjectionA>());
+		options.CollectionName.ShouldBe("custom_collection");
 	}
 
 	#endregion
@@ -91,8 +97,11 @@ public sealed class MongoDbProjectionRegistrarShould : UnitTestBase
 			p => p.Add<ProjectionA>(opts => opts.CollectionName = "override"));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<MongoDbProjectionStoreOptions>>();
-		options.Value.CollectionName.ShouldBe("override");
+		// Read the instance NAMED for ProjectionA, through the same function the registration and the
+		// store use. Reading the unnamed instance would pass on a default-valued bucket nothing writes.
+		var options = provider.GetRequiredService<IOptionsMonitor<MongoDbProjectionStoreOptions>>()
+			.Get(MongoDbProjectionCollectionConvention.GetOptionsName<ProjectionA>());
+		options.CollectionName.ShouldBe("override");
 	}
 
 	[Fact]

@@ -32,9 +32,9 @@ namespace Excalibur.Data.MongoDB;
 /// {
 ///     public OrderSearchRepository(IMongoClient client, IOptionsMonitor&lt;MongoDbProjectionStoreOptions&gt; options)
 ///         : base(client,
-///                options.Get(nameof(OrderProjection)).DatabaseName,
+///                options.Get(MongoDbProjectionCollectionConvention.GetOptionsName&lt;OrderProjection&gt;()).DatabaseName,
 ///                MongoDbProjectionCollectionConvention.GetCollectionName&lt;OrderProjection&gt;(
-///                    options.Get(nameof(OrderProjection))))
+///                    options.Get(MongoDbProjectionCollectionConvention.GetOptionsName&lt;OrderProjection&gt;())))
 ///     {
 ///     }
 ///

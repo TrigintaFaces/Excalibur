@@ -192,14 +192,15 @@ public sealed class MongoDbClientOwnershipDisposalShould : UnitTestBase
     {
         // Arrange
         var (client, _) = CreateFakeClientAndDatabase();
-        var options = Options.Create(new MongoDbProjectionStoreOptions
+        var optionsMonitor = A.Fake<IOptionsMonitor<MongoDbProjectionStoreOptions>>();
+        _ = A.CallTo(() => optionsMonitor.Get(A<string>._)).Returns(new MongoDbProjectionStoreOptions
         {
             ConnectionString = "mongodb://localhost:27017",
             DatabaseName = "test",
             CollectionName = "projections"
         });
 
-        var store = new MongoDbProjectionStore<TestProjection>(client, options,
+        var store = new MongoDbProjectionStore<TestProjection>(client, optionsMonitor,
             A.Fake<ILogger<MongoDbProjectionStore<TestProjection>>>());
 
         // Act

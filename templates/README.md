@@ -30,7 +30,7 @@ cd MyCompany.Orders
 dotnet run
 ```
 
-Most templates take options to select a transport and a database, and `--include-tests` to generate a
+Template option names are case-sensitive. Most templates use `--Transport` and `--Database` to select a transport and a database, and `--IncludeTests` to generate a
 test project alongside the source. List what a template accepts with:
 
 ```bash

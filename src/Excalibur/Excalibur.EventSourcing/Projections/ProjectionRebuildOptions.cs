@@ -10,6 +10,11 @@ namespace Excalibur.EventSourcing.Projections;
 /// </summary>
 public sealed class ProjectionRebuildOptions
 {
+    /// <summary>Gets or sets explicit acknowledgement that this in-place rebuild runs offline and exclusively.</summary>
+    /// <value>False by default. Set true only after stopping and draining every writer and other rebuild process for the entire operation.</value>
+    /// <remarks>This is an operator prerequisite, not a distributed lock. For online changes, populate a separate versioned destination and switch readers through the generation cutover gate.</remarks>
+    public bool OfflineRebuildAcknowledged { get; set; }
+
 	/// <summary>
 	/// Gets or sets the number of events to process per batch during rebuild.
 	/// </summary>
@@ -30,9 +35,10 @@ public sealed class ProjectionRebuildOptions
 	public bool RebuildOnStartup { get; set; }
 
 	/// <summary>
-	/// Gets or sets the maximum degree of parallelism for rebuilding multiple projections.
+	/// Gets or sets the maximum number of concurrent rebuilds in this service instance.
 	/// </summary>
 	/// <value>The parallelism degree. Default is 1 (sequential).</value>
+	/// <remarks>Queued calls honor cancellation. This process-local limit does not coordinate other hosts or limit continuous projection processing. Size the aggregate host limits to leave database capacity for live traffic.</remarks>
 	[Range(1, 32)]
 	public int MaxParallelism { get; set; } = 1;
 }

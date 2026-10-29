@@ -27,6 +27,47 @@ public abstract class ProjectionStoreCapabilityView<TProjection>(IProjectionStor
 	/// <value>The decorating store; never <see langword="null"/>.</value>
 	protected IProjectionStore<TProjection> Outer { get; } = outer ?? throw new ArgumentNullException(nameof(outer));
 
+	/// <summary>
+	/// Resolves a capability by answering for this view when it provides it, and otherwise through the
+	/// decorator.
+	/// </summary>
+	/// <param name="serviceType">The capability interface to resolve.</param>
+	/// <returns>
+	/// This view when it is assignable to <paramref name="serviceType"/>; otherwise whatever the
+	/// decorator resolves, which is <see langword="null"/> when the capability is unavailable.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// <b>Why this is here at all.</b> A capability view is also an <see cref="IProjectionStore{TProjection}"/>,
+	/// so it inherits that interface's capability lookup -- which answers for the instance ITSELF and
+	/// knows nothing of the store beneath. A view left with that answer reports that the store it
+	/// mediates has no capabilities at all. Supplying the answer ONCE here is what makes the summary
+	/// above ("routes the whole inherited surface back through the decorator") true of every view rather
+	/// than of the views whose authors remembered.
+	/// </para>
+	/// <para>
+	/// <b>Why it answers for itself first rather than delegating unconditionally.</b> A view exists
+	/// because handing out the inner capability directly would bypass the decorator -- skipping the
+	/// encryption, the tenant predicate, or the shard routing the decorator exists to apply. The view IS
+	/// the mediated form of its own capability, so a probe for that capability must yield the view. Were
+	/// this to delegate unconditionally, a capability the decorator does not itself mediate would be
+	/// resolved from the store beneath it and returned raw, reinstating exactly the breach the view was
+	/// built to prevent. Every other capability falls through to the decorator, which mediates it or
+	/// reports it absent.
+	/// </para>
+	/// <para>
+	/// Supplied as an explicit interface implementation: it is the capability-resolution seam, not part
+	/// of a view's own surface, and a derived view has no reason to call it.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceType"/> is null.</exception>
+	object? IServiceProvider.GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		return serviceType.IsInstanceOfType(this) ? this : Outer.GetService(serviceType);
+	}
+
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]

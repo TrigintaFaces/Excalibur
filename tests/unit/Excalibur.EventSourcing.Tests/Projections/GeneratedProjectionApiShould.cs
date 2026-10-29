@@ -59,6 +59,7 @@ public sealed class GeneratedProjectionApiShould
         await using var provider = services.BuildServiceProvider();
         Should.Throw<InvalidOperationException>(() => ProjectionStoreOperations<GeneratedReadModel>.Generated(provider, new GeneratedProjectionJson().GeneratedReadModel));
         A.CallTo(() => store.GetService(typeof(IAotProjectionStore<GeneratedReadModel>))).Returns(null);
+        A.CallTo(() => store.GetService(typeof(IProjectionTenantBoundary))).Returns(ProjectionTenantBoundary.EstateWide);
         Should.Throw<InvalidOperationException>(() => ProjectionStoreOperations<GeneratedReadModel>.Generated(provider, GeneratedProjectionJson.Default.GeneratedReadModel));
         A.CallTo(() => capability.GetByIdAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
@@ -106,6 +107,7 @@ public sealed class GeneratedProjectionApiShould
     {
         var (services, store, _) = CreateServices();
         A.CallTo(() => store.GetService(typeof(IAotProjectionStore<GeneratedReadModel>))).Returns(null);
+        A.CallTo(() => store.GetService(typeof(IProjectionTenantBoundary))).Returns(ProjectionTenantBoundary.EstateWide);
         services.AddSingleton(A.Fake<IEventNotificationBroker>());
         services.AddSingleton<IGeneratedProjectionValidator>(sp => new GeneratedProjectionValidator<GeneratedReadModel>(sp, GeneratedProjectionJson.Default.GeneratedReadModel));
         await using var provider = services.BuildServiceProvider();
@@ -150,6 +152,7 @@ public sealed class GeneratedProjectionApiShould
         var capability = A.Fake<IAotProjectionStore<GeneratedReadModel>>();
         A.CallTo(() => capability.TypeInfo).Returns(GeneratedProjectionJson.Default.GeneratedReadModel);
         A.CallTo(() => store.GetService(typeof(IAotProjectionStore<GeneratedReadModel>))).Returns(capability);
+        A.CallTo(() => store.GetService(typeof(IProjectionTenantBoundary))).Returns(ProjectionTenantBoundary.EstateWide);
         A.CallTo(() => store.GetService(typeof(IPositionedProjectionStore<GeneratedReadModel>))).Returns(A.Fake<IPositionedProjectionStore<GeneratedReadModel>>());
         A.CallTo(() => store.GetByIdAsync(A<string>._, A<CancellationToken>._)).Throws(new InvalidOperationException("Legacy read invoked"));
         A.CallTo(() => store.UpsertAsync(A<string>._, A<GeneratedReadModel>._, A<CancellationToken>._)).Throws(new InvalidOperationException("Legacy write invoked"));

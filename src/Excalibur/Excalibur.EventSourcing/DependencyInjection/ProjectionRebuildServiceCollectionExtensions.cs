@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.EventSourcing;
@@ -50,6 +50,7 @@ public static class ProjectionRebuildServiceCollectionExtensions
 			ServiceDescriptor.Singleton<IValidateOptions<ProjectionRebuildOptions>, ProjectionRebuildOptionsValidator>());
 
 		services.TryAddSingleton<IProjectionRebuildService, ProjectionRebuildService>();
+        ProjectionCapacity.Register(services);
 
 		services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IHostedService, ProjectionRebuildPrerequisiteValidator>());

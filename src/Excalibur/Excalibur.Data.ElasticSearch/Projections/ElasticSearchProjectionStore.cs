@@ -52,7 +52,7 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
 public sealed partial class ElasticSearchProjectionStore<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.Interfaces)] TProjection> : IProjectionStore<TProjection>,
-	IPositionedProjectionStore<TProjection>,
+	IPositionedProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
 	IAsyncDisposable
 	where TProjection : class
 {
@@ -116,7 +116,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_configuredClientSettings = ElasticSearchProjectionClientSettings.Create(_options, out _destinationScope, out _sourceContext);
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
+		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName<TProjection>(_options);
 		_declaredMapping = BuildDeclaredIndexMapping();
 		_fieldDefinitions = BuildFieldDefinitions(_declaredMapping);
 	}
@@ -142,7 +142,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName(_options, _projectionType);
+		_indexName = ElasticSearchProjectionIndexConvention.GetIndexName<TProjection>(_options);
 		_declaredMapping = BuildDeclaredIndexMapping();
 		_fieldDefinitions = BuildFieldDefinitions(_declaredMapping);
 	}
@@ -184,43 +184,9 @@ public sealed partial class ElasticSearchProjectionStore<
 	private async Task<TProjection?> GetByIdAsyncCore(
 		string id,
 		CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
-	{
-		if (typeInfo is not null)
-        {
-            return (await GetWithPositionAsyncCore(id, cancellationToken, typeInfo).ConfigureAwait(false)).Projection;
-        }
-        ObjectDisposedException.ThrowIf(_disposed, this);
-		ArgumentException.ThrowIfNullOrWhiteSpace(id);
-
-		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-
-		var response = await _client!
-			.GetAsync<TProjection>(_indexName, id, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (response is { IsValidResponse: true, Found: true } && response.Source is not null)
-		{
-			return response.Source;
-		}
-
-		if (!response.Found || response.ApiCallDetails?.HttpStatusCode == (int)HttpStatusCode.NotFound)
-		{
-			return null;
-		}
-
-		var errorMessage = response.ApiCallDetails?.ToString() ?? "Unknown error";
-		_logger.LogError(
-			"Failed to get projection {ProjectionType}/{Id} from index {IndexName}: {Error}",
-			_projectionType,
-			id,
-			_indexName,
-			errorMessage);
-		throw new ElasticsearchGetByIdException(
-			id,
-			typeof(TProjection),
-			errorMessage,
-			response.ApiCallDetails?.OriginalException);
-	}
+    {
+        return (await GetWithPositionAsyncCore(id, cancellationToken, typeInfo).ConfigureAwait(false)).Projection;
+    }
 
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
@@ -249,28 +215,8 @@ public sealed partial class ElasticSearchProjectionStore<
 		//
 		// The sentinel rides the same single index operation as the state, so there is no window in
 		// which a destroyed position is recorded as a never-established one.
-		var response = await _client!
-			.IndexAsync(
-				BuildDocument(projection, ProjectionPosition.Unplaceable),
-				r => r.Index(_indexName).Id(id).Refresh(WriteRefresh),
-				cancellationToken)
-			.ConfigureAwait(false);
-
-		if (!response.IsValidResponse)
-		{
-			var errorMessage = response.ApiCallDetails?.ToString() ?? "Unknown error";
-			_logger.LogError(
-				"Failed to upsert projection {ProjectionType}/{Id} in index {IndexName}: {Error}",
-				_projectionType,
-				id,
-				_indexName,
-				errorMessage);
-			throw new ElasticsearchIndexingException(
-				_indexName,
-				typeof(TProjection),
-				errorMessage,
-				response.ApiCallDetails?.OriginalException);
-		}
+        await WriteLiveAsync(id, BuildDocument(projection, ProjectionPosition.Unplaceable),
+            cancellationToken).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -306,17 +252,8 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var response = await _client!
-			.IndexAsync(
-				BuildDocument(projection, ProjectionPosition.Unnumbered, typeInfo),
-				r => r.Index(_indexName).Id(id).Refresh(WriteRefresh),
-				cancellationToken)
-			.ConfigureAwait(false);
-
-		if (!response.IsValidResponse)
-		{
-			throw IndexingFailure(response);
-		}
+        await WriteLiveAsync(id, BuildDocument(projection, ProjectionPosition.Unnumbered, typeInfo),
+            cancellationToken, typeInfo).ConfigureAwait(false);
 
 		LogUpserted(_projectionType, id);
 	}
@@ -375,7 +312,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		{
 			var read = await ReadForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
 
-			if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+			if (read.Position.Kind == ProjectionPositionKind.Retired || read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 			{
 				return new EventSourcing.ProjectionRebuildResult(ProjectionRebuildOutcome.Vanished);
 			}
@@ -413,27 +350,10 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-		var deleteRequest = new DeleteRequest(_indexName, new Id(id)) { Refresh = WriteRefresh };
-		var response = await _client!
-			.DeleteAsync(deleteRequest, cancellationToken)
-			.ConfigureAwait(false);
-
-		// Treat NotFound as success (idempotent delete)
-		if (!response.IsValidResponse && response.ApiCallDetails?.HttpStatusCode != (int)HttpStatusCode.NotFound)
-		{
-			var errorMessage = response.ApiCallDetails?.ToString() ?? "Unknown error";
-			_logger.LogError(
-				"Failed to delete projection {ProjectionType}/{Id} from index {IndexName}: {Error}",
-				_projectionType,
-				id,
-				_indexName,
-				errorMessage);
-			throw new ElasticsearchDeleteException(
-				id,
-				typeof(TProjection),
-				errorMessage,
-				response.ApiCallDetails?.OriginalException);
-		}
+        var response = await _client!.IndexAsync(
+            new JsonObject { [PositionField] = ProjectionPosition.RetiredSentinel },
+            r => r.Index(_indexName).Id(id).Refresh(WriteRefresh), cancellationToken).ConfigureAwait(false);
+        if (!response.IsValidResponse) { throw IndexingFailure(response); }
 
 		LogDeleted(_projectionType, id);
 	}
@@ -441,10 +361,13 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// <inheritdoc/>
 	[RequiresUnreferencedCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
 	[RequiresDynamicCode("Implementations serialize the projection type reflectively; supply JsonSerializerOptions with a source-generated resolver for trimming and AOT.")]
-	public async Task<IReadOnlyList<TProjection>> QueryAsync(
+	public Task<IReadOnlyList<TProjection>> QueryAsync(
 		IDictionary<string, object>? filters,
 		QueryOptions? options,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) => QueryCoreAsync(filters, options, cancellationToken);
+
+	private async Task<IReadOnlyList<TProjection>> QueryCoreAsync(
+		IDictionary<string, object>? filters, QueryOptions? options, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -945,7 +868,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			// (CosmosDB, MongoDB) which use a type field for multi-type indices.
 			if (filters is null || filters.Count == 0)
 			{
-				_ = q.MatchAll(new MatchAllQuery());
+				_ = q.Bool(b => b.MustNot(n => n.Term(t => t.Field(PositionField).Value(ProjectionPosition.RetiredSentinel))));
 				return;
 			}
 
@@ -965,7 +888,7 @@ public sealed partial class ElasticSearchProjectionStore<
 					value));
 			}
 
-			_ = q.Bool(b => b.Must(conditions.ToArray()));
+			_ = q.Bool(b => b.Must(conditions.ToArray()).MustNot(n => n.Term(t => t.Field(PositionField).Value(ProjectionPosition.RetiredSentinel))));
 		};
 	}
 
@@ -1013,11 +936,13 @@ public sealed partial class ElasticSearchProjectionStore<
         }
 
 		ArgumentNullException.ThrowIfNull(serviceType);
+		if (serviceType == typeof(IAsyncProjectionDestinationScope)) { return new ConcreteDestinationScope(this); }
 		if (serviceType == typeof(IProjectionDestinationScope))
 		{
 			// A supplied client can address a different cluster from the options: no guessed scope.
 			return _destinationScope is { } value ? new ConfiguredDestinationScope(value) : null;
 		}
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return ProjectionTenantBoundary.EstateWide; }
 		if (serviceType == typeof(IProjectionDestinationIdentity))
 		{
 			return new ConfiguredDestinationIdentity("elasticsearch/" + _indexName);
@@ -1061,6 +986,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			await store.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 			var response = await store._client!.Indices.RefreshAsync(store._indexName, cancellationToken)
 				.ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
 			if (!response.IsValidResponse || response.Shards is null || response.Shards.Failed > 0)
 			{
 				throw new InvalidOperationException($"Projection search visibility failed for index '{store._indexName}'. {response.DebugInformation}");
@@ -1073,7 +999,8 @@ public sealed partial class ElasticSearchProjectionStore<
 	private async Task ValidateIndexMappingAsync(CancellationToken cancellationToken)
 	{
 		var response = await _client!.Indices.GetMappingAsync(_indexName, cancellationToken).ConfigureAwait(false);
-		if (!response.IsValidResponse || response.Mappings.Count == 0)
+		cancellationToken.ThrowIfCancellationRequested();
+		if (!response.IsValidResponse || response.Mappings.Count != 1 || !response.Mappings.ContainsKey(_indexName))
 		{
 			throw new InvalidOperationException($"Cannot validate mapping for projection index '{_indexName}'. {response.DebugInformation}");
 		}
@@ -1097,6 +1024,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		var existsResponse = await _client!.Indices
 			.ExistsAsync(_indexName, cancellationToken)
 			.ConfigureAwait(false);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (existsResponse.Exists)
 		{
@@ -1125,6 +1053,8 @@ public sealed partial class ElasticSearchProjectionStore<
 				.Mappings(m => m
 					.Properties(properties)), cancellationToken)
 			.ConfigureAwait(false);
+
+		cancellationToken.ThrowIfCancellationRequested();
 
 		if (!ElasticIndexProvisioning.Failed(createResponse))
 		{
@@ -1292,11 +1222,12 @@ public sealed partial class ElasticSearchProjectionStore<
 				// no-number state that is not a reading of anything -- classifying on the position before
 				// testing existence would report a TERMINAL refusal for a transient race the next attempt
 				// resolves by creating.
-				if (conflicting.SequenceNumber is null || conflicting.PrimaryTerm is null)
+				if (conflicting.Position.Kind == ProjectionPositionKind.Retired || conflicting.SequenceNumber is null || conflicting.PrimaryTerm is null)
 				{
-					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, null);
+					return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null);
 				}
 
+				if (conflicting.Position.Kind == ProjectionPositionKind.Retired) { return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null); }
 				return conflicting.Position.Kind == ProjectionPositionKind.Positioned
 					? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, conflicting.Position.Value)
 					: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
@@ -1307,7 +1238,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var read = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 
-		if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+		if (read.Position.Kind == ProjectionPositionKind.Retired || read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 		{
 			// Gone: deleted, which is how erasure removes personal data. Re-folding the event stream
 			// would reinstate it, so this is settled rather than retried.
@@ -1378,7 +1309,7 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		var read = await ReadForUpdateAsync(id, cancellationToken, typeInfo).ConfigureAwait(false);
 
-		if (read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
+		if (read.Position.Kind == ProjectionPositionKind.Retired || read.SequenceNumber is not { } sequenceNumber || read.PrimaryTerm is not { } primaryTerm)
 		{
 			return new ProjectionRefoldResult(ProjectionRefoldOutcome.Vanished, null);
 		}
@@ -1437,6 +1368,34 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// comparison the caller already performed is what refuses a re-delivery; neither substitutes for
 	/// the other.
 	/// </remarks>
+    private async Task WriteLiveAsync(string id, JsonObject document, CancellationToken cancellationToken,
+        JsonTypeInfo<TProjection>? typeInfo = null)
+    {
+        for (var attempt = 0; attempt < ConditionalWriteAttempts; attempt++)
+        {
+            var read = await ReadForUpdateAsync(id, cancellationToken, typeInfo, materialize: false).ConfigureAwait(false);
+            if (read.Position.Kind == ProjectionPositionKind.Retired)
+            {
+                throw new InvalidOperationException("This projection key is retired. Use a new projection generation to rebuild it.");
+            }
+            var response = await _client!.IndexAsync(document, r =>
+            {
+                r.Index(_indexName).Id(id).Refresh(WriteRefresh);
+                if (read.SequenceNumber is { } sequence && read.PrimaryTerm is { } term)
+                {
+                    r.IfSeqNo(sequence).IfPrimaryTerm(term);
+                }
+                else
+                {
+                    r.OpType(OpType.Create);
+                }
+            }, cancellationToken).ConfigureAwait(false);
+            if (response.IsValidResponse) { return; }
+            if (!IsVersionConflict(response)) { throw IndexingFailure(response); }
+        }
+        throw new InvalidOperationException("Projection write exhausted its concurrency retry limit.");
+    }
+
 	private async Task<ProjectionAdvanceResult> WriteAtSequenceAsync(
 		string id,
 		JsonObject document,
@@ -1466,6 +1425,7 @@ public sealed partial class ElasticSearchProjectionStore<
 			// unnumbered write landing in that window is exactly what moves the sequence number and causes
 			// this conflict. Reporting Superseded for a numberless row would hand the caller a null position
 			// to retry against, forever.
+			if (current.Position.Kind == ProjectionPositionKind.Retired) { return new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Vanished, null); }
 			return current.Position.Kind == ProjectionPositionKind.Positioned
 				? new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Superseded, current.Position.Value)
 				: new ProjectionAdvanceResult(ProjectionAdvanceOutcome.Unplaceable, null);
@@ -1485,7 +1445,7 @@ public sealed partial class ElasticSearchProjectionStore<
 	/// is the same shape the unconditional read produces -- deserializing with a separately-configured
 	/// serializer would diverge the moment a consumer customises naming or converters.
 	/// </remarks>
-	private async Task<PositionedRead> ReadForUpdateAsync(string id, CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null)
+	private async Task<PositionedRead> ReadForUpdateAsync(string id, CancellationToken cancellationToken, JsonTypeInfo<TProjection>? typeInfo = null, bool materialize = true)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -1534,7 +1494,7 @@ public sealed partial class ElasticSearchProjectionStore<
 		_ = source.Remove(PositionField);
 
 		return new PositionedRead(
-			Deserialize(source, typeInfo),
+			!materialize || position.Kind == ProjectionPositionKind.Retired ? null : Deserialize(source, typeInfo),
 			position,
 			response.SeqNo,
 			response.PrimaryTerm);

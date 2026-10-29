@@ -39,6 +39,9 @@ internal interface IPositionedProjectionProbe
 
 	/// <summary>Gets the actual destination cluster configuration, when available.</summary>
 	string? GetDestinationScope(IServiceProvider services) => null;
+
+    ValueTask<string?> GetDestinationScopeAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(GetDestinationScope(services));
 }
 
 /// <inheritdoc />
@@ -81,16 +84,28 @@ internal sealed class PositionedProjectionProbe<TProjection> : IPositionedProjec
 	public string? GetDestinationScope(IServiceProvider services)
 	{
 		var store = services.GetRequiredService<IProjectionStore<TProjection>>();
-		return (store.GetService(typeof(IProjectionDestinationScope)) as IProjectionDestinationScope)?.Scope;
+		return ProjectionTenantValidation.Scope(store, (store.GetService(typeof(IProjectionDestinationScope)) as IProjectionDestinationScope)?.Scope);
 	}
+
+    public async ValueTask<string?> GetDestinationScopeAsync(IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var store = services.GetRequiredService<IProjectionStore<TProjection>>();
+        return services.GetService<ProjectionCapacity>() is { } capacity
+            ? ProjectionTenantValidation.Scope(store, await capacity.ReadScopeAsync(store, cancellationToken).ConfigureAwait(false))
+            : store.GetService(typeof(IAsyncProjectionDestinationScope)) is IAsyncProjectionDestinationScope scope
+            ? ProjectionTenantValidation.Scope(store, await scope.GetScopeAsync(cancellationToken).ConfigureAwait(false))
+            : ProjectionTenantValidation.Scope(store, (store.GetService(typeof(IProjectionDestinationScope)) as IProjectionDestinationScope)?.Scope);
+    }
 
 	/// <inheritdoc />
 	public Task EnsureVisibleAsync(IServiceProvider services, CancellationToken cancellationToken)
 	{
 		var store = services.GetRequiredService<IProjectionStore<TProjection>>();
-		return store.GetService(typeof(IProjectionVisibilityBarrier)) is IProjectionVisibilityBarrier barrier
-			? barrier.EnsureVisibleAsync(cancellationToken)
-			: Task.CompletedTask;
+		if (store.GetService(typeof(IProjectionVisibilityBarrier)) is not IProjectionVisibilityBarrier barrier) { return Task.CompletedTask; }
+        return services.GetService<ProjectionCapacity>() is { } capacity
+            ? capacity.ExecuteStoreAsync(store, ProjectionCapacityKind.Write, async token =>
+                { await barrier.EnsureVisibleAsync(token).ConfigureAwait(false); return true; }, cancellationToken).AsTask()
+            : barrier.EnsureVisibleAsync(cancellationToken);
 	}
 
 }

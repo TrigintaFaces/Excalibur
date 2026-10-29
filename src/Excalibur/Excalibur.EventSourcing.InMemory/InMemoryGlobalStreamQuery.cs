@@ -31,8 +31,10 @@ namespace Excalibur.EventSourcing.InMemory;
 	"from. Its result carries each event's own tenant on the row, so a consumer that needs confinement " +
 	"filters there. Adding a tenant predicate here would not harden the read -- it would silently narrow " +
 	"the stream to one partition and make every projection built on it incomplete.")]
-internal sealed class InMemoryGlobalStreamQuery : IGlobalStreamQuery
+internal sealed class InMemoryGlobalStreamQuery : IGlobalStreamQuery, IProjectionDestinationScope
 {
+    string IProjectionDestinationScope.Scope => "inmemory";
+
 	private readonly InMemoryEventStore _store;
 
 	/// <summary>

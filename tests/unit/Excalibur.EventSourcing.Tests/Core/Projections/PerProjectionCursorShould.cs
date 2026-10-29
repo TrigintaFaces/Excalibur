@@ -57,8 +57,8 @@ public sealed class PerProjectionCursorShould
         for (var i = 0; i < 3; i++) { await host.ProcessPendingAsync(CancellationToken.None); }
         fixture.Append(healthy: true);
         await host.ProcessPendingAsync(CancellationToken.None);
-        (await fixture.Checkpoints.GetCheckpointAsync(fixture.KeyFor<BrokenProjection>(), CancellationToken.None)).ShouldBeNull();
-        (await fixture.Checkpoints.GetCheckpointAsync(fixture.KeyFor<HealthyProjection>(), CancellationToken.None)).ShouldBe(3);
+        (await fixture.CursorFor<BrokenProjection>(CancellationToken.None)).ShouldBeNull();
+        (await fixture.CursorFor<HealthyProjection>(CancellationToken.None)).ShouldBe(3);
     }
 
     [Fact]
@@ -103,8 +103,8 @@ public sealed class PerProjectionCursorShould
         using var host = fixture.CreateHost(batchSize: 2);
         var result = await host.ProcessThroughAsync(8, [typeof(HealthyProjection)], CancellationToken.None);
         result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
-        (await fixture.Checkpoints.GetCheckpointAsync(fixture.KeyFor<HealthyProjection>(), CancellationToken.None)).ShouldBe(8);
-        (await fixture.Checkpoints.GetCheckpointAsync(fixture.KeyFor<BrokenProjection>(), CancellationToken.None)).ShouldBeNull();
+        (await fixture.CursorFor<HealthyProjection>(CancellationToken.None)).ShouldBe(8);
+        (await fixture.CursorFor<BrokenProjection>(CancellationToken.None)).ShouldBeNull();
     }
 
 	// LIVENESS: this is the defect. The save feeds Healthy only; Broken is behind and faulting.
@@ -124,9 +124,9 @@ public sealed class PerProjectionCursorShould
 		result.HaltReason.ShouldBe(ProjectionHaltReason.None);
 
 		// The healthy cursor advanced on its own while the broken one did not: that independence IS the fix.
-		(await fixture.Checkpoints.GetCheckpointAsync(fixture.KeyFor<HealthyProjection>(), CancellationToken.None))
+		(await fixture.CursorFor<HealthyProjection>(CancellationToken.None))
 			.ShouldBe(2);
-		(await fixture.Checkpoints.GetCheckpointAsync(fixture.KeyFor<BrokenProjection>(), CancellationToken.None))
+		(await fixture.CursorFor<BrokenProjection>(CancellationToken.None))
 			.ShouldBeNull("the faulting projection must not advance over an event it never folded");
 	}
 
@@ -194,8 +194,11 @@ public sealed class PerProjectionCursorShould
 					type == typeof(BrokenEvent) ? new BrokenEvent() : (IDomainEvent)new HealthyEvent());
 		}
 
-		internal string KeyFor<TProjection>() =>
-			$"AsyncProjectionProcessingHost:{typeof(TProjection).FullName}";
+		// The cursor is addressed by the PAIR the host writes it under, not by a composed string: the
+		// subscription name and the projection key are separate columns, bounded separately.
+		internal Task<long?> CursorFor<TProjection>(CancellationToken cancellationToken) =>
+			Checkpoints.GetCheckpointAsync(
+				"AsyncProjectionProcessingHost", typeof(TProjection).FullName!, cancellationToken);
 
 		internal AsyncProjectionProcessingHost CreateHost(bool includeHealthy = true, int batchSize = 100)
 		{

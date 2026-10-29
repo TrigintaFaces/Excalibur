@@ -11,6 +11,7 @@ using Elastic.Clients.Elasticsearch.Mapping;
 using Elastic.Clients.Elasticsearch.QueryDsl;
 
 using Excalibur.Data.ElasticSearch.IndexManagement;
+using Excalibur.EventSourcing.Projections;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,6 +33,7 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 	private readonly ElasticSearchProjectionManagementOptions _settings;
 	private readonly IOptionsMonitor<ElasticSearchProjectionStoreOptions> _storeOptions;
 	private readonly ILogger<ProjectionRebuildManager> _logger;
+	private readonly IProjectionRebuildService? _refoldService;
 	private readonly string _operationsIndexName;
 
 	private readonly ConcurrentDictionary<string, CancellationTokenSource> _operationTokens =
@@ -47,13 +49,20 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 	/// The per-projection store options, which are where a projection's OWN index name comes from.
 	/// </param>
 	/// <param name="logger"> Logger instance. </param>
+	/// <param name="refoldService">
+	/// The event re-fold service, when the host registered one. Optional: a host that only ever moves
+	/// indexes never needs it, and a rebuild that DOES need it refuses with that reason rather than
+	/// failing to construct for every consumer.
+	/// </param>
 	public ProjectionRebuildManager(
 		ElasticsearchClient client,
 		IIndexAliasManager aliasManager,
 		IOptions<ElasticSearchProjectionManagementOptions> options,
 		IOptionsMonitor<ElasticSearchProjectionStoreOptions> storeOptions,
-		ILogger<ProjectionRebuildManager> logger)
+		ILogger<ProjectionRebuildManager> logger,
+		IProjectionRebuildService? refoldService = null)
 	{
+		_refoldService = refoldService;
 		_client = client ?? throw new ArgumentNullException(nameof(client));
 		_aliasManager = aliasManager ?? throw new ArgumentNullException(nameof(aliasManager));
 		ArgumentNullException.ThrowIfNull(options);
@@ -70,7 +79,7 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(request);
-		ArgumentException.ThrowIfNullOrWhiteSpace(request.ProjectionType);
+		ArgumentNullException.ThrowIfNull(request.ProjectionType);
 		ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetIndexName);
 
 		var startedAt = DateTimeOffset.UtcNow;
@@ -87,10 +96,42 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 			};
 		}
 
+		// A COPY WITH NOTHING TO COPY FROM is the one impossible selection a signature cannot catch: the
+		// request is well formed, and the rebuild used to create an empty index, swap the alias onto it
+		// and report success -- a read model emptied by an operation that said it worked. Refuse it, and
+		// name the two mechanisms so the caller can tell which one their change needs.
+		if (request.Mechanism == ProjectionRebuildMechanism.IndexCopy
+			&& string.IsNullOrWhiteSpace(request.SourceIndexName))
+		{
+			return new ProjectionRebuildResult
+			{
+				OperationId = operationId,
+				Started = false,
+				Message =
+					"An index copy has no source index to copy from, so it can populate nothing. Use "
+					+ $"{nameof(ProjectionRebuildRequest)}.{nameof(ProjectionRebuildRequest.ForIndexMove)} for a "
+					+ "like-for-like move, or "
+					+ $"{nameof(ProjectionRebuildRequest)}.{nameof(ProjectionRebuildRequest.ForEventRefold)} when the "
+					+ "documents change shape.",
+				StartedAt = startedAt,
+			};
+		}
+
+		if (request.Mechanism == ProjectionRebuildMechanism.EventRefold && _refoldService is null)
+		{
+			return new ProjectionRebuildResult
+			{
+				OperationId = operationId,
+				Started = false,
+				Message =
+					"An event re-fold needs the projection rebuild service, which this host has not registered. "
+					+ "Register it, or move the index like for like if the documents do not change shape.",
+				StartedAt = startedAt,
+			};
+		}
+
 		var useAliasing = request.UseAliasing && _settings.RebuildManager.UseAliasing;
-		var actualTargetIndex = useAliasing && request.CreateNewIndex
-			? IndexNameNormalizer.Normalize($"{request.TargetIndexName}-{startedAt:yyyyMMddHHmmss}-{operationId[..8]}")
-			: IndexNameNormalizer.Normalize(request.TargetIndexName);
+		var actualTargetIndex = ResolveTargetIndex(request, useAliasing, startedAt, operationId);
 
 		await EnsureOperationsIndexExistsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -251,10 +292,10 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 
 	/// <inheritdoc />
 	public async Task<ProjectionRebuildValidation> ValidateRebuildAsync(
-		string projectionType,
+		Type projectionType,
 		CancellationToken cancellationToken)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(projectionType);
+		ArgumentNullException.ThrowIfNull(projectionType);
 
 		if (!_settings.RebuildManager.Enabled)
 		{
@@ -269,8 +310,18 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		// THE SAME FUNCTION THE STORE USES, against the SAME named options bucket. Composing the name
 		// here instead -- from this subsystem's own IndexPrefix, and without IndexName -- is what made
 		// validation report a consumer's existing index as missing the moment either setting was used.
+		//
+		// Through the Type overload, which is the only one that can see a declared generation: it
+		// applies the same version qualification the store's own name resolution does, so a bump moves
+		// validation onto the new generation's index with the store rather than leaving it probing the
+		// previous one. One derivation of the name, not two.
+		//
+		// The BUCKET name comes from the same convention too. The store registers its settings under the
+		// projection's FULL type name; asking for the simple one named a bucket nothing configured, so
+		// every namespaced projection -- which is all of them -- was validated against the defaults
+		// rather than against its own index.
 		var projectionIndex = ElasticSearchProjectionIndexConvention.GetIndexName(
-			_storeOptions.Get(projectionType),
+			_storeOptions.Get(ElasticSearchProjectionIndexConvention.GetOptionsName(projectionType)),
 			projectionType);
 		var existsResponse = await _client.Indices.ExistsAsync(projectionIndex, cancellationToken)
 			.ConfigureAwait(false);
@@ -364,7 +415,7 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		return new ProjectionRebuildOperationDocument
 		{
 			OperationId = operationId,
-			ProjectionType = request.ProjectionType,
+			ProjectionType = request.ProjectionType.FullName ?? request.ProjectionType.Name,
 			TargetIndexName = targetIndexName,
 			SourceIndexName = request.SourceIndexName,
 			State = state,
@@ -381,6 +432,36 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		};
 	}
 
+	/// <summary>
+	/// Resolves the index a rebuild's documents will actually land in.
+	/// </summary>
+	/// <remarks>
+	/// A re-fold writes through the projection's OWN store, so its destination is the index that store
+	/// writes to -- composed by the same convention the store uses, from the same named options bucket.
+	/// Deriving it here rather than taking it from the request is what stops a request naming a
+	/// destination that disagrees with where the documents land.
+	/// </remarks>
+	private string ResolveTargetIndex(
+		ProjectionRebuildRequest request,
+		bool useAliasing,
+		DateTimeOffset startedAt,
+		string operationId)
+	{
+		if (request.Mechanism == ProjectionRebuildMechanism.EventRefold)
+		{
+			// The same bucket the store registered -- keyed on the FULL type name -- and the same Type
+			// overload, so a declared generation lands here as it does in the store.
+			return ElasticSearchProjectionIndexConvention.GetIndexName(
+				_storeOptions.Get(ElasticSearchProjectionIndexConvention.GetOptionsName(request.ProjectionType)),
+				request.ProjectionType);
+		}
+
+		return useAliasing && request.CreateNewIndex
+			? IndexNameNormalizer.Normalize(
+				$"{request.TargetIndexName}-{startedAt:yyyyMMddHHmmss}-{operationId[..8]}")
+			: IndexNameNormalizer.Normalize(request.TargetIndexName);
+	}
+
 	private async Task ExecuteRebuildAsync(
 		string operationId,
 		ProjectionRebuildRequest request,
@@ -394,7 +475,31 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (!string.IsNullOrWhiteSpace(request.SourceIndexName))
+			if (request.Refold is not null)
+			{
+				// RE-FOLD FROM THE STREAM, which is the only mechanism that can produce a field no stored
+				// document carries. The copy below reads the source documents, so whatever they lack, the
+				// destination lacks too -- the rebuild would report success with the new field absent
+				// everywhere.
+				//
+				// The replay releases this projection's subscription member first, so the documents and
+				// the cursor are rebuilt together. INTERRUPTED MID-REPLAY it leaves no cursor and a
+				// partially folded destination: the projection re-binds and folds from zero on its next
+				// cycle, overwriting what this attempt wrote. A re-fold is therefore restart-safe rather
+				// than resumable, and that is the state this failure path deliberately leaves behind.
+				var state = await request.Refold(_refoldService!, cancellationToken).ConfigureAwait(false);
+
+				// The replay can decline without throwing -- no global-stream query, no registered
+				// projection -- so the state it finished in is read rather than assumed. Anything short of
+				// completed fails the operation instead of reporting a rebuild that did not happen.
+				if (state != ProjectionRebuildState.Completed)
+				{
+					throw new InvalidOperationException(
+						$"Event re-fold for '{request.ProjectionType.Name}' finished in state '{state}' rather than "
+						+ "completing, so the projection was not rebuilt.");
+				}
+			}
+			else if (!string.IsNullOrWhiteSpace(request.SourceIndexName))
 			{
 				var reindexRequest = new ReindexRequest
 				{
@@ -471,7 +576,7 @@ internal sealed class ProjectionRebuildManager : IProjectionRebuildManager
 			_logger.LogError(
 				ex,
 				"Projection rebuild failed for {ProjectionType}",
-				request.ProjectionType);
+				request.ProjectionType.Name);
 
 			var failed = CreateOperationDocument(
 				operationId,

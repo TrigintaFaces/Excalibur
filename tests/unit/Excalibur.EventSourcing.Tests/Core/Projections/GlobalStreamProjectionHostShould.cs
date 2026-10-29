@@ -26,7 +26,7 @@ public sealed class GlobalStreamProjectionHostShould
 	private readonly IGlobalStreamQuery _globalStreamQuery = A.Fake<IGlobalStreamQuery>();
 	private readonly IGlobalStreamProjection<GlobalStreamTestState> _projection = A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>();
 	private readonly IEventSerializer _eventSerializer = A.Fake<IEventSerializer>();
-	private readonly ISubscriptionCheckpointStore _checkpointStore = A.Fake<ISubscriptionCheckpointStore>();
+	private readonly ISubscriptionCheckpointStore _checkpointStore = SubscriptionCheckpointTestSetup.CreateFake();
 	private readonly IServiceProvider _serviceProvider;
 	private readonly IServiceScopeFactory _scopeFactory = A.Fake<IServiceScopeFactory>();
 
@@ -46,6 +46,95 @@ public sealed class GlobalStreamProjectionHostShould
 		A.CallTo(() => _scopeFactory.CreateScope()).Returns(scope);
 	}
 
+	/// <summary>
+	/// The host binds its roster BEFORE it reads a cursor.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This host previously bound NOTHING. It read and compare-and-set advanced a cursor keyed on the
+	/// subscription name while calling the binding operation nowhere, so the one shared cursor a binding
+	/// most obviously protects was the only cursor with no binding at all — two deployments configured
+	/// with different state types under one subscription name would each advance it as if they owned it.
+	/// </para>
+	/// <para>
+	/// ORDERING IS THE ASSERTION, not mere occurrence. A bind that happens after the first cursor read
+	/// has already let the host act on state it never validated, so "MustHaveHappened" alone would pass
+	/// for a host that bound at the end of its first cycle. The sequence is what the contract requires:
+	/// call this before reading or applying subscription work.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task BindItsRosterBeforeReadingACursor()
+	{
+		SubscriptionRoster? boundWith = null;
+		A.CallTo(() => _checkpointStore.BindSubscriptionAsync(
+				A<string>._, A<IReadOnlyList<SubscriptionMember>>._, A<CancellationToken>._))
+			.ReturnsLazily(call =>
+			{
+				var name = (string)call.Arguments[0]!;
+				var members = (IReadOnlyList<SubscriptionMember>)call.Arguments[1]!;
+				boundWith = new SubscriptionRoster(name, members);
+				return Task.FromResult(boundWith);
+			});
+		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+
+		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
+			_scopeFactory,
+			_eventSerializer,
+			Microsoft.Extensions.Options.Options.Create(new GlobalStreamProjectionOptions
+			{
+				IdlePollingInterval = TimeSpan.FromMilliseconds(10),
+			}),
+			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance,
+			_serviceProvider);
+
+		using var cts = new CancellationTokenSource();
+		await host.StartAsync(cts.Token);
+		await WaitForBindAsync(() => boundWith is not null).ConfigureAwait(false);
+		await cts.CancelAsync().ConfigureAwait(false);
+		await host.StopAsync(CancellationToken.None);
+
+		// The bind happened, and it happened BEFORE the cursor was read.
+		A.CallTo(() => _checkpointStore.BindSubscriptionAsync(
+				A<string>._, A<IReadOnlyList<SubscriptionMember>>._, A<CancellationToken>._))
+            .MustHaveHappened();
+        // Binding returns cursor and lifetime together; a separate cursor read would lose that atomicity.
+        A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+
+		// Its roster is the single state type it is generic over — that type IS its work set, because it
+		// holds no projection registry.
+		boundWith.ShouldNotBeNull().Members.ShouldHaveSingleItem()
+			.ProjectionKey.ShouldBe(typeof(GlobalStreamTestState).FullName);
+	}
+
+	/// <summary>Polls for the bind rather than sleeping, so the arm is deterministic under load.</summary>
+	/// <param name="bound">The condition to await.</param>
+	/// <returns>A task that completes once the bind is observed.</returns>
+	/// <remarks>
+	/// It fails with a sentence naming the defect, not a bare cancellation. Removing the bind call made
+	/// this arm RED with "A task was canceled", which detects the regression and teaches nothing — the
+	/// next reader would have to reconstruct what the arm was waiting for. A timeout here has exactly one
+	/// cause, so it is worth saying out loud.
+	/// </remarks>
+	private static async Task WaitForBindAsync(Func<bool> bound)
+	{
+		var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+		while (!bound())
+		{
+			if (DateTimeOffset.UtcNow > deadline)
+			{
+				throw new ShouldAssertException(
+					"The host never called BindSubscriptionAsync. It must bind its roster before reading "
+					+ "or advancing a cursor; a host that advances a cursor it never bound is the defect "
+					+ "this arm exists to catch.");
+			}
+
+			await Task.Delay(10, CancellationToken.None).ConfigureAwait(false);
+		}
+	}
+
 	[Fact]
 	public void Not_capture_scoped_dependencies_under_scope_validation()
 	{
@@ -56,7 +145,7 @@ public sealed class GlobalStreamProjectionHostShould
 		var services = new ServiceCollection();
 		_ = services.AddScoped(_ => A.Fake<IGlobalStreamQuery>());
 		_ = services.AddScoped(_ => A.Fake<IGlobalStreamProjection<GlobalStreamTestState>>());
-		_ = services.AddScoped(_ => A.Fake<ISubscriptionCheckpointStore>());
+		_ = services.AddScoped(_ => SubscriptionCheckpointTestSetup.CreateFake());
 		_ = services.AddScoped(_ => A.Fake<ICursorMapStore>());
 		_ = services.AddSingleton(_ => A.Fake<IEventSerializer>());
 		_ = services.AddSingleton<Microsoft.Extensions.Options.IOptions<GlobalStreamProjectionOptions>>(
@@ -214,7 +303,7 @@ public sealed class GlobalStreamProjectionHostShould
 	{
 		// Arrange - T.8 regression: host must resume from persisted checkpoint, not position 0
 		const long savedPosition = 42L;
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(savedPosition));
 		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
@@ -241,7 +330,7 @@ public sealed class GlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert - should have called GetCheckpointAsync on startup
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 
 		// And ReadAllAsync should have been called with position >= savedPosition (not 0)
@@ -258,7 +347,7 @@ public sealed class GlobalStreamProjectionHostShould
 	{
 #pragma warning restore CA1506
 		// Arrange - T.8 regression: host must call AdvanceCheckpointAsync after processing events
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 
 		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow);
@@ -279,7 +368,7 @@ public sealed class GlobalStreamProjectionHostShould
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
 		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
 			.Returns(Task.CompletedTask);
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.ReturnsLazily((_) =>
 			{
 				checkpointStored.TrySetResult();
@@ -306,7 +395,7 @@ public sealed class GlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert - checkpoint must have been persisted (not just logged)
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -327,7 +416,7 @@ public sealed class GlobalStreamProjectionHostShould
 		var domainEvent = A.Fake<IDomainEvent>();
 		var applyAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<long?>(null));
 		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(new[] { poison }));
@@ -362,7 +451,7 @@ public sealed class GlobalStreamProjectionHostShould
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert — the checkpoint must NEVER be persisted past the unapplied poison event.
-		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+		A.CallTo(() => _checkpointStore.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
 

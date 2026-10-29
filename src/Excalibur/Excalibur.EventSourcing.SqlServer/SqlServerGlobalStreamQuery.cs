@@ -33,8 +33,19 @@ namespace Excalibur.EventSourcing.SqlServer;
 	"from. Its result carries each event's own tenant on the row, so a consumer that needs confinement " +
 	"filters there. Adding a tenant predicate here would not harden the statement -- it would silently " +
 	"narrow the stream to one partition and make every projection built on it incomplete.")]
-internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery
+internal sealed class SqlServerGlobalStreamQuery : IGlobalStreamQuery, IProjectionDestinationScope
 {
+    string IProjectionDestinationScope.Scope
+    {
+        get
+        {
+            using var connection = _connectionFactory();
+            return string.IsNullOrWhiteSpace(connection.DataSource) || string.IsNullOrWhiteSpace(connection.Database)
+                ? string.Empty
+                : "sqlserver/" + Uri.EscapeDataString(connection.DataSource) + "/" + Uri.EscapeDataString(connection.Database);
+        }
+    }
+
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly string _qualifiedTable;
 

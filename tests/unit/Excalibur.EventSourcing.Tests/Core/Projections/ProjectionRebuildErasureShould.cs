@@ -77,7 +77,7 @@ public sealed class ProjectionRebuildErasureShould
 		projection.AddContextHandler<SubjectTouchedEvent>(
 			static (state, evt, ctx) => state.SeenAggregateIds.Add(ctx.AggregateId));
 
-		var serviceProvider = A.Fake<IServiceProvider>();
+		var serviceProvider = SubscriptionCheckpointTestSetup.CreateRebuildProvider<SubjectTrackingProjection>();
 		A.CallTo(() => serviceProvider.GetService(typeof(IGlobalStreamQuery))).Returns(globalQuery);
 		A.CallTo(() => serviceProvider.GetService(typeof(MultiStreamProjection<SubjectTrackingProjection>)))
 			.Returns(projection);
@@ -87,8 +87,7 @@ public sealed class ProjectionRebuildErasureShould
 		var service = new ProjectionRebuildService(
 			serviceProvider,
 			eventSerializer,
-			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions
-			{
+			Microsoft.Extensions.Options.Options.Create(new ProjectionRebuildOptions { OfflineRebuildAcknowledged = true,
 				BatchSize = 500,
 				BatchDelay = TimeSpan.Zero,
 			}),

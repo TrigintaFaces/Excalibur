@@ -8,7 +8,7 @@ namespace Company.ExcaliburCqrs.Application.Commands;
 /// Handles <see cref="CreateOrderCommand"/> by creating a new Order aggregate,
 /// persisting it to the event store, and returning its identifier.
 /// </summary>
-public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderCommand, Guid>
+public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderCommand, CreateOrderResult>
 {
     private readonly IEventSourcedRepository<Order, Guid> _orderRepository;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
@@ -22,7 +22,7 @@ public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderComman
     }
 
     /// <inheritdoc />
-    public async Task<Guid> HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
+    public async Task<CreateOrderResult> HandleAsync(CreateOrderCommand action, CancellationToken cancellationToken)
     {
         var orderId = Guid.NewGuid();
         var order = Order.Create(orderId, action.ProductId, action.Quantity);
@@ -37,6 +37,6 @@ public sealed class CreateOrderCommandHandler : IActionHandler<CreateOrderComman
             "Order {OrderId} persisted at version {Version}; the read model follows asynchronously",
             orderId,
             saved.CommittedVersion);
-        return orderId;
+        return new CreateOrderResult(orderId, saved);
     }
 }

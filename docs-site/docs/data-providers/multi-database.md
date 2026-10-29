@@ -532,47 +532,38 @@ builder.Services.AddScoped<IProjectionDb>(_ =>
 
 ## Document Database Projections
 
-When projections target a **document database** (Elasticsearch, CosmosDB, MongoDB), the typed `IDb` interfaces don't apply -- these stores use SDK clients, not `IDbConnection`. Each document-based projection store is configured through its own `IOptions<T>`:
+When projections target a **document database** (Elasticsearch, CosmosDB, MongoDB), the typed `IDb` interfaces don't apply -- these stores use SDK clients, not `IDbConnection`. Register each one through its own `Add...ProjectionStore<T>` extension. The extension configures a **named** options instance keyed by the projection type, so several projections coexist with independent databases, containers and indices. Configuring the unnamed `IOptions<T>` instance directly does not reach these stores.
 
 ### Elasticsearch
 
 ```csharp
-builder.Services.Configure<ElasticSearchProjectionStoreOptions>(options =>
+builder.Services.AddElasticSearchProjectionStore<OrderReadModel>(options =>
 {
     options.NodeUri = "https://search-cluster:9200";
     options.Index.IndexPrefix = "projections";
 });
-
-builder.Services.AddScoped<IProjectionStore<OrderReadModel>,
-    ElasticSearchProjectionStore<OrderReadModel>>();
 ```
 
 ### Azure Cosmos DB
 
 ```csharp
-builder.Services.Configure<CosmosDbProjectionStoreOptions>(options =>
+builder.Services.AddCosmosDbProjectionStore<OrderReadModel>(options =>
 {
     options.Client.ConnectionString = "AccountEndpoint=https://...";
     options.DatabaseName = "Projections";
     options.ContainerName = "read-models";
 });
-
-builder.Services.AddScoped<IProjectionStore<OrderReadModel>,
-    CosmosDbProjectionStore<OrderReadModel>>();
 ```
 
 ### MongoDB
 
 ```csharp
-builder.Services.Configure<MongoDbProjectionStoreOptions>(options =>
+builder.Services.AddMongoDbProjectionStore<OrderReadModel>(options =>
 {
     options.ConnectionString = "mongodb://read-cluster:27017";
     options.DatabaseName = "Projections";
     options.CollectionName = "read-models";
 });
-
-builder.Services.AddScoped<IProjectionStore<OrderReadModel>,
-    MongoDbProjectionStore<OrderReadModel>>();
 ```
 
 ### Mixed: SQL Events + Document Projections
@@ -585,14 +576,11 @@ builder.Services.AddScoped<IDomainDb>(_ =>
     new DomainDb(new SqlConnection(writeConnectionString)));
 
 // Read side: Elasticsearch for projections (no IProjectionDb needed)
-builder.Services.Configure<ElasticSearchProjectionStoreOptions>(options =>
+builder.Services.AddElasticSearchProjectionStore<OrderReadModel>(options =>
 {
     options.NodeUri = "https://search-cluster:9200";
     options.Index.IndexPrefix = "projections";
 });
-
-builder.Services.AddScoped<IProjectionStore<OrderReadModel>,
-    ElasticSearchProjectionStore<OrderReadModel>>();
 ```
 
 `IProjectionDb` is only needed when projections use a **SQL database** (SQL Server or Postgres) that requires a separate `IDbConnection` from the write side.

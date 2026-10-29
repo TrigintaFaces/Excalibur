@@ -153,15 +153,24 @@ directory. Failed diameter probes fail verification and report unavailable evide
 
 ## Cooperative asynchronous projection processing
 
-[`cooperative-projection/README.md`](cooperative-projection/README.md) documents a separate seven-arm
-checker for API/manual and background/Jobs cooperation. Run its Python harness with explicit Java and
-TLC jar paths; it is not implicitly included in `check-models.sh`. The healthy finite model and the
-mixed-manifest rejection arm check temporal completion and safety. Four independent mutants and the
-checker self-test must report their named violations. The portable checked-design summary records the
-exact model/jar hashes and measured state counts, without bundling machine-local logs.
+[`cooperative-projection/README.md`](cooperative-projection/README.md) documents the nine-arm
+historical page/visibility checker. `check-models.sh` now invokes it with the same discovered Java and
+TLC toolchain as the other models. Python must also be available (`TLA_PYTHON` overrides the command).
+Each arm has a 1,800-second default timeout and a 4,096 MiB Java heap;
+`TLA_COOPERATIVE_TIMEOUT` and `TLA_COOPERATIVE_HEAP_MB` override those resource limits. Timeout,
+exhausted heap or an unavailable checker returns **REFUSE (2)**, never PASS. An observed unexpected
+invariant or temporal violation remains FAIL (1), even if that arm later times out or exhausts memory.
+Evidence is retained under `TLA_RUN_ARTIFACTS` or the temporary directory.
+
+The manifest binder in this model is historical and its production correspondence is withdrawn.
+Passing these arms does not validate current roster admission; current lifetime checks remain separate
+in the same canonical runner. The independent Python command remains available for focused diagnosis,
+but release verification uses the canonical runner so this model cannot silently be omitted.
 
 This model was checked before restructuring production coordination. It supports replacing ambient
 projection leadership and the proposed checkpoint leadership-token fence with immutable subscription
 binding, mandatory positioned writes, per-page checkpoint CAS and a FIFO local gate. It does not prove
 external side effects exactly once, unbounded liveness, erasure/rebuild interleavings, or provider-code
 refinement. It therefore does not by itself discharge the complete R4 rigor rung.
+
+Resource settings do not change model bounds or invariants.

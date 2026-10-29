@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
+using System.Reflection;
 using System.Text.Json;
 
 using Excalibur.EventSourcing.Postgres;
@@ -357,6 +358,134 @@ public sealed class PostgresProjectionStoreShould
 	}
 
 	#endregion Interface Implementation Tests
+
+	#region Destination Identity Tests
+
+	// The identity is hashed into a durable fingerprint, so it must name the destination the statements
+	// actually address and must not move for a fixed configuration. Every arm below composes the
+	// expected value from the same two segments the store qualifies its SQL with.
+
+	[Fact]
+	public void DestinationIdentity_NamesTheResolvedSchemaAndTable()
+	{
+		// Arrange
+		var store = new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb",
+			_logger,
+			TestTenantContext.SingleTenantDefault,
+			tableName: "order_summary");
+
+		// Act
+		var identity = Identity(store);
+
+		// Assert — the RESOLVED default schema is named, never an empty segment.
+		identity.ShouldBe("postgres/public/order_summary");
+	}
+
+	[Fact]
+	public void DestinationIdentity_NamesAConfiguredSchema()
+	{
+		// Arrange
+		var store = new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb",
+			_logger,
+			TestTenantContext.SingleTenantDefault,
+			tableName: "order_summary",
+			jsonOptions: null,
+			schemaName: "reporting");
+
+		// Act & Assert — the same table in two schemas is two destinations.
+		Identity(store).ShouldBe("postgres/reporting/order_summary");
+		Identity(store).ShouldNotBe(
+			Identity(new PostgresProjectionStore<SampleProjection>(
+				"Host=localhost;Database=TestDb",
+				_logger,
+				TestTenantContext.SingleTenantDefault,
+				tableName: "order_summary")));
+	}
+
+	[Fact]
+	public void DestinationIdentity_IsUnchangedWhenTheDefaultSchemaIsWrittenOut()
+	{
+		// Arrange — a consumer who makes the default explicit has not moved the destination.
+		var implicitSchema = new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault, tableName: "order_summary");
+		var explicitSchema = new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault,
+			tableName: "order_summary", jsonOptions: null, schemaName: "public");
+
+		// Act & Assert
+		Identity(explicitSchema).ShouldBe(Identity(implicitSchema));
+	}
+
+	[Fact]
+	public void DestinationIdentity_PreservesCaseBecauseTheStatementsQuoteBothIdentifiers()
+	{
+		// Arrange — Postgres folds an UNQUOTED identifier to lower case and preserves the case inside
+		// double quotes. This store quotes both, so "OrderSummary" and "order_summary" are two
+		// different tables and folding the identity would collide two real destinations.
+		var store = new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb",
+			_logger,
+			TestTenantContext.SingleTenantDefault,
+			tableName: "OrderSummary",
+			jsonOptions: null,
+			schemaName: "Reporting");
+
+		// Act
+		var identity = Identity(store);
+
+		// Assert
+		identity.ShouldBe("postgres/Reporting/OrderSummary");
+		identity.ShouldNotBe("postgres/reporting/ordersummary");
+	}
+
+	[Theory]
+	[InlineData("order\".\"summary")]
+	[InlineData("public.order_summary")]
+	[InlineData("order-summary")]
+	public void Constructor_WithAnUnusableTableName_ThrowsArgumentException(string tableName) =>
+		// A quote or a dot inside an identifier would escape the quoting and make the destination
+		// ambiguous, so the name is restricted before it is composed into either the SQL or the identity.
+		Should.Throw<ArgumentException>(() => new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault, tableName: tableName));
+
+	[Theory]
+	[InlineData("public\".\"other")]
+	[InlineData("report.ing")]
+	[InlineData("")]
+	public void Constructor_WithAnUnusableSchemaName_ThrowsArgumentException(string schemaName) =>
+		Should.Throw<ArgumentException>(() => new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb", _logger, TestTenantContext.SingleTenantDefault,
+			tableName: "order_summary", jsonOptions: null, schemaName: schemaName));
+
+	[Fact]
+	public void QualifiedTableName_QuotesBothIdentifiersExactlyAsTheHelperDoes()
+	{
+		// Arrange -- the composed name every statement in this store interpolates. Pinned because it is now
+		// produced by the package's single identifier-quoting helper instead of being hand-rolled here: the
+		// emitted string must stay byte-identical, so one quoting rule governs every statement.
+		var store = new PostgresProjectionStore<SampleProjection>(
+			"Host=localhost;Database=TestDb",
+			_logger,
+			TestTenantContext.SingleTenantDefault,
+			tableName: "OrderSummary",
+			jsonOptions: null,
+			schemaName: "Reporting");
+
+		// Act
+		var qualified = (string)typeof(PostgresProjectionStore<SampleProjection>)
+			.GetField("_qualifiedTable", BindingFlags.Instance | BindingFlags.NonPublic)!
+			.GetValue(store)!;
+
+		// Assert
+		qualified.ShouldBe("\"Reporting\".\"OrderSummary\"");
+	}
+
+	private static string Identity(IProjectionStore<SampleProjection> store) =>
+		((IProjectionDestinationIdentity)store.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+
+	#endregion Destination Identity Tests
 
 	#region NpgsqlDataSource Options Tests
 

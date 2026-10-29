@@ -9,6 +9,25 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 [Trait("Component", "EventSourcing")]
 public sealed class ProjectionRebuildOptionsShould
 {
+	[Theory]
+	[InlineData(false, false, true)]
+	[InlineData(true, false, false)]
+	[InlineData(true, true, true)]
+	[InlineData(false, true, true)]
+	public void RequireOfflineAcknowledgmentForStartupRebuild(bool startup, bool acknowledged, bool valid)
+	{
+		var result = new ProjectionRebuildOptionsValidator().Validate(null, new ProjectionRebuildOptions
+		{
+			RebuildOnStartup = startup,
+			OfflineRebuildAcknowledged = acknowledged,
+		});
+		result.Succeeded.ShouldBe(valid);
+		if (!valid)
+		{
+			result.FailureMessage.ShouldContain(nameof(ProjectionRebuildOptions.OfflineRebuildAcknowledged));
+		}
+	}
+
 	[Fact]
 	public void DefaultBatchSizeTo500()
 	{

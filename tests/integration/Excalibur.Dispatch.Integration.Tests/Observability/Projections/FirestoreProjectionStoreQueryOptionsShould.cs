@@ -6,7 +6,6 @@ using Excalibur.EventSourcing;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using MsOptions = Microsoft.Extensions.Options.Options;
 
 namespace Excalibur.Dispatch.Integration.Tests.Observability.Projections;
 
@@ -66,7 +65,7 @@ public sealed class FirestoreProjectionStoreQueryOptionsShould : IAsyncLifetime
 
 		_store = new FirestoreProjectionStore<TestOrderProjection>(
 			_fixture.Db,
-			MsOptions.Create(new FirestoreProjectionStoreOptions { CollectionName = $"opts-{Guid.NewGuid():N}" }),
+			new SingleNamedFirestoreProjectionOptions(new FirestoreProjectionStoreOptions { CollectionName = $"opts-{Guid.NewGuid():N}" }),
 			NullLogger<FirestoreProjectionStore<TestOrderProjection>>.Instance);
 
 		// The document ids are chosen so that DOCUMENT-ID order and QUANTITY order DISAGREE.

@@ -40,7 +40,7 @@ namespace Excalibur.EventSourcing.Sharding;
 /// Registered only when multi-tenancy uses the row-discriminator strategy.
 /// </para>
 /// </remarks>
-public sealed class TenantScopedProjectionStore<TProjection> : IsolatingProjectionStoreDecorator<TProjection>
+public sealed partial class TenantScopedProjectionStore<TProjection> : IsolatingProjectionStoreDecorator<TProjection>
 	where TProjection : class
 {
 	private readonly IProjectionStore<TProjection> _inner;
@@ -120,7 +120,19 @@ public sealed class TenantScopedProjectionStore<TProjection> : IsolatingProjecti
 	/// </remarks>
 	protected override object? WrapCapability(Type serviceType)
 	{
+		if (serviceType == typeof(IProjectionTenantBoundary)) { return new TenantBoundary(this); }
 		ArgumentNullException.ThrowIfNull(serviceType);
+        if (serviceType == typeof(IProjectionGenerationReaderFactory<TProjection>)
+            && Inner.GetService(serviceType) is IProjectionGenerationReaderFactory<TProjection>)
+        {
+            return new GenerationReaderFactory(this);
+        }
+        if (serviceType == typeof(IAotProjectionGenerationReaderFactory<TProjection>)
+            && Inner.GetService(serviceType) is IAotProjectionGenerationReaderFactory<TProjection>)
+        {
+            return new GeneratedReaderFactory(this);
+        }
+
 
 		if (serviceType == typeof(IPageableProjectionStore<TProjection>)
 			&& Inner.GetService(typeof(IPageableProjectionStore<TProjection>)) is IPageableProjectionStore<TProjection> pageable)
@@ -161,6 +173,20 @@ public sealed class TenantScopedProjectionStore<TProjection> : IsolatingProjecti
 	/// </remarks>
 	/// <exception cref="TenantRequiredException">The context resolves no tenant.</exception>
 	private void RequireTenant() => _ = TenantScope.FromContext(_tenantContext);
+
+	private sealed class TenantBoundary(TenantScopedProjectionStore<TProjection> outer) : IProjectionTenantBoundary
+	{
+		public ProjectionTenantBoundary Boundary
+		{
+			get
+			{
+				var expected = TenantScope.FromContext(outer._tenantContext).TenantId;
+				var actual = Projections.ProjectionTenantValidation.Read(outer.Inner);
+				if (actual.TenantId != expected) { throw new InvalidOperationException("The tenant decorator cannot establish confinement that its inner projection store does not enforce."); }
+				return actual;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Mediates the positioned capability so a shard-scoped caller cannot reach an unscoped store.

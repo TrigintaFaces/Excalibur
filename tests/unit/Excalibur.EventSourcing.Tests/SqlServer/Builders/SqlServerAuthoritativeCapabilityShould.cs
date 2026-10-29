@@ -145,7 +145,7 @@ public sealed class SqlServerAuthoritativeCapabilityShould
 		public ISqlServerEventSourcingBuilder SnapshotStoreSchema(string schema) => this;
 		public ISqlServerEventSourcingBuilder SnapshotStoreTable(string tableName) => this;
 		public ISqlServerEventSourcingBuilder UseMaterializedViewStore() => this;
-		public ISqlServerEventSourcingBuilder UseMaterializedViewStore(string viewTableName, string positionTableName) => this;
+		public ISqlServerEventSourcingBuilder UseMaterializedViewStore(string viewTableName, string positionTableName, string schemaName = "dbo") => this;
 		public ISqlServerEventSourcingBuilder EventTypeInfoResolver(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver) => this;
 	}
 }

@@ -462,10 +462,29 @@ internal sealed class ProjectionSessionHarness : IDisposable
 		_provider?.Dispose();
 	}
 
-	private ServiceProvider Provider =>
-		_provider ??= Services
-			.AddSingleton<IGlobalStreamQuery>(new ListStream(_stream))
-			.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = ValidateScopes });
+    private ServiceProvider Provider
+    {
+        get
+        {
+            if (_provider is not null) { return _provider; }
+            foreach (var registration in Registry.GetByMode(ProjectionMode.Async))
+            {
+                Services.AddSingleton<IPositionedProjectionProbe>(new SessionProbe(registration.ProjectionType));
+            }
+            return _provider = Services.AddSingleton<IGlobalStreamQuery>(new ListStream(_stream))
+                .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = ValidateScopes });
+        }
+    }
+
+    private sealed class SessionProbe(Type type) : IPositionedProjectionProbe
+    {
+        public Type ProjectionType => type;
+        public string ProjectionTypeName => type.Name;
+        public bool IsPositioned(IServiceProvider services) => true;
+        public Task EnsureVisibleAsync(IServiceProvider services, CancellationToken cancellationToken) => Task.CompletedTask;
+        public string GetDestinationIdentity(IServiceProvider services) => "test/" + type.FullName;
+        public string GetDestinationScope(IServiceProvider services) => "estate/test-cluster";
+    }
 
 	private AsyncProjectionProcessingHost Host =>
 		_host ??= new AsyncProjectionProcessingHost(

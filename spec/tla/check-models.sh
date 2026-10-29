@@ -108,6 +108,7 @@ echo "TLA+ model check -- $(TLC 2>&1 | head -1)"
 echo
 
 fails=0
+refused=0
 
 echo "-- control: can this TLC invocation report a violation at all?"
 run_arm _SelfTest NeverThree "_SelfTest (not a model of anything)" || fails=$((fails+1))
@@ -205,26 +206,219 @@ run_arm _L_NoStage     InvRepairable  "(destroy, record)          <- subject los
 run_arm _L_OnlyCurrent InvRepairable  "(stage only current gen)   <- pre-rotation envelope lost"  || fails=$((fails+1))
 run_arm _L_RecordFirst InvS1          "(record, destroy)          <- TOMBSTONE OVER LIVE MATERIAL" || fails=$((fails+1))
 
+# ---------------------------------------------------------------------------
+# SUBSCRIPTION ROSTER. The seam binds ONE roster row per PROJECTION, and the
+# attestation "every member of this subscription is caught up" is honest only while
+# the quantifier's domain is the roster read from the DURABLE STORE.
+#
+# WHY THE ARMS ARE SHAPED THIS WAY. Two hosts here INTERLEAVE at the grain the store
+# actually provides: the per-member claim is one atomic statement (ON CONFLICT DO
+# NOTHING on the composite key), but the read-back is a SECOND statement in no
+# transaction, and the attestation is a whole page fold later still. None of that is
+# granted -- which is why the arm modelling what SHIPS violates the strongest
+# invariant in that module rather than printing a green over an assumed premise.
+#
+# READ SubscriptionRoster.tla's SCOPE AND LIMITS BLOCKS BEFORE CITING ANY ARM BELOW.
+# Two of these arms are configurations the shipped code does NOT have.
+# ---------------------------------------------------------------------------
+mkrarm() { # name numhosts topology divergent local upsert relclr atomic reread token [invariants...]
+    local name="$1" dir="$HERE/subscription-roster"
+    cp "$dir/SubscriptionRoster.tla" "$dir/$name.tla"
+    sed -i "s/MODULE SubscriptionRoster/MODULE $name/" "$dir/$name.tla"
+    cat > "$dir/$name.cfg" <<EOF
+SPECIFICATION Spec
+CONSTANTS
+    NumHosts = $2
+    Topology = "$3"
+    DivergentVersions = $4
+    MaxPos = 2
+    LocalQuantifier = $5
+    UpsertBinding = $6
+    ReleaseClearsSubscription = $7
+    AtomicRosterRead = $8
+    AllowReRead = $9
+    TokenMode = "${10}"
+    NoCursor = NoCursor
+INVARIANT TypeOK
+EOF
+    shift 10
+    local inv
+    for inv in "$@"; do echo "INVARIANT $inv" >> "$dir/$name.cfg"; done
+}
+
+# WHY EACH ARM DECLARES ONLY THE INVARIANT IT ISOLATES. TLC reports the FIRST
+# invariant violated in the first violating state, so declaring a weaker invariant
+# alongside a stronger one lets the weaker one's shorter counterexample mask the arm's
+# whole purpose. Measured: the local-quantifier arm with both attestation invariants
+# declared reported InvNoFalseFresh, because the shortest path to a false attestation
+# is the stale-read window and not the quantifier -- so the arm said nothing about the
+# defect it exists to refute. The arms below are therefore one-variable-apart PAIRS,
+# and the pairing is what makes each non-vacuous.
+echo
+echo "-- subscription roster: the quantifier, the claim, and the attestation window"
+#      name                  NH topo    Div   Local Upsrt RelClr Atom  ReRd Token
+mkrarm _SR_Ships         3 subset FALSE FALSE FALSE FALSE FALSE FALSE none \
+       InvNoBlindFresh InvRosterStable InvSiblingProgress
+mkrarm _SR_LocalQuant    3 subset FALSE TRUE  FALSE FALSE FALSE FALSE none \
+       InvNoBlindFresh
+mkrarm _SR_StaleWindow   3 subset FALSE FALSE FALSE FALSE FALSE FALSE none \
+       InvNoFalseFresh
+mkrarm _SR_ReReadNoHelp  3 subset FALSE FALSE FALSE FALSE FALSE TRUE  none \
+       InvNoFalseFresh
+mkrarm _SR_AtomicRead    3 subset FALSE FALSE FALSE FALSE TRUE  FALSE none \
+       InvNoFalseFresh InvNoBlindFresh InvNoSilentFalseFresh InvRosterStable InvSiblingProgress
+mkrarm _SR_NoToken       3 subset FALSE FALSE FALSE FALSE FALSE FALSE none \
+       InvNoSilentFalseFresh
+mkrarm _SR_Token         3 subset FALSE FALSE FALSE FALSE FALSE FALSE membership \
+       InvNoSilentFalseFresh
+mkrarm _SR_TokenLocal    3 subset FALSE TRUE  FALSE FALSE FALSE FALSE membership \
+       InvNoSilentFalseFresh
+mkrarm _SR_Upsert        3 subset TRUE  FALSE TRUE  FALSE FALSE FALSE none \
+       InvRosterStable
+mkrarm _SR_ReleaseClears 3 subset FALSE FALSE FALSE TRUE  FALSE FALSE none \
+       InvSiblingProgress
+
+run_arm subscription-roster/_SR_Ships hold \
+  "(store-sourced domain)        <- HISTORICAL baseline guarantee"            || fails=$((fails+1))
+run_arm subscription-roster/_SR_LocalQuant InvNoBlindFresh \
+  "(LOCAL domain)                <- read the member, ignored it. THE DEFECT"      || fails=$((fails+1))
+run_arm subscription-roster/_SR_StaleWindow InvNoFalseFresh \
+  "(store-sourced, stale read)   <- HISTORICAL shape: overtaken between read+attest" || fails=$((fails+1))
+run_arm subscription-roster/_SR_ReReadNoHelp InvNoFalseFresh \
+  "(re-read before attesting)    <- a FRESHER read MOVES the window, not closes"  || fails=$((fails+1))
+run_arm subscription-roster/_SR_AtomicRead hold \
+  "(read ATOMIC with attest)     <- the premise the code does NOT have"           || fails=$((fails+1))
+run_arm subscription-roster/_SR_NoToken InvNoSilentFalseFresh \
+  "(no roster token)             <- the false attestation is SILENT"              || fails=$((fails+1))
+run_arm subscription-roster/_SR_Token hold \
+  "(roster snapshot carried)     <- staleness always WITNESSED. The lead."        || fails=$((fails+1))
+run_arm subscription-roster/_SR_TokenLocal InvNoSilentFalseFresh \
+  "(token + LOCAL domain)        <- a token does NOT rescue the quantifier"       || fails=$((fails+1))
+run_arm subscription-roster/_SR_Upsert InvRosterStable \
+  "(bind UPSERTS)                <- roster describes the LAST WRITER"             || fails=$((fails+1))
+run_arm subscription-roster/_SR_ReleaseClears InvSiblingProgress \
+  "(release clears SUBSCRIPTION) <- every sibling's progress destroyed"           || fails=$((fails+1))
+
+# ---------------------------------------------------------------------------
+# ADEQUACY INSTRUMENT for the roster model. Same question the event-store probe asks,
+# plus the confound that probe cannot control for: there, adding a writer adds nothing
+# but name permutations. Here, adding a HOST would also add KEYS it is the only host
+# able to bind, so a diameter change could be bought by coverage rather than by
+# concurrency.
+#
+# So the primary probe holds KEY COVERAGE CONSTANT (Topology = "all", every host hosts
+# every key) and varies only the host count. A diameter that moves there is
+# attributable to interleaving between hosts and nothing else. The shipped topology is
+# reported second, labelled confounded, because it is what the arms above actually run.
+# ---------------------------------------------------------------------------
+echo
+echo "-- adequacy: do the roster arms exercise concurrency BETWEEN hosts?"
+rdiam_for() { # numhosts topology
+    local out rc diameter
+    mkrarm _SR_Diam "$1" "$2" FALSE FALSE FALSE FALSE FALSE FALSE none InvNoBlindFresh
+    out="$(TLC "$HERE/subscription-roster/_SR_Diam.tla")"; rc=$?
+    if [ "$rc" -ne 0 ]; then
+        printf 'Roster diameter probe unavailable: TLC exited %s.\n%s\n' "$rc" "$out" >&2
+        return 1
+    fi
+    diameter="$(printf '%s\n' "$out" | grep -oE 'depth of the complete state graph search is [0-9]+' | grep -oE '[0-9]+$')"
+    if [ -z "$diameter" ]; then
+        printf 'Roster diameter probe unavailable: TLC reported no diameter.\n%s\n' "$out" >&2
+        return 1
+    fi
+    printf '%s\n' "$diameter"
+}
+ra1="$(rdiam_for 1 all)";    ra1_rc=$?
+ra3="$(rdiam_for 3 all)";    ra3_rc=$?
+rs1="$(rdiam_for 1 subset)"; rs1_rc=$?
+rs3="$(rdiam_for 3 subset)"; rs3_rc=$?
+echo "     COVERAGE-CONTROLLED (every host hosts every key; only the host count varies)"
+echo "       diameter with 1 host:  ${ra1:-?}"
+echo "       diameter with 3 hosts: ${ra3:-?}"
+echo "     SHIPPED TOPOLOGY (overlapping worksets -- CONFOUNDED by key coverage, stated)"
+echo "       diameter with 1 host:  ${rs1:-?}"
+echo "       diameter with 3 hosts: ${rs3:-?}"
+if [ "$ra1_rc" -ne 0 ] || [ "$ra3_rc" -ne 0 ] || [ "$rs1_rc" -ne 0 ] || [ "$rs3_rc" -ne 0 ]; then
+    echo "     >> UNAVAILABLE. A failed probe is not evidence that concurrency was exercised."
+    fails=$((fails+1))
+elif [ "$ra1" = "$ra3" ]; then
+    echo "     >> UNCHANGED under the COVERAGE-CONTROLLED probe. The roster arms do NOT"
+    echo "        exercise concurrency between hosts: the extra states would be name"
+    echo "        permutations, so some premise in the model is GRANTING the mutual"
+    echo "        exclusion these arms were written to test. Treat every roster arm"
+    echo "        above as unsupported and do not claim R4 on any of them."
+    fails=$((fails+1))
+else
+    echo "     >> diameter moved with the host count under the COVERAGE-CONTROLLED probe;"
+    echo "        interleaving between hosts is being exercised."
+fi
+
 # Adequacy for this model is not a diameter question -- there is one process, so concurrency is not
 # what it establishes. What it establishes is that the SET semantics and the post-destruction
 # unreadability of the generation together make two proposed designs unrepairable. The premise doing
 # the work is Record's `ledger' = ledger \cup intents`, stated in the module's SCOPE block. If that
 # equation is wrong about any provider, this model is wrong for that provider.
 
+# Check the current bounded lifetime/read protocol independently of the historical models.
+# The PowerShell runner retains model/configuration hashes and all expected counterexamples.
+if ! command -v pwsh >/dev/null 2>&1; then
+    echo "REFUSE: pwsh unavailable for current binding-lifetime checks."
+    refused=$((refused+1))
+elif ! pwsh -NoProfile -File "$HERE/subscription-roster/Check-BindingLifetime.ps1" -Java "$JAVA" -Jar "$JAR"; then
+    fails=$((fails+1))
+fi
+# Historical page/visibility protocol: the manifest binder correspondence is withdrawn.
+# Keep its checker in the canonical entry point without turning timeout into a pass or failure.
+echo
+echo "-- historical cooperative page/visibility protocol (not current roster admission)"
+PYTHON="${TLA_PYTHON:-python}"
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+    echo "REFUSE: Python unavailable for cooperative projection checks."
+    refused=$((refused+1))
+else
+    cooperative_root="$(mktemp -d "$ARTIFACT_ROOT/cooperative-projection.XXXXXX")"
+    java_python="$JAVA"; jar_python="$JAR"
+    if command -v cygpath >/dev/null 2>&1; then
+        java_python="$(cygpath -w "$JAVA")"; jar_python="$(cygpath -w "$JAR")"
+    fi
+    "$PYTHON" "$HERE/cooperative-projection/check-cooperative-projection.py" \
+        --java "$java_python" --jar "$jar_python" --output "$cooperative_root/evidence" \
+        --timeout "${TLA_COOPERATIVE_TIMEOUT:-1800}" \
+        --heap-mb "${TLA_COOPERATIVE_HEAP_MB:-4096}"
+    cooperative_rc=$?
+    case "$cooperative_rc" in
+        0) ;;
+        2) refused=$((refused+1)) ;;
+        *) fails=$((fails+1)) ;;
+    esac
+fi
+
 # TLC leaves a trace binary per violated arm and a states/ directory. Seven of our nine arms
 # violate BY DESIGN, so this is not incidental litter -- it accumulates every run.
 rm -rf "$HERE"/_Arm_*.tla "$HERE"/_Arm_*.cfg "$HERE"/_L_*.tla "$HERE"/_L_*.cfg \
-       "$HERE"/*_TTrace_*.tla "$HERE"/*_TTrace_*.bin "$HERE"/states 2>/dev/null
+       "$HERE"/*_TTrace_*.tla "$HERE"/*_TTrace_*.bin "$HERE"/states \
+       "$HERE"/subscription-roster/_SR_*.tla "$HERE"/subscription-roster/_SR_*.cfg \
+       "$HERE"/subscription-roster/*_TTrace_*.tla "$HERE"/subscription-roster/*_TTrace_*.bin \
+       "$HERE"/subscription-roster/states 2>/dev/null
 
 echo
-if [ "$fails" -eq 0 ]; then
-    echo "PASS -- 9 arms, 7 of which MUST fail and did."
+if [ "$fails" -eq 0 ] && [ "$refused" -eq 0 ]; then
+    echo "PASS -- 19 historical arms, 14 current lifetime/control arms, 9 cooperative protocol arms and the checker self-test gave their required answers."
     echo
     echo "  A pass means each arm gave the answer it was required to give. It does NOT mean a model"
     echo "  is ADEQUATE, and no exit code can carry that judgement. R4 for the event-sourcing seam"
     echo "  is UNVERIFIED in eng/governance/rigor-ladder.yaml; read the LIMITS block in"
     echo "  EventStoreGlobalPosition.tla before citing any of this."
+    echo
+    echo "  AND READ subscription-roster/SubscriptionRoster.tla's LIMITS BLOCK. Two of its arms are"
+    echo "  historical configurations; the old no-witness shape violates"
+    echo "  the strongest invariant in that module BY DESIGN. A green here therefore includes an arm"
+    echo "  whose required answer preserves a historical finding. Current lifetime scope is in BindingLifetime.tla."
     exit 0
+fi
+if [ "$fails" -eq 0 ] && [ "$refused" -gt 0 ]; then
+    echo "REFUSE -- $refused checker(s) could not complete; this is not a pass."
+    exit 2
 fi
 echo "FAIL -- $fails arm(s) gave the wrong answer."
 exit 1

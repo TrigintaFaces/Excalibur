@@ -20,7 +20,7 @@
 #   1  un-triaged sibling hits found (gate fail — triage each per the F-5 rule)
 #   2  usage / environment error
 #   3  --self-test failed (the gate itself is broken / vacuous)
-#   4  committed base resolves to HEAD (no committed change can be examined)
+#   4  refused scope (same-HEAD committed base or untracked working source)
 #
 # Usage:
 #   f5-sweep.sh [--base <ref>] [--staged] [--working] [--all] [--report-only]
@@ -254,6 +254,16 @@ run_sweep() {
         fi
         # Use the boundary just validated even if a remote-tracking ref advances during the run.
         base="$base_commit"
+    fi
+
+    if [ "$mode" = working ] || [ "$mode" = all ]; then
+        local untracked
+        untracked="$(git ls-files --others --exclude-standard -- 'src/**/*.cs')" || return 2
+        if [ -n "$untracked" ]; then
+            echo "f5-sweep: REFUSE — untracked source files are outside git diff; stage them and run --staged or --all, or explicitly select a tracked-only scope." >&2
+            printf '%s\n' "$untracked" >&2
+            return 4
+        fi
     fi
 
     local changed_src

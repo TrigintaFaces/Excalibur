@@ -19,6 +19,7 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 	private readonly ISubscriptionCheckpointStore _checkpointStore;
 	private readonly IGlobalStreamQuery? _globalStream;
 	private readonly string? _expectedSubscription;
+    private readonly ProjectionCapacity? _capacity;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ProjectionLagReadModel"/> class.
@@ -32,6 +33,7 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 	/// The subscription this host is configured to run, or <see langword="null"/> when nothing in this
 	/// process processes projections.
 	/// </param>
+	/// <param name="capacity">The shared storage admission budget, when registered.</param>
 	/// <remarks>
 	/// <b>The expected subscription is required to report the never-started case at all.</b>
 	/// Enumerating the checkpoint store finds only subscriptions that have ALREADY recorded progress,
@@ -42,11 +44,14 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 	public ProjectionLagReadModel(
 		ISubscriptionCheckpointStore checkpointStore,
 		IGlobalStreamQuery? globalStream,
-		string? expectedSubscription = null)
+		string? expectedSubscription = null,
+        ProjectionCapacity? capacity = null)
 	{
 		ArgumentNullException.ThrowIfNull(checkpointStore);
 
-		_checkpointStore = checkpointStore;
+		_capacity = capacity;
+        _checkpointStore = capacity is null ? checkpointStore : new ProjectionCapacityCheckpointStore(
+            checkpointStore, capacity, () => (checkpointStore as IProjectionDestinationScope)?.Scope);
 		_globalStream = globalStream;
 		_expectedSubscription = string.IsNullOrWhiteSpace(expectedSubscription)
 			? null
@@ -66,7 +71,10 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 			return new ProjectionLagReport(ProjectionLagAvailability.NoHeadSource, []);
 		}
 
-		var head = await _globalStream.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+		var head = _capacity is null
+            ? await _globalStream.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false)
+            : await _capacity.ExecuteAsync((_globalStream as IProjectionDestinationScope)?.Scope,
+                ProjectionCapacityKind.Read, _globalStream.GetHeadPositionAsync, cancellationToken).ConfigureAwait(false);
 		var checkpoints = await _checkpointStore
 			.EnumerateCheckpointsAsync(cancellationToken)
 			.ConfigureAwait(false);
@@ -112,7 +120,15 @@ internal sealed class ProjectionLagReadModel : IProjectionLagReadModel
 			// Structural safe-op: lag can never go negative, whether the disagreement is transient or the
 			// permanent kind the flag above now reports.
 			var lag = Math.Max(0, head - checkpoint.Position);
-			result.Add(new ProjectionLag(checkpoint.SubscriptionName, checkpoint.Position, head, lag));
+			// A cursor is stored per (subscription, projection), so the subscription name alone no longer
+			// identifies a row -- several would share it and a reader could not tell which projection is
+			// behind. The pair is rendered back into one identity here, which is the same string this
+			// report has always carried for an asynchronous projection's cursor.
+			result.Add(new ProjectionLag(
+				SubscriptionKeys.CheckpointName(checkpoint.SubscriptionName, checkpoint.ProjectionKey),
+				checkpoint.Position,
+				head,
+				lag));
 		}
 
 		return new ProjectionLagReport(

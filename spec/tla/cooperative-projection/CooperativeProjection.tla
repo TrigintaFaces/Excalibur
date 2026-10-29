@@ -34,12 +34,40 @@ the implementation it describes; re-verify before relying on a line number.
   Crash / CancelWaiter / BarrierFault   bounded fault injection, not production
                 sites
 
-THE MODEL AND THE IMPLEMENTATION LANDED TOGETHER, so this is a correspondence
-and not a proposal. An earlier revision of this block said "This is a DESIGN
-model; no production correspondence is asserted yet" and called the manifest
-binder "new". Both were true when drafted and false when committed, which is
-the decay this scope statement exists to prevent -- quoted so a reader who
-inherited the disclaimer recognises it as withdrawn.
+*** CORRESPONDENCE WITHDRAWN FOR THE MANIFEST BINDER. READ THIS BEFORE CITING
+*** ANY ARM OF THIS MODEL AS EVIDENCE ABOUT THE SHIPPED SYSTEM.
+
+The manifest mechanism this model checks NO LONGER EXISTS in production. Here,
+`manifest` is a single scalar for the whole subscription, bound first-writer-wins,
+and an actor whose Descriptor differs is REFUSED -- see the `accepted` definition
+in Admit. Production now binds ONE ROW PER PROJECTION, and an actor hosting a
+DIFFERENT SET OF PROJECTIONS IS ADMITTED rather than refused; what it may not do
+is attest freshness over a member it does not host. So the shipped arm
+(MixedManifest = FALSE) models an agreement the system no longer requires, and
+the MixedManifest = TRUE arm asserts a refusal the system no longer performs.
+
+Every OTHER property in this model -- the page gate, row CAS, prefix, checkpoint
+coverage and the visibility barrier -- is unaffected by that change and its arms
+remain meaningful. It is ONLY the manifest/admission half that is out of
+correspondence. The distinction matters: this is not a dead model, it is a model
+with one stale mechanism, and deleting it would discard checked properties that
+still hold.
+
+What a replacement owes, stated here so it is not re-derived: `manifest` becomes
+a SET of bound members rather than a scalar; admission no longer depends on set
+agreement; and the invariant that matters is that no actor reports freshness
+while a bound member outside its own set sits below the attested position --
+NoFalseFresh. That invariant does not exist in this model, because the design it
+checks made the state it forbids unreachable by refusing admission instead.
+
+A proof is valid only inside the state space it models. This block exists so the
+next reader cannot inherit a correct proof about a design that is gone.
+
+An earlier revision of this block said "This is a DESIGN model; no production
+correspondence is asserted yet" and called the manifest binder "new"; a later one
+replaced that with "THE MODEL AND THE IMPLEMENTATION LANDED TOGETHER, so this is
+a correspondence and not a proposal." Each was true when written. Both are quoted
+so a reader who inherited either recognises which claim they are holding.
 
 THE ROW CAS IS MODELED AS BINARY; PRODUCTION IS FOUR-VALUED. Apply either
 writes or does not. PositionedProjectionWriter.cs:265-286 dispatches on four
@@ -266,6 +294,18 @@ Commit(a) ==
                     holders, permits, base, target, row, readPos, readValue,
                     wrote, crashed, cancelled, barrierFaulted>>
 
+\* Canonicalize discarded page-local state only when its lifetime ends. After
+\* Release/Crash the actor is Wait or Done. Acquire reads no scratch; Page
+\* overwrites base/target/row/wrote, and Load overwrites readPos/readValue
+\* before Apply. Keep active Load-to-Apply windows and all fault budgets.
+ResetPageScratch(a) ==
+    /\ base' = [base EXCEPT ![a] = 0]
+    /\ target' = [target EXCEPT ![a] = 0]
+    /\ row' = [row EXCEPT ![a] = 1]
+    /\ readPos' = [readPos EXCEPT ![a] = 0]
+    /\ readValue' = [readValue EXCEPT ![a] = {}]
+    /\ wrote' = [wrote EXCEPT ![a] = FALSE]
+
 Release(a) ==
     /\ phase[a] \in {"Release", "Finish"}
     /\ holders' = [holders EXCEPT ![Process(a)] = @ \ {a}]
@@ -274,9 +314,9 @@ Release(a) ==
                     IF phase[a] = "Finish" THEN Remove(@, a)
                     ELSE Append(Remove(@, a), a)]
     /\ phase' = [phase EXCEPT ![a] = IF @ = "Finish" THEN "Done" ELSE "Wait"]
+    /\ ResetPageScratch(a)
     /\ UNCHANGED <<manifest, admitted, cp, cpHigh, rowPos, rowValue, rowHigh,
-                    visible, base, target, row, readPos, readValue, wrote,
-                    crashed, cancelled, barrierFaulted>>
+                    visible, crashed, cancelled, barrierFaulted>>
 
 Crash(a) ==
     /\ a \notin crashed
@@ -286,9 +326,9 @@ Crash(a) ==
     /\ permits' = [permits EXCEPT ![Process(a)] = @ + 1]
     /\ queue' = [queue EXCEPT ![Process(a)] = Append(Remove(@, a), a)]
     /\ phase' = [phase EXCEPT ![a] = "Wait"]
+    /\ ResetPageScratch(a)
     /\ UNCHANGED <<manifest, admitted, cp, cpHigh, rowPos, rowValue, rowHigh,
-                    visible, base, target, row, readPos, readValue, wrote,
-                    cancelled, barrierFaulted>>
+                    visible, cancelled, barrierFaulted>>
 
 CancelWaiter(a) ==
     /\ phase[a] = "Wait"

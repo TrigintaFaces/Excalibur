@@ -28,6 +28,7 @@ public sealed class UnpositionedRebuildRefusalShould
 	private sealed class PositionedStore<T> : IProjectionStore<T>, IPositionedProjectionStore<T>
 		where T : class
 	{
+        object? IServiceProvider.GetService(Type type) => type == typeof(IProjectionTenantBoundary) ? ProjectionTenantBoundary.EstateWide : type.IsInstanceOfType(this) ? this : null;
 		public Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken) =>
 			Task.FromResult<T?>(null);
 

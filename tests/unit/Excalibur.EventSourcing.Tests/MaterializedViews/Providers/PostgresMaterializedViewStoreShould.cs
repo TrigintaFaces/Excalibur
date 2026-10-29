@@ -229,6 +229,59 @@ public sealed class PostgresMaterializedViewStoreShould
 	}
 
 	[Fact]
+	public void Constructor_AcceptCustomSchemaName()
+	{
+		// Arrange
+		var connectionString = "Host=localhost;Database=test;";
+		var logger = NullLogger<PostgresMaterializedViewStore>.Instance;
+
+		// Act
+		var store = new PostgresMaterializedViewStore(
+			connectionString,
+			logger,
+			TenantViewFixture.SingleTenant,
+			schemaName: "reporting");
+
+		// Assert
+		store.ShouldNotBeNull();
+	}
+
+	[Theory]
+	[InlineData("views\".\"other")]
+	[InlineData("public.materialized_views")]
+	[InlineData("materialized-views")]
+	public void Constructor_RejectAnUnusableViewTableName(string viewTableName) =>
+		// Every identifier is interpolated into the SQL and quoted, so a quote or a dot inside one would
+		// escape the quoting and make the destination ambiguous. Restricted before composition.
+		Should.Throw<ArgumentException>(() => new PostgresMaterializedViewStore(
+			"Host=localhost;Database=test;",
+			NullLogger<PostgresMaterializedViewStore>.Instance,
+			TenantViewFixture.SingleTenant,
+			viewTableName: viewTableName));
+
+	[Theory]
+	[InlineData("positions\".\"other")]
+	[InlineData("public.materialized_view_positions")]
+	[InlineData("view-positions")]
+	public void Constructor_RejectAnUnusablePositionTableName(string positionTableName) =>
+		Should.Throw<ArgumentException>(() => new PostgresMaterializedViewStore(
+			"Host=localhost;Database=test;",
+			NullLogger<PostgresMaterializedViewStore>.Instance,
+			TenantViewFixture.SingleTenant,
+			positionTableName: positionTableName));
+
+	[Theory]
+	[InlineData("public\".\"other")]
+	[InlineData("report.ing")]
+	[InlineData("")]
+	public void Constructor_RejectAnUnusableSchemaName(string schemaName) =>
+		Should.Throw<ArgumentException>(() => new PostgresMaterializedViewStore(
+			"Host=localhost;Database=test;",
+			NullLogger<PostgresMaterializedViewStore>.Instance,
+			TenantViewFixture.SingleTenant,
+			schemaName: schemaName));
+
+	[Fact]
 	public void Constructor_AcceptCustomJsonSerializerOptions()
 	{
 		// Arrange

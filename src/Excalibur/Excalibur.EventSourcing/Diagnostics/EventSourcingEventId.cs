@@ -208,6 +208,11 @@ internal static class EventSourcingEventId
 	/// <summary>A rebuild for the projection was rejected because one is already in progress.</summary>
 	public const int ProjectionRebuildAlreadyInProgress = 113108;
 
+	/// <summary>
+	/// A rebuild released the projection's subscription member, so it will re-bind and fold from zero.
+	/// </summary>
+	public const int ProjectionRebuildReleasedMember = 113109;
+
 	// ========================================
 	// 113200-113299: Async Projection Processing Host
 	// ========================================
@@ -220,6 +225,12 @@ internal static class EventSourcingEventId
 
 	/// <summary>Async projection processing batch completed.</summary>
 	public const int AsyncProjectionBatchProcessed = 113202;
+
+	/// <summary>
+	/// The subscription's roster holds projections this process does not host, so no save it serves can
+	/// report its read models fresh.
+	/// </summary>
+	public const int UnattestableRosterMembers = 113213;
 
 	/// <summary>Async projection processing checkpoint saved.</summary>
 	public const int AsyncProjectionCheckpointSaved = 113203;

@@ -28,7 +28,7 @@ namespace Excalibur.EventSourcing.Encryption.Decorators;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type.</typeparam>
-public sealed class EncryptingProjectionStoreDecorator<
+public sealed partial class EncryptingProjectionStoreDecorator<
 	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] TProjection>
 	: IsolatingProjectionStoreDecorator<TProjection>
 	where TProjection : class
@@ -164,6 +164,12 @@ public sealed class EncryptingProjectionStoreDecorator<
 	protected override object? WrapCapability(Type serviceType)
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
+        if (serviceType == typeof(IProjectionGenerationReaderFactory<TProjection>)
+            && Inner.GetService(serviceType) is IProjectionGenerationReaderFactory<TProjection>)
+        {
+            return new GenerationReaderFactory(this);
+        }
+
 
 		if (serviceType == typeof(IPageableProjectionStore<TProjection>)
 			&& Inner.GetService(typeof(IPageableProjectionStore<TProjection>)) is IPageableProjectionStore<TProjection> pageable)

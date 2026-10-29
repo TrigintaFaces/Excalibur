@@ -127,13 +127,15 @@ public sealed class InMemoryProjectionRegistryExtendedShould
 		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Async));
 		_registry.Register(CreateRegistration(typeof(InventoryView), ProjectionMode.Async));
 
-		// Act — replace OrderSummary
-		_registry.Register(CreateRegistration(typeof(OrderSummary), ProjectionMode.Ephemeral));
+		// Act — replace OrderSummary. Same mode: a cross-mode re-registration is refused, so the
+		// preserve-the-others property is exercised through the replacement that is still legal.
+		var replacement = CreateRegistration(typeof(OrderSummary), ProjectionMode.Async);
+		_registry.Register(replacement);
 
 		// Assert
 		var orderReg = _registry.GetRegistration(typeof(OrderSummary));
 		orderReg.ShouldNotBeNull();
-		orderReg.Mode.ShouldBe(ProjectionMode.Ephemeral);
+		orderReg.ShouldBeSameAs(replacement);
 
 		var inventoryReg = _registry.GetRegistration(typeof(InventoryView));
 		inventoryReg.ShouldNotBeNull();

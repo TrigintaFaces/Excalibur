@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
 
@@ -64,13 +63,13 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	});
 
 	/// <summary>
-	/// The cursor key for one registration: one durable cursor PER PROJECTION under the subscription.
+	/// One registration's in-process cursor identity: the subscription and the projection as a single
+	/// string, for the health map that keys progress by it.
 	/// </summary>
 	/// <remarks>
-	/// The checkpoint store is keyed by an opaque string, so per-registration cursors need no schema
-	/// change. The key does change, so cursors recorded under the old single-cursor key are not found
-	/// and each projection re-folds from zero. That is the accepted cost of the change; the fold itself
-	/// is idempotent, because a positioned row refuses an event it has already folded.
+	/// NOT the durable key. A cursor is stored under the PAIR -- the subscription name and the projection
+	/// key in their own columns -- because the two parts are bounded independently and a composed name
+	/// exceeds every column wide enough for the name alone.
 	/// </remarks>
 	private static string CheckpointNameFor(string subscription, ProjectionRegistration registration) =>
 		CheckpointNameFor(subscription, registration.ProjectionType);
@@ -86,7 +85,24 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	{
 		ArgumentNullException.ThrowIfNull(projectionType);
 
-		return $"{subscription}:{projectionType.FullName}";
+		// Delegated, not re-spelled: the session reader derives the same in-process identity and the two
+		// must agree, or a reader waits out its whole bound on a progress entry nothing writes.
+		return SubscriptionKeys.CheckpointName(subscription, ProjectionKeyFor(projectionType));
+	}
+
+	/// <summary>
+	/// One projection's durable key within a subscription. The single source of truth for that string.
+	/// </summary>
+	/// <remarks>
+	/// Shared with the roster binding deliberately: a member row and its cursor are keyed on the same
+	/// pair, so a projection key that bound successfully is a projection key whose cursor is addressable.
+	/// Two derivations that disagreed would bind a member whose cursor nothing could ever write.
+	/// </remarks>
+	internal static string ProjectionKeyFor(Type projectionType)
+	{
+		ArgumentNullException.ThrowIfNull(projectionType);
+
+		return SubscriptionKeys.ProjectionKey(projectionType);
 	}
 
 	/// <summary>
@@ -137,7 +153,10 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		_checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _checkpointStore = ProjectionCapacitySource.Checkpoints(serviceProvider, checkpointStore);
+
 		_notificationOptions = notificationOptions?.Value ?? new EventNotificationOptions();
 		_timeProvider = timeProvider ?? TimeProvider.System;
 		_mode = mode;
@@ -145,6 +164,8 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		_observability = serviceProvider.GetService(typeof(ProjectionObservability)) as ProjectionObservability;
 		_healthState = serviceProvider.GetService(typeof(ProjectionHealthState)) as ProjectionHealthState;
 	}
+
+    internal bool RequireDestinationScope { get; init; }
 
 	/// <inheritdoc />
 	public override async Task StartAsync(CancellationToken cancellationToken)
@@ -154,7 +175,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		// must prevent the application from serving traffic, so validate here explicitly.
 		_ = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
 		ValidateSubscriptionOptions(_options.Value);
-		_ = await BindDefinitionAsync(_registry.GetByMode(_mode), _options.Value, cancellationToken)
+		_ = await BindDefinitionAsync(_registry.GetByMode(_mode), _options.Value, cancellationToken, strict: true)
 			.ConfigureAwait(false);
 		await base.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
@@ -174,7 +195,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		ArgumentNullException.ThrowIfNull(projectionType);
 
 		var registrations = _registry.GetByMode(_mode);
-		_ = await BindDefinitionAsync(registrations, _options.Value, cancellationToken).ConfigureAwait(false);
+		var bound = await BindDefinitionAsync(registrations, _options.Value, cancellationToken).ConfigureAwait(false);
 
 		var registration = registrations.FirstOrDefault(r => r.ProjectionType == projectionType);
 		if (registration is null)
@@ -183,10 +204,32 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			return false;
 		}
 
-		var checkpoint = await _checkpointStore
-			.GetCheckpointAsync(CheckpointNameFor(_options.Value.ProjectionName, registration), cancellationToken)
-			.ConfigureAwait(false);
-		return checkpoint >= position;
+        var member = bound.Roster.Members.FirstOrDefault(m => m.ProjectionKey == ProjectionKeyFor(projectionType));
+        return !bound.Failed.Contains(projectionType) && member?.Position >= position;
+    }
+
+    internal Task<SubscriptionRoster> ReadRosterAsync(CancellationToken cancellationToken) =>
+        _checkpointStore.ReadSubscriptionAsync(_options.Value.ProjectionName, cancellationToken);
+
+	/// <summary>The subscription's roster members this process does not host, read from the durable store.</summary>
+	/// <param name="cancellationToken">Cancels the binding read.</param>
+	/// <returns>The unhosted members' projection keys, empty when the roster is fully hosted here.</returns>
+	/// <remarks>
+	/// Exposed so the foreground completion path can consult the roster on the returns where it does NOT
+	/// process a page. A save with nothing local to advance still cannot report that nothing is owed while
+	/// the roster holds a member this process cannot attest, and those returns never reach
+	/// <see cref="IsCaughtUp"/>, where the same quantifier is enforced for a save that does process one.
+	/// <para>
+	/// It binds through the SAME path the processing loop uses rather than reading the store a second way.
+	/// A second bind path would be free to drift from the first, and the two would then disagree about who
+	/// hosts what -- a worse defect than the one this accessor exists to close.
+	/// </para>
+	/// </remarks>
+	internal async Task<IReadOnlyList<string>> UnattestableMembersAsync(CancellationToken cancellationToken)
+	{
+		var registrations = _registry.GetByMode(_mode);
+		var bound = await BindDefinitionAsync(registrations, _options.Value, cancellationToken).ConfigureAwait(false);
+		return [.. bound.UnattestableMembers(registrations), .. bound.Failed.Select(ProjectionKeyFor)];
 	}
 
 	internal async Task<ProjectionProcessingResult> ProcessThroughAsync(
@@ -199,10 +242,10 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		{
 			var query = _serviceProvider.GetRequiredService<IGlobalStreamQuery>();
 			// A finite target: concurrent producers cannot keep a request draining forever.
-			var target = committedPosition ?? await query.GetHeadPositionAsync(cancellationToken).ConfigureAwait(false);
+			var target = committedPosition ?? await ProjectionCapacitySource.ReadAsync(_serviceProvider, query, query.GetHeadPositionAsync, cancellationToken).ConfigureAwait(false);
 			while (true)
 			{
-				var page = await ProcessPageAsync(query, cancellationToken, target).ConfigureAwait(false);
+				var page = await ProcessPageAsync(query, cancellationToken, target, required).ConfigureAwait(false);
 				applied += page.Applied;
 				cancellationToken.ThrowIfCancellationRequested();
 
@@ -212,7 +255,23 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 				// somebody else's broken projection, which is the shared fate being removed.
 				if (IsCaughtUp(page, required, target))
 				{
-					return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None);
+					var current = await _checkpointStore.ReadSubscriptionAsync(_options.Value.ProjectionName, cancellationToken).ConfigureAwait(false);
+                    if (page.Roster is null || !string.Equals(current.Identity, page.Roster.Identity, StringComparison.Ordinal))
+                    {
+                        return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.Contested, ProjectionHaltReason.None);
+                    }
+                    var covered = required is null ? page.Cursors.Keys : required;
+                    var keys = covered.Select(ProjectionKeyFor).ToHashSet(StringComparer.Ordinal);
+                    if (keys.Any(key => !current.Members.Any(member => member.ProjectionKey == key && member.Position >= target)))
+                    {
+                        return new ProjectionProcessingResult(applied, page.Outcome == ProjectionProcessingOutcome.Halted
+                            ? page.Outcome : ProjectionProcessingOutcome.Contested, page.HaltReason);
+                    }
+                    return new ProjectionProcessingResult(applied, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None)
+                    {
+                        Attestation = new ProjectionAttestation(current.SubscriptionName, current.Identity, target,
+                            current.Members.Where(m => keys.Contains(m.ProjectionKey)).ToDictionary(static m => m.ProjectionKey, static m => m.BindingId, StringComparer.Ordinal)),
+                    };
 				}
 
 				if (page.Outcome == ProjectionProcessingOutcome.Halted)
@@ -276,14 +335,28 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	/// </remarks>
 	private static bool IsCaughtUp(PageResult page, IReadOnlyList<Type>? required, long target)
 	{
+		// A MEMBER THIS PROCESS DOES NOT HOST CANNOT BE ATTESTED BY IT, so its presence alone denies a
+		// caught-up report regardless of how far the hosted projections have advanced. This is the half
+		// of the predicate the local registry cannot supply: the registry is silent about work it cannot
+		// see, and silence here would read as consent.
+		//
+		// FIRST, AND ABOVE THE NULL BRANCH. This guard was initially placed after the `required is null`
+		// early return, which left that branch able to report caught-up with unhosted members present --
+		// the whole defect, surviving on one path. Every return below this point presumes the roster is
+		// fully hosted here, so the presumption is established before any of them can be reached.
+		if (page.UnattestableMembers.Count > 0)
+		{
+			return false;
+		}
+
 		if (required is null)
 		{
-			return page.Cursors.Values.All(at => at >= target);
+			return page.Failed.Count == 0 && page.Cursors.Values.All(at => at >= target);
 		}
 
 		foreach (var projectionType in required)
 		{
-			if (!page.Cursors.TryGetValue(projectionType, out var at) || at < target)
+			if (page.Failed.Contains(projectionType) || !page.Cursors.TryGetValue(projectionType, out var at) || at < target)
 			{
 				return false;
 			}
@@ -292,7 +365,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 		return true;
 	}
 
-	private async Task<PageResult> ProcessPageAsync(IGlobalStreamQuery query, CancellationToken cancellationToken, long? target = null)
+	private async Task<PageResult> ProcessPageAsync(IGlobalStreamQuery query, CancellationToken cancellationToken, long? target = null, IReadOnlyList<Type>? required = null)
 	{
 		using var lease = await _pageGate.AcquireAsync(1, cancellationToken).ConfigureAwait(false);
 		if (!lease.IsAcquired)
@@ -300,46 +373,79 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			throw new InvalidOperationException("The projection page queue is full or disposed.");
 		}
 
-		var registrations = _registry.GetByMode(_mode);
+        var hostedRegistrations = _registry.GetByMode(_mode);
+        // Foreground work must not wait for unrelated providers, including their scope discovery.
+        // The full registry still witnesses which durable members this process hosts.
+        var registrations = required is null ? hostedRegistrations
+            : hostedRegistrations.Where(registration => required.Contains(registration.ProjectionType)).ToArray();
 		var options = _options.Value;
 		var name = options.ProjectionName;
 		ValidateSubscriptionOptions(options);
 
-		var destinations = await BindDefinitionAsync(registrations, options, cancellationToken).ConfigureAwait(false);
+		var bound = await BindDefinitionAsync(registrations, options, cancellationToken).ConfigureAwait(false);
+		var destinations = bound.Destinations;
+
+		// THE REQUIRED SET'S STORE-SOURCED HALF. Read from the durable roster, never from the local
+		// registry: a member bound by another deployment is work this process cannot perform, so it
+		// cannot be attested here, and a page carrying one can never report caught-up. Computing this
+		// from _registry instead would let this process fold what it can see, report Fresh, and say
+		// nothing about a sibling that has not folded the same events — an attestation that is false and
+		// that nothing downstream can detect, because the caller was told it need not re-check.
+		var unattestable = bound.UnattestableMembers(hostedRegistrations);
+		if (unattestable.Count > 0)
+		{
+			// Warning, not a third outcome. The guarantee contract states there are exactly two —
+			// caught-up or behind — so the REASON is logged and the OUTCOME stays binary.
+			LogUnattestableRosterMembers(name, string.Join(", ", unattestable));
+		}
 
 		// ONE CURSOR READ PER REGISTRATION. The expected value keeps its nullability, because the store
 		// distinguishes "no cursor yet" from "a cursor at zero" and the compare-and-set below relies on
 		// that distinction.
 		var keys = new string[registrations.Count];
 		var expectedAt = new long?[registrations.Count];
+		var bindings = new Guid[registrations.Count];
+		var rosterMembers = bound.Roster.Members.ToDictionary(static m => m.ProjectionKey, StringComparer.Ordinal);
 		var cursorAt = new long[registrations.Count];
 		var cursors = new Dictionary<Type, long>(registrations.Count);
 		for (var i = 0; i < registrations.Count; i++)
 		{
 			keys[i] = CheckpointNameFor(name, registrations[i]);
-			expectedAt[i] = await _checkpointStore.GetCheckpointAsync(keys[i], cancellationToken).ConfigureAwait(false);
+            if (bound.Failed.Contains(registrations[i].ProjectionType))
+            {
+                cursors[registrations[i].ProjectionType] = 0;
+                continue;
+            }
+			var member = rosterMembers[ProjectionKeyFor(registrations[i].ProjectionType)];
+			expectedAt[i] = member.Position;
+			bindings[i] = member.BindingId;
 			cursorAt[i] = expectedAt[i] ?? 0;
 			cursors[registrations[i].ProjectionType] = cursorAt[i];
 		}
 
 		if (registrations.Count == 0)
 		{
-			return new PageResult(0, 0, ProjectionProcessingOutcome.CaughtUp, ProjectionHaltReason.None, cursors);
+			// A process hosting NO projections still cannot attest a roster that has members. This is the
+			// extreme of the divergence case: every bound member is unattestable here, so a caught-up
+			// report would be a claim about work this process cannot even enumerate.
+			return new PageResult(0, 0, unattestable.Count == 0 ? ProjectionProcessingOutcome.CaughtUp : ProjectionProcessingOutcome.Halted,
+                unattestable.Count == 0 ? ProjectionHaltReason.None : ProjectionHaltReason.SubscriptionMembersNotHosted,
+				cursors, unattestable) { Roster = bound.Roster };
 		}
 
         long applied = 0;
-        var failed = new HashSet<Type>();
+        var failed = new HashSet<Type>(bound.Failed);
         var progressed = new HashSet<Type>();
-        var outcome = ProjectionProcessingOutcome.CaughtUp;
-        var reason = ProjectionHaltReason.None;
+        var outcome = failed.Count == 0 ? ProjectionProcessingOutcome.CaughtUp : ProjectionProcessingOutcome.Halted;
+        var reason = failed.Count == 0 ? ProjectionHaltReason.None : ProjectionHaltReason.ProjectionFaulted;
         // Share a read only when every recipient starts at that exact durable cursor. A failed
         // registration remains eligible on the next round, but never receives a later sibling's page.
-        foreach (var group in Enumerable.Range(0, registrations.Count).GroupBy(i => cursorAt[i]))
+        foreach (var group in Enumerable.Range(0, registrations.Count).Where(i => !bound.Failed.Contains(registrations[i].ProjectionType)).GroupBy(i => cursorAt[i]))
         {
             var indices = group.ToArray();
             var members = indices.Select(i => registrations[i]).ToArray();
             var expectations = indices.Select(i => expectedAt[i]).ToArray();
-            var page = await ProcessCursorGroupAsync(query, members, expectations, destinations,
+            var page = await ProcessCursorGroupAsync(query, members, expectations, indices.Select(i => bindings[i]).ToArray(), destinations,
                 group.Key, options, target, cancellationToken).ConfigureAwait(false);
             applied += page.Applied;
             failed.UnionWith(page.Failed);
@@ -356,12 +462,12 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
             }
         }
         if (outcome != ProjectionProcessingOutcome.Halted) { _healthState?.RecordApplied(name, cursors.Values.Min()); }
-        return new PageResult(applied, cursors.Values.Min(), outcome, reason, cursors)
-        { Failed = failed, Progressed = progressed };
+        return new PageResult(applied, cursors.Values.Min(), outcome, reason, cursors, unattestable)
+        { Failed = failed, Progressed = progressed, Roster = bound.Roster };
     }
 
     private async Task<PageResult> ProcessCursorGroupAsync(IGlobalStreamQuery query,
-        IReadOnlyList<ProjectionRegistration> registrations, long?[] expectedAt,
+        IReadOnlyList<ProjectionRegistration> registrations, long?[] expectedAt, Guid[] bindings,
         IReadOnlyDictionary<Type, string?> destinations, long position, GlobalStreamProjectionOptions options,
         long? target, CancellationToken cancellationToken)
     {
@@ -371,11 +477,49 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
         var cursors = registrations.ToDictionary(r => r.ProjectionType, _ => position);
         var failed = new HashSet<Type>();
         var progressed = new HashSet<Type>();
+        // Empty unattestable set, and this is the ONE place that is correct. This is a per-cursor-group
+        // page whose result is aggregated by ProcessPageAsync, which supplies the subscription's real
+        // unattestable set on the PageResult it returns. The caught-up predicate only ever reads that
+        // outer page, never this inner one. If this local function ever becomes reachable from
+        // ProcessThroughAsync directly, this argument becomes wrong and must carry the real set.
         PageResult Result(long applied, ProjectionProcessingOutcome outcome, ProjectionHaltReason reason) =>
-            new(applied, cursors.Values.Min(), outcome, reason, cursors) { Failed = failed, Progressed = progressed };
-		var events = await query.ReadAllAsync(
-			new GlobalStreamPosition(position, DateTimeOffset.MinValue), options.BatchSize, cancellationToken)
+            new(applied, cursors.Values.Min(), outcome, reason, cursors, []) { Failed = failed, Progressed = progressed };
+		var events = await ProjectionCapacitySource.ReadAsync(_serviceProvider, query, token => query.ReadAllAsync(
+			new GlobalStreamPosition(position, DateTimeOffset.MinValue), options.BatchSize, token), cancellationToken)
 			.ConfigureAwait(false);
+        if (events.Count == 0 && position == 0)
+        {
+            var initializationContested = false;
+            for (var i = 0; i < registrations.Count; i++)
+            {
+                if (expectedAt[i] is not null) { continue; }
+                var type = registrations[i].ProjectionType;
+                try
+                {
+                    var initialized = await _checkpointStore.AdvanceCheckpointAsync(name, ProjectionKeyFor(type), bindings[i], null, 0, cancellationToken).ConfigureAwait(false);
+                    if (initialized == CheckpointAdvanceOutcome.Superseded)
+                    {
+                        var snapshot = await _checkpointStore.ReadSubscriptionAsync(name, cancellationToken).ConfigureAwait(false);
+                        var current = snapshot.Members.FirstOrDefault(m => m.ProjectionKey == ProjectionKeyFor(type));
+                        if (current?.BindingId != bindings[i] || current.Position is null)
+                        {
+                            initializationContested = true;
+                            continue;
+                        }
+                        cursors[type] = current.Position.Value;
+                    }
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    LogAsyncProjectionCheckpointWriteFailed(error);
+                    failed.Add(type);
+                }
+            }
+            return failed.Count > 0
+                ? Result(0, ProjectionProcessingOutcome.Halted, ProjectionHaltReason.CheckpointWriteFailed)
+                : Result(0, initializationContested ? ProjectionProcessingOutcome.Contested : ProjectionProcessingOutcome.CaughtUp,
+                    ProjectionHaltReason.None);
+        }
 		var batch = new List<ProjectionEvent>(events.Count);
 		StoredEvent? last = null;
 		var processed = 0;
@@ -419,7 +563,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			{
 				try
 				{
-					batch.Add(new ProjectionEvent(DeserializeOrThrow(stored), stored.AggregateId, stored.GlobalPosition));
+					batch.Add(new ProjectionEvent(DeserializeOrThrow(stored), stored.AggregateId, stored.GlobalPosition, stored.TenantId));
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)
 				{
@@ -484,13 +628,15 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 				try
 				{
 					var outcome = await _checkpointStore.AdvanceCheckpointAsync(
-						keys[i], expectedAt[i], deliveredThrough, cancellationToken).ConfigureAwait(false);
+						name, ProjectionKeyFor(projectionType), bindings[i], expectedAt[i], deliveredThrough,
+						cancellationToken).ConfigureAwait(false);
 					if (outcome == CheckpointAdvanceOutcome.Superseded)
 					{
 						// Another instance advanced this registration. Its fold is idempotent at the row,
 						// so the work is not lost -- re-read and let the caller iterate.
-						var winner = await _checkpointStore.GetCheckpointAsync(keys[i], cancellationToken).ConfigureAwait(false);
-						cursors[projectionType] = winner ?? cursorAt[i];
+						var snapshot = await _checkpointStore.ReadSubscriptionAsync(name, cancellationToken).ConfigureAwait(false);
+						var winner = snapshot.Members.FirstOrDefault(m => m.ProjectionKey == ProjectionKeyFor(projectionType));
+						cursors[projectionType] = winner?.BindingId == bindings[i] ? winner.Position ?? 0 : 0;
                         if (cursors[projectionType] > cursorAt[i]) { progressed.Add(projectionType); }
 						contested = true;
 						continue;
@@ -575,63 +721,183 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 
 	}
 
-	private async Task<IReadOnlyDictionary<Type, string?>> BindDefinitionAsync(
+	private async Task<BoundSubscription> BindDefinitionAsync(
 		IReadOnlyList<ProjectionRegistration> registrations,
-		GlobalStreamProjectionOptions options, CancellationToken cancellationToken)
+		GlobalStreamProjectionOptions options, CancellationToken cancellationToken, bool strict = false)
 	{
 		if (registrations.Any(r => r.InlineApply is null))
 		{
 			throw new InvalidOperationException("Every asynchronous projection must have a bound apply delegate.");
 		}
 		var destinations = new Dictionary<Type, string?>();
+		var identities = new Dictionary<Type, string?>();
+        var destinationScopes = new Dictionary<Type, string?>();
+        var failed = new HashSet<Type>();
 		await using (var scope = _serviceProvider.CreateAsyncScope())
 		{
-			var types = registrations.Select(r => r.ProjectionType).ToHashSet();
-			foreach (var probe in scope.ServiceProvider.GetServices<IPositionedProjectionProbe>())
-			{
-				if (!types.Contains(probe.ProjectionType))
-				{
-					continue;
-				}
-				if (!probe.IsPositioned(scope.ServiceProvider))
-				{
-					throw new InvalidOperationException($"Asynchronous projection '{probe.ProjectionTypeName}' requires positioned writes.");
-				}
-				destinations[probe.ProjectionType] = GetDestination(probe, scope.ServiceProvider);
-			}
+            var probes = scope.ServiceProvider.GetServices<IPositionedProjectionProbe>().ToDictionary(probe => probe.ProjectionType);
+            foreach (var registration in registrations)
+            {
+                try
+                {
+                    if (!probes.TryGetValue(registration.ProjectionType, out var probe))
+                    {
+                        if (RequireDestinationScope) { throw new InvalidOperationException($"Projection '{registration.ProjectionType.Name}' cannot identify its storage scope."); }
+                        continue;
+                    }
+                    if (!probe.IsPositioned(scope.ServiceProvider))
+                    {
+                        throw new InvalidOperationException($"Asynchronous projection '{probe.ProjectionTypeName}' requires positioned writes.");
+                    }
+                    var identity = probe.GetDestinationIdentity(scope.ServiceProvider);
+                    var destinationScope = await probe.GetDestinationScopeAsync(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
+                    if (RequireDestinationScope && string.IsNullOrWhiteSpace(destinationScope))
+                    {
+                        throw new InvalidOperationException($"Projection '{registration.ProjectionType.Name}' cannot identify its cluster automatically. Set GlobalStreamProjectionOptions.SubscriptionScope explicitly.");
+                    }
+                    destinations[registration.ProjectionType] = DestinationDescriptor(_mode, identity, destinationScope);
+                    identities[registration.ProjectionType] = identity;
+                    destinationScopes[registration.ProjectionType] = destinationScope;
+                }
+                catch (Exception error) when (!strict && !cancellationToken.IsCancellationRequested)
+                {
+                    failed.Add(registration.ProjectionType);
+                    LogAsyncProjectionHostError(error);
+                    _healthState?.RecordHalt(options.ProjectionName);
+                }
+            }
 		}
 
-		// Immutable first-writer binding. A rolling deployment with a different workset must
-		// fail BEFORE effects, rather than acknowledge work the other deployment never performed.
-		var descriptor = new StringBuilder();
-		AppendDescriptorPart(descriptor, options.SubscriptionScope);
-		AppendDescriptorPart(descriptor, options.SubscriptionRevision);
+		// ONE FINGERPRINT PER PROJECTION, not one over the registration set. A set-wide fingerprint
+		// refuses every cooperating host whenever a projection is added, removed or renamed, or any one
+		// destination moves -- and the only remedy re-folds EVERY projection from zero, including the ones
+		// that did not change. Per member, an additive change is additive, and a moved destination refuses
+		// only the projection that moved.
+		//
+		// Scope and revision remain inputs to EVERY member's fingerprint, so a deliberate change to either
+		// still refuses the whole roster. That was never the problem and is still the behaviour we want.
+		//
+		// The length-prefixed encoding is retained verbatim: it is what keeps a fingerprint unambiguous
+		// when a part contains the separator, so two different definitions cannot collide.
+		var members = new List<SubscriptionMember>(registrations.Count);
 		foreach (var registration in registrations.OrderBy(
 			r => r.ProjectionType.Assembly.GetName().Name, StringComparer.Ordinal)
 			.ThenBy(r => r.ProjectionType.FullName, StringComparer.Ordinal))
 		{
-			AppendDescriptorPart(descriptor, registration.ProjectionType.Assembly.GetName().Name ?? string.Empty);
-			AppendDescriptorPart(descriptor, registration.ProjectionType.FullName ?? registration.ProjectionType.Name);
-			AppendDescriptorPart(descriptor, destinations.GetValueOrDefault(registration.ProjectionType) ?? string.Empty);
+            if (failed.Contains(registration.ProjectionType)) { continue; }
+			var destination = destinations.GetValueOrDefault(registration.ProjectionType) ?? string.Empty;
+			var projectionKey = ProjectionKeyFor(registration.ProjectionType);
+
+			members.Add(new SubscriptionMember(
+				ProjectionKey: projectionKey,
+				DefinitionHash: SubscriptionKeys.DefinitionFingerprint(
+					options.SubscriptionScope,
+					options.SubscriptionRevision,
+					registration.ProjectionType.Assembly.GetName().Name ?? string.Empty,
+					projectionKey,
+					destination),
+				Destination: identities.GetValueOrDefault(registration.ProjectionType) ?? string.Empty)
+            { DestinationScope = destinationScopes.GetValueOrDefault(registration.ProjectionType) });
 		}
 
-		var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(descriptor.ToString())));
-		await _checkpointStore.BindSubscriptionAsync(options.ProjectionName, hash, cancellationToken).ConfigureAwait(false);
-		return destinations;
+		// The roster is RETURNED and must not be discarded. It carries members bound by other deployments
+		// that this process does not host, and those are precisely the ones this process cannot attest --
+		// the required-set quantifier reads it rather than the local registry.
+		var roster = await _checkpointStore
+			.BindSubscriptionAsync(options.ProjectionName, members, cancellationToken)
+			.ConfigureAwait(false);
+
+		return new BoundSubscription(destinations, roster, failed);
+	}
+
+	/// <summary>
+	/// What a binding established: each hosted projection's destination, and the subscription's COMPLETE
+	/// roster as the durable store holds it.
+	/// </summary>
+	/// <param name="Destinations">The destination identity of each projection this process hosts.</param>
+    /// <param name="Failed">Hosted projections whose destination could not be resolved in this round.</param>
+	/// <param name="Roster">
+	/// Every member bound to the subscription, including any this process does not host. A member absent
+	/// from this process is work it cannot perform, and therefore cannot attest.
+	/// </param>
+	private sealed record BoundSubscription(
+		IReadOnlyDictionary<Type, string?> Destinations,
+		SubscriptionRoster Roster,
+        IReadOnlySet<Type> Failed)
+	{
+		/// <summary>
+		/// Roster members this process does not host, and therefore cannot attest.
+		/// </summary>
+		/// <param name="registrations">The projections this process hosts.</param>
+		/// <returns>The unhosted members' projection keys, empty when the roster is fully hosted here.</returns>
+		// Qualified: the nested record's own method name would otherwise shadow the outer static and
+		// recurse into itself.
+		internal IReadOnlyList<string> UnattestableMembers(IReadOnlyList<ProjectionRegistration> registrations) =>
+			AsyncProjectionProcessingHost.UnattestableMembers(Roster, registrations);
+	}
+
+	/// <summary>
+	/// The roster members a process does not host, and therefore cannot attest.
+	/// </summary>
+	/// <param name="roster">The subscription's roster, as the durable store holds it.</param>
+	/// <param name="registrations">The projections this process hosts.</param>
+	/// <returns>The unhosted members' projection keys, empty when the roster is fully hosted here.</returns>
+	/// <remarks>
+	/// <para>
+	/// This is the store-sourced half of the required set. The hosted half is derived from the local
+	/// registry by event type, which is correct for work this process can perform; it is silent about
+	/// work it cannot see, and the roster is the only place that work is visible.
+	/// </para>
+	/// <para>
+	/// Lifted out of the binding result so there is ONE implementation rather than two: the host reads it
+	/// to decide whether it may attest, and the generated property suite drives this same method over
+	/// random roster-versus-registry set differences. A property suite computing the difference itself
+	/// would assert that its own arithmetic is consistent and say nothing about the host.
+	/// </para>
+	/// <para>
+	/// Ordinal comparison, matching how a projection key is compared in storage: two keys differing only
+	/// by case are two members, so treating them as one here would silently drop one from the
+	/// unattestable set and permit an attestation over work this process does not host.
+	/// </para>
+	/// </remarks>
+	internal static IReadOnlyList<string> UnattestableMembers(
+		SubscriptionRoster roster,
+		IReadOnlyList<ProjectionRegistration> registrations)
+	{
+		ArgumentNullException.ThrowIfNull(roster);
+		ArgumentNullException.ThrowIfNull(registrations);
+
+		var hosted = new HashSet<string>(StringComparer.Ordinal);
+		foreach (var registration in registrations)
+		{
+			_ = hosted.Add(ProjectionKeyFor(registration.ProjectionType));
+		}
+
+		return [.. roster.Members
+			.Select(static member => member.ProjectionKey)
+			.Where(key => !hosted.Contains(key))];
 	}
 
 	private static void AppendDescriptorPart(StringBuilder builder, string part) =>
 		builder.Append(part.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(part);
 
-	private string? GetDestination(IPositionedProjectionProbe probe, IServiceProvider provider)
-	{
-		var identity = probe.GetDestinationIdentity(provider);
-		if (_mode != ProjectionMode.Inline) { return identity; }
-		var descriptor = new StringBuilder();
-		AppendDescriptorPart(descriptor, probe.GetDestinationScope(provider) ?? string.Empty);
-		AppendDescriptorPart(descriptor, identity ?? string.Empty);
-		return descriptor.ToString();
-	}
+
+    internal string DestinationFingerprint(Type type, string? identity, string? scope) =>
+        SubscriptionKeys.DefinitionFingerprint(_options.Value.SubscriptionScope, _options.Value.SubscriptionRevision,
+            type.Assembly.GetName().Name ?? string.Empty, ProjectionKeyFor(type),
+            DestinationDescriptor(_mode, identity, scope) ?? string.Empty);
+
+    internal static string? DestinationDescriptor(ProjectionMode mode, string? identity, string? scope)
+    {
+        if (mode != ProjectionMode.Inline && string.IsNullOrWhiteSpace(scope)) { return identity; }
+        var descriptor = new StringBuilder();
+        AppendDescriptorPart(descriptor, scope ?? string.Empty);
+        AppendDescriptorPart(descriptor, identity ?? string.Empty);
+        return descriptor.ToString();
+    }
+
+    private async ValueTask<string?> GetDestinationAsync(IPositionedProjectionProbe probe, IServiceProvider provider, CancellationToken cancellationToken) =>
+        DestinationDescriptor(_mode, probe.GetDestinationIdentity(provider), await probe.GetDestinationScopeAsync(provider, cancellationToken).ConfigureAwait(false));
 
 	/// <param name="Applied">Stream events in this page, including tombstones.</param>
 	/// <param name="Position">
@@ -644,13 +910,27 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	/// Every registration's cursor AFTER this page. Carried rather than recomputed so a caller can test
 	/// its own required subset without a second round of store reads.
 	/// </param>
+	/// <param name="UnattestableMembers">
+	/// Projection keys bound to this subscription that THIS PROCESS DOES NOT HOST. Their work cannot be
+	/// performed here, so it cannot be attested here either, and a page carrying any of them can never
+	/// report caught-up.
+	/// <para>
+	/// POSITIONAL, NOT AN INIT PROPERTY WITH A DEFAULT, AND THAT IS DELIBERATE. An empty list means
+	/// "every bound member is hosted here", which is the value that permits an attestation — the unsafe
+	/// one. An init property defaulting to empty would let a construction site select it by saying
+	/// nothing, which is exactly how this class of defect ships. Making it positional means the compiler
+	/// names every site that must answer the question.
+	/// </para>
+	/// </param>
 	private readonly record struct PageResult(
 		long Applied,
 		long Position,
 		ProjectionProcessingOutcome Outcome,
 		ProjectionHaltReason HaltReason,
-		IReadOnlyDictionary<Type, long> Cursors)
+		IReadOnlyDictionary<Type, long> Cursors,
+		IReadOnlyList<string> UnattestableMembers)
     {
+        internal SubscriptionRoster? Roster { get; init; }
         internal IReadOnlySet<Type> Failed { get; init; } = new HashSet<Type>();
         internal IReadOnlySet<Type> Progressed { get; init; } = new HashSet<Type>();
     }
@@ -792,7 +1072,7 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			foreach (var probe in scope.ServiceProvider.GetServices<IPositionedProjectionProbe>())
 			{
 				if (probe.ProjectionType == registration.ProjectionType
-					&& !string.Equals(expectedDestination, GetDestination(probe, scope.ServiceProvider), StringComparison.Ordinal))
+					&& !string.Equals(expectedDestination, await GetDestinationAsync(probe, scope.ServiceProvider, cancellationToken).ConfigureAwait(false), StringComparison.Ordinal))
 				{
 					throw new InvalidOperationException($"Projection '{probe.ProjectionTypeName}' changed destination between binding and applying the page.");
 				}
@@ -805,6 +1085,10 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			{
 				if (probe.ProjectionType == registration.ProjectionType)
 				{
+					if (!string.Equals(expectedDestination, await GetDestinationAsync(probe, scope.ServiceProvider, cancellationToken).ConfigureAwait(false), StringComparison.Ordinal))
+					{
+						throw new InvalidOperationException("The projection destination changed while applying the page; progress cannot be acknowledged.");
+					}
 					await probe.EnsureVisibleAsync(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
 				}
 			}
@@ -845,6 +1129,19 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 	[LoggerMessage(EventSourcingEventId.AsyncProjectionBatchProcessed, LogLevel.Debug,
 		"Async projections processed batch of {EventCount} events, position now at {Position}.")]
 	private partial void LogAsyncProjectionBatchProcessed(int eventCount, long position);
+
+	/// <remarks>
+	/// Warning rather than Error: nothing is broken and nothing is lost. Writes still commit; what the
+	/// process cannot do is attest that every projection bound to this subscription has folded them,
+	/// because some of those projections are hosted elsewhere. The expected cause is a rolling deployment
+	/// that has added a projection, and it resolves when every instance runs the same registration set.
+	/// It is logged rather than encoded as an outcome because the guarantee contract admits exactly two.
+	/// </remarks>
+	[LoggerMessage(EventSourcingEventId.UnattestableRosterMembers, LogLevel.Warning,
+		"Subscription '{SubscriptionName}' is bound to projections this process does not host ({ProjectionKeys}), "
+		+ "so saves it serves report their read models as behind rather than fresh. This is expected during a "
+		+ "rolling deployment that adds a projection, and resolves when every instance hosts the same set.")]
+	private partial void LogUnattestableRosterMembers(string subscriptionName, string projectionKeys);
 
 	[LoggerMessage(EventSourcingEventId.ErasedEventSkipped, LogLevel.Debug,
 		"Skipping erased (tombstoned) event {EventId} at global position {GlobalPosition}; advancing past it")]

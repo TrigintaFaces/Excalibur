@@ -49,8 +49,8 @@ public sealed class HydratedProjectionHostsShould
         }
 
         long? persisted = null;
-        var checkpoint = A.Fake<ISubscriptionCheckpointStore>();
-        A.CallTo(() => checkpoint.GetCheckpointAsync(A<string>._, A<CancellationToken>._))
+        var checkpoint = SubscriptionCheckpointTestSetup.CreateFake();
+        A.CallTo(() => checkpoint.GetCheckpointAsync(A<string>._, A<string>._, A<CancellationToken>._))
             .ReturnsLazily(() => Task.FromResult(persisted));
         var cursorMaps = A.Fake<ICursorMapStore>();
         IReadOnlyDictionary<string, long>? savedMap = null;
@@ -61,12 +61,14 @@ public sealed class HydratedProjectionHostsShould
                 return Task.CompletedTask;
             });
         var attempts = new List<(long? Expected, long Proposed, string[] Applied, int Total, IReadOnlyDictionary<string, long>? Map)>();
-        A.CallTo(() => checkpoint.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+        A.CallTo(() => checkpoint.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
             .ReturnsLazily(call =>
             {
-                attempts.Add((call.GetArgument<long?>(1), call.GetArgument<long>(2), applied.ToArray(), total,
+                // Indices 2 and 3: a cursor is addressed by the PAIR, so the subscription name and the
+                // projection key occupy 0 and 1 and the positions sit after them.
+                attempts.Add((call.GetArgument<long?>(3), call.GetArgument<long>(4), applied.ToArray(), total,
                     savedMap is null ? null : new Dictionary<string, long>(savedMap)));
-                persisted = call.GetArgument<long>(2);
+                persisted = call.GetArgument<long>(4);
                 finished.TrySetResult();
                 return Task.FromResult(CheckpointAdvanceOutcome.Advanced);
             });
@@ -117,7 +119,7 @@ public sealed class HydratedProjectionHostsShould
             persisted.ShouldBeNull();
             attempts.ShouldBeEmpty();
             savedMap.ShouldBeNull();
-            A.CallTo(() => checkpoint.AdvanceCheckpointAsync(A<string>._, A<long?>._, A<long>._, A<CancellationToken>._))
+            A.CallTo(() => checkpoint.AdvanceCheckpointAsync(A<string>._, A<string>._, A<Guid>._, A<long?>._, A<long>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
             A.CallTo(() => cursorMaps.SaveCursorMapAsync(A<string>._, A<IReadOnlyDictionary<string, long>>._, A<CancellationToken>._))
                 .MustNotHaveHappened();

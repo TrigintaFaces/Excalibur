@@ -34,11 +34,17 @@ namespace Excalibur.Data.CosmosDb;
 /// {
 ///     public OrderSearchRepository(CosmosClient client, IOptionsMonitor&lt;CosmosDbProjectionStoreOptions&gt; options)
 ///         : base(client,
-///                options.Get(nameof(OrderProjection)).DatabaseName,
-///                CosmosDbProjectionContainerConvention.GetContainerName&lt;OrderProjection&gt;(
-///                    options.Get(nameof(OrderProjection))))
+///                Settings(options).DatabaseName,
+///                CosmosDbProjectionContainerConvention.GetContainerName&lt;OrderProjection&gt;(Settings(options)))
 ///     {
 ///     }
+///
+///     // Derive the options name from the convention, never by hand: the projection store keys on the
+///     // projection's FULL type name, so nameof(OrderProjection) would read a different, unconfigured
+///     // options instance and silently resolve the default database and container.
+///     private static CosmosDbProjectionStoreOptions Settings(
+///         IOptionsMonitor&lt;CosmosDbProjectionStoreOptions&gt; options) =&gt;
+///         options.Get(CosmosDbProjectionContainerConvention.GetOptionsName&lt;OrderProjection&gt;());
 ///
 ///     public override Task InitializeContainerAsync(CancellationToken ct) => Task.CompletedTask;
 /// }

@@ -35,7 +35,7 @@ public sealed class ProjectionPageVisibilityShould
 		try
 		{
 			(await held.GetByIdAsync("order-1", safety.Token).ConfigureAwait(false)).ShouldNotBeNull().EventCount.ShouldBe(1);
-			(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull(
+			(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull(
 				"folded state is not a searchable acknowledgment while its visibility barrier is blocked");
 			processing.IsCompleted.ShouldBeFalse();
 		}
@@ -44,7 +44,7 @@ public sealed class ProjectionPageVisibilityShould
 			release.TrySetResult();
 		}
 		(await processing.WaitAsync(safety.Token).ConfigureAwait(false)).Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+		(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class ProjectionPageVisibilityShould
 		(await held.GetByIdAsync("order-1", safety.Token).ConfigureAwait(false)).ShouldNotBeNull().EventCount.ShouldBe(7,
 			"the delegate must really skip the already-folded event rather than repeat a write with its own refresh");
 		A.CallTo(() => barrier.EnsureVisibleAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+		(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 	}
 
 	[Fact]
@@ -77,7 +77,7 @@ public sealed class ProjectionPageVisibilityShould
 		var result = await Driver(provider).ProcessPendingAsync(safety.Token).ConfigureAwait(false);
 		result.Outcome.ShouldBe(ProjectionProcessingOutcome.Halted);
 		(await held.GetByIdAsync("order-1", safety.Token).ConfigureAwait(false)).ShouldNotBeNull().EventCount.ShouldBe(1);
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull();
+		(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull();
 		A.CallTo(() => barrier.EnsureVisibleAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
@@ -98,7 +98,7 @@ public sealed class ProjectionPageVisibilityShould
 			await Should.ThrowAsync<InvalidOperationException>(() => incompatible.StartAsync(safety.Token));
 			incompatible.ExecuteTask.ShouldBeNull(".NET 10 startup validation must precede base.StartAsync");
 			otherQuery.Reads.ShouldBe(0);
-			(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+			(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 		}
 		finally
 		{
@@ -127,7 +127,7 @@ public sealed class ProjectionPageVisibilityShould
 				await Should.ThrowAsync<InvalidOperationException>(() => host.ProcessPendingAsync(safety.Token));
 			query.Reads.ShouldBe(0);
 			A.CallTo(() => barrier.EnsureVisibleAsync(A<CancellationToken>._)).MustNotHaveHappened();
-			(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull();
+			(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull();
 		}
 		finally
 		{
@@ -147,7 +147,7 @@ public sealed class ProjectionPageVisibilityShould
 		result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
 		result.EventsApplied.ShouldBe(1);
 		query.Reads.ShouldBe(1, "a perpetually growing source must not turn one request into a lifetime drain");
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+		(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 	}
 
 	[Theory]
@@ -177,7 +177,7 @@ public sealed class ProjectionPageVisibilityShould
 			otherQuery.Reads.ShouldBe(0);
 			(await otherHeld.GetByIdAsync("order-1", safety.Token).ConfigureAwait(false)).ShouldBeNull();
 			A.CallTo(() => otherBarrier.EnsureVisibleAsync(A<CancellationToken>._)).MustNotHaveHappened();
-			(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+			(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 			if (startWorker) host.ExecuteTask.ShouldBeNull();
 		}
 		finally
@@ -200,7 +200,7 @@ public sealed class ProjectionPageVisibilityShould
 		var result = await Driver(matching).ProcessPendingAsync(safety.Token).ConfigureAwait(false);
 		result.Outcome.ShouldBe(ProjectionProcessingOutcome.CaughtUp);
 		(await held.GetByIdAsync("order-1", safety.Token).ConfigureAwait(false)).ShouldNotBeNull().EventCount.ShouldBe(1);
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
+		(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBe(1);
 	}
 
 	[Fact]
@@ -226,7 +226,7 @@ public sealed class ProjectionPageVisibilityShould
 		query.Reads.ShouldBe(1, "an actual event page must reach dispatch, rather than passing through an idle path");
 		(await held.GetByIdAsync("order-1", safety.Token).ConfigureAwait(false)).ShouldBeNull(
 			"the actual apply scope's destination must be checked before invoking its fold delegate");
-		(await checkpoints.GetCheckpointAsync(AsyncProjectionProcessingHost.CheckpointNameFor("visibility-host", typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull();
+		(await checkpoints.GetCheckpointAsync("visibility-host", AsyncProjectionProcessingHost.ProjectionKeyFor(typeof(OrderSummary)), safety.Token).ConfigureAwait(false)).ShouldBeNull();
 		A.CallTo(() => barrier.EnsureVisibleAsync(A<CancellationToken>._)).MustNotHaveHappened();
 	}
 
@@ -280,6 +280,7 @@ public sealed class ProjectionPageVisibilityShould
 		IProjectionVisibilityBarrier barrier, string destination) : IProjectionStore<OrderSummary>
 	{
 		public object? GetService(Type serviceType) =>
+            serviceType == typeof(IProjectionTenantBoundary) ? ProjectionTenantBoundary.EstateWide :
 			serviceType == typeof(IPositionedProjectionStore<OrderSummary>) ? held
 			: serviceType == typeof(IProjectionVisibilityBarrier) ? barrier
 			: serviceType == typeof(IProjectionDestinationIdentity) ? new DestinationIdentity(destination)

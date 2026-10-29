@@ -11,8 +11,17 @@ namespace Excalibur.Data.MongoDB.Projections;
 /// <c>AddMongoDbProjections</c>.
 /// </summary>
 /// <remarks>
-/// Each projection type gets its own options instance, so per-projection
-/// overrides (collection name, timeouts, etc.) are fully isolated.
+/// <para>
+/// Each projection type gets its own named options instance, so a per-projection override of the
+/// database or collection name is isolated: registering two projections here with different
+/// collections gives each its own destination.
+/// </para>
+/// <para>
+/// Connection-level settings (connection string, timeouts, pool size, TLS) are NOT per-projection on
+/// this path. The projections share one client for the process, and it binds the settings of the first
+/// projection registered. Use the client-factory overload of <c>AddMongoDbProjectionStore</c> when a
+/// projection needs its own connection.
+/// </para>
 /// </remarks>
 public sealed class MongoDbProjectionRegistrar
 {

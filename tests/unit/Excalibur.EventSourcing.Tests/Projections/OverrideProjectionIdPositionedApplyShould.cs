@@ -382,6 +382,7 @@ public sealed class OverrideProjectionIdPositionedApplyShould
 			Task.FromResult((long)_rows.Count);
 
 		public object? GetService(Type serviceType) =>
+            serviceType == typeof(IProjectionTenantBoundary) ? ProjectionTenantBoundary.EstateWide :
 			serviceType == typeof(IPositionedProjectionStore<Tally>) ? this : null;
 
 		private static Tally Clone(Tally t) => new() { Total = t.Total };

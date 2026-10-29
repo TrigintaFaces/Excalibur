@@ -173,7 +173,7 @@ Position is tracked **per tenant, per `ViewName`** — not globally, and not per
 enables independent catch-up for each view, and it keeps one tenant's progress from advancing another's:
 
 ```sql
-SELECT * FROM materialized_view_positions;
+SELECT * FROM public.materialized_view_positions;
 
 | tenant_id | view_name              | position | updated_at          |
 |-----------|------------------------|----------|---------------------|
@@ -484,8 +484,8 @@ public class OrderSummaryViewBuilder : IMaterializedViewBuilder<OrderSummaryView
 
 ```csharp
 // Register the materialized view store (choose one provider)
-services.AddSqlServerMaterializedViewStore(opts => opts.ConnectionString = connectionString);
-// services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerMaterializedViewStore(() => new SqlConnection(connectionString));
+// services.AddPostgresMaterializedViewStore(NpgsqlDataSource.Create(connectionString));
 
 services.AddMaterializedViews(builder =>
 {
@@ -555,7 +555,7 @@ public class GetOrderSummaryHandler : IActionHandler<GetOrderSummaryQuery, Order
 
 ```csharp
 // Simple registration
-services.AddSqlServerMaterializedViewStore(opts => opts.ConnectionString = connectionString);
+services.AddSqlServerMaterializedViewStore(() => new SqlConnection(connectionString));
 
 // Or with fluent builder
 services.AddMaterializedViews(builder =>
@@ -564,44 +564,74 @@ services.AddMaterializedViews(builder =>
            .UseStore<SqlServerMaterializedViewStore>();
 });
 
-// With custom table names
-services.AddSqlServerMaterializedViewStore(opts =>
-{
-    opts.ConnectionString = connectionString;
-    opts.ViewTableName = "MyViews";
-    opts.PositionTableName = "MyViewPositions";
-});
+// With custom table names and a non-default schema
+services.AddSqlServerMaterializedViewStore(
+    () => new SqlConnection(connectionString),
+    viewTableName: "MyViews",
+    positionTableName: "MyViewPositions",
+    schemaName: "reporting");
 ```
 
 **Storage:** JSON in `nvarchar(max)` column with MERGE upserts.
 
 **Tables:**
-- `MaterializedViews` (Id, TenantId, ViewName, ViewId, Data, CreatedAt, UpdatedAt) —
+- `[dbo].[MaterializedViews]` (Id, TenantId, ViewName, ViewId, Data, CreatedAt, UpdatedAt) —
   unique on (TenantId, ViewName, ViewId)
-- `MaterializedViewPositions` (Id, TenantId, ViewName, Position, CreatedAt, UpdatedAt) —
+- `[dbo].[MaterializedViewPositions]` (Id, TenantId, ViewName, Position, CreatedAt, UpdatedAt) —
   unique on (TenantId, ViewName)
+
+**Schema:** `schemaName` defaults to `dbo`, and every statement the store runs names it explicitly —
+including the DDL below. The tables are therefore created and read in the configured schema rather
+than in whichever schema the connection's login happens to default to.
+
+| Option | Default | What it addresses |
+|--------|---------|-------------------|
+| `viewTableName` | `MaterializedViews` | The table holding view documents |
+| `positionTableName` | `MaterializedViewPositions` | The table holding per-view checkpoints |
+| `schemaName` | `dbo` | The schema holding both tables |
 
 `Id` is a surrogate identity used as the clustered key. The natural key is enforced by a UNIQUE
 constraint instead, because at these column widths it exceeds SQL Server's 900-byte clustered index
-key limit. The store creates both tables in this shape via `EnsureSchemaAsync`. A database
+key limit. The store creates both tables in this shape via `EnsureSchemaAsync`, which skips a table
+only when that qualified name already exists — a same-named table in a different schema does not
+suppress creation. The configured schema must already exist; the store does not create it. A database
 provisioned by an earlier prerelease has no in-place upgrade path; re-provision it.
 
 ### PostgreSQL
 
 ```csharp
-services.AddPostgresMaterializedViewStore(opts => opts.ConnectionString = connectionString);
+services.AddPostgresMaterializedViewStore(NpgsqlDataSource.Create(connectionString));
+
+// With custom table names and a non-default schema
+services.AddPostgresMaterializedViewStore(
+    NpgsqlDataSource.Create(connectionString),
+    viewTableName: "my_views",
+    positionTableName: "my_view_positions",
+    schemaName: "reporting");
 ```
 
 **Storage:** JSONB with `INSERT ON CONFLICT` upserts.
 
 **Tables:** (snake_case)
-- `materialized_views` (tenant_id, view_name, view_id, data, created_at, updated_at) —
+- `public.materialized_views` (tenant_id, view_name, view_id, data, created_at, updated_at) —
   primary key (tenant_id, view_name, view_id)
-- `materialized_view_positions` (tenant_id, view_name, position, created_at, updated_at) —
+- `public.materialized_view_positions` (tenant_id, view_name, position, created_at, updated_at) —
   primary key (tenant_id, view_name)
 
-The store issues no DDL — provision both tables in the shape above before the first projection runs.
-A database provisioned by an earlier prerelease has no in-place upgrade path; re-provision it.
+**Schema:** `schemaName` defaults to `public`, and every statement the store runs names it
+explicitly, so the tables must be provisioned in that schema rather than wherever the connection's
+`search_path` happens to point. All identifiers are double-quoted, so their case is preserved exactly
+as configured — a table created as `MyViews` must be configured as `MyViews`, not `myviews`.
+
+| Option | Default | What it addresses |
+|--------|---------|-------------------|
+| `viewTableName` | `materialized_views` | The table holding view documents |
+| `positionTableName` | `materialized_view_positions` | The table holding per-view checkpoints |
+| `schemaName` | `public` | The schema holding both tables |
+
+The store issues no DDL — provision both tables in the shape above, in the configured schema, before
+the first projection runs. A database provisioned by an earlier prerelease has no in-place upgrade
+path; re-provision it.
 
 ### MongoDB
 
@@ -873,8 +903,8 @@ The framework registers one `IMaterializedViewStore` per application (using `Try
 
 ```csharp
 // Pick ONE store provider
-services.AddSqlServerMaterializedViewStore(sqlConnectionString);
-// OR: services.AddPostgresMaterializedViewStore(pgConnectionString);
+services.AddSqlServerMaterializedViewStore(() => new SqlConnection(sqlConnectionString));
+// OR: services.AddPostgresMaterializedViewStore(NpgsqlDataSource.Create(pgConnectionString));
 // OR: builder.UseMongoDb("mongodb://localhost:27017", "myapp");
 // OR: builder.UseElasticSearch("http://elasticsearch:9200");
 ```
