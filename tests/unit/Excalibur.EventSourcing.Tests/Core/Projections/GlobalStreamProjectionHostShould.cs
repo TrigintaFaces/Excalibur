@@ -120,18 +120,15 @@ public sealed class GlobalStreamProjectionHostShould
 	/// </remarks>
 	private static async Task WaitForBindAsync(Func<bool> bound)
 	{
-		var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-		while (!bound())
+		if (!await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			bound,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(10)).ConfigureAwait(false))
 		{
-			if (DateTimeOffset.UtcNow > deadline)
-			{
-				throw new ShouldAssertException(
-					"The host never called BindSubscriptionAsync. It must bind its roster before reading "
-					+ "or advancing a cursor; a host that advances a cursor it never bound is the defect "
-					+ "this arm exists to catch.");
-			}
-
-			await Task.Delay(10, CancellationToken.None).ConfigureAwait(false);
+			throw new ShouldAssertException(
+				"The host never called BindSubscriptionAsync. It must bind its roster before reading "
+				+ "or advancing a cursor; a host that advances a cursor it never bound is the defect "
+				+ "this arm exists to catch.");
 		}
 	}
 

@@ -235,17 +235,12 @@ public sealed class GlobalStreamProjectionHostSubscriptionKeyingShould
 	/// </remarks>
 	private static async Task Await(Task signal, string whatFailed)
 	{
-		var deadline = DateTimeOffset.UtcNow
-			+ global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30));
-
-		while (!signal.IsCompleted)
+		if (!await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => signal.IsCompleted,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
+			TimeSpan.FromMilliseconds(10)).ConfigureAwait(false))
 		{
-			if (DateTimeOffset.UtcNow > deadline)
-			{
-				throw new ShouldAssertException(whatFailed);
-			}
-
-			await Task.Delay(10, CancellationToken.None).ConfigureAwait(false);
+			throw new ShouldAssertException(whatFailed);
 		}
 
 		await signal.ConfigureAwait(false);

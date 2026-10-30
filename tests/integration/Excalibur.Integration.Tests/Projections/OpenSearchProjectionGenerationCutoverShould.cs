@@ -30,7 +30,7 @@ namespace Excalibur.Integration.Tests.Projections;
 [Trait("Database", "OpenSearch")]
 [Trait("Component", "Projections")]
 [Collection(OpenSearchTestCollection.CollectionName)]
-public sealed class OpenSearchProjectionGenerationCutoverShould : ProjectionGenerationCutoverConformance
+public sealed class OpenSearchProjectionGenerationCutoverShould : CutoverIntegrationTestBase
 {
 	private readonly OpenSearchContainerFixture _fixture;
 

@@ -13,7 +13,7 @@ namespace Excalibur.Integration.Tests.Projections;
 /// <summary>Database-routed cutover and the separate native alias primitive against real infrastructure.</summary>
 /// <remarks>Framework routing lives in SQLite with a lifetime foreign key. Native aliases change only through
 /// their explicit administrative API; they do not automatically follow a framework reader pointer.</remarks>
-public abstract class ProjectionGenerationCutoverConformance
+public abstract class CutoverIntegrationTestBase
 {
 	/// <summary>A fingerprint of the length the roster contract requires.</summary>
 	private const string PreviousFingerprint =

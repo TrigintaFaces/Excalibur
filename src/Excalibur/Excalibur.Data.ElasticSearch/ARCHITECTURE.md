@@ -145,7 +145,7 @@ Stated so it can be falsified:
   it does not fence an A-to-B operation across an intervening A-to-C-to-A sequence.
   Retire the old binding explicitly only after the rollback window and old readers/writers drain.
 
-  Evidence: `ProjectionGenerationCutoverConformance` exercises absent-cursor and excessive-lag
+  Evidence: `CutoverIntegrationTestBase` exercises absent-cursor and excessive-lag
   refusal, plus `CutOverAndRetainThePreviousGenerationWhenTheNewOneIsWithinTheThreshold`.
   The retained old binding is intentional; no cross-system atomic transaction is claimed.
 - Their **options buckets do not collide** — those are keyed on the full type name — so no other part

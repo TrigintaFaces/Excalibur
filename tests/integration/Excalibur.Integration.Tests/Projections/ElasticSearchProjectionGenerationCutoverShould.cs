@@ -28,7 +28,7 @@ namespace Excalibur.Integration.Tests.Projections;
 [Trait("Database", "Elasticsearch")]
 [Trait("Component", "Projections")]
 [Collection(nameof(DataElasticSearch.Infrastructure.TestBaseClasses.ElasticsearchHostTests))]
-public sealed class ElasticSearchProjectionGenerationCutoverShould : ProjectionGenerationCutoverConformance
+public sealed class ElasticSearchProjectionGenerationCutoverShould : CutoverIntegrationTestBase
 {
 	private readonly ElasticsearchContainerFixture _fixture;
 

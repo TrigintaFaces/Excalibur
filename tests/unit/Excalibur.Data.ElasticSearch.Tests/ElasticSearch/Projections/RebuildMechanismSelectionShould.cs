@@ -93,14 +93,12 @@ internal sealed class RebuildClusterEndpoint : IDisposable
 	/// </summary>
 	public async Task WaitForAsync(Func<bool> condition, string because)
 	{
-		for (var attempt = 0; attempt < 400; attempt++)
+		if (await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			condition,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(25)).ConfigureAwait(false))
 		{
-			if (condition())
-			{
-				return;
-			}
-
-			await Task.Delay(25).ConfigureAwait(false);
+			return;
 		}
 
 		var fixtureFaults = Failures.IsEmpty ? "none" : string.Join("; ", Failures);
