@@ -40,7 +40,39 @@ flowchart LR
     end
 ```
 
+## Choose when projections run
+
+:::info Release availability
+TransactionalInline is available starting in `10.0.0-alpha.21`.
+Inline and Async retain their existing behavior.
+:::
+
+| Mode | What `SaveAsync` waits for | Failure boundary |
+|---|---|---|
+| `Async()` | Event persistence | A projection can lag or fail after the events commit. |
+| `Inline()` | Event persistence, then a bounded projection-processing wait | Events stay committed if projection completion cannot be confirmed. |
+| `TransactionalInline(aggregateType)` | Events and aggregate-local relational models in one transaction | A projection failure rolls back that append and its model writes. |
+| `Ephemeral()` | No stored projection | The model is folded when read. |
+
+Inline and Async work with separate event and projection stores. Choosing SQL Server for both does
+not automatically change their consistency guarantees. TransactionalInline is an explicit opt-in.
+
 ## Quick start: Inline in one application or several
+
+`.Inline()` lets a repository save wait for its read models. **The events commit first.**
+The framework then processes committed events in order and waits, within a configured limit,
+for the required projections. These are separate commits, even when both stores use SQL Server.
+
+`SaveResult.Projections == Attested` records that completion was observed at save time.
+`BoundExpired` means completion could not be confirmed; the events remain committed. Retry the
+read or investigate recovery rather than repeating the business command. A token-aware read through
+`IProjectionSessionReader` can establish `Fresh` against the state it actually returns.
+
+Use `.Async()` when saves should not wait for projection processing. Both modes use ordered,
+positioned writes; Async callers can request a consistency wait on individual reads instead.
+
+For an atomic event-and-model commit in one SQL Server database, see
+[TransactionalInline](#transactionalinline-in-one-sql-server-database).
 
 ```csharp
 services.AddExcalibur(x => x.AddEventSourcing(es =>
@@ -153,7 +185,7 @@ flowchart TD
     Q5 -->|Yes| ASYNC_KEYED["AddProjection&lt;T&gt;<br/>.Async().KeyedBy&lt;TEvent&gt;(selector)"]
 ```
 
-Choose `.Inline()` when a successful save must confirm its read models before returning. It registers
+Choose `.Inline()` when a save should wait for its read models and report whether completion was confirmed. It registers
 foreground completion and background recovery automatically in each application. Choose `.Async()` for
 independent background processing, with an explicit host or processor. Both use ordered, positioned
 writes; `.Ephemeral()` folds on demand without persistence.
@@ -166,6 +198,8 @@ writes; `.Ephemeral()` folds on demand without persistence.
 | **`Async` + `KeyedBy`** | Mutable class | No | Multi-stream aggregation (category, tenant) |
 | **`Async` DI handler** | Mutable class | Yes | Complex logic, logging |
 | **`Async` immutable** | Records, immutable | Yes | Functional patterns, audit trails |
+| **`Inline`** | Mutable or immutable | Yes | Bounded post-commit wait with ordered processing |
+| **`TransactionalInline`** | Mutable class | No | Aggregate-local atomic save in one relational database |
 | **`Ephemeral`** | Any | No | Debugging, ad-hoc queries |
 
 An `Async` projection is stored and is written by the projection host. An `Ephemeral` projection is
@@ -636,6 +670,14 @@ not an accident, and `KeyedBy` avoids it entirely because the key is derived wit
 
 ### ProjectionHandlerContext
 
+DI handlers receive a fresh context for each event. In `Inline` and `Async`, its aggregate ID,
+aggregate type, `CommittedVersion` (the event's zero-based stream version), and `Timestamp`
+come from that event's stored envelope. A batch can contain several streams; its final event
+does not supply metadata for the earlier events. `IsReplay` describes the operation, and
+`OverrideProjectionId` starts unset for each event. The same metadata rules apply to immutable
+DI handlers. This context's event version is distinct from `SaveResult.CommittedVersion`,
+which reports the aggregate's version after the whole save.
+
 Every DI handler receives aggregate metadata:
 
 ```csharp
@@ -669,7 +711,7 @@ When all handlers in a projection are Tier 1 lambdas and no `KeyedBy` selectors 
 
 ### Reading Your Own Writes (Session Consistency)
 
-**The save does not wait for a projection. The read does, and only if you ask it to.** A save returns a
+**With `.Async()`, the save does not wait for a projection. The read does, and only if you ask it to.** A save returns a
 token; carrying that token to the read makes the read observe the write that produced it.
 
 This is the shape Azure Cosmos DB uses for session consistency, and for the same reason: making every
@@ -801,7 +843,7 @@ while the durable checkpoint is shared across processes and advances after every
 
 Be clear about the trade, in both directions.
 
-| | the old save-time write | this model |
+| | the old save-time write | current Async processing |
 |---|---|---|
 | when the read model is written | during `SaveAsync` | by the projection host, afterwards |
 | what a read costs with no token | nothing | nothing |
@@ -2222,8 +2264,9 @@ If your read models are empty and nothing has thrown, check this first.
 
 ### A read taken right after `SaveAsync` may not see that save
 
-`SaveAsync` does not write projections. A query issued immediately afterwards is racing the projection
-host.
+With `.Async()`, a query issued immediately after `SaveAsync` can race the projection host.
+With `.Inline()`, inspect the save's completion receipt, but use a token-aware read when you need
+read-time verification: `Attested` records the save-time observation, while `Fresh` verifies the read.
 
 ```csharp
 // WRONG: may return the state from before this save, or null on a first write
@@ -2274,13 +2317,13 @@ if (existing?.LastProcessedVersion >= context.CommittedVersion) return;
 | Practice | Recommendation |
 |----------|----------------|
 | **Start simple** | Use `When<T>` lambdas. Add `KeyedBy` for multi-stream. Graduate to DI handlers only when needed |
-| **Register the host** | `EnableProjectionProcessing()` once, beside your projections. Without it nothing applies them and nothing says so |
+| **Processing** | Async needs an explicitly configured processor/host. Inline registers foreground processing and recovery automatically. TransactionalInline runs inside repository saves. |
 | **Idempotency** | Make all projection handlers safe to replay |
 | **Denormalization** | Don't be afraid to duplicate data for query optimization |
-| **Mode selection** | `Async` for anything stored, `Ephemeral` for ad-hoc. Consistency is a read-time choice, not a mode |
-| **Reading your own write** | Carry `SaveResult` into `IProjectionSessionReader.ReadAsync`, and handle `BoundExpired` |
+| **Mode selection** | Async for independent processing; Inline for a post-commit wait; TransactionalInline for aggregate-local SQL atomicity; Ephemeral for on-demand folds. |
+| **Reading your own write** | For Inline/Async, use `IProjectionSessionReader` and handle `BoundExpired`. For TransactionalInline, read the model store after a successful coordinated save. |
 | **Positioned stores** | Use a store implementing `IPositionedProjectionStore<T>` in production — every persistent store we ship does |
-| **Failure recovery** | Use `IProjectionRecovery.ReapplyAsync<T>(aggregateId, aggregateType, ct)`, never retry `SaveAsync` |
+| **Failure recovery** | For committed Inline/Async writes, recover the projection without repeating the command. A rejected transactional append rolls back; an uncertain commit requires reconciliation. |
 | **Monitoring** | Use projection observability metrics and health checks |
 | **Indexing** | Index read model tables for your query patterns |
 
@@ -2305,3 +2348,85 @@ matching count, requests that many rows in one query, and verifies the returned 
 values. A truncated response or provider result-window error fails explicitly instead of returning an
 incomplete list. The fallback materializes the matching set and is intended for small datasets; use a
 provider-native distinct query for larger sets. Count and query do not form a concurrent snapshot.
+
+
+## TransactionalInline in one SQL Server database
+
+SQL Server, PostgreSQL, SQLite, and Oracle support this mode starting in `10.0.0-alpha.21`.
+The example below uses SQL Server; see [all four provider registrations](transactional-inline.md).
+
+Use `.TransactionalInline(aggregateType)` when a model belongs to one aggregate and must commit
+with that aggregate's events. The aggregate type string must exactly match `aggregate.AggregateType`
+(the default is the aggregate class name). Register the repository through `AddRepository` so its
+`SaveAsync` receives the transactional coordinator.
+
+```csharp
+services.AddSqlServerProjectionStore<OrderSummary>(options =>
+{
+    options.ConnectionString = connectionString;
+    options.TableName = "TransactionalOrderSummary";
+});
+services.AddExcalibur(x => x.AddEventSourcing(es =>
+{
+    es.UseSqlServer(sql => sql.ConnectionString(connectionString));
+    es.AddRepository<Order>(_ => new Order());
+    es.RegisterEventTypesFromAssembly(typeof(Order).Assembly);
+    es.AddProjection<OrderSummary>(p => p.TransactionalInline(nameof(Order))
+        .When<AmountAdded>((view, e) => view.Total += e.Amount));
+}));
+```
+
+Provision a **dedicated table** with `SqlServerProjectionSchema.CreateTransactionalTableScript`.
+Pass the same physical name used by the store, including the projection generation suffix:
+
+```csharp
+var table = ProjectionVersionConvention.Qualify("TransactionalOrderSummary", typeof(OrderSummary), '_');
+var ddl = SqlServerProjectionSchema.CreateTransactionalTableScript(table);
+// Execute ddl through your deployment migration tooling.
+```
+
+The script adds source/type ownership columns and a constraint that rejects global-positioned
+Inline/Async writes. It does not convert an existing ordinary projection table. Use a new table when
+changing modes or generations, and give its writes exclusively to this transactional projection.
+Do not share it with ordinary `UpsertAsync` calls. A retired row cannot be recreated by a later save.
+The event store and model store must identify the same SQL Server instance and database, and the
+same tenant partition; unsupported providers or capability-hiding decorators fail explicitly.
+
+### What happens during a save
+
+The repository opens the event append transaction, loads the aggregate's complete committed history,
+deserializes and upcasts it through the repository pipeline, and folds that history plus the pending
+events into a new model. It writes each registered transactional model using the **same connection and
+transaction** before appending the pending events. Commit makes both visible together. A handler,
+serialization, write, or concurrency failure rolls back the transaction. Pending aggregate events
+remain uncommitted in memory after a rejected save; reload before issuing a different command.
+
+This first implementation supports mutable models with synchronous `When` handlers, keyed by the
+aggregate id. Handlers must be deterministic and have no external effects. `KeyedBy`, asynchronous
+DI handlers, and deletion callbacks are rejected. Each save replays the full stream, so its work grows
+with stream length; snapshots do not replace projection replay. Missing or erased history is rejected.
+An existing stream is projected on its next successful coordinated save, not automatically backfilled.
+Automatic projection erasure/recovery callbacks are not registered for this mode; deployments using
+compliance erasure must provide and validate an explicit destination-clearing workflow.
+
+Transactional outbox staging can join this same transaction through the existing transactional writer.
+Eventually-consistent outbox staging is rejected when an outbox store is configured; use Transactional
+or Deferred staging. External messages, HTTP requests, and other stores cannot join merely because a
+handler runs inside this callback.
+
+After a successful save, read the model through `IProjectionStore<T>`. This guarantees the saved
+aggregate's committed model, subject to later writes; it is not a global-prefix checkpoint or an
+immutable snapshot. `IProjectionSessionReader` rejects transactional models explicitly. The existing
+`SaveResult.Projections` and `Attestation` fields still describe only post-commit **Inline** processing,
+if also configured. A transaction-only save can therefore return `NotRequested` while its model is
+already committed. Inline and Async models of other types continue through their existing paths.
+
+Direct `IEventStore.AppendAsync` calls bypass projection coordination. Manually constructing an
+`EventSourcedRepository` requires setting its `TransactionalProjections` property to the registered
+coordinator. Use the registered repository for every writer that needs this guarantee. Changing
+handlers does not make old operation receipts attest the new model generation. If a prior append is
+recognized without proof that the current projection work committed, the provider returns `Unknown`;
+reconcile the original operation rather than repeat the business command.
+
+The runnable sample at `samples/02-event-sourcing/TransactionalInline` demonstrates two successful
+saves, immediate model reads, and a projection exception that leaves both events and model unchanged.

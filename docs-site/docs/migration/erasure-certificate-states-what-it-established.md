@@ -1,6 +1,7 @@
 ---
 title: An erasure certificate states only what the erasure established
 sidebar_label: Erasure certificate claims
+description: What changed in signed erasure certificates, which hosts have to update, and the database migration the renumbered legal-basis values require.
 ---
 
 # An erasure certificate states only what the erasure established

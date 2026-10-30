@@ -598,3 +598,18 @@ services.AddOpenTelemetry()
 - [Domain Events](./domain-events.md) — Define the events that get persisted to the store
 - [Event Store Setup](../configuration/event-store-setup.md) — Step-by-step configuration guide for event store providers
 - [Event Store Providers](./providers.md) — Provider-specific setup for SQL Server, PostgreSQL, and in-memory
+
+
+## Saving events with transactional projections
+
+TransactionalInline is available starting in `10.0.0-alpha.21`.
+
+SQL Server, PostgreSQL, SQLite, and Oracle repositories can opt into
+[TransactionalInline projections](./projections.md#transactionalinline-in-one-sql-server-database).
+`SaveAsync` then commits the aggregate's events and its aggregate-local models in one database
+transaction. A projection failure rolls back the append. Both stores must use the same relational database
+and tenant partition, with a dedicated transactional model table.
+
+This behavior belongs to the coordinated repository save, not ordinary `IEventStore.AppendAsync`.
+Existing Inline projections still run after the event commit with a bounded wait; Async projections
+still run independently. Neither mode becomes transactional simply by sharing a database.

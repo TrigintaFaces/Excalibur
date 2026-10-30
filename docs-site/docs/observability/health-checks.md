@@ -1,5 +1,7 @@
 ---
 sidebar_position: 1
+title: Health Checks
+description: Add liveness and readiness health checks to an Excalibur application for load balancers, Kubernetes probes and degradation alerts.
 ---
 
 # Health Checks

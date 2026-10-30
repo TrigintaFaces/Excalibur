@@ -1,3 +1,8 @@
+---
+title: EXCMP002 — Property needs a getter and a setter
+description: "An encryption-annotated property is missing a getter or a setter, so the ciphertext cannot be written back; give it both accessors."
+---
+
 # EXCMP002: Encryption annotation on a property without a getter and a setter
 
 | Property | Value |

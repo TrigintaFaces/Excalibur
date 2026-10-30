@@ -643,7 +643,7 @@ writing one property and writing twenty are the same successful operation.
 **Which versions are affected.** The transport has carried this since it was first added, and every
 pre-release of it up to and including `10.0.0-alpha.10` contains it. **The repair is not in `10.0.0-alpha.10` or any earlier
 release** — but it IS in `10.0.0-alpha.11` and later, so upgrading resolves this. **This paragraph
-previously said the repair was on the main branch and unreleased; that stopped being true when
+previously said the repair was available only from the main branch; that stopped being true when
 `10.0.0-alpha.11` shipped.**
 
 **How to confirm it on the version you hold.** Do not check this by reading our source — that tells you

@@ -1,5 +1,7 @@
 ---
 sidebar_position: 2
+title: Migrate from MassTransit
+description: Move a MassTransit codebase to Excalibur.Dispatch - consumer and saga mapping, outbox, transports, and a staged migration path.
 ---
 
 # Migrating from MassTransit
@@ -910,8 +912,8 @@ The [benchmark results and evidence scope](../performance/competitor-comparison.
 ## Next Steps
 
 1. Review [Outbox Pattern](../patterns/outbox.md)
-2. Learn [Event Sourcing](/docs/event-sourcing)
-3. Implement [Sagas](/docs/sagas)
+2. Learn [Event Sourcing](../event-sourcing/index.md)
+3. Implement [Sagas](../sagas/index.md)
 4. Set up [Monitoring](../observability/health-checks.md)
 5. Review [Deployment Options](../deployment/docker.md)
 

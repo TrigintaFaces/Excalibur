@@ -17,6 +17,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — relational TransactionalInline
+
+- Explicit `TransactionalInline(aggregateType)` projections fold aggregate-local history and commit
+  their SQL Server, PostgreSQL, SQLite, or Oracle read models in the same transaction as event appends. They require dedicated tables in
+  the same database and deterministic synchronous handlers. Existing Inline and Async remain separate
+  host-processing modes. See the [sample](samples/02-event-sourcing/TransactionalInline/README.md).
+- DI projection handlers receive each event's own type, version and timestamp during batched replay.
+- SQL Server event-store registration methods now supply the contiguous global reader and validated
+  options through the same provider registration as `UseSqlServer`. Repeated SQL provider registration
+  is rejected to prevent writes and reads from selecting different sources. Legacy shared factories
+  remain unowned; connection-string registrations expose owned-primary capabilities.
+- Projection recovery now resolves its store and handlers in an owned asynchronous service scope.
+- PostgreSQL projection registrations keep per-model options separate, so configuring a second model
+  cannot redirect the first model to its table.
+- Staged SQL Server and Oracle appends preserve commit uncertainty if acknowledgement is lost after
+  dispatch. Callers must reconcile the original operation rather than treating uncertainty as rollback.
+- The consumer walkthrough and runnable four-provider sample cover scoped application services,
+  ETag preconditions, audit metadata, concurrency conflicts and transactional rollback. The CQRS
+  template keeps its Async defaults and documents the changes required for transactional models.
+
+### Upgrade — alpha.19 SQL Server checkpoints
+
+Use the [incremental migration and replay guide](eng/migrations/alpha19-to-alpha20/README.md), not the
+fresh-install schema scripts. It retains legacy checkpoint data and checks the actual event source for
+position gaps and allocator inconsistencies before creating the new binding tables. Rebuild fresh
+projection destinations and validate them before cutover; a reset cursor cannot repair old mappings or
+incorrect projection contents. Events, snapshots and CDC data are not rewritten.
+
+## [10.0.0-alpha.20] - 2026-10-29
+
+Published from the [release repository](https://github.com/TrigintaFaces/Excalibur/releases/tag/v10.0.0-alpha.20).
+TransactionalInline and the fixes listed under Unreleased above are follow-up work, not part of these packages.
+
+### Fixed — generated relational projection reads
+
+SQL Server and PostgreSQL generation readers now deserialize using the same naming policy and converters
+as their write path. Before this fix, development builds containing the new generation readers could
+return default or incorrect property values without throwing when the caller's generated JSON metadata
+differed from the store options. The affected implementation was introduced after the alpha.19 tag and
+was fixed before the published alpha.20 release. Consumers of those intermediate development builds should verify
+their read results, including any downstream work performed from those results. This fix corrects
+reading; it does not establish that downstream actions based on earlier incorrect reads were harmless.
+
 ### Changed — projection evolution and consistency
 
 - Keep subscription names stable when adding projections. Each projection member has its own checkpoint

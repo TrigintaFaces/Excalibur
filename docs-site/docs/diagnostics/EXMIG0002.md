@@ -1,3 +1,8 @@
+---
+title: EXMIG0002 — Construct needs a manual migration step
+description: "A MediatR construct outside the Excalibur.Dispatch compat contract has no mechanical rewrite, so it needs a manual migration step."
+---
+
 # EXMIG0002: MediatR construct requires a manual migration step
 
 | Property | Value |

@@ -563,7 +563,8 @@ internal sealed partial class AsyncProjectionProcessingHost : BackgroundService,
 			{
 				try
 				{
-					batch.Add(new ProjectionEvent(DeserializeOrThrow(stored), stored.AggregateId, stored.GlobalPosition, stored.TenantId));
+					batch.Add(new ProjectionEvent(DeserializeOrThrow(stored), stored.AggregateId, stored.GlobalPosition, stored.TenantId)
+                    { Envelope = stored });
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)
 				{

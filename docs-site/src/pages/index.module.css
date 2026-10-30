@@ -47,6 +47,18 @@
   margin-bottom: 1.5rem;
 }
 
+.heroPrerelease {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+  margin: 0 0 1.75rem;
+}
+
+.heroPrerelease a {
+  color: #5de4ff;
+  text-decoration: underline;
+}
+
 .heroButtons {
   display: flex;
   align-items: center;
@@ -252,6 +264,16 @@
   color: rgba(255, 255, 255, 0.8);
   font-size: 1.125rem;
   margin-bottom: 2rem;
+}
+
+.ctaMigrate {
+  font-size: 1rem !important;
+  margin-bottom: 1.75rem !important;
+}
+
+.ctaMigrate a {
+  color: #5de4ff;
+  text-decoration: underline;
 }
 
 .ctaButtons {

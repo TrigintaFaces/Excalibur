@@ -23,6 +23,104 @@ public sealed class SqlServerProjectionStoreExtensionsShould : UnitTestBase
 {
 	private const string TestConnectionString = "Server=localhost;Database=TestDb;Integrated Security=true;";
 
+    [Fact]
+    public void IsolateDestinationsAndValidateOnlyTheRegistrationOwningTheConnectionString()
+    {
+        var services = new ServiceCollection().AddLogging();
+        services.AddSqlServerProjectionStore<TestProjection>(o =>
+        {
+            o.ConnectionString = TestConnectionString;
+            o.TableName = "FirstModel";
+        });
+        services.AddSqlServerProjectionStore<ProjectionIDbTestRecord>(() => new SqlConnection(TestConnectionString),
+            o => o.TableName = "SecondModel");
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var first = scope.ServiceProvider.GetRequiredService<IProjectionStore<TestProjection>>();
+        var second = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionIDbTestRecord>>();
+        var options = provider.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>();
+        options.Get(typeof(TestProjection).AssemblyQualifiedName!).TableName.ShouldBe("FirstModel");
+        options.Get(typeof(ProjectionIDbTestRecord).AssemblyQualifiedName!).TableName.ShouldBe("SecondModel");
+        ((IProjectionDestinationIdentity)first.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("FirstModel");
+        ((IProjectionDestinationIdentity)second.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("SecondModel");
+    }
+
+    [Fact]
+    public void KeepTwoOptionsBasedProjectionTablesSeparate()
+    {
+        var services = new ServiceCollection().AddLogging();
+        services.AddSqlServerProjections(TestConnectionString, p => p
+            .Add<TestProjection>(o => o.TableName = "Customers")
+            .Add<ProjectionIDbTestRecord>(o => o.TableName = "Guard"));
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var customer = scope.ServiceProvider.GetRequiredService<IProjectionStore<TestProjection>>();
+        var guard = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionIDbTestRecord>>();
+        ((IProjectionDestinationIdentity)customer.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("Customers");
+        ((IProjectionDestinationIdentity)guard.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("Guard");
+    }
+
+    [Fact]
+    public void PreserveUnnamedFactoryDefaultsAndIsolateTypedDatabaseOverrides()
+    {
+        var services = new ServiceCollection().AddLogging();
+        services.Configure<SqlServerProjectionStoreOptions>(o => o.TableName = "SharedDefault");
+        services.AddSqlServerProjectionStore<TestProjection>(() => new SqlConnection(TestConnectionString));
+        services.AddSqlServerProjectionStore<ProjectionIDbTestRecord, IProjectionTestDb>(o => o.TableName = "TypedOverride");
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IProjectionStore<TestProjection>>();
+        var typed = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionIDbTestRecord>>();
+        ((IProjectionDestinationIdentity)factory.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("SharedDefault");
+        ((IProjectionDestinationIdentity)typed.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("TypedOverride");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreserveExplicitOptionsInstancesForUnconfiguredFactories(bool typedDatabase)
+    {
+        var services = new ServiceCollection().AddLogging();
+        services.AddSingleton<IOptions<SqlServerProjectionStoreOptions>>(Options.Create(new SqlServerProjectionStoreOptions
+        {
+            TableName = "ExplicitOptions", SchemaName = "custom"
+        }));
+        if (typedDatabase) services.AddSqlServerProjectionStore<ProjectionIDbTestRecord, IProjectionTestDb>();
+        else services.AddSqlServerProjectionStore<ProjectionIDbTestRecord>(() => new SqlConnection(TestConnectionString));
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionIDbTestRecord>>();
+        var identity = ((IProjectionDestinationIdentity)store.GetService(typeof(IProjectionDestinationIdentity))!).Identity;
+        identity.ShouldContain("ExplicitOptions");
+        identity.ShouldContain("custom");
+    }
+
+    [Fact]
+    public void ApplySharedDefaultsBeforeIsolatedSerializerAndTableOverrides()
+    {
+        var services = new ServiceCollection().AddLogging();
+        services.AddSqlServerProjections(shared =>
+        {
+            shared.ConnectionString = TestConnectionString;
+            shared.TableName = "Shared";
+            shared.JsonSerializerOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+        }, p => p.Add<TestProjection>(o =>
+        {
+            o.TableName = "Override";
+            o.JsonSerializerOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseUpper };
+        }).Add<ProjectionIDbTestRecord>());
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var first = scope.ServiceProvider.GetRequiredService<IProjectionStore<TestProjection>>();
+        var second = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionIDbTestRecord>>();
+        var firstJson = ((ITransactionalProjectionStore<TestProjection>)first.GetService(typeof(ITransactionalProjectionStore<TestProjection>))!).Serialize(new TestProjection { Name = "first" });
+        var secondJson = ((ITransactionalProjectionStore<ProjectionIDbTestRecord>)second.GetService(typeof(ITransactionalProjectionStore<ProjectionIDbTestRecord>))!).Serialize(new ProjectionIDbTestRecord { Name = "second" });
+        firstJson.ShouldContain("\"NAME\"");
+        secondJson.ShouldContain("\"name\"");
+        ((IProjectionDestinationIdentity)first.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("Override");
+        ((IProjectionDestinationIdentity)second.GetService(typeof(IProjectionDestinationIdentity))!).Identity.ShouldContain("Shared");
+    }
+
 	// --- Overload 1: Action<Options> ---
 
 	[Fact]

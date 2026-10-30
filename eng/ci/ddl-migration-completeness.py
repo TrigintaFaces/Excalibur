@@ -81,6 +81,18 @@ itself where a reviewer reading the file cannot miss it. A brand-new table needs
 declaration and no migration: a script with no previous shipped content has nothing to migrate
 FROM, and that case is detected structurally (absent at base, present now) rather than declared.
 
+An upgrade that deliberately preserves old tables and replays into fresh destinations uses a
+different, evidence-linked contract, not a claim that CREATE upgrades an existing database:
+
+    -- ddl-migration: replacement-and-replay <Table> docs=<path.md> test=<path.cs#method> - <reason>
+    -- ddl-migration: retained-legacy <OldTable> docs=<path.md> test=<path.cs#method> - <reason>
+
+Paths must resolve inside the repository and exist; an optional test symbol must exist there too.
+Replacement requires one current CREATE for that exact identity. Retention requires no current
+CREATE and a unique historical identity. This gate validates the evidence linkage and table scope;
+the linked executable tests and operator procedure establish behavior. Never add a declaration
+without those tests, and never call a declaration proof that production data has been migrated.
+
 It is read from the CURRENT tree as well as from the revision being compared, on the same footing
 as ALTER coverage and for the same reason. Read only from the revision, the hatch is unreachable
 for every finding this gate actually reports: findings come from historical steps, a declaration
@@ -688,6 +700,50 @@ class Finding:
         self.detail = detail
 
 
+_REPLACEMENT_CONTRACT = re.compile(
+    r"ddl-migration:[ \t]*(replacement-and-replay|retained-legacy)[ \t]+"
+    r"([^\s]+)[ \t]+docs=([^\s]+)[ \t]+test=([^\s]+)[ \t]+-[ \t]+([^\r\n]+)"
+)
+
+
+def contract_identity(raw: str) -> str:
+    return raw if "{" in raw else raw.upper()
+
+
+def replacement_contracts(root: str, path: str, current: str | None) -> dict[str, str]:
+    """Validate explicit operator contracts, not an inferred ALTER or a blanket waiver.
+
+    The linked test proves behavior; this gate proves the linkage and table scope. A retired
+    table must be absent from current provisioning. A replacement must still be unique there.
+    Neither declaration guesses a runtime template's physical name.
+    """
+    contracts = {}
+    if current is None:
+        return contracts
+    current_names = [contract_identity(table_key(m.group("name")))
+                     for m in _CREATE_TABLE.finditer(strip_comments(current))]
+    for match in _REPLACEMENT_CONTRACT.finditer(current):
+        mode, spelling, docs, test, reason = match.groups()
+        raw = table_key(spelling)
+        identity = contract_identity(raw)
+        for reference, extension in ((docs, ".md"), (test, (".cs", ".ps1"))):
+            relative, _, symbol = reference.partition("#")
+            target = os.path.realpath(os.path.join(root, relative))
+            if (os.path.isabs(relative) or ".." in relative.replace("\\", "/").split("/")
+                    or os.path.commonpath((os.path.realpath(root), target)) != os.path.realpath(root)
+                    or not relative.endswith(extension) or not os.path.isfile(target)):
+                raise Refuse(f"{path}: invalid replacement evidence {reference!r}", "invalid replacement evidence")
+            with open(target, encoding="utf-8-sig") as evidence:
+                body = evidence.read()
+            if not body.strip() or (symbol and not re.search(r"\b" + re.escape(symbol) + r"\b", body)):
+                raise Refuse(f"{path}: missing replacement evidence {reference!r}", "missing replacement evidence")
+        expected = 0 if mode == "retained-legacy" else 1
+        if current_names.count(identity) != expected or identity in contracts:
+            raise Refuse(f"{path}: ambiguous or live retained table {raw!r}", "invalid replacement table scope")
+        contracts[identity] = mode
+    return contracts
+
+
 def constraint_signature(text: str) -> str:
     """Compare only insignificant head spacing; preserve the stored diagnostic spelling.
 
@@ -775,6 +831,7 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
     # between the two revisions must be resolved against the revision it was written in.
     sources = [(after, fields, setvars)]
     current = read_at(root, WORKING_TREE, path)
+    replacements = replacement_contracts(root, path, current)
     if current is not None and current != after:
         sources.append((current, field_types(current), sqlcmd_vars(current)))
 
@@ -820,6 +877,19 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
         resolved_side: dict[str, tuple[str, Table]] = {}
         for raw, shape in sorted(tables.items()):
             identity = resolve(raw, side_defaults, field_types(content), sqlcmd_vars(content))
+            # Preserve the existing no-delta rule before considering a current replacement
+            # contract. An old shared runtime spelling may have belonged to unrelated tables;
+            # a later checkpoint declaration must not retrospectively claim those identities.
+            other = new_tables if tables is old_tables else old_tables
+            if identity is None and raw in other and not deltas(old_tables[raw], new_tables[raw]):
+                continue
+            replacement_key = contract_identity(raw)
+            if replacement_key in replacements:
+                if sum(contract_identity(table_key(item.group("name"))) == replacement_key
+                       for item in _CREATE_TABLE.finditer(strip_comments(content))) != 1:
+                    raise identity_refusal(raw)
+                print(f"{replacements[replacement_key]}: {path}: {raw}: evidence-linked operator contract")
+                continue
             if identity is None:
                 if raw in declared_templates:
                     if sum(table_key(item.group("name")) == raw
@@ -829,9 +899,6 @@ def evaluate_delta(root: str, path: str, before: str | None, after: str | None,
                     continue
                 # Unchanged placeholders are a documented coverage limitation, not evidence of a
                 # migration defect. A meaningful change or changed spelling cannot use this escape.
-                other = new_tables if tables is old_tables else old_tables
-                if raw in other and not deltas(old_tables[raw], new_tables[raw]):
-                    continue
                 if old_tables:
                     raise identity_refusal(raw)
                 continue  # a genuinely new artifact/table population has no prior schema
@@ -1114,12 +1181,21 @@ def scan(out=sys.stdout, err=sys.stderr, base: str | None = None,
             print(f"stale-baseline: {key}", file=out)
 
     if unrecorded:
+        # A blind spot in one artifact must not hide defects independently measured in others.
+        # Keep these separate from refusals, and keep REFUSE as the overall exit status.
+        measured = [key for key in fresh if key not in set(refusals)]
+        if measured:
+            print(f"::error:: {len(measured)} independently evaluated provisioning change(s) "
+                  "also need an upgrade path:", file=err)
+            for key in measured:
+                print(f"::error::   {key}  -- {seen[key]}", file=err)
         print(f"::error:: REFUSE - {len(unrecorded)} artifact(s) could not be evaluated and are not "
               "recorded as known gaps:", file=err)
         for key in unrecorded:
             print(f"::error::   {key}", file=err)
         print(
-            "\nThis is NOT a report of defects and NOT a pass. The checker could not read these,\n"
+            "\nThese refusals are NOT defect findings and NOT a pass. Independently evaluated\n"
+            "findings above remain actionable. The checker could not read the refused artifacts,\n"
             "so it does not know whether they are broken. Either make the identity resolvable, or\n"
             f"record the gap in {os.path.basename(bpath)} so the blindness is committed where a\n"
             "reader can see it rather than absorbed into a green run.",
@@ -1513,6 +1589,10 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
 
     # (label, v1, v2, baseline entries, expected exit, commit v2?)
     arms: list[tuple[str, dict[str, str], dict[str, str], set[str], int, bool]] = [
+        ("SAFETY mixed refusal still reports independent defect",
+         {sql: _V1_SQL, sql + ".other.sql": unresolved},
+         {sql: _V2_SQL_ADDS_COLUMN, sql + ".other.sql": unresolved.replace("INT NULL", "INT NOT NULL")},
+         set(), 2, True),
         ("LIVENESS exact template reset declaration is honored",
          {sql: unresolved}, {sql: "-- ddl-migration: provisioning-only {table} - fresh provisioning required\n" + unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 0, True),
         ("SAFETY template change without reset declaration refuses",
@@ -1663,6 +1743,54 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
     ]
 
     arms.extend([
+        ("LIVENESS evidence-linked replacement preserves an explicit reset contract",
+         {sql: _V1_SQL},
+         {sql: "-- ddl-migration: replacement-and-replay example_table docs=docs/upgrade.md test=tests/Upgrade.cs#ReplaceLegacy - replay a fresh destination\n" + _V2_SQL_ADDS_COLUMN,
+          "docs/upgrade.md": "Preserve the old table and replay a fresh destination.",
+          "tests/Upgrade.cs": "class Upgrade { void ReplaceLegacy() {} }"}, set(), 0, True),
+        ("LIVENESS replacement does not reclassify unchanged historical aliases",
+         {sql: unresolved + unresolved},
+         {sql: "-- ddl-migration: replacement-and-replay {table} docs=docs/upgrade.md test=tests/Upgrade.cs - replay\n" + unresolved,
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 0, True),
+        ("SAFETY replacement cannot cover meaningful ambiguous alias changes",
+         {sql: unresolved + unresolved},
+         {sql: "-- ddl-migration: replacement-and-replay {table} docs=docs/upgrade.md test=tests/Upgrade.cs - replay\n" + unresolved.replace("INT NULL", "INT NOT NULL"),
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 2, True),
+        ("SAFETY replacement with missing evidence refuses",
+         {sql: _V1_SQL},
+         {sql: "-- ddl-migration: replacement-and-replay example_table docs=docs/missing.md test=tests/Upgrade.cs - replay\n" + _V2_SQL_ADDS_COLUMN}, set(), 2, True),
+        ("SAFETY replacement evidence cannot escape the repository",
+         {sql: _V1_SQL},
+         {sql: "-- ddl-migration: replacement-and-replay example_table docs=../upgrade.md test=tests/Upgrade.cs - replay\n" + _V2_SQL_ADDS_COLUMN}, set(), 2, True),
+        ("SAFETY replacement must name an existing test symbol",
+         {sql: _V1_SQL},
+         {sql: "-- ddl-migration: replacement-and-replay example_table docs=docs/upgrade.md test=tests/Upgrade.cs#Missing - replay\n" + _V2_SQL_ADDS_COLUMN,
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 2, True),
+        ("SAFETY a live table cannot claim retained legacy retirement",
+         {sql: _V1_SQL},
+         {sql: "-- ddl-migration: retained-legacy example_table docs=docs/upgrade.md test=tests/Upgrade.cs - retired\n" + _V2_SQL_ADDS_COLUMN,
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 2, True),
+        ("LIVENESS a uniquely retired runtime template can retain legacy data",
+         {sql: unresolved},
+         {sql: "-- ddl-migration: retained-legacy {table} docs=docs/upgrade.md test=tests/Upgrade.cs - retained without runtime use\n" + _V1_SQL,
+          "docs/upgrade.md": "Retain old rows; provision the replacement separately.",
+          "tests/Upgrade.cs": "class Upgrade {}"}, set(), 0, True),
+        ("SAFETY retired template cannot hide ambiguous prior identities",
+         {sql: unresolved + unresolved.replace("INT NULL", "INT NOT NULL")},
+         {sql: "-- ddl-migration: retained-legacy {table} docs=docs/upgrade.md test=tests/Upgrade.cs - retained\n" + _V1_SQL,
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 2, True),
+        ("LIVENESS a later retention contract closes historical template changes",
+         {sql: unresolved}, {sql: unresolved.replace("INT NULL", "INT NOT NULL")}, set(), 0, True,
+         {sql: "-- ddl-migration: retained-legacy {table} docs=docs/upgrade.md test=tests/Upgrade.cs - preserved without runtime use\n" + _V1_SQL,
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}),
+        ("SAFETY retained literal identity is unique across casing",
+         {sql: _V1_SQL + _V1_SQL.replace("example_table", "EXAMPLE_TABLE")},
+         {sql: "-- ddl-migration: retained-legacy example_table docs=docs/upgrade.md test=tests/Upgrade.cs - retained\nCREATE TABLE replacement (Id INT);",
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 2, True),
+        ("SAFETY unrelated replacement cannot hide another table delta",
+         {sql: _V1_SQL},
+         {sql: "-- ddl-migration: replacement-and-replay unrelated docs=docs/upgrade.md test=tests/Upgrade.cs - replay\nCREATE TABLE unrelated (Id INT);\n" + _V2_SQL_ADDS_COLUMN,
+          "docs/upgrade.md": "Preserve and replay.", "tests/Upgrade.cs": "class Upgrade {}"}, set(), 1, True),
         ("LIVENESS unrelated ambiguous fields do not poison literal SQL",
          {sql: _V1_SQL, cs: 'class First { string _logger; } class Second { int _logger; }'},
          {sql: _V2_SQL_COMMENT_ONLY, cs: 'class First { string _logger; } class Second { int _logger; }'}, set(), 0, True),
@@ -1743,6 +1871,9 @@ public class OutboxOptions { public string TableName { get; set; } = "Outbox"; }
             sink = io.StringIO()
             got = scan(out=sink, err=sink)
             required = {f"Example.Package:{name}:TENANTID" for name in ("Inbox", "Outbox", "Schedules")} if "all three tenant narrowings" in label else set()
+            if "mixed refusal still reports independent defect" in label:
+                required.update({"Example.Package:example_table:TENANT_ID", "REFUSE - 1 artifact(s)",
+                                 "1 independently evaluated provisioning change(s)"})
             missing = {key for key in required if key not in sink.getvalue()}
             if got == want and not missing:
                 print(f"  ok    {label:<58} exit {got}")

@@ -613,3 +613,23 @@ static Excalibur.EventSourcing.ProjectionTenantBoundary.Partition(string! tenant
 Excalibur.EventSourcing.ProjectionPositionKind.Retired = 3 -> Excalibur.EventSourcing.ProjectionPositionKind
 const Excalibur.EventSourcing.ProjectionPosition.RetiredSentinel = -3 -> long
 static Excalibur.EventSourcing.ProjectionPosition.Retired.get -> Excalibur.EventSourcing.ProjectionPosition
+Excalibur.EventSourcing.ITransactionalProjectionCoordinator
+Excalibur.EventSourcing.ITransactionalProjectionCoordinator.AppendAsync(Excalibur.EventSourcing.IEventStore! eventStore, string! aggregateId, string! aggregateType, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Func<Excalibur.EventSourcing.StoredEvent!, Excalibur.Dispatch.IDomainEvent!>! deserialize, System.Func<System.Data.IDbTransaction!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>? stageOutbox, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
+Excalibur.EventSourcing.ITransactionalProjectionCoordinator.Handles(string! aggregateType) -> bool
+Excalibur.EventSourcing.ITransactionalProjectionEventStore
+Excalibur.EventSourcing.ITransactionalProjectionEventStore.AppendWithProjectionsAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.IDomainEvent!>! events, long expectedVersion, System.Func<Excalibur.EventSourcing.ProjectionTransaction!, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! apply, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.AppendResult!>
+Excalibur.EventSourcing.ITransactionalProjectionStore<TProjection>
+Excalibur.EventSourcing.ITransactionalProjectionStore<TProjection>.Serialize(TProjection! projection) -> string!
+Excalibur.EventSourcing.ITransactionalProjectionStore<TProjection>.Serialize(TProjection! projection, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TProjection!>! typeInfo) -> string!
+Excalibur.EventSourcing.ITransactionalProjectionStore<TProjection>.WriteAsync(Excalibur.EventSourcing.ProjectionTransaction! transaction, string! aggregateId, string! aggregateType, string! json, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.ProjectionMode.TransactionalInline = 3 -> Excalibur.EventSourcing.ProjectionMode
+Excalibur.EventSourcing.ProjectionTransaction
+Excalibur.EventSourcing.ProjectionTransaction.History.get -> System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>!
+Excalibur.EventSourcing.ProjectionTransaction.History.init -> void
+Excalibur.EventSourcing.ProjectionTransaction.ProjectionTransaction(System.Data.IDbTransaction! Transaction, System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.StoredEvent!>! History, string! TenantId, string! SourceIdentity) -> void
+Excalibur.EventSourcing.ProjectionTransaction.SourceIdentity.get -> string!
+Excalibur.EventSourcing.ProjectionTransaction.SourceIdentity.init -> void
+Excalibur.EventSourcing.ProjectionTransaction.TenantId.get -> string!
+Excalibur.EventSourcing.ProjectionTransaction.TenantId.init -> void
+Excalibur.EventSourcing.ProjectionTransaction.Transaction.get -> System.Data.IDbTransaction!
+Excalibur.EventSourcing.ProjectionTransaction.Transaction.init -> void

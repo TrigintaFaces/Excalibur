@@ -1,3 +1,8 @@
+---
+title: Analyzer diagnostics reference
+description: "Every Excalibur.Dispatch analyzer diagnostic: what each code means, why it fires, how to fix it, and how to suppress it when you must."
+---
+
 # Analyzer Diagnostics
 
 Excalibur ships Roslyn analyzers that detect common issues at compile time. These diagnostics appear in your IDE and build output.

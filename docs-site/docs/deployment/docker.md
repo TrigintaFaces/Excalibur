@@ -1,3 +1,7 @@
+---
+title: Docker Deployment
+description: Containerize an Excalibur application with a multi-stage build, non-root production image, and Compose files for local dependencies.
+---
 # Docker Deployment
 
 **Framework:** Excalibur.Dispatch

@@ -1,3 +1,7 @@
+---
+title: Compliance Documentation Navigation Guide
+description: Diagrams showing which Excalibur compliance pages to read in what order, from choosing a framework through evidence collection and timelines.
+---
 # Compliance Documentation Navigation Guide
 
 :::warning Not legal advice

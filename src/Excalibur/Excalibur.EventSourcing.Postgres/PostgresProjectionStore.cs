@@ -36,7 +36,7 @@ namespace Excalibur.EventSourcing.Postgres;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class PostgresProjectionStore<TProjection> : IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
+public sealed partial class PostgresProjectionStore<TProjection> : ITransactionalProjectionStore<TProjection>, IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
 	IPositionedProjectionStore<TProjection>
 	where TProjection : class
 {

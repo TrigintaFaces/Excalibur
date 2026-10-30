@@ -68,6 +68,11 @@ internal sealed class ProjectionSessionReader : IProjectionSessionReader
     private async ValueTask<ProjectionRead<TProjection>> ReadCoreAsync<TProjection>(string projectionId,
         SaveResult session, ProjectionStoreOperations<TProjection> store, CancellationToken cancellationToken) where TProjection : class
     {
+        if (_registry?.GetRegistration(typeof(TProjection))?.Mode == ProjectionMode.TransactionalInline)
+        {
+            throw new NotSupportedException("TransactionalInline projections have aggregate-local commit consistency, not global-prefix session tokens. Read through IProjectionStore after a successful coordinated SaveAsync.");
+        }
+
         using var expiry = new CancellationTokenSource(_options.Value.Bound, _timeProvider);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, expiry.Token);
         var inline = _registry?.GetRegistration(typeof(TProjection))?.Mode == ProjectionMode.Inline;

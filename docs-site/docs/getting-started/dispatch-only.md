@@ -6,11 +6,13 @@ description: Use Excalibur.Dispatch as a standalone MediatR replacement — just
 
 # Dispatch Only
 
-Need a modern MediatR replacement and nothing else? This page is for you. One package, zero infrastructure dependencies, production-ready in minutes.
+Need a modern MediatR replacement and nothing else? This page is for you. One package, no database
+and no message broker, running in minutes.
 
-:::tip New to Dispatch?
+:::tip Want it broken into steps instead?
 
-If you haven't used Dispatch before, start with the [Getting Started tutorial](./index.md) for a step-by-step walkthrough. This page is a focused reference for teams that want messaging only.
+The [Getting Started tutorial](./index.md) walks the same ground one step at a time, and goes on to
+cover event sourcing. This page gives you the whole working file at once.
 :::
 
 ## What You Need
@@ -34,7 +36,7 @@ You can safely ignore all of these unless your requirements grow:
 
 ## Complete Working Example
 
-This is a production-ready ASP.NET Core application with commands, queries, events, and pipeline middleware:
+This is a complete ASP.NET Core application with commands, queries, events, and pipeline middleware:
 
 ```csharp title="Program.cs"
 using Excalibur.Dispatch;
@@ -195,4 +197,4 @@ See [Choosing a Transport](../transports/choosing-a-transport.md) for broker com
 | Multi-step workflows | `Excalibur.Saga` | Saga orchestration, compensation |
 | Unified builder | `Excalibur.Hosting` | `AddExcalibur()` entry point for all subsystems |
 
-If none of these apply, **you're done** — `Excalibur.Dispatch` is a complete, production-ready messaging framework on its own.
+If none of these apply, **you're done** — `Excalibur.Dispatch` is a complete messaging framework on its own.

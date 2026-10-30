@@ -1,3 +1,7 @@
+---
+title: SOC 2 Certification Readiness Checklist
+description: Map Excalibur capabilities to the SOC 2 Trust Services Criteria and collect the control evidence an auditor will ask you for.
+---
 # SOC 2 Certification Readiness Checklist
 
 :::warning Not legal advice

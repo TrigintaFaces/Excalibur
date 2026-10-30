@@ -1446,7 +1446,7 @@ builder.Services.Configure<LeaderElectionOptions>(options =>
 
 - **[Event Sourcing](../event-sourcing/index.md)** - Use with event projections
 - **[CQRS](../cqrs/index.md)** - Coordinate read model updates
-- **[Dispatch Introduction](/docs/intro)** - Background service patterns
+- **[Dispatch Introduction](../intro.md)** - Background service patterns
 
 ## See Also
 

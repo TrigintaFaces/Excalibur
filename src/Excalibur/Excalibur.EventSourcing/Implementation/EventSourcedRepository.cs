@@ -69,6 +69,9 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 
 	private readonly IEventStore _eventStore;
 	private readonly IUpcastingPipeline? _upcastingPipeline;
+    /// <summary>Gets the optional coordinator used for transactionally registered read models.</summary>
+    /// <value>The coordinator supplied by event-sourcing registration, or null.</value>
+    public ITransactionalProjectionCoordinator? TransactionalProjections { get; init; }
 	private readonly ISnapshotManager? _snapshotManager;
 	private readonly ISnapshotStrategy? _snapshotStrategy;
 	private readonly IEventSerializer _eventSerializer;
@@ -481,7 +484,40 @@ public class EventSourcedRepository<TAggregate, TKey> : IEventSourcedRepository<
 		// Ask the store for the capability rather than testing its type: a decorated store -- telemetry,
 		// tenant scoping, encryption, tiered storage -- does not itself implement ITransactionalEventStore
 		// even when the store beneath it does, and a type test would silently drop us off the atomic path.
-		if (strategy == OutboxStagingStrategy.Transactional
+        if (TransactionalProjections?.Handles(aggregate.AggregateType) == true)
+        {
+            if (strategy == OutboxStagingStrategy.Transactional && _transactionalOutboxWriter is null)
+            {
+                throw new InvalidOperationException("TransactionalInline with Transactional outbox staging requires an ITransactionalOutboxWriter.");
+            }
+
+            if (strategy == OutboxStagingStrategy.EventuallyConsistent && _outboxStore is not null)
+            {
+                throw new InvalidOperationException("TransactionalInline with integration outbox staging requires Transactional or Deferred staging.");
+            }
+
+            var result = await TransactionalProjections.AppendAsync(_eventStore, stringId, aggregate.AggregateType,
+                uncommittedEvents, expectedVersion,
+                stored => TryUpcastEvent(DeserializeEvent(stored)
+                    ?? throw new InvalidOperationException("Transactional projection history contains an erased event.")),
+                strategy == OutboxStagingStrategy.Transactional && _transactionalOutboxWriter is not null
+                    ? async (transaction, token) =>
+                    {
+                        foreach (var domainEvent in uncommittedEvents)
+                        {
+                            if (domainEvent is IIntegrationEvent)
+                            {
+                                await _transactionalOutboxWriter.StageMessageAsync(
+                                    CreateOutboundMessage(domainEvent, stringId, aggregate.AggregateType), transaction, token).ConfigureAwait(false);
+                            }
+                        }
+                    }
+                    : null,
+                cancellationToken).ConfigureAwait(false);
+            ThrowIfAppendFailed(result, aggregate);
+            sessionToken = result.LastEventPosition;
+        }
+        else if (strategy == OutboxStagingStrategy.Transactional
 			&& _transactionalOutboxWriter is not null
 			&& _eventStore.GetService(typeof(ITransactionalEventStore)) is ITransactionalEventStore txStore)
 		{

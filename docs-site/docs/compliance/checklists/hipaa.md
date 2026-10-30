@@ -1,3 +1,7 @@
+---
+title: HIPAA Certification Readiness Checklist
+description: Map Excalibur encryption, audit logging and access control to the HIPAA Security and Privacy Rule technical safeguards, control by control.
+---
 # HIPAA Certification Readiness Checklist
 
 :::warning Not legal advice

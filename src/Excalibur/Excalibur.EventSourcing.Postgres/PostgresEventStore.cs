@@ -44,7 +44,8 @@ namespace Excalibur.EventSourcing.Postgres;
 /// with backward compatibility for existing JSON-serialized events.
 /// </para>
 /// </remarks>
-public sealed class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive, IEventStoreVersionProbe, ITransactionalEventStore
+[SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling", Justification = "The event transaction owner implements the append, erasure, archive and transactional projection capabilities together; payload history reading is delegated to PostgresTransactionalHistory.")]
+public sealed partial class PostgresEventStore : IEventStore, IEventStoreErasure, IEventStoreArchive, IEventStoreVersionProbe, ITransactionalEventStore, ITransactionalProjectionEventStore
 {
 	// Format markers for envelope detection
 	private const byte EnvelopeFormatMarker = 0x01;

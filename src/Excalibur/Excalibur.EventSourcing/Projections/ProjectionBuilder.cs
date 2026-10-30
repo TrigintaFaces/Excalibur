@@ -25,6 +25,16 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	private readonly IServiceCollection? _services;
 	private readonly MultiStreamProjection<TProjection> _projection = new();
 	private ProjectionMode _mode = ProjectionMode.Async;
+    private string? _transactionalAggregateType;
+
+    /// <inheritdoc />
+    public IProjectionBuilder<TProjection> TransactionalInline(string aggregateType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+        _transactionalAggregateType = aggregateType;
+        _mode = ProjectionMode.TransactionalInline;
+        return this;
+    }
 	private TimeSpan? _cacheTtl;
 	private Func<string, CancellationToken, Task>? _deleteAction;
 	private ProjectionOptions? _options;
@@ -301,7 +311,8 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 	internal void Build(IProjectionRegistry registry)
 	{
         BuildCore(registry, static sp => ProjectionStoreOperations<TProjection>.Legacy(sp.GetRequiredService<IProjectionStore<TProjection>>()).WithCapacity(sp),
-            CreateClearForAggregateDelegate());
+            CreateClearForAggregateDelegate(),
+            (sp, model) => RequireTransactionalStore(sp).Serialize(model));
     }
 
     internal void BuildGenerated(IProjectionRegistry registry, JsonTypeInfo<TProjection> typeInfo)
@@ -316,14 +327,20 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
                 var operations = ProjectionStoreOperations<TProjection>.Generated(sp, typeInfo);
                 if (await operations.GetByIdAsync(id, token).ConfigureAwait(false) is null) { return; }
                 await sp.GetRequiredService<ProjectionRecoveryService>().ReapplyGeneratedAsync(id, aggregateType, operations, sp, token).ConfigureAwait(false);
-            });
+            }, (sp, model) => RequireTransactionalStore(sp).Serialize(model, typeInfo));
     }
 
     private void BuildCore(IProjectionRegistry registry,
         Func<IServiceProvider, ProjectionStoreOperations<TProjection>> resolveStore,
-        ProjectionRegistration.ClearForAggregateDelegate clear)
+        ProjectionRegistration.ClearForAggregateDelegate clear,
+        Func<IServiceProvider, TProjection, string> serialize)
     {
         ArgumentNullException.ThrowIfNull(registry);
+        if (_mode == ProjectionMode.TransactionalInline &&
+            (_projection.HasKeySelectors || _projection.HasAsyncHandlers || _deleteAction is not null))
+        {
+            throw new NotSupportedException("TransactionalInline supports aggregate-local synchronous handlers only. KeyedBy, DI handlers and deletion callbacks are not supported.");
+        }
 
 		// Capture the generic type in a delegate at registration time (AOT-safe, no MakeGenericMethod).
 		// Both persisted modes use the same ordered host and conditional positioned fold. It used
@@ -369,10 +386,41 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			_options,
 			searchTextComputer,
 			searchTextSetter,
-			clearForAggregate) { HandlesEvent = type => _projection.GetHandler(type) is not null };
+			clearForAggregate)
+        {
+            HandlesEvent = type => _projection.GetHandler(type) is not null,
+            TransactionalAggregateType = _mode == ProjectionMode.TransactionalInline ? _transactionalAggregateType : null,
+            TransactionalApply = _mode == ProjectionMode.TransactionalInline ? CreateTransactionalApply(serialize) : null,
+            ValidateTransactionalStore = _mode == ProjectionMode.TransactionalInline
+                ? sp => { _ = RequireTransactionalStore(sp); } : null
+        };
 
 		registry.Register(registration);
 	}
+
+    private static ITransactionalProjectionStore<TProjection> RequireTransactionalStore(IServiceProvider services) =>
+        services.GetRequiredService<IProjectionStore<TProjection>>().GetService(typeof(ITransactionalProjectionStore<TProjection>))
+            as ITransactionalProjectionStore<TProjection>
+        ?? throw new InvalidOperationException($"Projection '{typeof(TProjection).Name}' requires a transaction-enlisted projection store; this store or decorator does not support TransactionalInline.");
+
+    private Func<ProjectionTransaction, IReadOnlyList<IDomainEvent>, string, IServiceProvider, CancellationToken, ValueTask>
+        CreateTransactionalApply(Func<IServiceProvider, TProjection, string> serialize) => async (transaction, events, aggregateId, services, token) =>
+        {
+            var store = RequireTransactionalStore(services);
+            var model = new TProjection();
+            foreach (var domainEvent in events)
+            {
+                token.ThrowIfCancellationRequested();
+                _projection.Apply(model, domainEvent, new ProjectionContext(true, null, aggregateId));
+            }
+
+            if (_searchTextComputer is not null && _searchTextSetter is not null)
+            {
+                _searchTextSetter(model, _searchTextComputer(model));
+            }
+
+            await store.WriteAsync(transaction, aggregateId, _transactionalAggregateType!, serialize(services, model), token).ConfigureAwait(false);
+        };
 
 	/// <summary>
 	/// Builds the delegate that clears one erased aggregate's contribution from this projection.
@@ -498,9 +546,9 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 				// need to reset OverrideProjectionId, which a reused instance carried between events.
 				var handlerContext = new ProjectionHandlerContext(
 					projectionEvent.AggregateId,
-					context.AggregateType,
-					context.CommittedVersion,
-					context.Timestamp,
+					projectionEvent.Envelope?.AggregateType ?? context.AggregateType,
+					projectionEvent.Envelope?.Version ?? context.CommittedVersion,
+					projectionEvent.Envelope?.Timestamp ?? context.Timestamp,
 					context.IsReplay);
 
 				if (handlerEntry.SyncAction is not null)

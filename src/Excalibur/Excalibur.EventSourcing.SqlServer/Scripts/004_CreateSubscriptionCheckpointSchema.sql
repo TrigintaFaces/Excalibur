@@ -1,5 +1,7 @@
 -- One row per member lifetime. Binding creates a NULL position; advances only update the matching lifetime.
--- Greenfield provisioning: existing databases must use this schema. No legacy data migration.
+-- ddl-migration: replacement-and-replay SubscriptionCheckpoints docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=eng/migrations/alpha19-to-alpha20/Test-Upgrade.ps1 - Preserve legacy state, provision a new lifetime schema and replay fresh destinations; this CREATE does not upgrade an old table.
+-- ddl-migration: retained-legacy SubscriptionCheckpointsDefinitions docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=eng/migrations/alpha19-to-alpha20/Test-Upgrade.ps1 - Retain old definitions unchanged for audit and rollback planning; the current store no longer reads this table.
+-- Provisioning only: preserve legacy tables and follow the linked upgrade procedure before using this schema.
 IF OBJECT_ID(N'dbo.SubscriptionCheckpoints', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.SubscriptionCheckpoints (

@@ -32,8 +32,10 @@ jobs:
       contents: read
       pages: read # configure-pages reads the existing site's configuration.
     env:
-      DOCS_ANNOUNCEMENT_TEXT: "A new Excalibur prerelease is available."
-      DOCS_ANNOUNCEMENT_ID: "release-prerelease"
+      # States pre-release STATUS, not availability: a reader who dismisses an
+      # "available" banner has dismissed the only notice that the API can still change.
+      DOCS_ANNOUNCEMENT_TEXT: 'Excalibur 10.0.0 is a <strong>pre-release</strong>. The API is not frozen until RC — <a href="/docs/known-issues">read the known issues</a> before adopting it.'
+      DOCS_ANNOUNCEMENT_ID: "prerelease-status"
     defaults:
       run:
         working-directory: docs-site
@@ -70,8 +72,56 @@ jobs:
       - name: Stamp the build with the commit that produced it
         run: echo "${GITHUB_SHA}" > static/build-stamp.txt
 
+      # ── API reference ────────────────────────────────────────────────────────
+      # DocFX generated a complete per-type reference and then discarded it: its own
+      # workflow ends at upload-artifact with retention-days 30, so nothing a reader
+      # can reach ever held it. Generating it HERE instead puts it inside the single
+      # Pages artifact this job already uploads (docs-site/build), so there is no
+      # second deploy target, no new workflow, and no extra Actions run. Docusaurus
+      # copies static/ verbatim, so the output is served at /api/.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Install DocFX
+        # Pinned via .config/dotnet-tools.json rather than floating to newest.
+        working-directory: .
+        run: dotnet tool restore
+
+      - name: Generate the API reference
+        working-directory: eng/docs/api
+        run: |
+          dotnet docfx metadata docfx.json
+          dotnet docfx build docfx.json
+
+      # Verified before wiring this: all generated pages use relative links only
+      # (zero root-absolute href/src across the output), so serving them from the
+      # /api/ subpath rather than the site root does not break navigation.
+      - name: Stage the API reference into the site
+        run: |
+          set -euo pipefail
+          test -d ../eng/docs/api/_site || { echo "::error::DocFX produced no _site"; exit 1; }
+          pages=$(find ../eng/docs/api/_site -name '*.html' | wc -l)
+          echo "Staging ${pages} generated API pages into static/api/"
+          # A thin reference is a generation failure that still exits 0; fail loudly
+          # rather than publish an empty API section.
+          if [ "${pages}" -lt 500 ]; then
+            echo "::error::Only ${pages} API pages generated; expected many more."
+            exit 1
+          fi
+          rm -rf static/api
+          mkdir -p static/api
+          cp -R ../eng/docs/api/_site/. static/api/
+
       - name: Build website
         run: npm run build
+
+      - name: Confirm the API reference reached the built output
+        run: |
+          set -euo pipefail
+          test -f build/api/index.html || { echo "::error::/api/ missing from build output"; exit 1; }
+          echo "API reference published at /api/ ($(find build/api -name '*.html' | wc -l) pages)"
 
       - name: Confirm the stamp reached the built output
         run: |

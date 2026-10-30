@@ -31,7 +31,7 @@ Deploy Excalibur applications to cloud, container, and on-premises environments.
 
 ## Related Documentation
 
-- [Getting Started](/docs/getting-started) - Quick start guide
+- [Getting Started](../getting-started/index.md) - Quick start guide
 - [Advanced Topics](../advanced/index.md) - Advanced deployment patterns
 
 ## See Also

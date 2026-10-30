@@ -33,7 +33,7 @@ namespace Excalibur.EventSourcing.Sqlite;
 /// within the writer's own tenant.
 /// </para>
 /// </remarks>
-public sealed class SqliteEventStore : IEventStore
+public sealed partial class SqliteEventStore : IEventStore, ITransactionalProjectionEventStore
 {
 	private readonly string _connectionString;
 	private readonly string _table;
@@ -175,12 +175,19 @@ public sealed class SqliteEventStore : IEventStore
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<AppendResult> AppendAsync(
+	public ValueTask<AppendResult> AppendAsync(
 		string aggregateId,
 		string aggregateType,
 		IEnumerable<IDomainEvent> events,
 		long expectedVersion,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken) =>
+        AppendCoreAsync(aggregateId, aggregateType, events, expectedVersion, null, null, cancellationToken);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling", Justification = "One append transaction owns concurrency, optional projection writes, position allocation and commit certainty; history mapping is delegated.")]
+    private async ValueTask<AppendResult> AppendCoreAsync(string aggregateId, string aggregateType,
+        IEnumerable<IDomainEvent> events, long expectedVersion,
+        Func<ProjectionTransaction, CancellationToken, ValueTask>? apply, AppendCommitBoundary? boundary,
+        CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
@@ -204,8 +211,12 @@ public sealed class SqliteEventStore : IEventStore
 		// Enable WAL mode for better concurrent access
 		await connection.ExecuteAsync("PRAGMA journal_mode=WAL;").ConfigureAwait(false);
 
-		await using var transaction = await connection.BeginTransactionAsync(cancellationToken)
-			.ConfigureAwait(false);
+		// A transactional fold must acquire the writer reservation before observing history.
+#pragma warning disable CA1849 // The explicit nondeferred SQLite transaction overload has no asynchronous equivalent.
+        await using var transaction = apply is null
+            ? await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
+            : connection.BeginTransaction(deferred: false);
+#pragma warning restore CA1849
 
 		try
 		{
@@ -272,6 +283,13 @@ public sealed class SqliteEventStore : IEventStore
 
 				return AppendResult.CreateConcurrencyConflict(expectedVersion, currentVersion);
 			}
+
+            if (apply is not null)
+            {
+                var history = await ReadTransactionalHistoryAsync(connection, transaction, aggregateId, aggregateType, tenantId, cancellationToken)
+                    .ConfigureAwait(false);
+                await apply(new ProjectionTransaction(transaction, history, tenantId, "[" + _table + "]"), cancellationToken).ConfigureAwait(false);
+            }
 
 			var version = currentVersion;
 
@@ -348,7 +366,10 @@ public sealed class SqliteEventStore : IEventStore
 
 			}
 
-			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            var committed = AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1);
+            boundary?.MarkDispatched();
+            await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+            boundary?.MarkAcknowledged(committed);
 
 			_logger.LogDebug(
 				"Appended {Count} events to {AggregateType}/{AggregateId} at version {Version}",
@@ -358,7 +379,7 @@ public sealed class SqliteEventStore : IEventStore
 			// last event sits at firstPosition + eventList.Count - 1.
 			return AppendResult.CreateSuccess(version, firstPosition, firstPosition + eventList.Count - 1);
 		}
-		catch (SqliteException ex) when (ex.SqliteErrorCode == SqliteConstraintErrorCode)
+		catch (SqliteException ex) when (boundary?.Dispatched != true && ex.SqliteErrorCode == SqliteConstraintErrorCode)
 		{
 			// Nothing was written -- the transaction never committed, so a connection that is not this one
 			// sees none of it. The only question left is whether this append lost its version precondition

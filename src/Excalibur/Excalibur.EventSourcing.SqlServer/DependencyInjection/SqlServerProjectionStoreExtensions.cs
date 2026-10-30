@@ -18,6 +18,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for registering SQL Server projection store services.
 /// </summary>
+/// <remarks>
+/// Explicit per-projection configuration uses named options keyed by the projection type's
+/// assembly-qualified name. Use <c>AddSqlServerProjections</c> for shared defaults with per-model
+/// overrides, or <c>ConfigureAll</c> for intentional global options. Factory and typed-database
+/// registrations without a configuration callback continue to use unnamed options.
+/// </remarks>
 public static class SqlServerProjectionStoreExtensions
 {
 	/// <summary>
@@ -35,30 +41,31 @@ public static class SqlServerProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		_ = services.Configure(configureOptions);
+		var optionsName = typeof(TProjection).AssemblyQualifiedName!;
+		_ = services.Configure(optionsName, configureOptions);
 
 		// Register validator for ValidateOnStart (P1-3 fix)
 		_ = services.AddDefaultTenantContext();
-		services.TryAddSingleton<IValidateOptions<SqlServerProjectionStoreOptions>, SqlServerProjectionStoreOptionsValidator>();
-		_ = services.AddOptions<SqlServerProjectionStoreOptions>().ValidateOnStart();
+		services.AddSingleton<IValidateOptions<SqlServerProjectionStoreOptions>>(new NamedProjectionOptionsValidator(optionsName));
+		_ = services.AddOptions<SqlServerProjectionStoreOptions>(optionsName).ValidateOnStart();
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA where a null
 		// context threw on every operation) AND emits the projection-family capability marker inseparably
 		// from the tenant wiring it attests.
 		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqlServerProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
-			var options = sp.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();
+			var options = sp.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(optionsName);
 			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
 
-			options.Value.Validate();
+			options.Validate();
 
 			return new SqlServerProjectionStore<TProjection>(
-				options.Value.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
+				options.ConnectionString ?? throw new InvalidOperationException("SqlServerProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
-				tableName: options.Value.TableName,
-				jsonOptions: options.Value.JsonSerializerOptions,
-				schemaName: options.Value.SchemaName);
+				tableName: options.TableName,
+				jsonOptions: options.JsonSerializerOptions,
+				schemaName: options.SchemaName);
 		});
 
 		return services;
@@ -85,10 +92,11 @@ public static class SqlServerProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(connectionFactory);
 
-		if (configureOptions is not null)
-		{
-			_ = services.Configure(configureOptions);
-		}
+        var optionsName = configureOptions is null ? Microsoft.Extensions.Options.Options.DefaultName : typeof(TProjection).AssemblyQualifiedName!;
+        if (configureOptions is not null)
+        {
+            _ = services.Configure(optionsName, configureOptions);
+        }
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
 		// projection-family capability marker inseparably.
@@ -96,8 +104,9 @@ public static class SqlServerProjectionStoreExtensions
 		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqlServerProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
-			var optionsAccessor = sp.GetService<IOptions<SqlServerProjectionStoreOptions>>();
-			var options = optionsAccessor?.Value;
+			var options = configureOptions is null
+                ? sp.GetService<IOptions<SqlServerProjectionStoreOptions>>()?.Value
+                : sp.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(optionsName);
 
 			return new SqlServerProjectionStore<TProjection>(
 				connectionFactory,
@@ -134,10 +143,11 @@ public static class SqlServerProjectionStoreExtensions
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		if (configureOptions is not null)
-		{
-			_ = services.Configure(configureOptions);
-		}
+        var optionsName = configureOptions is null ? Microsoft.Extensions.Options.Options.DefaultName : typeof(TProjection).AssemblyQualifiedName!;
+        if (configureOptions is not null)
+        {
+            _ = services.Configure(optionsName, configureOptions);
+        }
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
 		// projection-family capability marker inseparably.
@@ -145,8 +155,9 @@ public static class SqlServerProjectionStoreExtensions
 		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqlServerProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
 			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
-			var optionsAccessor = sp.GetService<IOptions<SqlServerProjectionStoreOptions>>();
-			var options = optionsAccessor?.Value;
+			var options = configureOptions is null
+                ? sp.GetService<IOptions<SqlServerProjectionStoreOptions>>()?.Value
+                : sp.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(optionsName);
 
 			return new SqlServerProjectionStore<TProjection>(
 				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
@@ -226,4 +237,15 @@ public static class SqlServerProjectionStoreExtensions
 
 		return services;
 	}
+    // Connection-string requirements belong only to registrations that obtain their connection
+    // from options. Factory/IDb registrations supply it separately and must not inherit this check.
+    private sealed class NamedProjectionOptionsValidator(string optionsName) : IValidateOptions<SqlServerProjectionStoreOptions>
+    {
+        private readonly SqlServerProjectionStoreOptionsValidator _validator = new();
+        public ValidateOptionsResult Validate(string? name, SqlServerProjectionStoreOptions options) =>
+            string.Equals(name, optionsName, StringComparison.Ordinal)
+                ? _validator.Validate(name, options)
+                : ValidateOptionsResult.Skip;
+    }
+
 }

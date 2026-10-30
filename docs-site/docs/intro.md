@@ -1,328 +1,183 @@
 ---
 sidebar_position: 1
 title: Introduction to Excalibur
-description: Excalibur is a high-performance .NET framework for messaging, event sourcing, CQRS, and compliance — install only the packages you need.
+description: Excalibur is a modular .NET framework for messaging, event sourcing, CQRS, and compliance — start with one package and add only what you need.
 ---
 
 # Excalibur
 
-**Excalibur** is a modern, high-performance .NET framework for building scalable applications. Start with `Excalibur.Dispatch` for type-safe message dispatching, then add domain modeling, event sourcing, and sagas as your architecture requires. Whether you're building a simple CRUD API or a complex distributed system, Excalibur handles the infrastructure so you can focus on business logic.
+**Excalibur** is a modular, high-performance .NET framework for building message-driven applications.
+Start with `Excalibur.Dispatch` as a type-safe message dispatcher, then add domain modeling, event
+sourcing, sagas, or compliance as your architecture requires — every package beyond the first is
+optional, and they all share one `Excalibur.*` namespace, so adding one never means rewriting what
+you already have.
 
-## At a Glance
+:::caution 10.0.0 is a pre-release
 
-| Signal | Value |
-|--------|-------|
-| **Automated Tests** | 55,000+ (unit, integration, conformance, performance) |
-| **Packages** | 194 NuGet packages across 6 families |
-| **CI Pipeline** | 10 sharded test stages, governance gates, conformance suites |
-| **API Stability** | PublicAPI analyzer tracking on every package |
-| **Target Framework** | .NET 10.0 |
+The API is not frozen until RC, and some shipped behaviour does not yet match what this
+documentation describes. Read **[Known issues](./known-issues.md)** before you adopt Excalibur
+for anything you depend on.
+:::
 
-## Tamper-Evident Audit Trails
+## Key features
 
-Compliance-grade audit stores (SQL Server, PostgreSQL) **hash-chain** every audit event — each record is cryptographically linked to the one before it — so the trail is *verifiable*, not merely stored. A single altered, inserted, or deleted record breaks the chain and is detected, with the exact offending event pinpointed. One call verifies an entire time range:
+Messaging and the pipeline:
 
-```csharp
-using Excalibur.Compliance;
+- **[Message dispatching](./core-concepts/actions-and-handlers.md)** — send actions and events to
+  handlers with full type safety, no reflection on the hot path
+- **[Results and errors](./core-concepts/results-and-errors.md)** — railway-style success/failure
+  without exceptions, mapped to the correct HTTP status by one call
+- **[Pipeline and middleware](./pipeline/index.md)** — validation, logging, transactions,
+  authorization and [more](./middleware/built-in.md) as composable behaviours
+- **[Transports](./transports/index.md)** — Kafka, RabbitMQ, Azure Service Bus, AWS SQS,
+  Google Pub/Sub, Pulsar, MQTT, IBM MQ, gRPC, and in-memory
+- **[Message context](./core-concepts/message-context.md)** — correlation and causation IDs
+  propagated automatically for distributed tracing
 
-// Verify the audit trail for the last 30 days has not been tampered with.
-public static async Task<string> DescribeAuditTrailAsync(IAuditQuery audit, CancellationToken ct)
-{
-    AuditIntegrityResult result = await audit.VerifyChainIntegrityAsync(
-        startDate: DateTimeOffset.UtcNow.AddDays(-30),
-        endDate: DateTimeOffset.UtcNow,
-        cancellationToken: ct);
+Domain and persistence:
 
-    return result.Outcome switch
-    {
-        AuditIntegrityOutcome.Verified
-            => $"Intact: {result.EventsVerified} events checked.",
+- **[Domain modeling](./domain-modeling/index.md)** — aggregates, entities, value objects
+- **[Event sourcing](./event-sourcing/index.md)** — event stores, snapshots, upcasting, replay
+- **[CQRS and projections](./cqrs/index.md)** — read models built from the event stream
+- **[Sagas](./sagas/index.md)** and **[durable workflows](./event-sourcing/durable-execution.md)** —
+  long-running, multi-step processes that survive restarts
+- **[Data access](./data-access/index.md)** — Dapper-based access across SQL Server, PostgreSQL,
+  MySQL, Cosmos DB, DynamoDB, MongoDB, Spanner, Firestore, Redis, Elasticsearch and OpenSearch
 
-        AuditIntegrityOutcome.ViolationsDetected
-            => $"Tampered at {result.FirstViolationEventId}: {result.ViolationDescription}",
+Reliability and coordination:
 
-        // The window held no audit events, so nothing was checked and nothing is proven.
-        // This is deliberately a separate outcome: it must never be reported as a pass.
-        _ => "Not exercised: no audit events in this window.",
-    };
-}
-```
+- **[Outbox](./patterns/outbox.md)** and **[inbox](./patterns/inbox.md)** — reliable send and
+  idempotent receive
+- **[Change data capture](./patterns/cdc.md)** — stream database changes as messages
+- **[Background jobs](./patterns/jobs.md)** — scheduled and recurring work
+- **[Leader election](./leader-election/index.md)** — single-leader coordination across instances
+- **[Caching](./performance/caching.md)** — opt-in caching infrastructure
 
-Audit events also stream to SIEM and observability sinks — AWS, Datadog, Elasticsearch, Google Cloud, OpenSearch, Microsoft Sentinel, and Splunk — for search and alerting (these are write-only projections, not compliance stores). See **[Audit Logging](compliance/audit-logging)** for the compliance boundary, setup, and the full backend list.
+Security, compliance and operations:
 
-## What Excalibur.Dispatch Does
+- **[Authorization](./security/authorization.md)** — fail-closed by default, speaking native
+  ASP.NET Core `[Authorize]` and `AuthorizationHandler`
+- **[Audit logging](./compliance/audit-logging.md)** — hash-chained, tamper-evident audit trails
+  with SIEM export
+- **[Compliance](./compliance/index.md)** — GDPR, SOC 2 and FedRAMP support
+- **[Multi-tenancy](./multi-tenancy.md)** — tenant-scoped reads and writes
+- **[Observability](./observability/index.md)** — OpenTelemetry traces, metrics and health checks
+- **[Operations](./operations/index.md)** — diagnostics and the operations dashboard
 
-`Excalibur.Dispatch` handles **how messages flow through your system**:
+Build and ship:
 
-- **Message Dispatching** — Send actions to handlers with full type safety
-- **Pipeline Behaviors** — Add cross-cutting concerns like validation, logging, and transactions
-- **Multi-Transport Support** — Route messages to Kafka, RabbitMQ, Azure Service Bus, and more
-- **Result Handling** — Clean success/failure patterns without exceptions
-- **Context Propagation** — Automatic correlation ID and metadata tracking
+- **[Source generators](./source-generators/index.md)** — compile-time handler discovery, Native
+  AOT friendly, no runtime reflection
+- **[Testing](./testing/index.md)** — fixtures and conformance kits for your own handlers
+- **[Deployment](./deployment/index.md)** — ASP.NET Core, Azure Functions, AWS Lambda, Google Cloud
+  Functions, Docker, Kubernetes and on-premises
 
-## Package Families
+That is the whole surface. All **194 packages** are listed by category in the
+**[Package Matrix](./reference/package-matrix.md)**, including the metapackages that configure an
+entire provider in one line. For per-type and per-member detail, see the
+**[API reference](pathname:///api/)**.
 
-Excalibur is one framework with focused package families. Install only what you need:
+## Why choose Excalibur?
 
-| Package Family | Purpose |
-|----------------|---------|
-| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports |
-| `Excalibur.Domain` | Domain modeling (aggregates, entities, value objects) |
-| `Excalibur.EventSourcing.*` | Event stores, snapshots, persistence |
-| `Excalibur.Saga.*` | Sagas and process managers |
-| `Excalibur.Hosting.*` | ASP.NET Core, serverless hosting templates |
+- **Drop-in replacement for MediatR.** The concepts map one-to-one, and the
+  [migration guide](./migration/from-mediatr.md) covers both a compatibility-shim route and a
+  full port. Guides also exist for
+  [MassTransit](./migration/from-masstransit.md) and [NServiceBus](./migration/from-nservicebus.md).
+- **Results reach the HTTP edge without boilerplate.** A handler returns an `IMessageResult`;
+  `.ToHttpResult()` maps it to 403 for an authorization failure, 400 for validation,
+  `ProblemDetails` for structured errors and 500 for the rest. You write that mapping once, not in
+  every endpoint.
+- **Low allocation on the hot path.** 96 B allocated per command and roughly 60 ns of dispatch
+  overhead, each measured on a dated, reproducible benchmark — see
+  [Performance](./performance/index.md) for the method.
+- **Secure by default.** Authorization denies when a decision is missing rather than falling open,
+  and audit trails are hash-chained so tampering is detectable rather than merely discouraged.
+- **Modular, not monolithic.** Install `Excalibur.Dispatch` alone and nothing else comes with it.
+  Every further capability is a separate package you opt into.
+- **Built for AOT.** Handler discovery is source-generated, so trimming and Native AOT work without
+  runtime reflection.
 
-See the **[Package Guide](package-guide)** for selection help, migration paths, and code examples.
+## Quick start
 
-## Excalibur.Dispatch vs MediatR
+Two commands and one file. **No database and no message broker** — messages dispatch in-process by
+default, so nothing below needs infrastructure to run.
 
-If you're familiar with MediatR, you'll feel right at home. Here's how concepts map:
-
-| MediatR | Dispatch | Notes |
-|---------|----------|-------|
-| `IRequest` | `IDispatchAction` | Actions without return value |
-| `IRequest<TResponse>` | `IDispatchAction<TResult>` | Actions with return value |
-| `IRequestHandler<T>` | `IActionHandler<T>` | Handler without return |
-| `IRequestHandler<T, R>` | `IActionHandler<T, R>` | Handler with return |
-| `INotification` | `IDispatchEvent` | Events/notifications |
-| `INotificationHandler<T>` | `IEventHandler<T>` | Event handlers |
-| `IMediator` | `IDispatcher` | Message dispatcher |
-
-**Key improvements over MediatR (all included in `Excalibur.Dispatch`):**
-
-- **Results carry to the HTTP edge, no boilerplate** — a handler returns a railway-style `IMessageResult`, and `.ToHttpResult()` maps it to the correct response automatically: **403** when authorization failed, **400** when validation failed, `ProblemDetails` (with its status) for structured errors, **500** for unstructured failures, and **200 / 202 / 201 / 204** on success. With MediatR you hand-write that mapping in every endpoint.
-- **Pluggable AuthN/AuthZ/Audit, fail-closed by default** — authorization speaks native ASP.NET Core `[Authorize]` / `AuthorizationHandler`, and denies when the decision is missing rather than falling open.
-- Automatic context propagation for distributed tracing
-- Multi-transport routing support
-- Performance optimizations for high-throughput scenarios
-
-```csharp
-// A handler returns a result; the endpoint maps it to the right HTTP status with one call.
-app.MapPost("/orders", async (CreateOrderRequest req, IDispatcher dispatcher, CancellationToken ct) =>
-{
-    var result = await dispatcher.DispatchAsync(new CreateOrderAction(req.CustomerId, req.Items), ct);
-    return result.ToHttpResult(); // 202 on success; 403/400/ProblemDetails/500 on failure — no manual mapping
-});
-```
-
-## Quick Start
-
-### 1. Install the Package
+### 1. Install
 
 ```bash
-dotnet add package Excalibur.Dispatch
+dotnet add package Excalibur.Dispatch.Hosting.AspNetCore
 ```
 
-### 2. Define an Action
+`Excalibur.Dispatch` and `Excalibur.Dispatch.Abstractions` come in transitively. Building a console
+app or worker with no HTTP edge? Install `Excalibur.Dispatch` on its own instead.
 
-```csharp
+### 2. Write `Program.cs`
+
+This is the entire application. Copy it as-is.
+
+```csharp runnable title="Program.cs"
 using Excalibur.Dispatch;
-
-// Action without return value
-public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
-
-// Action with return value
-public record GetOrderAction(Guid OrderId) : IDispatchAction<Order>;
-```
-
-### 3. Create a Handler
-
-```csharp ignore
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Hosting.AspNetCore;
 
-public class CreateOrderHandler : IActionHandler<CreateOrderAction>
-{
-    private readonly IOrderRepository _repository;
-
-    public CreateOrderHandler(IOrderRepository repository)
-    {
-        _repository = repository;
-    }
-
-    public async Task HandleAsync(
-        CreateOrderAction action,
-        CancellationToken cancellationToken)
-    {
-        var order = new Order
-        {
-            Id = Guid.NewGuid(),
-            CustomerId = action.CustomerId,
-            Items = action.Items
-        };
-
-        await _repository.SaveAsync(order, cancellationToken);
-    }
-}
-```
-
-### 4. Register and Dispatch
-
-```csharp
-// Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-});
+// Auto-discovers handlers in this assembly.
+// Handlers live in another project? Name it: AddDispatch(typeof(MyHandler).Assembly)
+builder.Services.AddDispatch();
 
 var app = builder.Build();
 
-// In your controller or service
-public class OrderController : ControllerBase
+app.MapPost("/orders", async (CreateOrderRequest req, IDispatcher dispatcher, CancellationToken ct) =>
 {
-    private readonly IDispatcher _dispatcher;
+    var result = await dispatcher.DispatchAsync(new CreateOrderAction(req.CustomerId, req.Items), ct);
 
-    public OrderController(IDispatcher dispatcher)
+    // Maps the result to the correct status: 202 on success,
+    // 403 / 400 / ProblemDetails / 500 on failure. No hand-written mapping.
+    return result.ToHttpResult();
+});
+
+app.Run();
+
+// --- The action, its handler, and the request body ---
+
+public record CreateOrderAction(string CustomerId, List<string> Items) : IDispatchAction;
+
+public record CreateOrderRequest(string CustomerId, List<string> Items);
+
+public class CreateOrderHandler : IActionHandler<CreateOrderAction>
+{
+    public Task HandleAsync(CreateOrderAction action, CancellationToken cancellationToken)
     {
-        _dispatcher = dispatcher;
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> CreateOrder(
-        CreateOrderRequest request,
-        CancellationToken cancellationToken)
-    {
-        var action = new CreateOrderAction(request.CustomerId, request.Items);
-        var result = await _dispatcher.DispatchAsync(action, cancellationToken);
-
-        if (result.Succeeded)
-            return Ok();
-
-        return Problem(result.ErrorMessage, statusCode: result.ProblemDetails?.Status);
+        // Your business logic here.
+        return Task.CompletedTask;
     }
 }
 ```
 
-:::caution Do not map a failed result to 400
+### 3. Run it
 
-A failed `IMessageResult` means your handler **ran** and reported a failure — not, by default, that
-the caller sent a bad request. Hard-coding `BadRequest(...)` reports a server-side fault to the
-caller as their own mistake, so they retry a request that can never succeed, or abandon one that
-would have.
+```bash
+dotnet run
+```
 
-`result.ProblemDetails.Status` carries the status the framework determined for that failure. With
-the pipeline's exception mapping configured (`UseExceptionMapping()`), a validation failure arrives
-as **400** and an authorization failure as **403**; a handler that threw with nothing mapping it
-arrives as **500**. When no status was determined, `ProblemDetails` is `null` and `Problem(...)`
-falls back to 500 — the safe direction, and never the caller's fault by accident.
-:::
+```bash
+curl -X POST http://localhost:5000/orders \
+  -H 'Content-Type: application/json' \
+  -d '{"customerId":"acme","items":["widget"]}'
+```
 
-:::tip Production Ready
+That is the whole loop — an action, a handler, and a result mapped to the right HTTP status with one
+call. Everything else in Excalibur is optional and additive.
 
-The setup above is a complete, production-ready Dispatch application.
-Everything below describes **optional capabilities** you can add later.
-For a laser-focused guide, see **[Dispatch Only](./getting-started/dispatch-only.md)**.
-:::
+## Next steps
 
-## Optional Capabilities
-
-Add these **if and when** you need them — each is independent and opt-in:
-
-- **Domain modeling** — Add `Excalibur.Domain` if you need aggregates, entities, and value objects
-- **Event sourcing** — Add `Excalibur.EventSourcing.*` if you need event replay, snapshots, and audit trails
-- **Workflows** — Add `Excalibur.Saga.*` if you need multi-step orchestrated processes
-- **Unified builder** — Add `Excalibur.Hosting` if you want a single `AddExcalibur()` entry point for all subsystems
-
-Because all packages share the same `Excalibur.*` namespace, you never rewrite existing code when adding new capabilities.
-
-<details>
-<summary>Complete Package Reference (70+ packages)</summary>
-
-## Package Overview
-
-### Core Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch` | Core dispatcher, pipelines, middleware |
-| `Excalibur.Dispatch.Abstractions` | Public interfaces (`IDispatchAction`, `IDispatcher`) |
-
-### Transport Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.Transport.Kafka` | Apache Kafka transport |
-| `Excalibur.Dispatch.Transport.RabbitMQ` | RabbitMQ transport |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | Azure Service Bus transport |
-| `Excalibur.Dispatch.Transport.AwsSqs` | AWS SQS transport |
-| `Excalibur.Dispatch.Transport.GooglePubSub` | Google Pub/Sub transport |
-
-### Hosting Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.Hosting.AspNetCore` | ASP.NET Core integration |
-| `Excalibur.Dispatch.Hosting.AzureFunctions` | Azure Functions hosting |
-| `Excalibur.Dispatch.Hosting.AwsLambda` | AWS Lambda hosting |
-| `Excalibur.Dispatch.Hosting.GoogleCloudFunctions` | Google Cloud Functions hosting |
-| `Excalibur.Dispatch.Hosting.Serverless.Abstractions` | Serverless abstractions |
-
-### Serialization Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.Serialization.MemoryPack` | High-performance binary serialization (opt-in) |
-| `Excalibur.Dispatch.Serialization.MessagePack` | MessagePack serialization |
-| `Excalibur.Dispatch.Serialization.Protobuf` | Protocol Buffers serialization |
-
-### Security & Compliance Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Security` | Core security infrastructure |
-| `Excalibur.AuditLogging` | Comprehensive audit logging |
-| `Excalibur.AuditLogging.Datadog` | Datadog audit export |
-| `Excalibur.AuditLogging.Sentinel` | Azure Sentinel integration |
-| `Excalibur.AuditLogging.Splunk` | Splunk audit export |
-| `Excalibur.AuditLogging.SqlServer` | SQL Server audit store |
-| `Excalibur.Compliance` | Regulatory compliance framework |
-| `Excalibur.Compliance.Abstractions` | Compliance abstractions |
-| `Excalibur.Compliance.Aws` | AWS compliance integration |
-| `Excalibur.Compliance.Azure` | Azure compliance integration |
-| `Excalibur.Compliance.Vault` | HashiCorp Vault integration |
-
-### Operations Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.Observability` | OpenTelemetry integration |
-| `Excalibur.Dispatch.Resilience.Polly` | Polly integration for resilience |
-| `Excalibur.Dispatch.Caching` | Caching infrastructure |
-| `Excalibur.Dispatch.Validation.FluentValidation` | FluentValidation integration |
-
-### Patterns Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.Patterns` | Messaging patterns (Outbox, ClaimCheck, etc.) |
-| `Excalibur.Dispatch.Patterns.Azure` | Azure-specific patterns |
-| `Excalibur.Dispatch.Patterns.ClaimCheck.InMemory` | In-memory claim check store |
-| `Excalibur.Dispatch.Patterns.Hosting.Json` | JSON hosting patterns |
-
-### Tooling Packages
-
-| Package | Description |
-|---------|-------------|
-| `Excalibur.Dispatch.Analyzers` | Roslyn analyzers |
-| `Excalibur.Dispatch.LeaderElection.Abstractions` | Leader election abstractions |
-
-</details>
-
-## Next Steps
-
-- [Getting Started](./getting-started/) — Full tutorial with working code
-- [Handlers](handlers/) — Learn about action and event handlers
-- [Pipeline](pipeline/) — Understand middleware and behaviors
-- [Configuration](core-concepts/configuration.md) — Configure Dispatch for your needs
-- [Transports](transports/) — Multi-transport routing
-- [Package Guide](package-guide) — Choose the right packages for your scenario
-- [Support](support.md) — Get help, report bugs, security policy
-
-## See Also
-
-- [Package Guide](package-guide) - Decision guide for choosing which Excalibur packages to install
-- [Core Concepts](./core-concepts/index.md) - Actions, handlers, results, and message context
-- [Performance Overview](./performance/index.md) - Benchmarks and optimization strategies
-
-
+| If you are… | Start here |
+|---|---|
+| New to Excalibur | **[Dispatch Only](./getting-started/dispatch-only.md)** — the same file above, extended with a query, an event and middleware. Still one package, still no infrastructure. |
+| Working through a tutorial | **[Getting Started](./getting-started/index.md)**, then the [order system](./getting-started/order-system-tutorial.md) and [event sourcing](./getting-started/event-sourcing-tutorial.md) tutorials |
+| Coming from another library | **[MediatR](./migration/from-mediatr.md)** · **[MassTransit](./migration/from-masstransit.md)** · **[NServiceBus](./migration/from-nservicebus.md)** |
+| Deciding what to install | **[Pick Your Stack](./pick-your-stack.md)** for a guided choice, **[Package Guide](./package-guide.md)** for the reasoning, **[Package Matrix](./reference/package-matrix.md)** for all 194 packages |
+| Learning the fundamentals | **[Core Concepts](./core-concepts/index.md)** — actions, handlers, results, context and configuration |
+| Evaluating Excalibur | **[Performance](./performance/index.md)**, **[Architecture](./architecture/index.md)** and **[Known issues](./known-issues.md)** |
+| Looking for help | **[Support](./support.md)** — how to get help, report a bug, or raise a security issue |

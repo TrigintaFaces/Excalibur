@@ -1,3 +1,8 @@
+---
+title: DISP003 — Reflection without AOT annotation
+description: "A method uses reflection without AOT annotations, which can break under Native AOT; annotate it or replace the reflection with a static alternative."
+---
+
 # DISP003: Reflection Without AOT Annotation
 
 | Property | Value |

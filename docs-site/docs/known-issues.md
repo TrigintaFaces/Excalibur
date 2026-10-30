@@ -36,6 +36,7 @@ Every entry is re-checked against the code before each update. **This page lists
 | [Compliance: GDPR and SOC 2](#compliance-gdpr-and-soc-2) | 4 | Reports and certificates that claim more than the framework checked — and one erasure that irreversibly destroys another tenant's data. |
 | [Event sourcing, outbox and projections](#event-sourcing-outbox-and-projections) | 5 | Writes reported as succeeding when they did not, or vice versa. |
 | [Transports](#transports) | 4 | Messages reported as sent, or acknowledged, when they were neither. |
+| [Data access](#data-access) | 1 | A shipped table definition that cannot store the identifiers its own columns accept. |
 | [Dependencies and packaging](#dependencies-and-packaging) | 3 | What a published package pulls in that you did not ask for. |
 | [Test fixtures](#test-fixtures) | 1 | Shipped testing helpers that do not work as documented. |
 
@@ -476,7 +477,7 @@ you have already issued certificates on this basis, they overstate what was done
 
 **Read this if you saw the earlier text.** A revision of this page briefly told you that
 `IProjectionRecovery.ReapplyAsync` does not clear the subject's row and reports success anyway, and
-that there was no version-level workaround. **That statement was about our unreleased source, not
+that there was no version-level workaround. **That statement was about an intermediate development build, not
 about any version you can install, and it should not have been published unscoped.**
 
 **For every published 10.x version, `ReapplyAsync` clears the row as originally described.** The

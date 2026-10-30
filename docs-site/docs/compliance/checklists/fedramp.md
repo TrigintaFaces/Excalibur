@@ -1,4 +1,8 @@
-﻿# FedRAMP Certification Readiness Checklist
+---
+title: FedRAMP Certification Readiness Checklist
+description: Map the NIST 800-53 Rev 5 controls Excalibur implements to a FedRAMP Moderate baseline, and see what your own deployment must still supply.
+---
+# FedRAMP Certification Readiness Checklist
 
 **Framework:** Excalibur
 **Standard:** NIST 800-53 Rev 5 (FedRAMP Moderate Baseline)

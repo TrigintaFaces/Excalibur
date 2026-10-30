@@ -59,8 +59,8 @@ public sealed class SqlServerProjectionRegistrarShould : UnitTestBase
 
 		// Assert -- options should have shared connection string
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();
-		options.Value.ConnectionString.ShouldBe(SharedConnectionString);
+		var options = provider.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.ConnectionString.ShouldBe(SharedConnectionString);
 	}
 
 	[Fact]
@@ -78,9 +78,9 @@ public sealed class SqlServerProjectionRegistrarShould : UnitTestBase
 
 		// Assert -- per-projection override should win
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();
-		options.Value.ConnectionString.ShouldBe(SharedConnectionString);
-		options.Value.TableName.ShouldBe("CustomTableA");
+		var options = provider.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.ConnectionString.ShouldBe(SharedConnectionString);
+		options.TableName.ShouldBe("CustomTableA");
 	}
 
 	[Fact]
@@ -144,9 +144,9 @@ public sealed class SqlServerProjectionRegistrarShould : UnitTestBase
 
 		// Assert
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();
-		options.Value.ConnectionString.ShouldBe(SharedConnectionString);
-		options.Value.TableName.ShouldBe("SharedTable");
+		var options = provider.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.ConnectionString.ShouldBe(SharedConnectionString);
+		options.TableName.ShouldBe("SharedTable");
 	}
 
 	[Fact]
@@ -167,8 +167,8 @@ public sealed class SqlServerProjectionRegistrarShould : UnitTestBase
 
 		// Assert -- per-projection override wins
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<SqlServerProjectionStoreOptions>>();
-		options.Value.TableName.ShouldBe("OverrideTable");
+		var options = provider.GetRequiredService<IOptionsMonitor<SqlServerProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.TableName.ShouldBe("OverrideTable");
 	}
 
 	[Fact]

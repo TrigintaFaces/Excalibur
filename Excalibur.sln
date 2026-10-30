@@ -929,6 +929,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RepositoryAnalyzers", "eng\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AotAnnotationInventory", "eng\tools\AotAnnotationInventory\AotAnnotationInventory.csproj", "{5218A707-F5BC-4F00-861A-DFC71253139E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "02-event-sourcing", "02-event-sourcing", "{746BBB88-78E6-D1B6-C89B-39C5A645AB9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionalInline", "samples\02-event-sourcing\TransactionalInline\TransactionalInline.csproj", "{2DE8BD7E-D141-42F5-A077-8AB2A873167C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -5919,6 +5923,18 @@ Global
 		{5218A707-F5BC-4F00-861A-DFC71253139E}.Release|x64.Build.0 = Release|Any CPU
 		{5218A707-F5BC-4F00-861A-DFC71253139E}.Release|x86.ActiveCfg = Release|Any CPU
 		{5218A707-F5BC-4F00-861A-DFC71253139E}.Release|x86.Build.0 = Release|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Debug|x64.Build.0 = Debug|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Debug|x86.Build.0 = Debug|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Release|x64.ActiveCfg = Release|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Release|x64.Build.0 = Release|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Release|x86.ActiveCfg = Release|Any CPU
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -6371,5 +6387,7 @@ Global
 		{7234164C-4AB8-4F32-B230-08DB776FE43F} = {DAAE2FFB-70A9-DCEF-23A0-0ABAED0A9720}
 		{4724A9BA-5BDD-4092-A151-1BC4FFE5ED87} = {DAAE2FFB-70A9-DCEF-23A0-0ABAED0A9720}
 		{5218A707-F5BC-4F00-861A-DFC71253139E} = {DAAE2FFB-70A9-DCEF-23A0-0ABAED0A9720}
+		{746BBB88-78E6-D1B6-C89B-39C5A645AB9E} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
+		{2DE8BD7E-D141-42F5-A077-8AB2A873167C} = {746BBB88-78E6-D1B6-C89B-39C5A645AB9E}
 	EndGlobalSection
 EndGlobal

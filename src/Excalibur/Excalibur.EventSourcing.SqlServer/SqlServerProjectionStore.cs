@@ -35,7 +35,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
-public sealed partial class SqlServerProjectionStore<TProjection> : IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
+public sealed partial class SqlServerProjectionStore<TProjection> : ITransactionalProjectionStore<TProjection>, IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
 	IPageableProjectionStore<TProjection>,
 	IPositionedProjectionStore<TProjection>
 	where TProjection : class

@@ -1,3 +1,7 @@
+---
+title: GDPR Certification Readiness Checklist
+description: Satisfy GDPR Articles 17 and 30 with Excalibur cryptographic erasure and processing records, and see which articles stay your responsibility.
+---
 # GDPR Certification Readiness Checklist
 
 **Framework:** Excalibur

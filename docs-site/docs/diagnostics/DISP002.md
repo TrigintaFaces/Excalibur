@@ -1,3 +1,8 @@
+---
+title: "DISP002 — Missing [AutoRegister] attribute"
+description: "A handler can be discovered and registered for you; add [AutoRegister] so the source generator wires it up instead of hand-written DI."
+---
+
 # DISP002: Missing AutoRegister Attribute
 
 | Property | Value |

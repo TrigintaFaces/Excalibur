@@ -1318,3 +1318,29 @@ virtual Excalibur.Testing.Conformance.PositionedProjectionDestinationConformance
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.RetiredBindings_ShouldNeverAcknowledgeOrRetireAReplacement() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GenerationPointer_ShouldGateSwitchAndProtectReferencedLifetime() -> System.Threading.Tasks.Task!
 virtual Excalibur.Testing.Conformance.SubscriptionCheckpointStoreConformanceTestKit.GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference() -> System.Threading.Tasks.Task!
+
+Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit
+Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.TransactionalProjectionConformanceTestKit() -> void
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.CreateEventStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IEventStore!>!
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.CreateProjectionStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IProjectionStore<Excalibur.Testing.Conformance.ConformanceProjection!>!>!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Commit_events_and_complete_history_model() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Roll_back_every_destination_when_handler_fails() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Reject_stale_version_without_running_handler() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Refuse_to_attest_projection_for_prior_plain_append() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Preserve_retirement_and_roll_back_append() -> System.Threading.Tasks.Task!
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.CreateRegisteredProjectionPairAsync() -> System.Threading.Tasks.Task<(Excalibur.EventSourcing.IProjectionStore<Excalibur.Testing.Conformance.ConformanceProjection!>! First, Excalibur.EventSourcing.IProjectionStore<Excalibur.Testing.Conformance.ConformanceProjectionNextGeneration!>! Second)>!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Isolate_two_registered_models_in_one_host() -> System.Threading.Tasks.Task!
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.CreateLostAcknowledgementStoreAsync() -> System.Threading.Tasks.Task<Excalibur.EventSourcing.IEventStore!>!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Report_unknown_after_lost_commit_acknowledgement() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Refuse_model_replaced_by_ordinary_upsert() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Preserve_source_type_and_tenant_ownership() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Commit_only_the_winning_concurrent_model() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Query_and_count_visible_models_and_preserve_deletion() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Roll_back_when_cancelled_before_commit() -> System.Threading.Tasks.Task!
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.OpenSourceConnectionAsync() -> System.Threading.Tasks.Task<System.Data.Common.DbConnection!>!
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.CreateHistoryErasureCommand(System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, string! aggregateId, string! aggregateType) -> System.Data.Common.DbCommand!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Observe_erasure_that_commits_while_waiting_for_history() -> System.Threading.Tasks.Task!
+virtual Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.Hold_history_against_erasure_until_commit() -> System.Threading.Tasks.Task!
+
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.AssertHistoryLockRefusedAsync(string! aggregateId, string! aggregateType) -> System.Threading.Tasks.Task!
+abstract Excalibur.Testing.Conformance.TransactionalProjectionConformanceTestKit.ObserveHistoryContentionAsync(System.Data.Common.DbConnection! blocker, System.Threading.Tasks.Task! append) -> System.Threading.Tasks.Task<bool>!

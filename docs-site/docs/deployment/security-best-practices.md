@@ -1,3 +1,7 @@
+---
+title: Security Best Practices
+description: Harden an Excalibur deployment in production with authentication, permission checks, managed secrets, enforced TLS and infrastructure controls.
+---
 # Security Best Practices
 
 **Framework:** Excalibur.Dispatch

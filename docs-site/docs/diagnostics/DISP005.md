@@ -1,3 +1,8 @@
+---
+title: DISP005 — Handler should be sealed
+description: A concrete dispatch handler is not sealed; seal it to enable devirtualization and to prevent accidental inheritance of framework handler types.
+---
+
 # DISP005: Handler Should Be Sealed
 
 | Property | Value |

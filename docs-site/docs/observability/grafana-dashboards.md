@@ -1,5 +1,7 @@
 ---
 sidebar_position: 2
+title: Grafana Dashboards
+description: Build Grafana dashboards over the Prometheus metrics you instrument in an Excalibur application, with ready-made panel and alert examples.
 ---
 
 # Grafana Dashboards

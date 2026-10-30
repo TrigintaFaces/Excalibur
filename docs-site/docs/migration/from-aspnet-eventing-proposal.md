@@ -8,7 +8,8 @@ description: How Excalibur fulfills the requirements from the ASP.NET Core Event
 
 In 2024, the ASP.NET Core team proposed an [Eventing Framework Epic for .NET 9](https://github.com/dotnet/aspnetcore/issues/53219) to create a unified framework for processing messages from various queue providers. The proposal was **closed as "not planned"** in October 2025, leaving a gap in the .NET ecosystem.
 
-**Excalibur fills this gap** by providing production-ready implementations of everything the community requested.
+If you followed that proposal, this page maps each capability it described to the Excalibur API that
+provides it, so you can tell at a glance what exists today and what it is called.
 
 ## Before You Start
 
@@ -396,11 +397,10 @@ Unlike a proposal, Excalibur has **working implementations** with full consumer 
 
 ---
 
-## Comparison Summary
+## Where Each Proposed Capability Lives
 
 | Aspect | Proposed API | Excalibur |
 |--------|--------------|-----------|
-| **Status** | Closed, not implemented | Production-ready, 55,000+ tests |
 | **Queue Consumers** | Proposed only | Full implementations for 6 providers (`Excalibur.Dispatch.Transport.*`) |
 | **Timer/Cron** | Proposed only | `AddCronTimerTransport<TTimer>()` with typed `CronTimerTriggerMessage<TTimer>` handlers |
 | **Type Safety** | String-based event names | Strongly-typed `IActionHandler<T>` |

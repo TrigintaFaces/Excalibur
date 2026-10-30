@@ -8,6 +8,8 @@ description: Load and save aggregates with event-sourced repositories
 
 Repositories provide a high-level API for loading and saving event-sourced aggregates. They handle event store interactions, snapshot optimization, and concurrency control.
 
+New to the framework? Start with the [EventStore walkthrough](walkthrough.md) to see these APIs in a running application.
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -29,10 +31,10 @@ public interface IEventSourcedRepository<TAggregate, TKey>
     Task<TAggregate?> GetByIdAsync(TKey aggregateId, CancellationToken cancellationToken);
 
     // Persist uncommitted events
-    Task SaveAsync(TAggregate aggregate, CancellationToken cancellationToken);
+    Task<SaveResult> SaveAsync(TAggregate aggregate, CancellationToken cancellationToken);
 
     // Save with ETag concurrency check (null skips validation)
-    Task SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken);
+    Task<SaveResult> SaveAsync(TAggregate aggregate, string? expectedETag, CancellationToken cancellationToken);
 
     // Check if aggregate exists
     Task<bool> ExistsAsync(TKey aggregateId, CancellationToken cancellationToken);
@@ -87,6 +89,31 @@ public async Task CreateOrderAsync(CreateOrderCommand cmd, CancellationToken ct)
     await _repository.SaveAsync(order, ct);
 }
 ```
+
+### What a successful save tells you
+
+`SaveAsync` returns a `SaveResult`. Event persistence and read-model freshness are separate outcomes:
+
+| Projection mode | What the save waits for |
+|---|---|
+| `Async()` | Event persistence; projection processing continues independently. |
+| `Inline()` | Event persistence, then a bounded wait for ordered projection processing. |
+| `TransactionalInline(aggregateType)` | Events and the registered aggregate-local relational models commit together. |
+
+For Inline, inspect `result.Projections`: `Attested` means projection completion was observed at save
+time; `BoundExpired` means it was not confirmed within the bound. **The events remain committed in
+either case.** Do not repeat the business command merely because its read model is behind. Use a
+token-aware read through `IProjectionSessionReader`, or investigate the projection processor.
+
+TransactionalInline is an explicit opt-in with dedicated read-model tables in the same relational
+database, available starting in `10.0.0-alpha.21`.
+Sharing a database does not make ordinary Inline transactional. A transactional projection
+failure rolls back that append and its model writes. Other Async/Inline projections may still process
+those events separately after a successful commit.
+
+See [projection mode configuration and session reads](projections.md) for registration and read-side
+examples. See [append outcomes and retry rules](event-store.md#two-different-failures-two-different-retries)
+for the distinction between a real concurrency conflict and a lost acknowledgement.
 
 ### Modifying Aggregates
 

@@ -1,4 +1,8 @@
-﻿# AWS Lambda Deployment
+---
+title: AWS Lambda Deployment
+description: Run Excalibur on AWS Lambda with API Gateway and SQS handlers, Native AOT, scheduled outbox processing, and Step Functions sagas.
+---
+# AWS Lambda Deployment
 
 **Framework:** Excalibur.Dispatch
 **Deployment Target:** AWS Lambda (Serverless)

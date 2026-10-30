@@ -59,6 +59,22 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </example>
 public static class SqlServerProjectionSchema
 {
+    /// <summary>Creates a dedicated aggregate-local transactional projection table.</summary>
+    /// <param name="tableName">Physical projection table, including its generation suffix if configured.</param>
+    /// <param name="schema">SQL schema.</param>
+    /// <returns>Idempotent creation script. Existing ordinary tables are not converted.</returns>
+    /// <remarks>The position constraint prevents an Inline or Async processor from adopting this destination.</remarks>
+    public static string CreateTransactionalTableScript(string tableName, string schema = "dbo")
+    {
+        var script = CreateTableScript(tableName, schema);
+        return script.Replace($"CONSTRAINT [PK_{tableName}]", $"""
+            [TransactionalSource] NVARCHAR(300) COLLATE Latin1_General_BIN2 NULL,
+            [TransactionalAggregateType] NVARCHAR(500) COLLATE Latin1_General_BIN2 NULL,
+            CONSTRAINT [CK_{tableName}_TransactionalPosition] CHECK ([LastAppliedPosition] IN (-1, -2, -3)),
+            CONSTRAINT [PK_{tableName}]
+            """, StringComparison.Ordinal);
+    }
+
 	// The column names are internal: once the script above exists, a consumer has no reason to
 	// reconstruct the table by hand, and a name that is public is a name we cannot change. Tests reach
 	// them through InternalsVisibleTo.

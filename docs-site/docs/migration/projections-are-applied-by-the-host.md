@@ -6,9 +6,11 @@ description: Use Inline in one host or several while retaining positioned writes
 
 # Inline projection migration
 
-`.Inline()` is available again for mutable and immutable projections. It completes read models through
-the committed global position before a successful save returns and automatically registers background
-recovery. An API, a Jobs application, or both can run the same configuration independently.
+`.Inline()` is available again for mutable and immutable projections. Events commit first; the save
+then waits within a configured limit for read models to reach the committed position. `Attested`
+records observed completion, while `BoundExpired` reports unconfirmed progress without undoing the
+event commit. Background recovery is registered automatically. An API, a Jobs application, or both
+can run the same configuration independently.
 
 ```csharp
 es.UseSqlServer(sql => sql.ConnectionString(connectionString));
@@ -105,3 +107,12 @@ The real-provider native harness is `tests/harnesses/SqlElasticInlineAotProbe`. 
 exercises real SQL/Elasticsearch services, but strict native publishing still reports dependency
 diagnostics. **Do not treat this path as release-certified for native AOT until that strict gate passes.**
 The probe README records the tested platform/authentication and the remaining blockers.
+
+
+## Same-database transactional models
+
+The host-processing guidance above applies to Inline and Async. SQL Server also supports explicit
+[TransactionalInline](../event-sourcing/projections.md#transactionalinline-in-one-sql-server-database)
+for aggregate-local models committed in the event append transaction. It uses dedicated tables and
+synchronous deterministic handlers. It is not an automatic migration of existing projections; keep
+Inline/Async for separate stores and cross-aggregate views.

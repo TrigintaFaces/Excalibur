@@ -317,6 +317,7 @@ Starters bundle the most common features. Complete metapackages bundle everythin
 
 ## Next Steps
 
-- [Package Guide](package-guide.md) — Full package reference with all 194 packages
+- [Package Matrix](reference/package-matrix.md) — Complete reference: all 194 packages by category, plus metapackages and provider coverage
+- [Package Guide](package-guide.md) — Decision guide: which packages your scenario needs, with migration paths
 - [Getting Started](getting-started/index.md) — Build your first Dispatch application
 - [Core Concepts](core-concepts/index.md) — Understand the architecture

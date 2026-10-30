@@ -20,6 +20,10 @@ public sealed class GlobalStreamProviderRegistrationShould
 {
 	[Theory]
 	[InlineData("sqlserver")]
+    [InlineData("sqlserver-event-options")]
+    [InlineData("sqlserver-event-factory")]
+    [InlineData("sqlserver-all-options")]
+    [InlineData("sqlserver-all-factory")]
 	[InlineData("postgres")]
 	[InlineData("sqlite")]
 	[InlineData("inmemory")]
@@ -33,6 +37,18 @@ public sealed class GlobalStreamProviderRegistrationShould
 		{
 			switch (providerName)
 			{
+                case "sqlserver-event-options":
+                    services.AddSqlServerEventStore(o => o.ConnectionString = "Server=localhost;Database=tests;Integrated Security=true");
+                    break;
+                case "sqlserver-event-factory":
+                    services.AddSqlServerEventStore(() => new Microsoft.Data.SqlClient.SqlConnection("Server=localhost;Database=tests;Integrated Security=true"));
+                    break;
+                case "sqlserver-all-options":
+                    services.AddSqlServerEventSourcing(o => o.ConnectionString = "Server=localhost;Database=tests;Integrated Security=true");
+                    break;
+                case "sqlserver-all-factory":
+                    services.AddSqlServerEventSourcing(() => new Microsoft.Data.SqlClient.SqlConnection("Server=localhost;Database=tests;Integrated Security=true"));
+                    break;
 				case "sqlserver":
 					_ = es.UseSqlServer(sql => sql.ConnectionString("Server=localhost;Database=tests;Integrated Security=true;TrustServerCertificate=true"));
 					break;

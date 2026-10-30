@@ -96,7 +96,10 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
 				outboxStore: sp.GetKeyedService<IOutboxStore>("default"),
 				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
-				eventNotificationBroker: sp.GetService<IEventNotificationBroker>());
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>())
+            {
+                TransactionalProjections = sp.GetService<ITransactionalProjectionCoordinator>()
+            };
 		});
 
 		return this;
@@ -136,7 +139,10 @@ public class ExcaliburEventSourcingBuilder : IEventSourcingBuilder
 				transactionalOutboxWriter: sp.GetService<ITransactionalOutboxWriter>(),
 				outboxStore: sp.GetKeyedService<IOutboxStore>("default"),
 				snapshotVersionManager: sp.GetService<SnapshotVersionManager>(),
-				eventNotificationBroker: sp.GetService<IEventNotificationBroker>());
+				eventNotificationBroker: sp.GetService<IEventNotificationBroker>())
+            {
+                TransactionalProjections = sp.GetService<ITransactionalProjectionCoordinator>()
+            };
 		});
 
 		return this;

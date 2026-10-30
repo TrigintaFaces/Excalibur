@@ -50,6 +50,16 @@ public interface IProjectionBuilder<TProjection>
 	/// <returns>This builder.</returns>
 	IProjectionBuilder<TProjection> Inline();
 
+    /// <summary>Updates this model atomically with saves of one aggregate type.</summary>
+    /// <param name="aggregateType">The exact aggregate type name used by the repository.</param>
+    /// <returns>This builder.</returns>
+    /// <remarks>Requires transactional event and projection capabilities. Keyed and DI handlers are not supported.
+    /// Handlers must be deterministic and free of external effects; the complete stream is replayed on each save.
+    /// Support is optional for custom builders; the default implementation rejects this mode.</remarks>
+    /// <exception cref="NotSupportedException">This builder does not support transactional projections.</exception>
+    IProjectionBuilder<TProjection> TransactionalInline(string aggregateType) =>
+        throw new NotSupportedException("This projection builder does not support TransactionalInline.");
+
 	/// <summary>
 	/// Configures the projection to be applied asynchronously by the projection host. This is the
 	/// default mode. Register an explicit background host or processor for Async projections.

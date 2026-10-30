@@ -8,6 +8,10 @@ description: Build event-sourced applications with aggregates, event stores, and
 
 Excalibur provides a complete event sourcing implementation with aggregates, event stores, snapshots, and projections.
 
+**Start with the [EventStore walkthrough](walkthrough.md)** for one continuous path from a running
+example through saves, projection consistency, versioning, recovery, and upgrades. This page provides
+an overview; the other pages are detailed references.
+
 :::info Why Should I Care?
 
 Traditional CRUD overwrites state on every save -- you lose the history of *how* you got there. Event sourcing stores every change as an immutable event, giving you: **full audit trails** (who changed what, when), **temporal queries** (what was the state at any point in time), **easy debugging** (replay events to reproduce bugs), and **decoupled read models** (build multiple query-optimized views from the same event stream).
@@ -22,6 +26,29 @@ Traditional CRUD overwrites state on every save -- you lose the history of *how*
   dotnet add package Excalibur.EventSourcing
   ```
 - Familiarity with [handlers](../handlers.md) and [domain modeling](../domain-modeling/aggregates.md)
+
+## Follow the application lifecycle
+
+Start with the [walkthrough](walkthrough.md), then use these references as needed. Each step answers a different question:
+
+1. **Choose storage and create its schema:** [providers](providers.md) and [database migrations](migrations.md).
+2. **Define what happened and enforce business rules:** [domain events](domain-events.md) and [aggregates](aggregates.md).
+3. **Load, change, and save an aggregate:** [consumer implementation](consumer-repository.md), followed by the [repository reference](repositories.md) for additional options.
+4. **Build the query side:** [projections](projections.md), choosing Async, Inline, or explicitly transactional processing.
+5. **Change an existing application:** [event payload versioning](versioning.md) for stored events; [projection evolution](projection-evolution.md) for new read models, replay, cutover, and rollback.
+6. **Operate and upgrade it:** [snapshots](snapshots.md), [event-store operations](event-store.md), and the [alpha.19 checkpoint upgrade guide](../migration/alpha19-to-alpha20-sqlserver.md) when upgrading that schema.
+
+### Which version am I changing?
+
+| Concept | What it identifies | When you use it |
+|---|---|---|
+| Stream version / expected version | An aggregate's progress through its event history | Detect concurrent writes; the store assigns event positions within the stream. |
+| Event payload version | The shape of one kind of stored event | Load older payloads through compatible defaults or upcasters. |
+| Projection version / generation | A read-model definition and destination | Build changed models alongside existing ones, validate, then switch readers. |
+| Database schema migration | Tables, columns, indexes, and constraints | Upgrade storage infrastructure; it does not upcast events or rebuild models. |
+
+Changing one does not automatically perform the others. A CLR type rename is another separate concern:
+keep its stored [message name](domain-events.md#stable-message-names) stable, or preserve historical names with aliases.
 
 ## Overview
 
@@ -53,7 +80,10 @@ flowchart LR
 | Debugging | Understand exactly how state evolved |
 | Integration | Events naturally feed downstream systems |
 
-## Quick Start
+## Aggregate example
+
+For the runnable setup and its expected results, use the [walkthrough](walkthrough.md).
+The following excerpts illustrate a richer order aggregate and its handlers.
 
 ### 1. Define Domain Events
 
@@ -75,13 +105,16 @@ public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent;
 ```csharp
 public class Order : AggregateRoot<Guid>
 {
-    public string CustomerId { get; private set; }
+    public string CustomerId { get; private set; } = string.Empty;
     public decimal TotalAmount { get; private set; }
     public OrderStatus Status { get; private set; }
     public string? TrackingNumber { get; private set; }
 
     // Private constructor for rehydration
     private Order() { }
+
+    // Creates the empty instance that the repository will populate from history.
+    public static Order Rehydrate(Guid id) => new Order { Id = id };
 
     // Factory method for creation
     public static Order Create(Guid orderId, string customerId, decimal totalAmount)
@@ -147,7 +180,7 @@ public class Order : AggregateRoot<Guid>
 services.AddExcalibur(excalibur => excalibur.AddEventSourcing(builder =>
 {
     // Register repositories with explicit factory
-    builder.AddRepository<Order, Guid>(id => new Order());
+    builder.AddRepository<Order, Guid>(Order.Rehydrate);
 
     // Configure snapshot strategy (optional)
     builder.UseIntervalSnapshots(100); // Snapshot every 100 events
@@ -316,16 +349,18 @@ public interface IEventStore
 
 1. **[Domain Events](domain-events.md)** -- Start here. Define the events that describe what happens in your domain.
 2. **[Aggregates](aggregates.md)** -- Build aggregates that enforce business rules and raise events.
-3. **[Event Store](event-store.md)** -- Persist and load event streams.
-4. **[Snapshots](snapshots.md)** -- Optimize loading for aggregates with many events.
-5. **[Projections](projections.md)** -- Build query-optimized read models from event streams.
-6. **[Providers](providers.md)** -- Choose and configure your database provider.
-7. **[Event Versioning](versioning.md)** -- Handle event schema changes over time.
-8. **[Materialized Views](materialized-views.md)** -- Schedule-driven analytics views.
-9. **[Migrations](migrations.md)** -- Schema migrations CLI tool.
+3. **[Repositories](repositories.md)** -- Load and save aggregates, understand save outcomes, and handle concurrency.
+4. **[Event Store](event-store.md)** -- Persist and load event streams directly when needed.
+5. **[Snapshots](snapshots.md)** -- Optimize loading for aggregates with many events.
+6. **[Projections](projections.md)** -- Build query-optimized read models from event streams.
+7. **[Providers](providers.md)** -- Choose and configure your database provider.
+8. **[Event Versioning](versioning.md)** -- Handle event schema changes over time.
+9. **[Projection Evolution](projection-evolution.md)** -- Populate changed models and switch readers safely.
+10. **[Materialized Views](materialized-views.md)** -- Schedule-driven analytics views.
+11. **[Migrations](migrations.md)** -- Schema migrations CLI tool.
 
 ## See Also
 
 - [Patterns](../patterns/index.md) - Outbox pattern for reliable event publishing
 - [Handlers](../handlers.md) - Command and event handler patterns
-- [Package Guide](/docs/package-guide) - Understanding which packages you need for event sourcing
+- [Package Guide](../package-guide.md) - Understanding which packages you need for event sourcing

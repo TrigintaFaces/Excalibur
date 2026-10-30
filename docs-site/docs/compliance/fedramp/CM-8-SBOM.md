@@ -1,3 +1,7 @@
+---
+title: "CM-8: Software Bill of Materials (SBOM)"
+description: Generate and validate an SBOM for the Excalibur packages you ship, and see what else your CM-8 component inventory still has to cover.
+---
 # CM-8: Software Bill of Materials (SBOM)
 
 :::warning Not legal advice

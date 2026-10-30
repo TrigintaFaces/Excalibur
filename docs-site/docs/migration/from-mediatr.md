@@ -1,5 +1,7 @@
 ---
 sidebar_position: 1
+title: Migrate from MediatR
+description: Move a MediatR codebase to Excalibur.Dispatch - API differences, handler and behavior mapping, the compatibility package, and a staged migration path.
 ---
 
 # Migrating from MediatR
@@ -25,7 +27,9 @@ third-party software you migrate from or to. See the full
 
 ## Overview
 
-Excalibur is designed as a **production-ready alternative to MediatR** with enhanced features for event sourcing, domain-driven design, and reliable messaging. This guide helps you migrate smoothly while gaining new capabilities.
+Excalibur is designed as a **feature-complete alternative to MediatR**, adding event sourcing,
+domain-driven design and reliable messaging on top of the dispatch concepts you already know. This
+guide covers both a compatibility-shim route and a full port.
 
 ## Two migration paths
 
@@ -1012,9 +1016,9 @@ semantics described above, and event-sourcing and outbox integration in the same
 ## Next Steps
 
 1. Review [Handlers and Actions](../handlers.md)
-2. Learn [Event Sourcing Patterns](/docs/event-sourcing)
+2. Learn [Event Sourcing Patterns](../event-sourcing/index.md)
 3. Implement [Outbox Pattern](../patterns/outbox.md)
-4. Explore [Domain Modeling](/docs/domain-modeling)
+4. Explore [Domain Modeling](../domain-modeling/index.md)
 5. Set up [Monitoring and Observability](../observability/health-checks.md)
 
 ## See Also

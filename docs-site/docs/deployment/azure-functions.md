@@ -1,4 +1,8 @@
-﻿# Azure Functions Deployment
+---
+title: Azure Functions Deployment
+description: Run Excalibur on Azure Functions with the isolated worker model, Service Bus triggers, timer-driven outbox processing and Durable Functions sagas.
+---
+# Azure Functions Deployment
 
 **Framework:** Excalibur.Dispatch
 **Deployment Target:** Azure Functions (Serverless)

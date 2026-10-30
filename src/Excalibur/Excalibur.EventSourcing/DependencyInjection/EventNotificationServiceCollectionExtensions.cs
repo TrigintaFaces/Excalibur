@@ -65,6 +65,10 @@ public static class EventNotificationServiceCollectionExtensions
 		// The projection registration itself is deferred to startup.
 		var projectionBuilder = new ProjectionBuilder<TProjection>(builder.Services);
 		configure(projectionBuilder);
+        if (projectionBuilder.Mode == ProjectionMode.TransactionalInline)
+        {
+            TransactionalProjectionStartup.Register(builder.Services);
+        }
 		if (projectionBuilder.Mode == ProjectionMode.Inline)
 		{
 			InlineProjectionCoordinator.Register(builder.Services);
@@ -120,6 +124,10 @@ public static class EventNotificationServiceCollectionExtensions
 		// The projection registration itself is deferred to startup.
 		var projectionBuilder = new ProjectionBuilder<TProjection>(builder.Services);
 		configure(projectionBuilder);
+        if (projectionBuilder.Mode == ProjectionMode.TransactionalInline)
+        {
+            TransactionalProjectionStartup.Register(builder.Services);
+        }
         if (projectionBuilder.Mode == ProjectionMode.Ephemeral)
         {
             throw new NotSupportedException("Generated projection registration supports Inline and Async persistence. Ephemeral caching does not yet consume generated metadata.");

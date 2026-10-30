@@ -40,3 +40,25 @@ budget. For smaller shared databases, configure `ProjectionCapacityOptions` with
 reserve capacity for other application work. These limits govern framework logical operations,
 not exact SDK connection counts. See the projection evolution documentation for queue metrics,
 resource identity, and deployment limits.
+
+## Repository operations and transactional models
+
+The generated command handlers use the registered `IEventSourcedRepository<Order, Guid>` directly.
+Load with `GetByIdAsync`, invoke the aggregate's business method, then call `SaveAsync`. The framework
+tracks committed versions and appends pending events; no provider-specific repository implementation
+or start-versus-append branch is required. For client preconditions, pass an opaque client ETag to
+`SaveAsync(order, expectedETag, cancellationToken)` and return `order.ETag` after success.
+
+This template deliberately defaults to **Async** projections with DI handlers and session-aware reads.
+Those semantics remain unchanged. If an aggregate-local read model must commit atomically with its
+events in SQL Server or PostgreSQL, use `TransactionalInline` starting in `10.0.0-alpha.21`.
+This requires a dedicated transactional table, synchronous deterministic `When` handlers, and reading
+that model through `IProjectionStore<T>`. Changing `.Async()` to `.TransactionalInline(...)` alone is
+insufficient: `WhenHandledBy` and global session-token reads are not supported for transactional models.
+Keep the existing background host for any separate Async/Inline projections you retain. The in-memory
+variant does not implement TransactionalInline.
+
+Follow the [consumer repository guide](https://docs.excalibur-dispatch.dev/docs/event-sourcing/consumer-repository)
+and [relational provider setup](https://docs.excalibur-dispatch.dev/docs/event-sourcing/transactional-inline).
+The complete runnable consumer sample is `samples/02-event-sourcing/TransactionalInline` in the repository;
+it covers SQL Server, PostgreSQL, SQLite and Oracle, scoped services, ETags, audit metadata and rollback.

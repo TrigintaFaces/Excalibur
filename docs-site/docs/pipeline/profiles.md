@@ -355,7 +355,7 @@ builder.Services.AddDispatch(dispatch =>
 
 ### Direct Profile
 
-Zero-middleware profile for ultra-low-latency message processing. Correlation and context management is handled directly in the Dispatcher, allowing maximum throughput at the framework's lowest allocation floor (96 B per dispatch, of which 72 B is the ambient-context `ExecutionContext` copy and scales with your application's async-local density -- see the [benchmarks](/docs/performance/competitor-comparison)).
+Zero-middleware profile for ultra-low-latency message processing. Correlation and context management is handled directly in the Dispatcher, allowing maximum throughput at the framework's lowest allocation floor (96 B per dispatch, of which 72 B is the ambient-context `ExecutionContext` copy and scales with your application's async-local density -- see the [benchmarks](../performance/competitor-comparison.md)).
 
 **Middleware:** None (handled at Dispatcher level)
 

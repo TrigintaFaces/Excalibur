@@ -106,7 +106,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 		var hasBuilderConnection = sqlBuilder.ConnectionFactoryFunc is not null
 			|| sqlBuilder.ConnectionStringNameValue is not null;
 
-		RegisterOptionsAndServices(builder, sqlBuilder, options, connectionFactory, hasBuilderConnection);
+		RegisterOptionsAndServices(builder.Services, sqlBuilder, options, connectionFactory, hasBuilderConnection);
 
 		return builder;
 	}
@@ -165,14 +165,19 @@ public static class EventSourcingBuilderSqlServerExtensions
 	[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
 		Justification = "Configuration binding uses reflection by design. AOT consumers should use source-generated alternatives.")]
 	private static void RegisterOptionsAndServices(
-		IEventSourcingBuilder builder,
+		IServiceCollection services,
 		SqlServerEventSourcingBuilder sqlBuilder,
 		SqlServerEventSourcingOptions options,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory,
-		bool hasBuilderConnection)
+		bool hasBuilderConnection,
+        bool includeSnapshotStore = true)
 	{
 		// Register options from builder state
-		_ = builder.Services.Configure<SqlServerEventSourcingOptions>(opt =>
+        if (services.Any(static descriptor => descriptor.ServiceType == typeof(ProviderBinding)))
+        {
+            throw new InvalidOperationException("SQL Server event sourcing is already registered. Configure one provider binding so event writes, global reads and checkpoints cannot select different sources.");
+        }
+		_ = services.Configure<SqlServerEventSourcingOptions>(opt =>
 		{
 			opt.ConnectionString = options.ConnectionString;
 			opt.EventStoreSchema = options.EventStoreSchema;
@@ -192,7 +197,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 		// Register BindConfiguration if set
 		if (sqlBuilder.BindConfigurationPath is not null)
 		{
-			builder.Services.AddOptions<SqlServerEventSourcingOptions>()
+			services.AddOptions<SqlServerEventSourcingOptions>()
 				.BindConfiguration(sqlBuilder.BindConfigurationPath)
 				.ValidateOnStart();
 
@@ -201,7 +206,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 			if (!string.IsNullOrWhiteSpace(options.ConnectionString))
 			{
 				var explicitConnectionString = options.ConnectionString;
-				_ = builder.Services.PostConfigure<SqlServerEventSourcingOptions>(opt =>
+				_ = services.PostConfigure<SqlServerEventSourcingOptions>(opt =>
 				{
 					opt.ConnectionString = explicitConnectionString;
 				});
@@ -209,14 +214,14 @@ public static class EventSourcingBuilderSqlServerExtensions
 		}
 
 		// Register ValidateOnStart with connection awareness
-		builder.Services.AddSingleton<IValidateOptions<SqlServerEventSourcingOptions>>(
+		services.AddSingleton<IValidateOptions<SqlServerEventSourcingOptions>>(
 			new SqlServerEventSourcingOptionsValidator { HasBuilderConnection = hasBuilderConnection });
-		builder.Services.AddOptions<SqlServerEventSourcingOptions>().ValidateOnStart();
+		services.AddOptions<SqlServerEventSourcingOptions>().ValidateOnStart();
 
 		// Resolve the selected source and final locations once for this service provider.
 		// Re-running an outer factory can route the global reader to a different database.
 		var ownsPrimaryConnections = sqlBuilder.ConnectionFactoryFunc is null || sqlBuilder.HasOwnedPrimaryConnectionFactory;
-		builder.Services.TryAddSingleton(sp =>
+		services.TryAddSingleton(sp =>
 		{
 			var resolved = sp.GetRequiredService<IOptions<SqlServerEventSourcingOptions>>().Value;
 			return new ProviderBinding(connectionFactory(sp), ownsPrimaryConnections, resolved.EventStoreSchema, resolved.EventStoreTable,
@@ -224,15 +229,18 @@ public static class EventSourcingBuilderSqlServerExtensions
 		});
 
 		// Register stores using the shared immutable binding
-		RegisterEventStore(builder.Services);
-		RegisterSnapshotStore(builder.Services);
-		RegisterGlobalStreamQuery(builder.Services);
+		RegisterEventStore(services);
+		if (includeSnapshotStore)
+        {
+            RegisterSnapshotStore(services);
+        }
+		RegisterGlobalStreamQuery(services);
 
 		// The automatic Inline checkpoint belongs to the same provider binding as the global reader.
 		// Keep this pair separate from consumer-supplied Async checkpoint registrations.
 		if (ownsPrimaryConnections)
 		{
-			builder.Services.TryAddSingleton(sp =>
+			services.TryAddSingleton(sp =>
 			{
 				var binding = sp.GetRequiredService<ProviderBinding>();
 				using var connection = binding.ConnectionFactory();
@@ -248,7 +256,7 @@ public static class EventSourcingBuilderSqlServerExtensions
 		if (sqlBuilder.EnableMaterializedViewStore)
 		{
 			RegisterMaterializedViewStore(
-				builder.Services,
+				services,
 				connectionFactory,
 				sqlBuilder.MaterializedViewTableName,
 				sqlBuilder.MaterializedViewPositionTableName,
@@ -256,9 +264,9 @@ public static class EventSourcingBuilderSqlServerExtensions
 		}
 
 		// Register health checks if enabled and connection string is available
-		if (options.HealthChecks.RegisterHealthChecks && !string.IsNullOrWhiteSpace(options.ConnectionString))
+		if (includeSnapshotStore && options.HealthChecks.RegisterHealthChecks && !string.IsNullOrWhiteSpace(options.ConnectionString))
 		{
-			_ = builder.Services.AddHealthChecks()
+			_ = services.AddHealthChecks()
 				.AddEventStoreHealthCheck(
 					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "sqlserver", "eventsourcing"])
@@ -267,6 +275,20 @@ public static class EventSourcingBuilderSqlServerExtensions
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"]);
 		}
 	}
+
+    // All public registration shapes share the provider graph. A legacy factory does not
+    // promise new, owned primary connections; only connection-string paths do.
+    internal static void RegisterProvider(IServiceCollection services, SqlServerEventSourcingOptions options,
+        Func<IServiceProvider, Func<SqlConnection>>? factory, bool includeSnapshotStore)
+    {
+        var sqlBuilder = new SqlServerEventSourcingBuilder(options);
+        if (factory is not null)
+        {
+            sqlBuilder.ConnectionFactory(factory);
+        }
+        RegisterOptionsAndServices(services, sqlBuilder, options, factory ?? ResolveConnectionFactory(sqlBuilder),
+            hasBuilderConnection: factory is not null, includeSnapshotStore: includeSnapshotStore);
+    }
 
 	private static void RegisterEventStore(
 		IServiceCollection services)

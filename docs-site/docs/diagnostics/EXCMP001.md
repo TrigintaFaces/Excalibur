@@ -1,3 +1,8 @@
+---
+title: EXCMP001 — Type cannot carry ciphertext
+description: "An encryption-annotated property is not string or byte[], so it cannot hold its own ciphertext; change the type or remove the annotation."
+---
+
 # EXCMP001: Encryption annotation on a type that cannot carry ciphertext
 
 | Property | Value |

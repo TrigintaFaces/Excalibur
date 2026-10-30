@@ -24,5 +24,8 @@ public enum ProjectionMode
 	/// The save drives the ordered durable projection processor through its committed position.
 	/// Background recovery is registered automatically; no separate worker application is required.
 	/// </summary>
-	Inline = 2
+	Inline = 2,
+
+    /// <summary>Aggregate-local read models commit in the same transaction as the events.</summary>
+    TransactionalInline = 3
 }

@@ -1,3 +1,7 @@
+---
+title: Kubernetes Deployment
+description: Deploy Excalibur to Kubernetes with production manifests, a Helm chart, horizontal autoscaling, pod disruption budgets and health probes.
+---
 # Kubernetes Deployment
 
 **Framework:** Excalibur

@@ -306,6 +306,7 @@
       "quarantinedDefinition": "Known drift or missing dependencies; excluded from certified catalog until remediated."
     },
     "certified": [
+      "samples/02-event-sourcing/TransactionalInline/TransactionalInline.csproj",
       "samples/01-getting-started/BindConfigurationPatterns/BindConfigurationPatterns.csproj",
       "samples/01-getting-started/DataAccessIntro/DataAccessIntro.csproj",
       "samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj",
@@ -406,6 +407,13 @@
     ],
     "quarantined": [],
     "smokeProfiles": [
+      {
+        "project": "samples/02-event-sourcing/TransactionalInline/TransactionalInline.csproj",
+        "mode": "build",
+        "timeoutSeconds": null,
+        "buildOnlyReason": "requires-external-infrastructure",
+        "requiresExternalInfrastructure": ["SQL Server"]
+      },
       {
         "project": "samples/01-getting-started/BindConfigurationPatterns/BindConfigurationPatterns.csproj",
         "mode": "build",

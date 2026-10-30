@@ -9,8 +9,7 @@ Projections are read-optimized views of event-sourced data. They transform domai
 ## Quick Start
 
 ```bash
-cd samples/09-advanced/ProjectionsSample
-dotnet run
+dotnet run --project samples/09-advanced/persistence-patterns/ProjectionsSample
 ```
 
 ## Key Concepts
@@ -55,7 +54,7 @@ Multiple storage backends are available:
 
 ### 1. Stored Projections (Builder API)
 
-The sample uses `.Inline()` for the product catalog and `.Async()` for the category summary. Inline completes during save and registers recovery automatically; Async remains independently driven. Both use ordered positioned folds. The explicit Async pattern is:
+The sample uses `.Inline()` for the product catalog and `.Async()` for the category summary. Inline waits within a bound after events commit and registers recovery automatically; inspect the save outcome rather than assuming the model is current. Async remains independently driven. Both use ordered positioned folds. For a continuous introduction, follow the [EventStore walkthrough](../../../../docs-site/docs/event-sourcing/walkthrough.md). The explicit Async pattern is:
 
 ```csharp
 services.AddExcalibur(excalibur => excalibur

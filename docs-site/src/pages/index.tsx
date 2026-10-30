@@ -8,6 +8,20 @@ import CodeBlock from '@theme/CodeBlock';
 
 import styles from './index.module.css';
 
+/**
+ * Base path for links into the docs from this standalone page.
+ *
+ * Docs-internal links are relative and therefore version-aware for free. This page is
+ * outside the docs plugin, so a hardcoded `/docs/...` would keep resolving to the default
+ * version — which becomes the STALE stable release the moment one ships. Reading the path
+ * the config computed keeps these links pointing at the same docs the sidebar shows.
+ */
+function useDocsBase(): string {
+  const { siteConfig } = useDocusaurusContext();
+  const versionPath = (siteConfig.customFields?.currentDocsPath as string | undefined) ?? '';
+  return versionPath ? `/docs/${versionPath}` : '/docs';
+}
+
 // --- SVG Icon Components (brand cyan #00d4ff) ---
 
 function IconGitHub() {
@@ -232,6 +246,7 @@ function FeatureCard({ title, icon, description }: { title: string; icon: ReactN
 
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext();
+  const docs = useDocsBase();
   return (
     <header className={clsx('hero', styles.heroBanner)}>
       <HeroSword />
@@ -245,8 +260,12 @@ function HomepageHeader() {
           <p className="hero__subtitle">
             High-performance .NET messaging with first-class HTTP result contracts and secure-by-default authorization — one framework, pick your packages
           </p>
+          <p className={styles.heroPrerelease}>
+            <strong>10.0.0 pre-release.</strong> The API is not frozen until RC. Read the{' '}
+            <Link to={`${docs}/known-issues`}>known issues</Link> before you adopt it.
+          </p>
           <div className={styles.heroButtons}>
-            <Link className="cta-button cta-button--primary" to="/docs/intro">
+            <Link className="cta-button cta-button--primary" to={`${docs}/intro`}>
               Get Started
             </Link>
             <Link
@@ -282,12 +301,18 @@ function FeaturesSection() {
 }
 
 function DecisionMatrixSection() {
+  const docs = useDocsBase();
   return (
     <section className={styles.decisionSection}>
       <div className="container">
         <div className={styles.sectionHeader}>
           <Heading as="h2">Which Packages Do You Need?</Heading>
-          <p>Install only what your application requires. Every package is optional.</p>
+          <p>
+            194 packages across 46 families — install only what your application requires. Every
+            package beyond <code>Excalibur.Dispatch</code> is optional. The{' '}
+            <Link to={`${docs}/reference/package-matrix`}>Package Matrix</Link> lists all of them by
+            category.
+          </p>
         </div>
         <div className={styles.decisionMatrix}>
           <table>
@@ -362,19 +387,18 @@ dotnet add package Excalibur.Hosting.Web`}
 }
 
 function PerformanceShowcaseSection() {
+  const docs = useDocsBase();
   const metrics: { value: string; label: string; detail: string }[] = [
     { value: '96 B', label: 'Allocated per command', detail: 'Measured 17 October 2026, byte-identical across every process.' },
     { value: '~60 ns', label: 'Command dispatch overhead', detail: 'Median of three independent processes with a no-op handler.' },
-    { value: '44,262+', label: 'Tests Passing', detail: 'Unit, integration, functional' },
-    { value: '170+', label: 'NuGet Packages', detail: 'Install only what you need' },
   ];
 
   return (
     <section className={styles.performanceSection}>
       <div className="container">
         <div className={styles.sectionHeader}>
-          <Heading as="h2">Historical Performance Snapshot</Heading>
-          <p>September .NET 10 comparisons on Intel Core i9-14900K retain distinct code epochs. The current refresh is incomplete; these figures do not rank the current source.</p>
+          <Heading as="h2">Measured Performance</Heading>
+          <p>Each figure below carries the date and conditions it was measured under. The comparison against other libraries is mid-refresh, so these numbers do not rank the current source against competitors — follow the link for the full method and how to reproduce them.</p>
         </div>
         <div className={styles.metricsGrid}>
           {metrics.map((m, idx) => (
@@ -386,7 +410,7 @@ function PerformanceShowcaseSection() {
           ))}
         </div>
         <div className={styles.benchmarkLink}>
-          <Link to="/docs/performance/competitor-comparison">
+          <Link to={`${docs}/performance/competitor-comparison`}>
             View the measurements and how to reproduce them
           </Link>
         </div>
@@ -396,17 +420,25 @@ function PerformanceShowcaseSection() {
 }
 
 function CTASection() {
+  const docs = useDocsBase();
   return (
     <section className={styles.ctaSection}>
       <div className="container">
         <div className={styles.ctaContent}>
           <Heading as="h2">Ready to Get Started?</Heading>
           <p>
-            Join developers building fast, reliable .NET applications with
-            Excalibur
+            Build your first handler in under five minutes — one package, no database and no message
+            broker required.
+          </p>
+          <p className={styles.ctaMigrate}>
+            Coming from something else? <Link to={`${docs}/migration/from-mediatr`}>MediatR</Link>
+            {' · '}
+            <Link to={`${docs}/migration/from-masstransit`}>MassTransit</Link>
+            {' · '}
+            <Link to={`${docs}/migration/from-nservicebus`}>NServiceBus</Link>
           </p>
           <div className={styles.ctaButtons}>
-            <Link className="cta-button cta-button--primary" to="/docs/intro">
+            <Link className="cta-button cta-button--primary" to={`${docs}/intro`}>
               Read the Docs
             </Link>
             <Link
@@ -428,7 +460,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Modular .NET Messaging Framework"
-      description="Excalibur is a modular .NET framework for messaging, event sourcing, CQRS, and compliance. MediatR-compatible dispatch with a measured 96 B per command."
+      description="Excalibur is a modular .NET framework for messaging, event sourcing, CQRS, and compliance. MediatR-compatible dispatch — install only the packages you need."
     >
       <HomepageHeader />
       <main>

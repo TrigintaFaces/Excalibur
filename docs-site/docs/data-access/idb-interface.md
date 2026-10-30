@@ -676,8 +676,8 @@ public class OrderService
 ## Related Documentation
 
 - [Data Access Overview](./) - Repository patterns
-- [Event Sourcing](/docs/event-sourcing/) - Event-sourced aggregate persistence
-- [Domain Modeling](/docs/domain-modeling/) - Aggregate design
+- [Event Sourcing](../event-sourcing/index.md) - Event-sourced aggregate persistence
+- [Domain Modeling](../domain-modeling/index.md) - Aggregate design
 
 ## See Also
 

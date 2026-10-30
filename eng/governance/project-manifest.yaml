@@ -23,6 +23,11 @@ exclusions:
     reason: "Experimental - not governed"
 
 projects:
+  - path: samples/02-event-sourcing/TransactionalInline/TransactionalInline.csproj
+    classification: Sample
+    in_solution: true
+    framework_owner: Excalibur
+
   - path: benchmarks/Excalibur.Benchmarks/Excalibur.Benchmarks.csproj
     classification: Benchmark
     in_solution: true

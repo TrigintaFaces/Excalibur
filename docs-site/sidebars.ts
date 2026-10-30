@@ -18,17 +18,14 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         { type: 'doc', id: 'intro' },
-        { type: 'doc', id: 'how-do-i' },
-        { type: 'doc', id: 'pick-your-stack' },
-        { type: 'doc', id: 'whats-new' },
-        { type: 'doc', id: 'known-issues' },
-        { type: 'doc', id: 'resolved-issues' },
         {
+          // Expanded on purpose: this is the second thing a new reader should see,
+          // and a collapsed tutorial is a tutorial nobody finds.
           type: 'category',
           label: 'Getting Started',
           link: { type: 'doc', id: 'getting-started/index' },
           collapsible: true,
-          collapsed: true,
+          collapsed: false,
           items: [
             { type: 'doc', id: 'getting-started/dispatch-only' },
             { type: 'doc', id: 'getting-started/first-event' },
@@ -57,7 +54,11 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'core-concepts/configuration-environments' },
           ],
         },
+        // Choosing packages, then the task index. `how-do-i` assumes the vocabulary
+        // taught above it, so it sits after Core Concepts rather than before.
+        { type: 'doc', id: 'pick-your-stack' },
         { type: 'doc', id: 'package-guide' },
+        { type: 'doc', id: 'how-do-i' },
       ],
     },
 
@@ -90,6 +91,8 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'middleware/custom' },
             { type: 'doc', id: 'middleware/validation' },
             { type: 'doc', id: 'middleware/authorization' },
+            { type: 'doc', id: 'middleware/results-to-http' },
+            { type: 'doc', id: 'middleware/exception-mapping' },
             { type: 'doc', id: 'middleware/serialization' },
             { type: 'doc', id: 'middleware/serialization-providers' },
             { type: 'doc', id: 'middleware/ordering-validation' },
@@ -163,15 +166,18 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'event-sourcing/concepts' },
+            { type: 'doc', id: 'event-sourcing/walkthrough' },
             { type: 'doc', id: 'event-sourcing/domain-events' },
             { type: 'doc', id: 'event-sourcing/aggregates' },
             { type: 'doc', id: 'event-sourcing/event-store' },
             { type: 'doc', id: 'event-sourcing/event-application-pattern' },
             { type: 'doc', id: 'event-sourcing/repositories' },
+            { type: 'doc', id: 'event-sourcing/consumer-repository' },
             { type: 'doc', id: 'event-sourcing/aggregate-handlers' },
             { type: 'doc', id: 'event-sourcing/snapshots' },
             { type: 'doc', id: 'event-sourcing/projections' },
             { type: 'doc', id: 'event-sourcing/projection-evolution' },
+            { type: 'doc', id: 'event-sourcing/transactional-inline' },
             { type: 'doc', id: 'event-sourcing/global-stream-projection-host' },
             { type: 'doc', id: 'event-sourcing/materialized-views' },
             { type: 'doc', id: 'event-sourcing/migrations' },
@@ -289,6 +295,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'performance/ultra-local-dispatch' },
             { type: 'doc', id: 'performance/auto-freeze' },
             { type: 'doc', id: 'performance/messagecontext-best-practices' },
+            { type: 'doc', id: 'performance/adaptive-ttl' },
             { type: 'doc', id: 'performance/competitor-comparison' },
           ],
         },
@@ -409,6 +416,13 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'migration/erasure-certificate-states-what-it-established' },
             { type: 'doc', id: 'migration/field-envelope-names-its-key-generation' },
             { type: 'doc', id: 'migration/key-creation-instants-are-reported-not-invented' },
+            { type: 'doc', id: 'migration/identity-binding-is-a-reservation' },
+            { type: 'doc', id: 'migration/decryption-requires-the-callers-tenant' },
+            { type: 'doc', id: 'migration/dead-letter-mark-states-its-outcome' },
+            { type: 'doc', id: 'migration/message-failure-kind-uncertain' },
+            { type: 'doc', id: 'migration/data-task-timeout-bounds-silence' },
+            { type: 'doc', id: 'migration/checkpoint-schema-upgrade' },
+            { type: 'doc', id: 'migration/alpha19-to-alpha20-sqlserver' },
           ],
         },
       ],
@@ -523,8 +537,9 @@ const sidebars: SidebarsConfig = {
       description: 'Architecture decisions, advanced topics, diagnostics, and support.',
       collapsed: true,
       items: [
-        { type: 'doc', id: 'reference/llm-reference' },
         { type: 'doc', id: 'reference/package-matrix' },
+        { type: 'doc', id: 'reference/result-api' },
+        { type: 'doc', id: 'reference/llm-reference' },
         {
           type: 'category',
           label: 'Diagnostics',
@@ -538,6 +553,10 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'diagnostics/DISP004' },
             { type: 'doc', id: 'diagnostics/DISP005' },
             { type: 'doc', id: 'diagnostics/DISP006' },
+            { type: 'doc', id: 'diagnostics/EXCMP001' },
+            { type: 'doc', id: 'diagnostics/EXCMP002' },
+            { type: 'doc', id: 'diagnostics/EXCMP003' },
+            { type: 'doc', id: 'diagnostics/EXCMP004' },
             { type: 'doc', id: 'diagnostics/EXMIG0001' },
             { type: 'doc', id: 'diagnostics/EXMIG0002' },
             { type: 'doc', id: 'diagnostics/EXMIG0003' },
@@ -579,6 +598,22 @@ const sidebars: SidebarsConfig = {
           ],
         },
         { type: 'doc', id: 'support' },
+      ],
+    },
+
+    // ── Release Notes ──────────────────────────────────────────────────
+    // Deliberately last and separate from Learn: a prospective adopter should
+    // reach the tutorial before a quarter-megabyte of release and defect notes,
+    // and these pages are status, not teaching material.
+    {
+      type: 'category',
+      label: 'Release Notes',
+      description: "What changed, what is still broken, and what has been fixed.",
+      collapsed: true,
+      items: [
+        { type: 'doc', id: 'whats-new' },
+        { type: 'doc', id: 'known-issues' },
+        { type: 'doc', id: 'resolved-issues' },
       ],
     },
   ],

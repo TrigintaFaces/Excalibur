@@ -1,4 +1,6 @@
 -- One row per member lifetime. Advances update only the matching binding.
+-- ddl-migration: replacement-and-replay SUBSCRIPTIONCHECKPOINTS docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Oracle/OracleSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Preserve legacy state, provision a new lifetime schema and replay fresh destinations; this CREATE does not upgrade an old table.
+-- ddl-migration: retained-legacy SUBSCRIPTIONCHECKPOINTSDEFINITIONS docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Oracle/OracleSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Retain old definitions unchanged for audit and rollback planning; the current store no longer reads this table.
 -- Use binary column collation where enabled; STANDARD databases use binary key constraints
 -- and the provider uses explicit binary comparison operators in every key predicate.
 -- An operator running this inside an interactive session is ended by that non-zero exit;

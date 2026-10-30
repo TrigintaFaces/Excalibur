@@ -1,3 +1,7 @@
+---
+title: On-Premises Deployment
+description: Host Excalibur on IIS, a Windows Service or systemd when data residency, air-gapped networks or existing infrastructure rule out the cloud.
+---
 # On-Premises Deployment
 
 **Framework:** Excalibur.Dispatch

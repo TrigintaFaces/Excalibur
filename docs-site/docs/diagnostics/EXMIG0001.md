@@ -1,3 +1,8 @@
+---
+title: EXMIG0001 — MediatR registration is portable
+description: An AddMediatR registration maps directly onto AddMediatRCompat; apply the code fix to move the registration to Excalibur.Dispatch.
+---
+
 # EXMIG0001: MediatR registration is portable to Excalibur.Dispatch
 
 | Property | Value |

@@ -19,8 +19,9 @@ public sealed class ProjectionRecoveryServiceShould
 	private ProjectionRecoveryService CreateService()
 	{
 		var services = new ServiceCollection()
-			.AddSingleton<IProjectionStore<OrderSummary>>(_projectionStore)
-			.BuildServiceProvider();
+            // A singleton fake would hide a root-provider resolution regression.
+			.AddScoped<IProjectionStore<OrderSummary>>(_ => _projectionStore)
+			.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
 
 		return new ProjectionRecoveryService(
 			_registry,

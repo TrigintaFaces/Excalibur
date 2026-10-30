@@ -35,7 +35,7 @@ When you change architecture-sensitive behavior:
 
 - [Core Concepts](../core-concepts/index.md)
 - [Performance](../performance/index.md)
-- [Package Guide](/docs/package-guide)
+- [Package Guide](../package-guide.md)
 
 ## How To Use This Section
 

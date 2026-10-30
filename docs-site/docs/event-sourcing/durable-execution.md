@@ -1,7 +1,14 @@
 ---
 sidebar_position: 17
 title: Durable Execution
+sidebar_label: Durable Execution (Workflows)
 description: Run durable workflows over your existing event store with a deterministic replay executor and at-least-once activities.
+keywords:
+  - workflows
+  - durable workflows
+  - durable execution
+  - replay
+  - Excalibur.Workflows
 ---
 
 # Durable Execution

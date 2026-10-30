@@ -174,7 +174,7 @@ internal static class SqliteTableInitializer
 
 	/// <summary>
 	/// The current subscription checkpoint schema. Mirrors
-	/// <c>Scripts/003_CreateSubscriptionCheckpointSchema.sql</c> -- the two are required to stay identical.
+	/// <c>Scripts/002_CreateSubscriptionCheckpointSchema.sql</c> -- the two are required to stay identical.
 	/// </summary>
 	/// <remarks>
 	/// BINARY collation is load-bearing, not cosmetic: the advance is a compare-and-set keyed on the
@@ -182,7 +182,9 @@ internal static class SqliteTableInitializer
 	/// would share one checkpoint and each would skip whatever the other had consumed.
 	/// </remarks>
 	internal static string CheckpointsTableDdl(string table) =>
-		// ddl-migration: provisioning-only - Greenfield member-lifetime schema; no legacy state migration.
+		// ddl-migration: replacement-and-replay {table}Readers docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Sqlite/SqliteSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Provision the new reader companion with the replacement roster; never reuse legacy routing state.
+		// ddl-migration: replacement-and-replay {table} docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Sqlite/SqliteSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Choose a fresh checkpoint name and fresh destinations; existing legacy tables are not converted.
+		// ddl-migration: retained-legacy {table}Definitions docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Sqlite/SqliteSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Retain old definitions unchanged; the current store never reads them.
 		$"""
 		CREATE TABLE IF NOT EXISTS [{table}] (
 		    SubscriptionName TEXT NOT NULL COLLATE BINARY,

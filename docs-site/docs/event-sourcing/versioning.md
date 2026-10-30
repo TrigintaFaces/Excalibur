@@ -8,6 +8,9 @@ description: Handle schema evolution and event upgrades
 
 As your system evolves, event schemas change. Event versioning enables graceful schema evolution without breaking existing data.
 
+For the full application lifecycle and the distinction between stream, event, projection, and database
+versions, start with the [EventStore walkthrough](walkthrough.md#7-change-event-data-without-losing-old-history).
+
 ## Before You Start
 
 - **.NET 10.0**
@@ -31,14 +34,19 @@ Events are immutable and stored forever. When business requirements change:
 Two different things get called "versioning", and they have different answers:
 
 - The **payload** changed shape — a field added, a type widened, one event split into two. That is
-  what this page is about: handle it with an **upcaster**.
+  what this page is about: use compatible defaults where appropriate, or an **upcaster** for an incompatible shape.
 - The **name** changed — the type moved namespace or assembly, or you simply want to call it
   something else. That is handled by a **`[MessageNameAlias]`**, described in
   [Stable Message Names](domain-events.md#stable-message-names).
 
-A message's name is its permanent stored identity, so it carries **no version segment**. Putting one
-in conflates the two problems and leaves you with a fresh name for every revision — and every reader,
-filter and route that used the old one broken.
+A message's name is its permanent stored identity. Do not rename it merely because you added a
+compatible field or renamed the CLR type. For a breaking change represented by distinct historical
+and current CLR types, each stored shape has its own identity; retain the old identity and register
+an upcaster between the shapes. The strong-schema example below retains an existing `OrderCreatedV1`
+name for that reason. `IVersionedMessage.MessageType` groups those shapes into one logical message.
+
+Payload versions are not aggregate stream versions, projection generations, or database schema
+versions. See [Which version am I changing?](index.md#which-version-am-i-changing) before choosing a migration.
 
 ## Versioning Strategies
 
@@ -51,9 +59,16 @@ Use flexible serialization that ignores unknown properties:
 [MessageName("Contoso.Orders.OrderCreated")]
 public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent;
 
-// V2 - Added field (backward compatible)
-[MessageName("Contoso.Orders.OrderCreatedV2")]
-public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEvent;
+```
+
+Replace that declaration with the following shape; retain its stored name. These are before/after
+definitions, not two types to register together. Verify that your serializer supplies the intended
+default when reading historical payloads without `Currency`.
+
+```csharp
+// Added field; the same stored identity.
+[MessageName("Contoso.Orders.OrderCreated")]
+public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEvent;
 
 // Configure serializer to handle schema evolution
 services.AddJsonSerialization(options =>

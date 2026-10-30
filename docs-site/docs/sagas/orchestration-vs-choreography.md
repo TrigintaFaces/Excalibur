@@ -581,8 +581,8 @@ public class AnalyticsHandler : IEventHandler<OrderCompleted>
 ## Related Documentation
 
 - [Saga Overview](./) - Introduction to sagas
-- [Event Sourcing](/docs/event-sourcing/) - Event-driven state management
-- [Domain Modeling](/docs/domain-modeling/) - Aggregate design
+- [Event Sourcing](../event-sourcing/index.md) - Event-driven state management
+- [Domain Modeling](../domain-modeling/index.md) - Aggregate design
 
 ## See Also
 

@@ -1,3 +1,8 @@
+---
+title: EXMIG0004 — Handler signature differs from compat
+description: A handler implements a compat interface but does not name its method Handle; rename it so the compat dispatcher can invoke it.
+---
+
 # EXMIG0004: Handler signature differs from the compat shape
 
 | Property | Value |

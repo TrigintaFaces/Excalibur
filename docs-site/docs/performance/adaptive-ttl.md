@@ -1,6 +1,7 @@
 ---
 sidebar_position: 6
 title: Adaptive TTL access history
+description: How AdaptiveTtlCache estimates access frequency from bounded minute aggregates, and the precision tradeoffs that choice implies.
 ---
 
 `AdaptiveTtlCache` estimates access frequency using minute aggregates rather than

@@ -6,7 +6,6 @@ using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.EventSourcing.Postgres.DependencyInjection;
 
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,8 +35,9 @@ public static class PostgresProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		_ = services.Configure(configureOptions);
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresProjectionStoreOptions>, PostgresProjectionStoreOptionsValidator>());
+		var optionsName = typeof(TProjection).AssemblyQualifiedName!;
+		_ = services.Configure(optionsName, configureOptions);
+		services.AddSingleton<IValidateOptions<PostgresProjectionStoreOptions>>(new NamedProjectionOptionsValidator(optionsName));
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA where a null
 		// context threw on every operation) AND emits the projection-family capability marker inseparably
@@ -45,18 +45,18 @@ public static class PostgresProjectionStoreExtensions
 		_ = services.AddDefaultTenantContext();
 		services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, PostgresProjectionStore<TProjection>, IProjectionStore<object>>(sp =>
 		{
-			var options = sp.GetRequiredService<IOptions<PostgresProjectionStoreOptions>>();
+			var options = sp.GetRequiredService<IOptionsMonitor<PostgresProjectionStoreOptions>>().Get(optionsName);
 			var logger = sp.GetRequiredService<ILogger<PostgresProjectionStore<TProjection>>>();
 
-			options.Value.Validate();
+			options.Validate();
 
 			return new PostgresProjectionStore<TProjection>(
-				options.Value.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
+				options.ConnectionString ?? throw new InvalidOperationException("PostgresProjectionStoreOptions.ConnectionString is required."),
 				logger,
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
-				tableName: options.Value.TableName,
-				jsonOptions: options.Value.JsonSerializerOptions,
-				schemaName: options.Value.SchemaName);
+				tableName: options.TableName,
+				jsonOptions: options.JsonSerializerOptions,
+				schemaName: options.SchemaName);
 		});
 
 		return services;
@@ -83,11 +83,11 @@ public static class PostgresProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(dataSourceFactory);
 
+		var optionsName = configureOptions is null ? Microsoft.Extensions.Options.Options.DefaultName : typeof(TProjection).AssemblyQualifiedName!;
 		if (configureOptions is not null)
 		{
-			_ = services.Configure(configureOptions);
+			_ = services.Configure(optionsName, configureOptions);
 		}
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<PostgresProjectionStoreOptions>, PostgresProjectionStoreOptionsValidator>());
 
 		// Dep-gated seam: threads the ambient ITenantContext into the store (fixing the DOA) AND emits the
 		// projection-family capability marker inseparably.
@@ -96,8 +96,9 @@ public static class PostgresProjectionStoreExtensions
 		{
 			var dataSource = dataSourceFactory(sp);
 			var logger = sp.GetRequiredService<ILogger<PostgresProjectionStore<TProjection>>>();
-			var optionsAccessor = sp.GetService<IOptions<PostgresProjectionStoreOptions>>();
-			var options = optionsAccessor?.Value;
+			var options = configureOptions is null
+                ? sp.GetService<IOptions<PostgresProjectionStoreOptions>>()?.Value
+                : sp.GetRequiredService<IOptionsMonitor<PostgresProjectionStoreOptions>>().Get(optionsName);
 
 			return new PostgresProjectionStore<TProjection>(
 				dataSource,
@@ -177,4 +178,15 @@ public static class PostgresProjectionStoreExtensions
 
 		return services;
 	}
+    // Connection-string requirements belong only to registrations that obtain their connection
+    // from options. Factory/IDb registrations supply it separately and must not inherit this check.
+    private sealed class NamedProjectionOptionsValidator(string optionsName) : IValidateOptions<PostgresProjectionStoreOptions>
+    {
+        private readonly PostgresProjectionStoreOptionsValidator _validator = new();
+        public ValidateOptionsResult Validate(string? name, PostgresProjectionStoreOptions options) =>
+            string.Equals(name, optionsName, StringComparison.Ordinal)
+                ? _validator.Validate(name, options)
+                : ValidateOptionsResult.Skip;
+    }
+
 }

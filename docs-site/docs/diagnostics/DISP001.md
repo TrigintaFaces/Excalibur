@@ -1,5 +1,6 @@
 ---
 description: Why the source generators may not discover a dispatch handler, and how to make it discoverable.
+title: DISP001 — Handler may not be discoverable
 ---
 
 # DISP001: Handler Not Discoverable

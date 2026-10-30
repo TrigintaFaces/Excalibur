@@ -1,3 +1,8 @@
+---
+title: EXCMP003 — Annotation the framework never inspects
+description: "A static or non-public property is annotated for encryption, so the framework never sees it and stores the value as written; make it public and instance."
+---
+
 # EXCMP003: Encryption annotation on a property the framework never inspects
 
 | Property | Value |

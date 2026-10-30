@@ -39,6 +39,18 @@ namespace Excalibur.EventSourcing.Postgres;
 /// </remarks>
 public static class PostgresProjectionSchema
 {
+    /// <summary>Creates a dedicated aggregate-local transactional projection table.</summary>
+    /// <param name="tableName">Physical destination table, including its generation suffix.</param>
+    /// <param name="schema">SQL schema.</param>
+    /// <returns>Idempotent creation script; existing ordinary tables are not converted.</returns>
+    public static string CreateTransactionalTableScript(string tableName, string schema = "public") =>
+        CreateTableScript(tableName, schema).Replace("PRIMARY KEY (id, tenant_id)", """
+            transactional_source VARCHAR(300) COLLATE "C" NULL,
+            transactional_aggregate_type VARCHAR(500) COLLATE "C" NULL,
+            CHECK (last_applied_position IN (-1, -2, -3)),
+            PRIMARY KEY (id, tenant_id)
+            """, StringComparison.Ordinal);
+
 	// Unquoted in the store's SQL, so lowercase: an unquoted identifier folds to lower case in
 	// Postgres, and a quoted mixed-case column would then be unreachable from those queries.
 	internal const string IdColumn = "id";

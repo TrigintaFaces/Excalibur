@@ -34,7 +34,11 @@ internal readonly record struct ProjectionEvent(
 	IDomainEvent Domain,
 	string AggregateId,
 	long? GlobalPosition,
-	string? TenantId = null);
+	string? TenantId = null)
+{
+    /// <summary>Gets the authoritative per-event metadata when delivered from persisted history.</summary>
+    internal StoredEvent? Envelope { get; init; }
+}
 
 
 /// <summary>
@@ -43,6 +47,11 @@ internal readonly record struct ProjectionEvent(
 /// </summary>
 internal sealed class ProjectionRegistration
 {
+    internal Func<ProjectionTransaction, IReadOnlyList<IDomainEvent>, string, IServiceProvider, CancellationToken, ValueTask>? TransactionalApply { get; init; }
+
+    internal string? TransactionalAggregateType { get; init; }
+
+    internal Action<IServiceProvider>? ValidateTransactionalStore { get; init; }
 	/// <summary>
 	/// Delegate type for applying events to a projection without reflection.
 	/// Captured at registration time when the generic type is known.

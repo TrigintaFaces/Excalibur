@@ -39,6 +39,12 @@ const config: Config = {
   tagline: 'Low-allocation messaging, domain modeling, and event sourcing for .NET. Start minimal, scale up.',
   favicon: 'Dispatch/favicon.svg',
 
+  // Exposed so pages outside the docs plugin (the landing page) can build links that
+  // follow the current docs version. Docs-internal links are relative and version-aware
+  // automatically; a hardcoded /docs/... on a standalone page is not, and would silently
+  // point at the STALE stable version the moment a stable release ships.
+  customFields: { currentDocsPath },
+
   // Static directories - include canonical images folder from repo root
   // The ../images folder content is served at root, so images/Dispatch/logo.svg becomes /Dispatch/logo.svg
   staticDirectories: ['static', '../images'],
@@ -277,15 +283,43 @@ const config: Config = {
           type: 'docsVersionDropdown',
           position: 'left',
         },
+        // Generated DocFX output served from static/api/, so it is a plain href
+        // rather than a Docusaurus route.
+        {
+          // `pathname://` tells Docusaurus this is a real file under static/, not a
+          // route: without it the broken-link checker fails the build on every page,
+          // because no route named /api exists.
+          href: 'pathname:///api/',
+          label: 'API Reference',
+          position: 'left',
+          target: '_self',
+        },
         // NuGet packages
         {
           type: 'dropdown',
           label: 'Packages',
           position: 'left',
           items: [
+            // On-site inventory first: clicking "Packages" used to take the reader
+            // straight off the site, so the complete list was unreachable from the navbar.
+            {
+              type: 'doc',
+              docId: 'reference/package-matrix',
+              label: 'Package Matrix — all 194',
+            },
+            {
+              type: 'doc',
+              docId: 'pick-your-stack',
+              label: 'Pick Your Stack',
+            },
+            {
+              type: 'doc',
+              docId: 'package-guide',
+              label: 'Package Guide',
+            },
             {
               href: 'https://www.nuget.org/packages?q=owner:SystemDeveloper',
-              label: 'Excalibur.*',
+              label: 'Browse on NuGet',
             },
           ],
         },
@@ -319,10 +353,22 @@ const config: Config = {
           ],
         },
         {
-          title: 'Packages',
+          title: 'Reference',
           items: [
             {
-              label: 'Excalibur.*',
+              label: 'API Reference',
+              href: 'pathname:///api/',
+            },
+            {
+              label: 'Package Matrix',
+              to: `/docs/${currentDocsPath ? `${currentDocsPath}/` : ''}reference/package-matrix`,
+            },
+            {
+              label: 'Pick Your Stack',
+              to: `/docs/${currentDocsPath ? `${currentDocsPath}/` : ''}pick-your-stack`,
+            },
+            {
+              label: 'Browse on NuGet',
               href: 'https://www.nuget.org/packages?q=owner:SystemDeveloper',
             },
           ],
@@ -389,7 +435,9 @@ const config: Config = {
           content: announcementText,
           backgroundColor: '#0f172a',
           textColor: '#ffffff',
-          isCloseable: true,
+          // Not closeable: this states pre-release status, which stays true for every
+          // visit until RC. A dismissed status notice is an undisclosed status.
+          isCloseable: false,
         },
       }
       : {}),

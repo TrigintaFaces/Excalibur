@@ -9,10 +9,10 @@ namespace Excalibur.EventSourcing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The context is created once per projection batch and reused across events.
-/// <see cref="OverrideProjectionId"/> is reset to <see langword="null"/> before
-/// each event, allowing handlers to optionally redirect the projection to a
-/// different ID than the default aggregate ID.
+/// A new context is created for each event. For persisted events, aggregate identity,
+/// version and timestamp come from that event's stored envelope, even when a batch spans
+/// multiple streams. <see cref="OverrideProjectionId"/> starts as <see langword="null"/>
+/// and allows the handler to redirect the projection to a different ID.
 /// </para>
 /// </remarks>
 public sealed class ProjectionHandlerContext
@@ -22,8 +22,8 @@ public sealed class ProjectionHandlerContext
 	/// </summary>
 	/// <param name="aggregateId">The aggregate identifier.</param>
 	/// <param name="aggregateType">The aggregate type name.</param>
-	/// <param name="committedVersion">The aggregate version after commit.</param>
-	/// <param name="timestamp">The UTC timestamp of the notification.</param>
+	/// <param name="committedVersion">The persisted event's zero-based stream version.</param>
+	/// <param name="timestamp">The persisted event's timestamp.</param>
 	/// <param name="isReplay">
 	/// <see langword="true"/> when this event is being re-applied by a rebuild or a recovery rather
 	/// than delivered live.
@@ -103,15 +103,15 @@ public sealed class ProjectionHandlerContext
 	public string AggregateType { get; }
 
 	/// <summary>
-	/// Gets the aggregate version after the events were committed.
+	/// Gets the persisted event's zero-based stream version.
 	/// </summary>
 	/// <value>The committed version number.</value>
 	public long CommittedVersion { get; }
 
 	/// <summary>
-	/// Gets the UTC timestamp when the notification was created.
+	/// Gets the persisted event's timestamp.
 	/// </summary>
-	/// <value>The notification timestamp.</value>
+	/// <value>The event timestamp.</value>
 	public DateTimeOffset Timestamp { get; }
 
 	/// <summary>

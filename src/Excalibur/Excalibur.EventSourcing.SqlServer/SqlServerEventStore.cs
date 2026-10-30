@@ -42,7 +42,7 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </para>
 /// </remarks>
 [SuppressMessage("Maintainability", "CA1506", Justification = "The SQL provider integrates its single-append operation context at both atomic commit paths; splitting the commit boundary would obscure the invariant.")]
-public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore, IEventStoreArchive, IEventStoreVersionProbe
+public sealed partial class SqlServerEventStore : ITransactionalProjectionEventStore, IEventStore, IEventStoreErasure, ITransactionalEventStore, IEventStoreArchive, IEventStoreVersionProbe
 {
 	// Format markers for envelope detection
 	private const byte EnvelopeFormatMarker = 0x01;
@@ -485,8 +485,8 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 
 		try
 		{
-			var appendResult = await ExecuteAppendWithOutboxTransactionAsync(
-					aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, cancellationToken)
+			var appendResult = await AppendCommitBoundary.ExecuteAsync(state => ExecuteAppendWithOutboxTransactionAsync(
+					aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, state, cancellationToken))
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -498,16 +498,8 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		}
 		catch (Exception ex)
 		{
-			// Unlike the plain append (which returns a failure result), the transactional path surfaces
-			// the real failure to the caller so the repository can propagate it.
-			//
-			// SUPERSEDED, quoted so anyone who absorbed it recognises it: "The transaction has already
-			// rolled back atomically -- neither events nor outbox rows persist." That is the same false
-			// durability claim this store was just corrected for making in an AppendResult, asserted in
-			// prose instead. A commit can reach the server and land while its acknowledgement is lost,
-			// and the rollback below then does nothing because there is nothing left to roll back. The
-			// throw itself is NOT corrected here: it is a separate contract question, because a throw is
-			// reserved for what could never succeed and a transient fault could. Tracked, not fixed.
+            // Pre-commit programming/handler failures retain their original exception.
+            // The outer commit boundary preserves acknowledged success or Unknown after dispatch.
 			result = WriteStoreTelemetry.Results.Failure;
 			LogAppendFailure(ex, aggregateId, aggregateType, eventList);
 			activity.RecordException(ex);
@@ -527,6 +519,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 		long expectedVersion,
 		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
 		System.Diagnostics.Activity? activity,
+        AppendCommitBoundary state,
 		CancellationToken cancellationToken)
 	{
 		// The store owns ONE connection and ONE transaction for the whole unit of work. The append and
@@ -654,7 +647,9 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 				await operation.WriteReceiptAsync(connection, transaction, _schema, _table, CurrentTenantScope.TenantId,
 					aggregateId, aggregateType, appended, cancellationToken).ConfigureAwait(false);
 			}
-			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+			state.MarkDispatched();
+            await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+            state.MarkAcknowledged(appended);
 
 			_logger.LogDebug(
 				"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
@@ -664,7 +659,7 @@ public sealed class SqlServerEventStore : IEventStore, IEventStoreErasure, ITran
 			activity.SetOperationResult(EventSourcingTagValues.Success);
 			return appended;
 		}
-		catch (Exception ex) when (ex is SqlException or OperationFailedException)
+		catch (Exception ex) when (!state.Dispatched && ex is SqlException or OperationFailedException)
 		{
 			// SUPERSEDED COMMENT, quoted so anyone who absorbed it recognises it: "Nothing was written or
 			// staged -- the transaction is rolled back before anything below runs." THAT IS FALSE when the

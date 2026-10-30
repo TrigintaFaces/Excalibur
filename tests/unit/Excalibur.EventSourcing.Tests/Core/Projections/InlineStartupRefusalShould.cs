@@ -16,7 +16,7 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 // AN INLINE COMPOSITION THAT CAN NEVER COMPLETE A SAVE IS REFUSED AT STARTUP.
 //
 // An Inline save waits for the ordered processor to reach its committed global position. Two
-// compositions make that impossible: an event store that assigns no global positions, and a missing
+// compositions make that impossible: a missing global-stream reader, and a missing
 // checkpoint store. Both used to surface on the FIRST WRITE -- the worst possible moment, because by
 // then the events are durably committed and the only honest answer is that the read model is behind
 // and will stay behind.
@@ -28,18 +28,19 @@ namespace Excalibur.EventSourcing.Tests.Core.Projections;
 [Trait("Component", "Core")]
 public sealed class InlineStartupRefusalShould
 {
-	// SAFETY: no global stream means no position to wait for, ever.
+	// SAFETY: without a reader, the processor cannot observe the committed position.
 	[Fact]
-	public void RefuseInlineWhenTheEventStoreAssignsNoGlobalPositions()
+	public void RefuseInlineWhenTheGlobalReaderIsNotRegistered()
 	{
 		using var provider = Container(withGlobalStream: false, withCheckpoints: true);
 
 		var error = Should.Throw<InvalidOperationException>(
 			() => provider.GetRequiredService<InlineProjectionPrerequisiteValidator>().Validate());
 
-		error.Message.ShouldContain("no global positions");
-		error.Message.ShouldContain(".Async()", Case.Sensitive,
+		error.Message.ShouldContain("no global-stream reader is registered");
+		error.Message.ShouldContain("IGlobalStreamQuery", Case.Sensitive,
 			"a refusal must name the remedy, not merely the fault");
+		error.Message.ShouldContain("changing projection mode does not repair the registration");
 	}
 
 	// SAFETY: without a cursor, a completed fold cannot survive a restart.

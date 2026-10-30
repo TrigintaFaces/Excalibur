@@ -1,5 +1,7 @@
 ---
 sidebar_position: 3
+title: Migrate from NServiceBus
+description: Move an NServiceBus codebase to Excalibur.Dispatch - handler and saga mapping, outbox, transports, and a staged migration path.
 ---
 
 # Migrating from NServiceBus
@@ -896,9 +898,9 @@ The [benchmark results and evidence scope](../performance/competitor-comparison.
 
 ## Next Steps
 
-1. Review [Event Sourcing](/docs/event-sourcing)
+1. Review [Event Sourcing](../event-sourcing/index.md)
 2. Learn [Outbox Pattern](../patterns/outbox.md)
-3. Implement [Sagas](/docs/sagas)
+3. Implement [Sagas](../sagas/index.md)
 4. Set up [Monitoring](../observability/health-checks.md)
 5. Review [Deployment](../deployment/docker.md)
 

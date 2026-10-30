@@ -173,8 +173,8 @@ public class OrderService
     {
         var action = new GetOrderAction(orderId);
 
-        // TResponse inferred from IDispatchAction<Order> - no type args needed
-        var result = await _dispatcher.DispatchAsync(action, ct);
+        // Name both type arguments to get a typed IMessageResult<Order>, which carries ReturnValue.
+        var result = await _dispatcher.DispatchAsync<GetOrderAction, Order>(action, ct);
 
         if (result.Succeeded)
             return result.ReturnValue;

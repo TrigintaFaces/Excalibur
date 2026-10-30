@@ -51,6 +51,59 @@ public sealed class PostgresSubscriptionCheckpointStoreConformanceShould
     public Task GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference_Test() => GenerationPointer_ConcurrentRetirement_ShouldNeverLeaveDanglingReference();
 
 
+
+    [Fact]
+    public async Task ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows()
+    {
+        // A fresh name is deliberate: re-running CREATE against the old shape is not an upgrade.
+        var legacy = "legacy_" + Guid.NewGuid().ToString("N")[..12];
+        var fresh = "replacement_" + Guid.NewGuid().ToString("N")[..12];
+        await using var connection = _fixture.CreateConnection();
+        await connection.OpenAsync();
+#pragma warning disable CA2100 // Identifiers are generated exclusively by this test; no external SQL input.
+        async Task ExecuteAsync(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            _ = await command.ExecuteNonQueryAsync();
+        }
+        async Task<long> ReadLegacyAsync(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            return Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+#pragma warning restore CA2100
+        await ExecuteAsync($"CREATE TABLE {legacy} (SubscriptionName VARCHAR(255) NOT NULL PRIMARY KEY, Position BIGINT NOT NULL)");
+        await ExecuteAsync($"CREATE TABLE {legacy}definitions (SubscriptionName VARCHAR(255) NOT NULL PRIMARY KEY, DefinitionHash VARCHAR(255) NOT NULL)");
+        await ExecuteAsync($"INSERT INTO {legacy} (SubscriptionName, Position) VALUES ('upgrade', 42)");
+        await ExecuteAsync($"INSERT INTO {legacy}definitions (SubscriptionName, DefinitionHash) VALUES ('upgrade', '{new string('A', 64)}')");
+        foreach (var sql in global::Tests.Shared.Helpers.ShippedSchemaScript.ReadAll(
+            "src/Excalibur/Excalibur.EventSourcing.Postgres/Scripts/004_CreateSubscriptionCheckpointSchema.sql"))
+        {
+            await ExecuteAsync(sql.Replace("subscription_checkpoints", fresh, StringComparison.Ordinal));
+        }
+        var services = new ServiceCollection();
+        _ = services.AddPostgresSubscriptionCheckpointStore(() => new NpgsqlConnection(_fixture.ConnectionString), "public", fresh);
+        await using var provider = services.BuildServiceProvider();
+        var store = provider.GetRequiredService<ISubscriptionCheckpointStore>();
+        var member = (await store.BindSubscriptionAsync("upgrade",
+            [new SubscriptionMember("replacement-v1", new string('B', 64), "fresh-destination")], CancellationToken.None)).Members.Single();
+        member.Position.ShouldBeNull("a legacy cursor must never be copied into an empty destination");
+        var readers = (IProjectionGenerationStore)store;
+        (await readers.TrySetGenerationAsync("upgrade", "reader", null, member.ProjectionKey, member.BindingId, 42, CancellationToken.None)).ShouldBeFalse();
+        _ = await store.AdvanceCheckpointAsync("upgrade", member.ProjectionKey, member.BindingId, null, 42, CancellationToken.None);
+        (await readers.TrySetGenerationAsync("upgrade", "reader", null, member.ProjectionKey, member.BindingId, 42, CancellationToken.None)).ShouldBeTrue();
+        (await readers.ReadGenerationAsync("upgrade", "reader", CancellationToken.None)).ShouldNotBeNull().Member.Destination.ShouldBe("fresh-destination");
+        (await ReadLegacyAsync($"SELECT Position FROM {legacy} WHERE SubscriptionName = 'upgrade'")).ShouldBe(42);
+        (await ReadLegacyAsync($"SELECT COUNT(*) FROM {legacy}definitions WHERE SubscriptionName = 'upgrade' AND DefinitionHash = '{new string('A', 64)}'")).ShouldBe(1);
+        // Rerunning initialization joins the existing binding instead of resetting its cursor.
+        var rebound = (await store.BindSubscriptionAsync("upgrade",
+            [new SubscriptionMember("replacement-v1", new string('B', 64), "fresh-destination")], CancellationToken.None)).Members.Single();
+        rebound.BindingId.ShouldBe(member.BindingId);
+        rebound.Position.ShouldBe(42);
+    }
+
 	private const string CheckpointTable = "subscription_checkpoints";
 
 	private readonly PostgresEventStoreContainerFixture _fixture;

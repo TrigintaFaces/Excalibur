@@ -37,7 +37,7 @@ namespace Excalibur.Integration.Tests.EventSourcing.SqlServer;
 [Trait("Category", "Integration")]
 [Trait("Database", "SqlServer")]
 [Trait("Component", "EventStore")]
-public sealed class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
+public sealed partial class SqlServerTransactionalAppendAtomicityShould : IAsyncLifetime
 {
     private MsSqlContainer? _container;
     private string? _connectionString;

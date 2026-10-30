@@ -8,7 +8,7 @@ description: Choose the right Excalibur packages for your application architectu
 
 :::tip Framework Maturity
 
-**55,000+ automated tests** | **194 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
+**60,000+ automated test methods** | **194 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 10.0**
 :::
 
 :::info Dispatch Stands Alone
@@ -17,6 +17,10 @@ description: Choose the right Excalibur packages for your application architectu
 :::
 
 Excalibur is one framework with focused package families. Install only what your application needs -- every package beyond `Excalibur.Dispatch` is optional.
+
+This page helps you **choose**. For the complete inventory -- all 194 packages by category, the
+metapackages that bundle a whole provider in one line, and the provider coverage matrix -- see the
+**[Package Matrix](reference/package-matrix.md)**.
 
 ## Quick Summary
 
@@ -83,7 +87,7 @@ need onto the packages that supply it.
 
 ### Developer experience
 
-- **Native AOT** — 160 of 195 shipped projects declare AOT compatibility; the remainder are blocked by external SDK dependencies rather than by framework code.
+- **Native AOT** — 148 of the 194 shipped packages declare AOT compatibility; the remainder are blocked by external SDK dependencies rather than by framework code. Per-package status is in the [AOT Compatibility Matrix](advanced/aot-compatibility.md).
 - **Roslyn analyzers** for common mistakes, and **source generators** for AOT-compatible registration, serialization, and saga coordination.
 - **`dotnet new` templates** — `excalibur-dispatch`, `excalibur-eventsourcing`, `excalibur-saga`.
 - **Startup validation everywhere** — `Add*` registrations validate their options at startup, so a misconfiguration surfaces before the first request rather than at first use.

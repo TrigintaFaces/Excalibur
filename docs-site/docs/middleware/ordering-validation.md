@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 10
 title: Ordering Validation
 description: Enforce strictly-increasing per-key message ordering on receive paths that carry a native transport sequence.
 ---

@@ -74,6 +74,20 @@ public sealed class OracleEventStoreContainerFixture : ContainerFixtureBase
 			Schema = (await userCommand.ExecuteScalarAsync().ConfigureAwait(false))?.ToString() ?? "SYSTEM";
 		}
 
+		// Only this disposable test user needs to observe lock waiters. Application registrations
+		// do not require catalog privileges. Use container-local OS authentication, not app credentials.
+		if (Schema.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
+		{
+			throw new InvalidOperationException("Unexpected test schema identifier.");
+		}
+		var monitoring = await _container!.ExecAsync(["bash", "-c",
+			$"sqlplus -s / as sysdba <<'SQL'\nWHENEVER SQLERROR EXIT FAILURE\nALTER SESSION SET CONTAINER = FREEPDB1;\nGRANT SELECT ON SYS.V_$SESSION TO \"{Schema}\";\nEXIT\nSQL"])
+			.ConfigureAwait(false);
+		if (monitoring.ExitCode != 0)
+		{
+			throw new InvalidOperationException("Failed to provision test lock monitoring: " + monitoring.Stdout + monitoring.Stderr);
+		}
+
 		// Provision from the DDL the package SHIPS, not a copy of it. The copy had diverged: it declared
 		// TENANTID nullable and left it out of the stream key, while Scripts/003 declares it NOT NULL DEFAULT
 		// '__untenanted__' and keys on (AGGREGATEID, AGGREGATETYPE, VERSION, TENANTID). Both halves matter, and

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 8
 title: Serialization
 description: Message serialization options for JSON, MemoryPack, and custom formats
 ---
@@ -471,7 +471,7 @@ See the [Performance Best Practices](../performance/messagecontext-best-practice
 
 - [Transports](../transports/index.md) -- Transport-specific serialization
 - [Middleware](index.md) -- Middleware pipeline
-- [Event Sourcing](/docs/event-sourcing/) -- Event store integration
+- [Event Sourcing](../event-sourcing/index.md) -- Event store integration
 
 ## See Also
 

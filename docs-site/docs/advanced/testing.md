@@ -552,7 +552,7 @@ On a project using Microsoft.Testing.Platform, the equivalent bound is `-- --tim
 
 - [Getting Started](../getting-started/) - Quick start guide
 - [Actions and Handlers](../core-concepts/actions-and-handlers.md) - Handler implementation
-- [Event Sourcing](/docs/event-sourcing) - Aggregate patterns
+- [Event Sourcing](../event-sourcing/index.md) - Aggregate patterns
 
 ## See Also
 

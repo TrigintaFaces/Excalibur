@@ -274,9 +274,9 @@ internal sealed class ImmutableProjectionBuilder<TProjection> : IImmutableProjec
 					// applied, and a batch spanning aggregates has no single answer for them.
 					var handlerContext = new ProjectionHandlerContext(
 						id,
-						context.AggregateType,
-						context.CommittedVersion,
-						context.Timestamp,
+						projectionEvent.Envelope?.AggregateType ?? context.AggregateType,
+						projectionEvent.Envelope?.Version ?? context.CommittedVersion,
+						projectionEvent.Envelope?.Timestamp ?? context.Timestamp,
 						context.IsReplay);
 
 					current = await handlerEntry.AsyncHandler(

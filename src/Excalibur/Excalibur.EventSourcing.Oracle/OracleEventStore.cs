@@ -41,7 +41,7 @@ namespace Excalibur.EventSourcing.Oracle;
 /// System.Text.Json fallback for backward compatibility.
 /// </para>
 /// </remarks>
-public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore
+public sealed partial class OracleEventStore : IEventStore, IEventStoreErasure, ITransactionalEventStore, ITransactionalProjectionEventStore
 {
 	private readonly Func<OracleConnection> _connectionFactory;
 	private readonly ILogger<OracleEventStore> _logger;
@@ -351,8 +351,8 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 
 		try
 		{
-			var appendResult = await ExecuteAppendWithOutboxTransactionAsync(
-					aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, cancellationToken)
+			var appendResult = await AppendCommitBoundary.ExecuteAsync(state => ExecuteAppendWithOutboxTransactionAsync(
+					aggregateId, aggregateType, eventList, expectedVersion, stageOutbox, activity, state, cancellationToken))
 				.ConfigureAwait(false);
 
 			if (appendResult.IsConcurrencyConflict)
@@ -383,6 +383,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		long expectedVersion,
 		Func<IDbTransaction, CancellationToken, ValueTask> stageOutbox,
 		System.Diagnostics.Activity? activity,
+        AppendCommitBoundary state,
 		CancellationToken cancellationToken)
 	{
 		// The store owns ONE connection and ONE transaction for the whole unit of work; the append and the
@@ -443,7 +444,9 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 					connection, transaction, aggregateId, aggregateType, eventList, currentVersion, cancellationToken)
 				.ConfigureAwait(false);
 
-			await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+			state.MarkDispatched();
+            await CommitTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+            state.MarkAcknowledged(appended);
 
 			_logger.LogDebug(
 				"Appended {Count} events and staged outbox for {AggregateType}/{AggregateId} at version {Version}",
@@ -461,7 +464,7 @@ public sealed class OracleEventStore : IEventStore, IEventStoreErasure, ITransac
 		// OracleException instead. A non-race failure still rethrows raw (deliberately, unchanged): the
 		// transactional path surfaces the real failure to the caller rather than converting it to
 		// AppendResult.CreateFailure, so the repository sees the original exception.
-		catch (Exception ex) when (ex is OracleException or OperationFailedException)
+		catch (Exception ex) when (!state.Dispatched && ex is OracleException or OperationFailedException)
 		{
 			try
 			{

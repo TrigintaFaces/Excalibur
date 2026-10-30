@@ -858,3 +858,6 @@ Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxResources.get -
 Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxResources.set -> void
 Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentOperations.get -> int
 Excalibur.EventSourcing.Projections.ProjectionCapacityOptions.MaxConcurrentOperations.set -> void
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.TransactionalProjections.get -> Excalibur.EventSourcing.ITransactionalProjectionCoordinator?
+Excalibur.EventSourcing.Implementation.EventSourcedRepository<TAggregate, TKey>.TransactionalProjections.init -> void
+Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection>.TransactionalInline(string! aggregateType) -> Excalibur.EventSourcing.Projections.IProjectionBuilder<TProjection!>!

@@ -1,3 +1,8 @@
+---
+title: "EXCMP004 — Erasable data, surviving purpose"
+description: "A property is both personal data and encrypted under an explicit purpose, demanding a key that must die on erasure and survive it; keep only one."
+---
+
 # EXCMP004: Erasable personal data encrypted under a surviving purpose
 
 | Property | Value |

@@ -1,3 +1,8 @@
+---
+title: EXMIG0003 — MediatR using directive is swappable
+description: "A using MediatR; directive can be swapped for Excalibur.Dispatch.Compat.MediatR, which provides the same interface shapes."
+---
+
 # EXMIG0003: `using MediatR;` directive is swappable
 
 | Property | Value |

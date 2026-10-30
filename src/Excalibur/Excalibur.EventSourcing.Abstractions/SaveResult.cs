@@ -35,18 +35,17 @@ namespace Excalibur.EventSourcing;
 /// two saves interleave.
 /// </para>
 /// <para>
-/// <b>Projections are not WRITTEN by the save.</b> A read model is a replica, and replicas are updated by
-/// replication rather than by the writer dual-writing into them — the same reason Cosmos, readable SQL
-/// secondaries and search indexers all converge on this shape. The save never folds a projection itself.
+/// <c>Async</c> projections are applied by the ordered processor after the append commits.
+/// <c>Inline</c> drives that same processor and waits within a bound after commit. Its
+/// <see cref="ProjectionFreshness.Attested"/> result records an observation at save time; callers
+/// requiring read-your-writes still pass the token to a session reader for revalidation.
+/// A bounded wait expiring does not roll back the events or authorize repeating the command.
 /// </para>
 /// <para>
-/// <b>It may, however, WAIT for one, and <see cref="Projections"/> reports whether that wait succeeded.</b>
-/// A projection registered <c>Async</c> is replicated behind the save and a caller needing
-/// read-your-writes passes <see cref="SessionToken"/> to the read, paying for consistency only where it
-/// asks for it. A projection registered <c>Inline</c> inverts that: the save drives the same ordered
-/// processor and waits for it, so read-your-writes needs no token at the read — but the wait is bounded,
-/// and when the bound expires the events are still committed while the read model is behind. That is what
-/// <see cref="Projections"/> says, and it is why the save reports it instead of throwing.
+/// <c>TransactionalInline</c> projections are written in the event append's database transaction.
+/// A successful coordinated append commits both together. This aggregate-local guarantee does not
+/// produce a global-prefix attestation: <see cref="Projections"/> and <see cref="Attestation"/>
+/// continue to describe only the separate <c>Inline</c> processor, if configured.
 /// </para>
 /// <para>
 /// <b><see langword="null"/> is a real answer, not a missing one.</b> It means no global ordering exists

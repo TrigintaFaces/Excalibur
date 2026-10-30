@@ -1,12 +1,14 @@
 ---
-sidebar_position: 2
+sidebar_position: 1
 title: Package Matrix
 description: Complete reference of all Excalibur.Dispatch and Excalibur packages organized by category.
 ---
 
 # Package Matrix
 
-All shipping packages organized by category. Use [Pick Your Stack](/docs/pick-your-stack) to find the right combination for your scenario.
+Every one of the 194 shipping packages, organized by category. Use [Pick Your Stack](../pick-your-stack.md)
+to find the right combination for your scenario, or the [Package Guide](../package-guide.md) if you want
+the decision walked through.
 
 ## Metapackages
 
@@ -173,6 +175,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.Data.DynamoDb` | AWS DynamoDB data access |
 | `Excalibur.Data.MongoDB` | MongoDB data access |
 | `Excalibur.Data.ElasticSearch` | Elasticsearch data access |
+| `Excalibur.Data.ElasticSearch.Azure` | Azure Key Vault storage for Elasticsearch connection credentials — add only if you back those secrets with Key Vault |
 | `Excalibur.Data.Redis` | Redis data access |
 | `Excalibur.Data.Spanner` | Google Cloud Spanner data access — `AddSpannerDataProvider()` |
 | `Excalibur.Data.Firestore` | Google Firestore data access |
@@ -300,6 +303,7 @@ One-line setup for common scenarios. Each bundles multiple feature packages.
 | `Excalibur.A3.Governance.Abstractions` | Governance interfaces |
 | `Excalibur.A3.Policy.Opa` | Open Policy Agent (OPA) HTTP adapter |
 | `Excalibur.A3.Policy.Cedar` | Cedar policy engine HTTP adapter |
+| `Excalibur.A3.AspNetCore` | ASP.NET Core integration: bridges the authenticated request principal into grant evaluation and adds per-request resource scope for controller and minimal-API endpoints |
 
 ## Security & Caching (Excalibur)
 

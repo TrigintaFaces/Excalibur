@@ -18,6 +18,27 @@ public sealed class PostgresProjectionRegistrarShould : UnitTestBase
 {
 	private const string SharedConnectionString = "Host=localhost;Database=TestDb;";
 
+    [Fact]
+    public void KeepPerModelOptionsIndependentInTheSameProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddPostgresProjections(SharedConnectionString, projections =>
+        {
+            projections.Add<ProjectionA>(options => options.TableName = "first_model");
+            projections.Add<ProjectionB>(options => options.TableName = "second_model");
+        });
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        var first = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionA>>();
+        var second = scope.ServiceProvider.GetRequiredService<IProjectionStore<ProjectionB>>();
+        var firstIdentity = (IProjectionDestinationIdentity)first.GetService(typeof(IProjectionDestinationIdentity))!;
+        var secondIdentity = (IProjectionDestinationIdentity)second.GetService(typeof(IProjectionDestinationIdentity))!;
+        firstIdentity.Identity.ShouldContain("first_model");
+        secondIdentity.Identity.ShouldContain("second_model");
+        firstIdentity.Identity.ShouldNotBe(secondIdentity.Identity);
+    }
+
 	#region String-based overload
 
 	[Fact]
@@ -45,8 +66,8 @@ public sealed class PostgresProjectionRegistrarShould : UnitTestBase
 		services.AddPostgresProjections(SharedConnectionString, p => p.Add<ProjectionA>());
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<PostgresProjectionStoreOptions>>();
-		options.Value.ConnectionString.ShouldBe(SharedConnectionString);
+		var options = provider.GetRequiredService<IOptionsMonitor<PostgresProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.ConnectionString.ShouldBe(SharedConnectionString);
 	}
 
 	[Fact]
@@ -59,8 +80,8 @@ public sealed class PostgresProjectionRegistrarShould : UnitTestBase
 			p.Add<ProjectionA>(opts => opts.TableName = "custom_table"));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<PostgresProjectionStoreOptions>>();
-		options.Value.TableName.ShouldBe("custom_table");
+		var options = provider.GetRequiredService<IOptionsMonitor<PostgresProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.TableName.ShouldBe("custom_table");
 	}
 
 	#endregion
@@ -93,8 +114,8 @@ public sealed class PostgresProjectionRegistrarShould : UnitTestBase
 			p => p.Add<ProjectionA>(opts => opts.TableName = "override"));
 
 		using var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<PostgresProjectionStoreOptions>>();
-		options.Value.TableName.ShouldBe("override");
+		var options = provider.GetRequiredService<IOptionsMonitor<PostgresProjectionStoreOptions>>().Get(typeof(ProjectionA).AssemblyQualifiedName!);
+		options.TableName.ShouldBe("override");
 	}
 
 	[Fact]

@@ -1,5 +1,7 @@
 -- One row per member lifetime. Binding creates a NULL position; advances only update the matching lifetime.
--- Greenfield provisioning: existing databases must use this schema. No legacy data migration.
+-- ddl-migration: replacement-and-replay subscription_checkpoints docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Postgres/PostgresSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Preserve legacy state, provision a new lifetime schema and replay fresh destinations; this CREATE does not upgrade an old table.
+-- ddl-migration: retained-legacy subscription_checkpoints_definitions docs=docs-site/docs/migration/checkpoint-schema-upgrade.md test=tests/integration/Excalibur.Integration.Tests/EventSourcing/Postgres/PostgresSubscriptionCheckpointStoreConformanceShould.cs#ReplaceLegacyCheckpointTablesWithoutChangingLegacyRows - Retain old definitions unchanged for audit and rollback planning; the current store no longer reads this table.
+-- Provisioning only: preserve legacy tables and follow the linked upgrade procedure before using this schema.
 CREATE TABLE IF NOT EXISTS public.subscription_checkpoints (
     subscription_name VARCHAR(255) COLLATE "C" NOT NULL,
     projection_key VARCHAR(512) COLLATE "C" NOT NULL,

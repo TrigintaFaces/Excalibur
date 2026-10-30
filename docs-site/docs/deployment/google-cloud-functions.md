@@ -1,4 +1,8 @@
-﻿# Google Cloud Functions Deployment
+---
+title: Google Cloud Functions Deployment
+description: Run Excalibur on Google Cloud Functions with HTTP and Pub/Sub triggers, Cloud Scheduler outbox runs, Firestore event sourcing and Secret Manager.
+---
+# Google Cloud Functions Deployment
 
 **Framework:** Excalibur.Dispatch
 **Deployment Target:** Google Cloud Functions (Serverless)

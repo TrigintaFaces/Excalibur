@@ -1,5 +1,5 @@
 ---
-sidebar_position: 1
+sidebar_position: 3
 title: LLM Quick Reference
 description: Compact reference for LLM coding agents helping developers use Excalibur.Dispatch
 ---

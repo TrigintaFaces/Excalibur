@@ -22,5 +22,9 @@ yarn-error.log*
 # Generated at deploy time so the published site can be verified; never committed.
 static/build-stamp.txt
 
+# DocFX API reference, generated into the site at build time and served at /api/.
+# 4,600+ files regenerated from src/ on every build; never committed.
+static/api/
+
 # Isolated output from scripts/build-verify.sh; never committed.
 /build-verify-*

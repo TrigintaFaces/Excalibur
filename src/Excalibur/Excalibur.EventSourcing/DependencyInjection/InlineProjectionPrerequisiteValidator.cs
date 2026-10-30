@@ -17,17 +17,15 @@ namespace Excalibur.EventSourcing.DependencyInjection;
 /// <para>
 /// An Inline save waits for the ordered processor to reach its committed global position. Two
 /// compositions make that impossible, and both used to surface on the FIRST WRITE instead: an event
-/// store that assigns no global positions, and a missing checkpoint store. Discovering either at the
+/// store registration without a global-stream reader, and a missing checkpoint store. Discovering either at the
 /// first write is the worst time to discover it, because by then the events are durably committed and
 /// the only honest answer is that the read model is behind and will stay behind.
 /// </para>
 /// <para>
-/// <b>Why <see cref="IGlobalStreamQuery"/> is the marker for "this store reports global positions".</b>
-/// It is registered by the event-store provider's own wiring seam -- the same seam that assigns
-/// positions -- so it cannot be present for a store that has no position counter, nor absent for one
-/// that does. That is the structural requirement for a capability marker: emitted by the wiring it
-/// attests, never separately registerable. A provider without a global position counter simply never
-/// registers it.
+/// <see cref="IGlobalStreamQuery"/> supplies the ordered processor's reader. Its absence means the
+/// processor cannot observe committed events, even if the store assigns global positions. Provider
+/// registration must pair the reader with the event store; this check verifies that the reader is
+/// available, not that every append result satisfies the provider's position contract.
 /// </para>
 /// <para>
 /// This runs as BOTH a hosted service and a startup prerequisite validator. The second registration is
@@ -64,12 +62,12 @@ internal sealed class InlineProjectionPrerequisiteValidator : IHostedService, IS
 		if (!isService.IsService(typeof(IGlobalStreamQuery)))
 		{
 			throw new InvalidOperationException(
-				"Inline projections are registered, but the event store assigns no global positions. An Inline "
+				"Inline projections are registered, but no global-stream reader is registered. Use a complete event-store provider registration that supplies IGlobalStreamQuery. An Inline "
 				+ "save waits for the ordered processor to reach its committed position, so without one every "
 				+ "save would commit its events and then report its read model behind -- permanently, because "
-				+ "there is no position to wait for. Register an event-store provider that supplies a global "
-				+ "stream (for example AddExcaliburEventSourcing(b => b.UseSqlServer(...))), or register those "
-				+ "projections with .Async() and use the session token on the read instead of waiting at the save.");
+				+ "the host cannot observe the committed position. Register an event-store provider that supplies "
+				+ "a global stream (for example AddExcaliburEventSourcing(b => b.UseSqlServer(...))). "
+				+ "Async processing also requires this reader; changing projection mode does not repair the registration.");
 		}
 
 		// Mirrors the decision the coordinator makes when it builds its host, so the same refusal happens

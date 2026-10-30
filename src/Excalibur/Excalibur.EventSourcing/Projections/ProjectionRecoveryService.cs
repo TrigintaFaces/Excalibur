@@ -77,8 +77,10 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
-        var store = ProjectionStoreOperations<TProjection>.Legacy(_serviceProvider.GetRequiredService<IProjectionStore<TProjection>>()).WithCapacity(_serviceProvider);
-        await ReapplyCoreAsync(aggregateId, aggregateType, store, _serviceProvider, cancellationToken).ConfigureAwait(false);
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = ProjectionStoreOperations<TProjection>.Legacy(services.GetRequiredService<IProjectionStore<TProjection>>()).WithCapacity(services);
+        await ReapplyCoreAsync(aggregateId, aggregateType, store, services, cancellationToken).ConfigureAwait(false);
     }
 
     internal Task ReapplyGeneratedAsync<TProjection>(string aggregateId, string aggregateType,

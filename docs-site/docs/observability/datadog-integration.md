@@ -1,5 +1,7 @@
 ---
 sidebar_position: 3
+title: Datadog Integration
+description: Monitor an Excalibur application with Datadog APM, including the .NET tracer, custom spans, DogStatsD metrics and log correlation.
 ---
 
 # Datadog Integration

@@ -160,8 +160,8 @@ public class OrderController : ControllerBase
     {
         var action = new GetOrderAction(orderId);
 
-        // TResponse (Order) is inferred from IDispatchAction<Order>
-        var result = await _dispatcher.DispatchAsync(action, cancellationToken);
+        // Name both type arguments to get a typed IMessageResult<Order>, which carries ReturnValue.
+        var result = await _dispatcher.DispatchAsync<GetOrderAction, Order>(action, cancellationToken);
 
         if (result.Succeeded)
             return Ok(result.ReturnValue);
@@ -218,7 +218,7 @@ This is the differentiator over the hand-rolled `MapPost` + `DispatchAsync` + ma
 
 :::tip You Have a Working App — Stop Here Unless You Need More
 
-The example above is a complete, production-ready Dispatch application. **You don't need anything else to start building.**
+The example above is a complete Dispatch application. **You don't need anything else to start building.**
 
 | If you need... | Next step |
 |----------------|-----------|
@@ -363,7 +363,7 @@ builder.Services.Configure<OutboxProcessingOptions>(
     builder.Configuration.GetSection("Excalibur:Outbox"));
 ```
 
-See the **[Package Guide](/docs/package-guide)** for the complete package selection framework with migration paths and code examples.
+See the **[Package Guide](../package-guide.md)** for the complete package selection framework with migration paths and code examples.
 
 ## Step 5: Add a Transport (Optional)
 

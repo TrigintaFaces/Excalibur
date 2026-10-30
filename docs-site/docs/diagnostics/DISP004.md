@@ -1,3 +1,8 @@
+---
+title: DISP004 — Optimization hint
+description: "The analyzer found a cheap performance win: seal the handler, return ValueTask, use a readonly struct, or register the handler as a singleton."
+---
+
 # DISP004: Optimization Hint
 
 | Property | Value |

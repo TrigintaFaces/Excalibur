@@ -1,5 +1,7 @@
 ---
 sidebar_position: 4
+title: Azure Monitor
+description: Monitor an Excalibur application with Application Insights and Log Analytics, including custom telemetry, Kusto queries and alert rules.
 ---
 
 # Azure Monitor

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 9
 title: Serialization Providers
 description: Dedicated setup guides for MemoryPack, MessagePack, Protobuf, and Avro serialization providers.
 ---

@@ -1,3 +1,7 @@
+---
+title: Compliance Quick Start Guide
+description: Install and configure Excalibur access control, encryption, audit logging and erasure in five steps, then verify them with conformance tests.
+---
 # Compliance Quick Start Guide
 
 :::warning Not legal advice
