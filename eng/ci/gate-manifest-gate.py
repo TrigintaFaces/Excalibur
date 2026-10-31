@@ -53,9 +53,9 @@ RUNS_IN = {"pre-commit", "ci", "pre-commit+ci", "nowhere", "local-only"}
 EXCLUDE_SUFFIX = re.compile(r"\.(test|harness-lock|fixture)\.(sh|py)$")
 # PUBLISHED PATHS ONLY, and this is a correctness bound rather than a preference.
 #
-# CI runs against the mirrored copy of this repository, which carries eng/** and .github/** and
+# CI runs against the published tree, which carries eng/** and .github/** and
 # does NOT carry the unpublished tooling tree. Scanning a path that cannot exist there made every unpublished row a
-# DEAD ROW on the mirror and nowhere else: the gate passed locally, failed in CI, and the diff
+# DEAD ROW in CI and nowhere else: the gate passed locally, failed in CI, and the diff
 # between the two was the environment rather than the tree. A gate whose verdict depends on where
 # it runs is not reporting a property of the tree at all.
 #
@@ -184,7 +184,7 @@ def check(manifest_path=MANIFEST, floor_path=UNREVIEWED_FLOOR, repo=None, quiet=
         print("EXAMINED: {} published manifest entr(ies) against {} script(s) on disk".format(
             len(entries), len(on_disk)))
         if unpublished:
-            print("EXCLUDED: {} unpublished entr(ies) (unpublished -- not carried by the mirrored "
+            print("EXCLUDED: {} unpublished entr(ies) (unpublished -- not carried by the published "
                   "copy CI runs against, so CI cannot see their subjects by design). They keep "
                   "their own locks locally.".format(len(unpublished)))
         if orphans:
@@ -220,7 +220,7 @@ def check(manifest_path=MANIFEST, floor_path=UNREVIEWED_FLOOR, repo=None, quiet=
                   "unreviewed population may shrink and may never grow. Review an entry and lower "
                   "the floor -- do NOT stamp a kind you did not derive.".format(
                       len(unreviewed), floor), file=sys.stderr)
-        # ASCII separators on purpose: this line lands in CI logs and in a mirrored repository,
+        # ASCII separators on purpose: this line lands in CI logs and in a world-visible file,
         # and a non-ASCII bullet renders as mojibake in several consoles.
         print("gate-manifest: {} entr(ies) | {} orphan | {} untracked | {} dead row(s) | "
               "{} bad kind | {} bad runs_in | unreviewed {}/{}".format(

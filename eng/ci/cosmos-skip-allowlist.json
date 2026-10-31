@@ -19,8 +19,9 @@
     "    effect.",
     "",
     "The gate prints this file in full on every run, with days remaining. Suppressions become invisible",
-    "REFERENCE DIRECTION. This file is mirrored and world-visible, so it carries NO internal tracker id. The tracking issue names this entry by its 'id'; this entry never names the issue. Internal artifacts may point at public ones, never the reverse -- a public file that cites an internal work item leaks it and means nothing to the consumer reading it.",
-    "by going unread; this is the one moment someone is looking."
+    "by going unread; this is the one moment someone is looking.",
+    "",
+    "REFERENCE DIRECTION. This file is world-visible, so it carries NO internal tracker id. The tracking issue names this entry by its 'id'; this entry never names the issue. Internal artifacts may point at public ones, never the reverse -- a public file that cites an internal work item leaks it and means nothing to the consumer reading it."
   ],
   "entries": [
     {
@@ -29,9 +30,9 @@
       "match": "class",
       "count": 11,
       "reason": "Eleven external-vault facts call SkipIfVaultUnavailable(), which skips when AZURE_KEYVAULT_URI is unset. Four argument-validation facts in the same class execute without a vault and are not covered by this budget. The external tests need a real Key Vault resource and credentials in the CI environment.",
-      "evidence": "Measured 2026-10-23 in a Release Dispatch integration run: 2061 passed, 11 skipped, 0 failed; all 11 skipped names belong to this class and report the unset vault URI. Independent adapter discovery and per-name TRX accounting agree on 2072 total tests. Source inspection confirms 15 facts, with only 11 invoking the availability guard. Reduced the former budget of 15 to 11 without extending its expiry. Passing the four argument-validation facts does not establish that the external-vault facts pass against Azure; that coverage remains unverified and requires a configured test vault.",
+      "evidence": "RENEWED 2026-10-31 on a NEW measurement, after the 2026-10-30 expiry REFUSED all six integration legs. Run: the class alone, Release, --no-build, AZURE_KEYVAULT_URI deliberately unset to reproduce the CI condition. Result: 15 total, 4 passed, 11 skipped, 0 failed. All 11 skipped names were enumerated individually and every one belongs to this class and reports 'AZURE_KEYVAULT_URI environment variable not set'; the 4 that passed are the argument-validation facts. Source re-derivation the same day independently agrees: 15 [Fact] members, 11 of which invoke the availability guard, 4 of which do not. PRIOR EVIDENCE, kept because it is still the stronger whole-shard figure: measured 2026-10-23 in a Release Dispatch integration run, 2061 passed, 11 skipped, 0 failed, with adapter discovery and per-name TRX accounting agreeing on 2072 total. Passing the four argument-validation facts does not establish that the external-vault facts pass against Azure; that coverage remains UNVERIFIED and requires a configured test vault. THE REMEDY IS TO DELETE THIS ENTRY, NOT TO RENEW IT AGAIN. These eleven are skipped because they are written to require a live vault, and no Key Vault emulator exists; a dated budget can only postpone that. The first-party answer is two-tier and neither tier is a skip: replay a recorded, sanitised HTTP session on every build so the provider's request/response contract is covered deterministically with no credentials, and run the genuinely live suite on a separate schedule against provisioned resources. The replay tier is buildable here without recording infrastructure, because the client accepts a transport and a stubbed one returns canned responses. Whoever reads this next should convert the eleven to the replay tier and remove this entry; the live tier needs a funded vault and credentials, which is an owner's decision, not a test-authoring one.",
       "owner": "SystemDeveloper",
-      "expires": "2026-10-30"
+      "expires": "2026-11-30"
     },
     {
       "test": "Excalibur.Integration.Tests.DataElasticSearch.DataAccess.ElasticSearch.Monitoring.MonitoredResilientElasticsearchClientShould",

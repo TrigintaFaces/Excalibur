@@ -109,7 +109,7 @@ jobs:
             filter: eng/ci/shards/IntegrationTests-Dispatch.slnf
           - name: excalibur
             filter: eng/ci/shards/IntegrationTests-Excalibur.slnf
-    # 120, not 60, and the 60 is why this job failed eight nights running. Measured on the mirror
+    # 120, not 60, and the 60 is why this job failed eight nights running. Measured in CI
     # 2026-09-28: every step passed -- the Cosmos pre-check, the run, the emulator-reached gate, the
     # results check -- with 3,913 tests across four assemblies and ZERO failures, and the job was then
     # killed by "exceeded the maximum execution time of 1h0m0s" while saving the NuGet cache. About 54

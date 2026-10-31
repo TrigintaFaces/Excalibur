@@ -4,7 +4,7 @@
 # Both have the `bd-` prefix and three-to-six trailing characters; only one is a leak.
 # (No example id is written here on purpose -- an example would match the very pattern this
 # file exists to document, and the gate would flag its own allowlist.) Membership against the tracker distinguishes them perfectly -- and
-# is unavailable wherever the tracker is not present, which includes the public mirror where
+# is unavailable wherever the tracker is not present, which includes CI where
 # this gate actually runs. A gate whose strictness depends on a file that is absent in the
 # environment it guards is two different gates, and the stricter one fires on false positives.
 #

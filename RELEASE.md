@@ -450,7 +450,7 @@ downgrading it to unsigned.
 
 | Secret | Purpose | Is it a credential? |
 |--------|---------|---------------------|
-| `NUGET_USER` | The nuget.org **profile name** for the Trusted Publishing OIDC exchange | **No.** Held as a secret only to keep the account name out of a mirrored file |
+| `NUGET_USER` | The nuget.org **profile name** for the Trusted Publishing OIDC exchange | **No.** Held as a secret only to keep the account name out of a world-visible file |
 | `GITHUB_TOKEN` | Auto-provided, used for releases | Yes, scoped by GitHub to the run |
 
 **No NuGet publishing key is stored.** See [Publishing credential](#publishing-credential-trusted-publishing-not-a-stored-key).

@@ -110,7 +110,7 @@ updates:
   # .github/actions/** are a separate scan target and need an entry naming each directory, or they
   # are silently left behind: the workflow files move to the new pin, the composite actions they CALL
   # stay on the old one, and the repository ends up running two versions of the same action with no
-  # error anywhere. Measured 2026-10-26 on the public mirror: a Dependabot bump of
+  # error anywhere. Measured 2026-10-26 in CI: a Dependabot bump of
   # actions/upload-artifact touched 17 workflow files and zero of the 5 call sites inside
   # .github/actions, so merging it would have been a partial upgrade that looked complete.
   #

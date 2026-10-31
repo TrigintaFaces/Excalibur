@@ -36,8 +36,8 @@
 # — the ops-script surface where cadence/cap prose actually lives (the real ghost was a hook
 # cap comment; `eng/` shell scripts carry no cadence idiom, so an `eng/`-only scope would be VACUOUS —
 # proven by ARM8). Widened scopes read unpublished paths, so those arms stay local (they are not on the
-# public mirror): its CALLER is the local pre-commit / local harness, NOT a mirror workflow. The
-# History-dependent self-test arms self-skip where that history is absent (a shallow/mirror clone), so
+# world-visible): its CALLER is the local pre-commit / local harness, NOT a workflow. The
+# History-dependent self-test arms self-skip where that history is absent (a shallow clone), so
 # the lock stays green anywhere; the synthetic arms carry the class there. EXCLUDED from default scope:
 # C#/markdown (a comment number in prose docs is far likelier a legitimate cross-reference than a stale
 # constant). Widen or narrow via ORPHCONST_ROOTS.
@@ -184,7 +184,7 @@ sweep() {
 }
 
 # ── self-test: NON-VACUOUS. Proven against the REAL historical ghost via git-history blobs, plus ─────
-# hermetic synthetic arms. All mirror-safe (blobs read via git, not a live path).
+# hermetic synthetic arms. All portable (blobs read via git, not a live path).
 self_test() {
     local tmp bad=0
     tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
@@ -201,7 +201,7 @@ self_test() {
             echo "self-test ARM1 FAIL: the real historical ghost (7200 in comment, 86400 in code) was NOT detected." >&2; bad=1
         fi
     else
-        echo "  --  ARM1 real-ghost  SKIPPED (history blob unreachable — shallow/mirror); synthetic arms cover the class"
+        echo "  --  ARM1 real-ghost  SKIPPED (history blob unreachable — shallow clone); synthetic arms cover the class"
     fi
 
     # ARM 2 (LIVENESS, the REPAIR + the prose-noise proof): current poll-opcom.sh — the cap comment now
@@ -233,7 +233,7 @@ self_test() {
 
     # ARM 5 (EXCLUSIONS): a prose number NOT in a computation context, a year even inside `*`, a
     # sub-3-digit cadence, and a version — all SILENT even though none appears in the code. (Tokens are
-    # deliberately generic, not real work-item ids, so this fixture stays mirror-clean.)
+    # deliberately generic, not real work-item ids, so this fixture stays public-surface clean.)
     cat > "$tmp/x.sh" <<'EOF'
 # Observed ~570 live workers; +125 lines changed; a batch of 882 items; version 1.1.0; an 8-bit field.
 # A window of 2026 * 1 (a year in an expression) and a 10*30s tick cadence.
@@ -271,7 +271,7 @@ EOF
 
     # ARM 8 (PRODUCTION-PATH non-vacuity): with no env override the gate must enumerate the REAL default
     # scope and evaluate computed cadence-numbers — else the seam is a fixture-only no-op against reality.
-    # A configured prod subject may live outside the published tree; where it is absent (shallow/mirror
+    # A configured prod subject may live outside the published tree; where it is absent (shallow clone
     # clone), this arm self-skips (the synthetic arms carry the class), mirroring ARM1/ARM2.
     if [ -n "${ORPHCONST_PROD_SUBJECT:-}" ] && [ -f "$ORPHCONST_PROD_SUBJECT" ]; then
         local prod

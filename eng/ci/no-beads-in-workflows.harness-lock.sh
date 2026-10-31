@@ -31,10 +31,10 @@ PRE_UNWIND_REF="${PRE_UNWIND_REF:-a1d6041d8}"
 # basenames, or a bd-xxxxxx bead id. `\bbd ` matches the CLI as a word (not "embed"/"forbid ").  # pragma: allowlist internal-ref
 BEADS_RE='(\bbd |\.beads/|bd-status-tokens|bd-export-comments|premise-triage|p0-(denominator|classify)|gate-wiring|bd-[a-z0-9]{6})'
 
-# Mirror-exclusion tokens: the public mirror checkout EXCLUDES these private dirs, so ANY reference
-# to one in a shipped workflow file-not-founds downstream — even a non-beads one. Widening the guard
-# from "beads-scoped" to "mirror-exclusion-scoped" makes a future excluded-dir ref inexpressible at
-# commit, not just a beads one. (PM 28694 item 4.)
+# Unpublished-path tokens: these private dirs are NOT part of the published tree, so ANY reference
+# to one in a shipped workflow file-not-founds downstream — even a non-tracker one. Widening the
+# guard from tracker-scoped to unpublished-path-scoped makes a future unpublished-dir ref
+# inexpressible at commit, not just a tracker one.
 # Any dot-directory reference. .github is the one dot-directory that IS published, so it is
 # filtered separately rather than with a lookahead: this is matched by grep -E (POSIX ERE),
 # which has no lookahead, and the arms below caught that the moment it was tried.
@@ -59,12 +59,12 @@ else
     printf '%s\n' "$hits" | sed 's/^/         /' >&2
 fi
 
-# --- SAFETY 2: zero private-excluded-dir references (mirror-exclusion scope) --
+# --- SAFETY 2: zero private-excluded-dir references (unpublished-path scope) --
 excl_hits="$(excl_scan "$WF_DIR")"
 if [ -z "$excl_hits" ]; then
-    ok "SAFETY (mirror): no unpublished dot-directory reference in any .github/workflows/ file"
+    ok "SAFETY (unpublished): no unpublished dot-directory reference in any .github/workflows/ file"
 else
-    bad "SAFETY (mirror): a workflow references a mirror-EXCLUDED private dir (file-not-found downstream):"
+    bad "SAFETY (unpublished): a workflow references an UNPUBLISHED private dir (file-not-found downstream):"
     printf '%s\n' "$excl_hits" | sed 's/^/         /' >&2
 fi
 
@@ -91,7 +91,7 @@ fi
 # This arm carries the non-vacuity proof and is repository-independent BY CONSTRUCTION.
 #
 # It replaces a git-history anchor as the PRIMARY proof. That anchor names a commit in the private
-# development repository; the public mirror is a file-copy with entirely separate history, so the SHA
+# development tree, whose history is not the published one, so the SHA
 # does not exist there and cannot be fetched at any depth. The arm therefore could never pass where CI
 # runs it, and it reported FAIL for that -- asserting the code was wrong when the truth was that the
 # evidence was unreachable. A planted fixture proves the same property in either repository.
@@ -107,9 +107,9 @@ else
     bad "NON-VACUITY (beads, hermetic): a planted 'bd' token was NOT caught -> the safety grep is vacuous"
 fi
 if excl_scan "$planted" | grep -q .; then
-    ok "NON-VACUITY (mirror, hermetic): a planted excluded-dir token is caught -> the mirror grep bites"
+    ok "NON-VACUITY (unpublished, hermetic): a planted excluded-dir token is caught -> the grep bites"
 else
-    bad "NON-VACUITY (mirror, hermetic): a planted excluded-dir token was NOT caught -> the mirror grep is vacuous"
+    bad "NON-VACUITY (unpublished, hermetic): a planted excluded-dir token was NOT caught -> the grep is vacuous"
 fi
 rm -f "$planted"
 
@@ -129,9 +129,9 @@ else
         bad "NON-VACUITY (beads): the pre-unwind ci.yml had NO beads refs -> the safety grep is vacuous (wrong anchor?)"
     fi
     if excl_scan "$pre_unwind_file" | grep -q .; then
-        ok "NON-VACUITY (mirror): the pre-unwind ci.yml ($PRE_UNWIND_REF) DID reference an excluded dir -> the grep bites"
+        ok "NON-VACUITY (unpublished): the pre-unwind ci.yml ($PRE_UNWIND_REF) DID reference an excluded dir -> the grep bites"
     else
-        bad "NON-VACUITY (mirror): the pre-unwind ci.yml had NO excluded-dir refs -> the mirror grep is vacuous (wrong anchor?)"
+        bad "NON-VACUITY (unpublished): the pre-unwind ci.yml had NO excluded-dir refs -> the grep is vacuous (wrong anchor?)"
     fi
 fi
 rm -f "$pre_unwind_file"

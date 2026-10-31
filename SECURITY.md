@@ -103,7 +103,7 @@ the run fails and **nothing is published** -- the failure is safe by constructio
 release was created as a draft first.
 
 The one secret involved, the nuget.org profile name, is held as a secret only to keep the account name
-out of a mirrored file. **It is not a credential.**
+out of a world-visible file. **It is not a credential.**
 
 **What this means for you:** the usual supply-chain worry -- a leaked API key used to push a malicious
 version from somewhere else -- is not available against this project. An attacker would have to

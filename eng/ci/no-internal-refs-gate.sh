@@ -45,7 +45,7 @@ set -uo pipefail
 #   ADR-999 / ADR999     architecture-decision-record ref (needs a digit). CASE-INSENSITIVE, and the
 #                        uppercase-only form is why: an ADR is cited in prose as `ADR-999` but on disk the
 #                        file is `management/architecture/adr-999-some-title.md`, so every LINK to one --
-#                        in a sample README, in a mirrored eng/ script's "See:" line -- spelled it
+#                        in a sample README, in an eng/ script's "See:" line -- spelled it
 #                        lowercase and matched nothing. Five such links sat on the public surface while
 #                        this arm reported clean. Same evasion the sprint arm already documents for a
 #                        lowercase `s890`, and measured the same way: widening to case-insensitive
@@ -69,7 +69,7 @@ set -uo pipefail
 #                        The trailing `[a-z]?` covers sub-part ids (`R27.20a`), which were in use.
 #   Phase 8.3 / 9.1h-2   INTERNAL PLAN-PHASE id -- a numbered stage of a delivery plan the consumer has
 #                        no access to. Same audience failure as a requirement id: `Architecture Boundary
-#                        Validation (Phase 8.3)` printed by a mirrored script tells a reader nothing.
+#                        Validation (Phase 8.3)` printed by a published script tells a reader nothing.
 #                        THE DOT IS REQUIRED, and here it is doing MORE work than anywhere else in this
 #                        pattern set, because the bare form is genuinely common English in our own docs.
 #                        Measured on the public surface: the DOTTED form had 5 hits, every one an
@@ -95,7 +95,7 @@ set -uo pipefail
 #   FR-4a / NFR-3 / EC-P1 / AC-6 / AC4
 #   AD-326-1 / AD-520.1  decision-record ref. A SEPARATE PREFIX FROM `ADR-`, and that is the whole
 #                        reason it went unseen: `ADR-?[0-9]` cannot match `AD-326`, so nine of these
-#                        sat in mirrored build scripts while this gate reported the public surface
+#                        sat in published build scripts while this gate reported the public surface
 #                        clean. Sub-parts join with either a dot or a hyphen, so both are accepted.
 #                        THE HYPHEN IS REQUIRED, on the same reasoning as `EC-`: without it the arm
 #                        would match any word ending in those two letters followed by a digit.
@@ -273,7 +273,7 @@ nir_is_exempt() {
         #
         # Keying it on the filename exempted the whole file: every comment, every assertion
         # message, every note a maintainer left. Those are ordinary prose and they ship to a
-        # public mirror. Measured across the 40 files it covered: 27 token-bearing lines, of
+        # published tree. Measured across the 40 files it covered: 27 token-bearing lines, of
         # which only 7 were planted fixture data.
         */no-internal-refs-gate.sh|no-internal-refs-gate.sh) return 0 ;;
 
@@ -383,7 +383,7 @@ nir_keep_line() {
     # A LINE may declare itself a planted fixture. This replaces a WHOLE-FILE exemption
     # keyed on the filename (`*.test.sh`, `*.harness-lock.sh`, `*.fixture.sh`), which
     # exempted 40 files in their entirety -- including every comment and assertion message
-    # in them, which are ordinary prose that ships to a public mirror like any other.
+    # in them, which are ordinary prose that ships to consumers like any other.
     #
     # Measured before the change: 27 token-bearing lines across 9 of those 40 files. SEVEN
     # are genuinely planted fixture data in one file; the rest were real tracker and
@@ -409,7 +409,7 @@ nir_keep_line() {
         src/*)
             case "$path" in
                 # EVERY markdown file under src/ is public surface, not only README/ARCHITECTURE:
-                # src/** is mirrored to a public repo, so a NOTES.md / guide beside the code ships
+                # src/** is world-visible, so a NOTES.md / guide beside the code ships
                 # too, and the per-subsystem ARCHITECTURE.md guarantee contracts are MANDATED here.
                 # The rule's surface list names `src/**/*.md` wholesale; keeping only two filenames
                 # let a leak in any other src markdown through. Align the gate with the rule.
@@ -548,9 +548,9 @@ run_gate() {
     # 1b — the `bd-` arm, DETERMINISTIC AND IDENTICAL IN EVERY ENVIRONMENT.
     #
     # This was membership against the tracker, which discriminated perfectly and was wrong
-    # anyway: .beads/ is not mirrored, so on the public repository where this gate actually
+    # anyway: .beads/ is not published, so where this gate actually
     # runs the membership set was empty and the code fell back to the loose pattern. The gate
-    # was therefore STRICTER on the mirror than locally -- it failed there on `bd-file`,
+    # was therefore STRICTER in CI than locally -- it failed there on `bd-file`,
     # `bd-harness` and `bd-flush-guard`, none of which is a tracker id.
     #
     # A gate whose strictness depends on a file absent from the environment it guards is two
@@ -849,8 +849,8 @@ EOF
 /// <summary>Public doc leaking bd-def456 and Sprint 700.</summary>
 public sealed class Widget
 {
-    // ordinary comment mentioning bd-nnnnnn — ships in the mirrored source tree
-    private int _x; // Sprint 999 in a trailing comment, also mirrored
+    // ordinary comment mentioning bd-nnnnnn — ships in the published source tree
+    private int _x; // Sprint 999 in a trailing comment, also published
     private const int LimitS886 = 4;
 }
 EOF
@@ -860,7 +860,7 @@ EOF
         echo "self-test FAIL: did not flag bd-def456 in a /// XML-doc line" >&2; pass=0
     fi
     if ! printf '%s\n' "$h2" | grep -qF 'bd-nnnnn'; then
-        echo "self-test FAIL: did not flag an id in a plain // comment (mirrored source)" >&2; pass=0
+        echo "self-test FAIL: did not flag an id in a plain // comment (published source)" >&2; pass=0
     fi
     if ! printf '%s\n' "$h2" | grep -qF 'Sprint 999'; then
         echo "self-test FAIL: did not flag a sprint ref in a trailing // comment" >&2; pass=0
@@ -1023,11 +1023,11 @@ EOF
     # each side looked internally consistent. This derives the check FROM the rule rather than a
     # second hand-maintained list: it reads the rule's `src/**/*.<ext>` include entries and asserts
     # nir_keep_line keeps a representative of each. So when the rule gains a public surface, this arm
-    # fails until the gate covers it. Reads an unpublished path (absent on the mirror) -> SKIPS there;
+    # fails until the gate covers it. Reads an unpublished path (absent once published) -> SKIPS there;
     # a dev-time coherence guard, not a shipped check.
     # Defaulted, not left empty: with no default this arm skipped on EVERY local run while its
     # own skip message claimed local runs assert coherence — a coherence guard that was off
-    # wherever it could have worked. The path is unpublished, so the mirror still skips.
+    # wherever it could have worked. The path is unpublished, so a published checkout still skips.
     local rule_file="${NIR_RULE_FILE:-.claude/rules/quality/no-internal-refs-in-public-surface.md}"
     if [ -f "$rule_file" ]; then
         local exts ext repr shape
@@ -1053,7 +1053,7 @@ EOF
             [ "$pass" -eq 1 ] && printf '  anti-drift: nir_keep_line keeps every src/ surface the rule names (%s)\n' "$(printf '%s ' $exts)"
         fi
     else
-        echo "  anti-drift: SKIPPED (rule file absent — mirror/shallow clone); local runs assert gate<->rule coherence"
+        echo "  anti-drift: SKIPPED (rule file absent — published/shallow clone); local runs assert gate<->rule coherence"
     fi
 
     # --- STAGED MODE: the exempt sink must never reach the SCAN, only the verdict --------

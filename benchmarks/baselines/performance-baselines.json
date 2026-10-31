@@ -3,11 +3,29 @@
   "created": "2026-09-14",
   "source": "Measured run of the '*HotPath*' filter (--iterationCount 3 --warmupCount 1, the CI settings)",
   "provenance": "Regenerated against benchmarks that exist. The previous file (version 1.0, 2026-01-25) named 20 benchmarks that appear in no source file in this repository, so every comparison missed, the gate REFUSED on every run, and no performance claim was ever actually checked. Keys here are BenchmarkDotNet Benchmark.Method values, the field eng/ci/perf-regression-check.ps1 matches on.",
-  "measurementCaveat": "These means were measured on a developer workstation, not on a CI runner, and CI compares runs from ubuntu-latest, windows-latest and macos-latest against this one file. Absolute means are therefore machine-dependent and a cross-machine delta is not necessarily a code regression. Re-record from a CI run when one is available. allocatedBytes, unlike meanNs, is machine-independent and is recorded here for that future use; the gate does not compare it today.",
+  "measurementCaveat": "These means were measured on a developer workstation, not on a CI runner, and CI compares runs from ubuntu-latest, windows-latest and macos-latest against this one file. Absolute means are therefore machine-dependent and a cross-machine delta is not necessarily a code regression. Re-record from a CI run when one is available. allocatedBytes, unlike meanNs, is machine-independent AND IS COMPARED AS A BLOCKING CHECK -- the clause saying 'the gate does not compare it today' was true when this file was written and is now false, so do not plan against it. That machine-independence is real but CLASS-SCOPED: measured 2026-10-31 over 3 runners x 2 consecutive commits, every benchmark in DispatchHotPathBreakdownBenchmarks and MessageContextBenchmarks was byte-identical in all six runs, while every benchmark in the end-to-end MediatRLocalHotPathBenchmarks class varied 3x to 56x -- including the two that measure MediatR rather than this framework, which no change here can affect. So an allocatedBytes figure is a verdict-grade number for the breakdown classes and a noise sample for the comparative class, and only the former may sit in \"baselines\".",
   "regressionThreshold": 0.1,
+  "allocationNotVerdictGrade": {
+    "why": "Allocated bytes is the only BLOCKING comparison this gate makes, and it is only trustworthy where it is reproducible. Reproducibility is a property of the benchmark CLASS, not of the individual benchmark: a class that stands up a full host per operation cannot report a stable per-operation allocation at --iterationCount 3 --warmupCount 1, because its one-time warm-up costs land inside the measured window unpredictably. An entry belonging to a class listed here never produces an allocation FAIL, however it reached \"baselines\" -- so re-adding one cannot redden a build on noise. Timing is unaffected; it is advisory for every entry.",
+    "measurement": "3 runners x 2 consecutive commits. DispatchHotPathBreakdownBenchmarks (9 benchmarks) and MessageContextBenchmarks: byte-identical allocation in all six runs. MediatRLocalHotPathBenchmarks (7 benchmarks): 3x to 56x spread, including the two benchmarks that measure a third-party library this repository cannot affect.",
+    "classes": [
+      "MediatRLocalHotPathBenchmarks"
+    ]
+  },
   "notCompared": {
     "why": "Recorded, deliberately not compared. These are NOT deleted: the gate iterates only \"baselines\", so entries here are preserved for provenance without producing verdicts the measurement cannot support.",
     "benchmarks": {
+      "Dispatch_SingleCommand": {
+        "meanNs": 16333.33,
+        "allocatedBytes": 488,
+        "description": "Dispatch hot-path: command",
+        "reason": "run-to-run noise exceeds the regression threshold; a verdict here would be measurement noise, not a regression. ALLOCATION IS NOT REPRODUCIBLE FOR THIS BENCHMARK EITHER, which is why it moved here from \"baselines\" on 2026-10-31: it was the only member of MediatRLocalHotPathBenchmarks still compared, and it failed a build on an allocation delta no code change could explain.",
+        "observedAllocatedBytes": {
+          "measurement": "3 runners x 2 consecutive commits, same filter and iteration counts",
+          "values": [168, 168, 4104, 168, 168, 168],
+          "finding": "One runner reported 4104 B while the other two reported 488-baseline-consistent 168 B in the SAME run, and all three reported 168 B in the preceding run. Every one of the other six benchmarks in this class varies the same way, 3x to 56x, including the two that measure MediatR rather than this framework. Every benchmark in DispatchHotPathBreakdownBenchmarks and MessageContextBenchmarks was byte-identical across all six of those runs, so the instrument is sound and the end-to-end comparative class is the unstable subject: at --iterationCount 3 --warmupCount 1 its one-time host and container warm-up costs land inside the measured window unpredictably."
+        }
+      },
       "Dispatch_Query": {
         "meanNs": 12866.67,
         "allocatedBytes": 4280,
@@ -56,13 +74,6 @@
     }
   },
   "baselines": {
-    "MediatRLocalHotPathBenchmarks": {
-      "Dispatch_SingleCommand": {
-        "meanNs": 16333.33,
-        "allocatedBytes": 488,
-        "description": "Dispatch hot-path: command"
-      }
-    },
     "DispatchHotPathBreakdownBenchmarks": {
       "Dispatcher_SingleCommand": {
         "meanNs": 86.24,

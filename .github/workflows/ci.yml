@@ -1301,7 +1301,7 @@ jobs:
           $allowedClasses = @()
           Write-Host "`n--- approved skip allowlist ---"
           foreach ($e in $allow.entries) {
-            # 'issue' is deliberately NOT required here. This file is mirrored and world-visible, so it
+            # 'issue' is deliberately NOT required here. This file is world-visible, so it
             # carries no internal tracker id: the tracking issue names the entry by its 'id', never the
             # reverse. Internal artifacts may point at public ones; a public file citing an internal work
             # item leaks it and is meaningless to the consumer who reads it.
@@ -1387,8 +1387,8 @@ jobs:
           if ($accounted -ne $expected) {
             # NAME THE DIFFERENCE. "2576 against 2591" is an arithmetic fact and nobody can act on it:
             # the 15 are either tests that never ran (a real partial run) or entries the census counted
-            # and execution merges (a census defect), and those need OPPOSITE fixes. Measured on the
-            # mirror: accounted held at 2576 across two runs while EXPECTED moved 2551 -> 2591, which
+            # and execution merges (a census defect), and those need OPPOSITE fixes. Measured in
+            # CI: accounted held at 2576 across two runs while EXPECTED moved 2551 -> 2591, which
             # points at the census -- but "points at" is not evidence, and this diff is.
             #
             # Compared per NAME, as a multiset. The census regex truncates a theory's parameter list, so

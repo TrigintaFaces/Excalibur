@@ -126,7 +126,7 @@ jobs:
       #
       # It runs here -- before restore, build and pack -- deliberately. The promotion has to happen
       # in the source repository and be committed there (this workflow holds publish
-      # credentials and declares `permissions: {}`; a commit made in the mirror would be overwritten
+      # credentials and declares `permissions: {}`; a commit made here would be overwritten
       # by the next copy from development). So the remedy is always "go promote, then re-tag", and
       # a tag cannot be amended -- which makes a one-second refusal before a twenty-minute build
       # the difference between a cheap mistake and an expensive one.
@@ -1402,8 +1402,8 @@ jobs:
     needs: [pre-release-validation, create-release, staging-validation]
     # Fork guard. This name is the MIRROR repository, and that is correct: CI does
     # not execute in the development repository this file is authored in -- these
-    # workflows are copied to the mirror and run there, so at runtime
-    # github.repository is the mirror's name, not the source repository's.
+    # This job must run only in the published repository, so it pins
+    # github.repository rather than assuming the checkout's origin.
     #
     # Do not "correct" this to the development repository's name by comparing it
     # against that repository's git remote. The remote answers "where is this file
@@ -1411,7 +1411,7 @@ jobs:
     # questions with different answers. Changing it to match the remote makes the
     # condition never true, which SKIPS the job; a skipped job reports neutral
     # rather than failed, so the release would go green having published nothing.
-    if: github.repository == 'TrigintaFaces/Excalibur' # the mirror, where CI runs
+    if: github.repository == 'TrigintaFaces/Excalibur' # the published repository, where CI runs
     environment:
       name: nuget-production
       url: https://www.nuget.org/profiles/TrigintaFaces
@@ -1489,7 +1489,7 @@ jobs:
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           # The nuget.org PROFILE NAME, not an email address. Held as a secret only to avoid
-          # publishing the account name in a mirrored file; it is not a credential.
+          # publishing the account name in a world-visible file; it is not a credential.
           user: ${{ secrets.NUGET_USER }}
 
       - name: Confirm a short-lived key was issued

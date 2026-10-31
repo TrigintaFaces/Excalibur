@@ -16,9 +16,9 @@
 #   never contradicted them. Only a linter does.
 #
 # WHAT IT CHECKS
-#   actionlint over the repository's workflows. Depends ONLY on .github/**, which is in the mirrored
-#   set -- so this gate is live on the mirror, where the Actions actually run. A gate that needs a
-#   non-mirrored path would be inert exactly where it matters.
+#   actionlint over the repository's workflows. Depends ONLY on .github/**, which is in the published
+#   set -- so this gate is live in CI, where the Actions actually run. A gate that needs a
+#   unpublished path would be inert exactly where it matters.
 #
 # Exit codes (the orphan-test-project-gate.sh / spa-gate.sh contract):
 #   0  clean: actionlint reported nothing

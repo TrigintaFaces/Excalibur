@@ -50,7 +50,7 @@
 # population. That discrepancy is NOT EXPLAINED. Two hypotheses were tested and BOTH were refuted by
 # measurement, so do not re-run them:
 #
-#   1. "the mirror is missing caller files."  Refuted: all 27 flipped gates are invoked on
+#   1. "CI is missing caller files."  Refuted: all 27 flipped gates are invoked on
 #      non-comment lines of .github/workflows/**, eng/hooks/pre-commit or harness-gates-ci.sh, and
 #      four of them are named by harness-gates-ci.sh -- the script that was EXECUTING this gate when
 #      it reported them orphaned. Had those surfaces been absent, 43 FURTHER gates would also have

@@ -8,7 +8,7 @@
 # any unpublished dot-directory in a shipped workflow (they name private tracker/gate machinery that
 # does not exist downstream). Naming those scripts directly in the YAML freezes EVERY commit (the gate
 # globs the working tree). So the private refs live HERE, in eng/ci/ — which is neither workflow-scanned
-# nor mirror-excluded — and the workflow names only this generic orchestrator. (Learned from a
+# nor unpublished — and the workflow names only this generic orchestrator. (Learned from a
 # tree-freeze post-mortem; the 3 architectural-review guards it produced are enforced below.)
 #
 # WHY CI IS AUTHORITATIVE: these gates previously ran ONLY in eng/hooks/pre-commit — bypassable
@@ -67,9 +67,9 @@ run() {  # run <label> <command...> — captures the REAL exit (no pipe/;-mask),
 
 # A FOURTH state, and the narrowest one: a gate whose INPUT does not exist in this repository at all.
 #
-# ddl-migration-completeness walks committed history from an anchor commit. That anchor is a commit in
-# the DEVELOPMENT repository. The public mirror receives one squashed commit per release, with entirely
-# different SHAs, so the anchor cannot resolve there and the gate REFUSEs on every mirror run --
+# ddl-migration-completeness walks committed history from an anchor commit. That anchor SHA is not
+# resolvable in a release checkout, whose history carries entirely different SHAs, so the anchor
+# cannot resolve there and the gate REFUSEs on every CI run --
 # correctly, since it did not evaluate, but permanently. A gate that is red forever teaches the team to
 # stop reading the battery, which costs more than the gate is worth.
 #
@@ -218,7 +218,7 @@ done
 #       half of that pairing). Locks needing a live bd daemon are excluded (tracked debt) so CI stays
 #       hermetic. The enumeration below is the point gate-wiring's caller-of-record ARM verifies (guard 2).
 # SCOPE: only locks whose subject is PUBLISHED. This battery runs where CI runs, and CI runs on the
-# mirrored copy of this repository — which carries eng/** and .github/** but not the unpublished tooling tree.
+# published tree — which carries eng/** and .github/** but not the unpublished tooling tree.
 #
 # Six locks were removed from this list because their SUBJECTS are agent-mesh / internal-process
 # tooling that lives outside the published tree and is deliberately not shipped:

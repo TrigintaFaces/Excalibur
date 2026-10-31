@@ -74,7 +74,7 @@ one you have when you cite a result. As of 2026-10-01 we have behavioural, and n
 
 **The durable fix is to stop depending on a mutable asset** -- vendor the jar in an internal artifact store,
 or build it from a pinned source commit. Both are decisions with a cost (a 4.5 MB binary, and `eng/**` is
-copied to the public mirror), so neither is taken here unilaterally. Tracked as a bead.
+world-visible), so neither is taken here unilaterally. Tracked separately.
 
 `check-models.sh` discovers the toolchain under `~/tools/tla`; override with `TLA_JAVA` and `TLA_JAR`.
 

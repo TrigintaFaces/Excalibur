@@ -148,12 +148,25 @@ if ($RegressionThreshold -lt 0) {
 }
 
 $baselineLookup = @{}
+# The benchmark's CLASS, kept alongside its entry. Allocation reproducibility is a property of
+# the class, not of the individual benchmark, so the allocation verdict below needs it.
+$baselineClass = @{}
 if ($baselines.PSObject.Properties.Name -contains 'baselines') {
 	foreach ($category in $baselines.baselines.PSObject.Properties) {
 		foreach ($entry in $category.Value.PSObject.Properties) {
 			$baselineLookup[$entry.Name] = $entry.Value
+			$baselineClass[$entry.Name] = $category.Name
 		}
 	}
+}
+
+# Classes whose allocated-bytes figure is NOT verdict-grade, declared in the baselines file.
+# An entry from one of these never produces an allocation FAIL, however it got into "baselines" --
+# which is the point: the defect this closes was one such entry sitting in the compared set and
+# failing a build on a delta no code change could explain.
+$allocNotVerdictGrade = @()
+if ($baselines.PSObject.Properties.Name -contains 'allocationNotVerdictGrade') {
+	$allocNotVerdictGrade = @($baselines.allocationNotVerdictGrade.classes)
 }
 
 # ---- REFUSE: no baseline entries ---------------------------------------------------
@@ -183,6 +196,12 @@ $timingDrift = @()
 $improvements = @()
 $compared = 0
 $allocCompared = 0
+$allocSkipped = @()
+# Matched entries whose BASELINE declares an allocatedBytes figure, whether or not it was
+# ultimately compared. This is what separates "this file claims allocation coverage and the
+# run enforced none of it" (a vacuous green) from "this file is timing-only by design"
+# (legitimate -- the memory/throughput fixtures are exactly that).
+$allocAvailable = 0
 
 foreach ($resultFile in $resultFiles) {
 	try {
@@ -224,8 +243,16 @@ foreach ($resultFile in $resultFiles) {
 			# build. Failing on it trains everyone to ignore the gate, which costs more than it catches.
 			#
 			# Allocated bytes is the half that survives the move: it counts work the code actually did,
-			# it is identical on every runner, and a real regression -- an extra allocation per dispatch --
-			# shows up in it exactly. So allocation regressions FAIL and timing is reported for a human.
+			# and a real regression -- an extra allocation per dispatch -- shows up in it exactly. So
+			# allocation regressions FAIL and timing is reported for a human.
+			#
+			# THE MACHINE-INDEPENDENCE IS CLASS-SCOPED, AND THIS COMMENT USED TO CLAIM IT WAS UNIVERSAL
+			# ("it is identical on every runner"). Measured 2026-10-31 over 3 runners x 2 consecutive
+			# commits: every benchmark in the breakdown classes was byte-identical in all six runs, while
+			# every benchmark in the end-to-end comparative class varied 3x to 56x -- including the two
+			# that measure a third-party library this repository cannot affect. The comparative class
+			# builds a full host per operation and runs at --iterationCount 3 --warmupCount 1, so its
+			# one-time warm-up costs land inside the measured window unpredictably.
 			# Restore timing to blocking the moment a baseline is re-recorded ON a CI runner.
 			if ($change -gt $RegressionThreshold) {
 				$timingDrift += @{ Method = $methodName; Change = $change; Baseline = $baselineMeanNs; Current = $currentMeanNs }
@@ -239,7 +266,14 @@ foreach ($resultFile in $resultFiles) {
 				[double]$benchmark.Memory.BytesAllocatedPerOperation
 			} else { -1 }
 
-			if ($baselineAlloc -gt 0 -and $currentAlloc -ge 0) {
+			if ($baselineAlloc -gt 0 -and $currentAlloc -ge 0) { $allocAvailable++ }
+			$methodClass = if ($baselineClass.ContainsKey($methodName)) { $baselineClass[$methodName] } else { '' }
+			if ($methodClass -and $allocNotVerdictGrade -contains $methodClass) {
+				if ($baselineAlloc -gt 0 -and $currentAlloc -ge 0) {
+					$allocSkipped += @{ Method = $methodName; Class = $methodClass }
+				}
+			}
+			elseif ($baselineAlloc -gt 0 -and $currentAlloc -ge 0) {
 				$allocCompared++
 				$allocChange = ($currentAlloc - $baselineAlloc) / $baselineAlloc
 				if ($allocChange -gt $RegressionThreshold) {
@@ -274,6 +308,23 @@ foreach ($drift in $timingDrift) {
 }
 
 Write-Host "allocation comparisons: $allocCompared of $compared timed benchmark(s) carried a baseline allocation figure."
+foreach ($skip in $allocSkipped) {
+	Write-Host "  allocation NOT compared for $($skip.Method): its class $($skip.Class) is declared not verdict-grade."
+}
+
+# ---- REFUSE: zero allocation comparisons -------------------------------------------
+# Allocation is the only BLOCKING half of this gate; timing is advisory. So a run that
+# compared no allocation figure enforced NOTHING, and PASSing it reports a green that no
+# input could have turned red. Reachable two ways: every baseline entry losing its
+# allocatedBytes field, or every remaining class being declared not verdict-grade.
+if ($allocAvailable -eq 0) {
+	Write-Host "::warning::no matched baseline entry declares an allocatedBytes figure, so this run enforced TIMING ONLY -- and timing is advisory here. Nothing in it could have failed."
+}
+elseif ($allocCompared -eq 0) {
+	Write-Verdict -State 'REFUSE' -Reason "executed $compared timing comparison(s) but ZERO allocation comparisons; allocation is the only blocking check, so nothing was enforced" -Compared 0 -Baselines $baselineLookup.Count -Files $resultFiles.Count
+	Write-Host "::error::perf-regression-check REFUSED: no allocation figure was compared, so this run could not have failed."
+	exit $EXIT_REFUSE
+}
 
 if ($regressions.Count -gt 0) {
 	foreach ($reg in $regressions) {

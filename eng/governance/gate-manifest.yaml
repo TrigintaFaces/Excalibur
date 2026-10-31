@@ -10,7 +10,7 @@
 # WHAT IS MEASURED HERE, AND WHAT IS DELIBERATELY NOT
 #   MEASURED   path, whether the file exists, whether a DISPATCHER INVOKES it, whether it has
 #              a paired .test.sh / .harness-lock.sh, and whether it sits on the published
-#              (mirrored) tree or the unpublished one.
+#              published tree or the unpublished one.
 #   NOT ASSERTED  `kind`. Gate-versus-reporter is NOT mechanically derivable: a refusal exit
 #              and a finding exit share the non-zero space, and which is which lives in the
 #              script header prose. Three successive exit-code proxies gave three different
@@ -298,7 +298,7 @@ gates:
     published: true
     has_test: false
     has_lock: false
-  - path: "eng/ci/pre-mirror-gates.py"
+  - path: "eng/ci/pre-release-gates.py"
     kind: reporter
     kind_proxy: reporter
     kind_evidence: "runs other gates and reports their verdicts; enforces nothing of its own"

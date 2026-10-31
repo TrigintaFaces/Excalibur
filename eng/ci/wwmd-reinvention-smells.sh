@@ -58,7 +58,7 @@ CS
     echo "$out"
     # The REFUSE arm. An empty scope must exit 2, not 0 — this is the arm that proves the scanner
     # cannot report a green it did not earn, and it is the one this self-test previously lacked.
-    # `bash "$0"`, never `"$0"`: the public mirror's checkout does not carry the executable bit,
+    # `bash "$0"`, never `"$0"`: a fresh checkout does not carry the executable bit,
     # so a direct exec exits 126 and this arm reports "expected REFUSE (2)" -- a tooling fault
     # wearing a broken-gate's clothes.
     refuse_rc=0; bash "$0" --files >/dev/null 2>&1 || refuse_rc=$?

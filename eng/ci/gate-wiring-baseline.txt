@@ -35,9 +35,9 @@ config-binder-completeness-gate.sh
 staged-snapshot-coherence.sh
 staged-secret-scan.sh
 
-# Manual pre-mirror orchestrator; invoking it from its own gates would duplicate
+# Manual pre-release orchestrator; invoking it from its own gates would duplicate
 # the complete battery rather than add a distinct safeguard.
-pre-mirror-gates.py
+pre-release-gates.py
 
 # Manual evidence collection. The report dependency having a caller does not
 # establish required CI execution of this collector.

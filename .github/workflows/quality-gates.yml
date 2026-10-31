@@ -1,9 +1,9 @@
 name: Quality Gates
 
 on:
-  # Development integrates by pushing to main; the public mirror also uses pull requests.
+  # Development integrates by pushing to main; pull requests are also used.
   # Its pull-request trigger already ran these gates. The push trigger adds
-  # post-merge coverage on the mirror's main branch.
+  # post-merge coverage on main.
   push:
     branches: [main, develop]
   pull_request:

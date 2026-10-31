@@ -3,6 +3,6 @@
 # one entry at a time. This number may fall and may never rise. Lower it when you review an
 # entry; do NOT clear it by stamping a kind you did not derive.
 #
-# Scoped to published entries when the gate was bounded to the mirrored surface: the 18
+# Scoped to published entries when the gate was bounded to the published surface: the 18
 # UNREVIEWED entries for unpublished gates are not visible to CI and are no longer counted here.
 66

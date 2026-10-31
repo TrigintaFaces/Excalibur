@@ -20,7 +20,7 @@
 #   E  3-state exit contract present (E_PASS=0 / E_FAIL=1 / E_REFUSE=2)
 #   F  testability seam present (PKGMETA_VALUES + PKGMETA_PROJECTS override)
 #   G  the effective-value instrument is used (dotnet msbuild -getProperty), NOT a static props grep
-#   H  no internal tracker/sprint/ADR ids in the gate source (public-surface hygiene — eng/ is mirrored)
+#   H  no internal tracker/sprint/ADR ids in the gate source (public-surface hygiene — eng/ is world-visible)
 #
 # Run: bash eng/ci/package-metadata-gate.test.sh   (exit 0 = all green; non-zero = a lock failed)
 
@@ -89,7 +89,7 @@ if grep -EnZ 'bd-[a-z0-9]{6}|[^A-Za-z]S[0-9]{3}[^0-9]|[Ss]print[- ]?[0-9]|ADR-?[
     fail "H: gate source leaks an internal tracker/sprint/ADR id (public-surface hygiene)"
     grep -EnH 'bd-[a-z0-9]{6}|[^A-Za-z]S[0-9]{3}[^0-9]|[Ss]print[- ]?[0-9]|ADR-?[0-9]' "$GATE" >&2 || true
 else
-    pass "H: gate source carries no internal tracker/sprint/ADR ids (mirror-clean)"
+    pass "H: gate source carries no internal tracker/sprint/ADR ids (public-surface clean)"
 fi
 
 echo ""

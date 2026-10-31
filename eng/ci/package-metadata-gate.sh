@@ -220,7 +220,7 @@ self_test() {
 
     # ARM 6 (PRODUCTION-PATH non-vacuity): actually evaluate the real default shipping project and
     # confirm it PASSES — proving the gate runs against reality, not only injected fixtures. Skipped
-    # only if dotnet is unavailable (never on the mirror-CI runner, which has the SDK).
+    # only if dotnet is unavailable (never on the CI runner, which has the SDK).
     if command -v dotnet >/dev/null 2>&1; then
         local rc6; ( sweep ) >/dev/null 2>&1; rc6=$?
         if [ "$rc6" -eq "$E_PASS" ]; then

@@ -17,8 +17,8 @@
 # Real-defect control (non-vacuity against reality, not a synthetic mutant):
 #   D  the pre-repair poll-opcom.sh (comment "7200 ticks", code 86400) -> gate FAIL(1), names 7200
 #   E  the current poll-opcom.sh (cap comment states no number)        -> gate PASS(0)
-#   D/E SKIP (not fail) when the history blob is unreachable (shallow/mirror) — the hermetic
-#   arms A/B/C are the mirror-safe backbone.
+#   D/E SKIP (not fail) when the history blob is unreachable (shallow clone) — the hermetic
+#   arms A/B/C are the portable backbone.
 #
 # Noise control (the reason this gate can ship at all):
 #   F  a file of legitimate prose numbers (counts, line-deltas, a sprint number, a version) -> PASS(0)
@@ -27,7 +27,7 @@
 #   G  3-state exit contract present (E_PASS=0 / E_FAIL=1 / E_REFUSE=2)
 #   H  testability seam present (ORPHCONST_ROOTS override)
 #   I  non-vacuity floor present (ORPHCONST_MIN_NUMS) + NO suppression cap in code
-#   J  no internal tracker/sprint/ADR ids in the gate source (public-surface hygiene — eng/ is mirrored)
+#   J  no internal tracker/sprint/ADR ids in the gate source (public-surface hygiene — eng/ is world-visible)
 #
 # Run: bash eng/diagnostics/orphaned-constant-gate.test.sh (non-zero = a control failed)
 
@@ -89,7 +89,7 @@ if [ -n "$GHOST_PATH" ] && git -C "${PWD:?path is empty -- an empty -C runs in t
     [ "$rc" -eq 1 ] && pass "D: pre-repair poll-opcom.sh (comment 7200, code 86400) -> FAIL(1)" \
                     || fail "D: the real historical ghost did NOT FAIL (got $rc, expected 1) — gate is vacuous"
 else
-    skip "D: historical ghost blob unreachable (shallow/mirror) — hermetic arm A covers the class"
+    skip "D: historical ghost blob unreachable (shallow clone) — hermetic arm A covers the class"
 fi
 ED="$WORK/e"; mkdir -p "$ED"
 if [ -n "$GHOST_PATH" ] && git -C "${PWD:?path is empty -- an empty -C runs in the CURRENT directory}" cat-file -e "HEAD:$GHOST_PATH" 2>/dev/null; then
@@ -132,7 +132,7 @@ if grep -EnZ 'bd-[a-z0-9]{6}|[^A-Za-z]S[0-9]{3}[^0-9]|[Ss]print[- ]?[0-9]|ADR-?[
     fail "J: gate source leaks an internal tracker/sprint/ADR id (public-surface hygiene)"
     grep -EnH 'bd-[a-z0-9]{6}|[^A-Za-z]S[0-9]{3}[^0-9]|[Ss]print[- ]?[0-9]|ADR-?[0-9]' "$GATE" >&2 || true
 else
-    pass "J: gate source carries no internal tracker/sprint/ADR ids (mirror-clean)"
+    pass "J: gate source carries no internal tracker/sprint/ADR ids (public-surface clean)"
 fi
 
 echo ""

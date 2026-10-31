@@ -1,14 +1,14 @@
 # Committed-Content Gates
 #
 # The enforcement boundary for must-block checks that run on COMMITTED content: this workflow runs on
-# the mirror (GitHub Actions) against the checked-out SHA under branch protection, so its checks are
+# GitHub Actions, against the checked-out SHA under branch protection, so its checks are
 # non-bypassable by construction — unlike a local pre-commit hook, which is bypassable and scoped to a
 # working tree. Gate LOGIC lives once in eng/ci/*.sh (invoked here for enforcement and by a thin local
 # pre-commit for fast feedback). Each gate below is a required status check and ships a planted-violation
 # proof (its self-test reddens on a seeded violation) so it can never pass vacuously.
 #
 # Scope: the committed-content / shipped-artifact correctness + public-surface checks. Build/test live in
-# ci.yml; secret-scanning is the one local pre-copy gate + GitHub push-protection on the mirror.
+# ci.yml; secret-scanning is the one local pre-push gate, plus GitHub push-protection.
 
 name: Committed-Content Gates
 
@@ -123,7 +123,7 @@ jobs:
       - name: coverage-shard-reports-complete self-test (non-vacuity)
         run: bash eng/ci/coverage-shard-reports-complete.sh --self-test
 
-      # BLOCKING - .github/workflows/ is COPIED to the public mirror, so a beads/tracker reference
+      # BLOCKING - .github/workflows/ is world-visible, so a tracker reference
       # there both leaks internal tooling into a shipped file and breaks the downstream checkout,
       # because the private scripts are not copied. The lock was written with safety, liveness and
       # four non-vacuity arms (two hermetic, two against a historical commit that genuinely carried
@@ -166,8 +166,8 @@ jobs:
       # THE PUBLIC-SURFACE LEAK GATE. It exists, it works, and until now nothing ran it.
       #
       # It scans the surfaces a consumer can see -- the shipped .xml docs, samples, the docs
-      # site, README/CHANGELOG -- plus eng/ and .github/workflows/, which are mirrored to a
-      # public repository and which this gate previously excluded by construction.
+      # site, README/CHANGELOG -- plus eng/ and .github/workflows/, which are world-visible
+      # and which this gate previously excluded by construction.
       #
       # Ratcheted: the pre-existing population is a recorded debt register, and this fails on
       # any NEW leak or any rise in a recorded count. Proven both ways by the self-test.

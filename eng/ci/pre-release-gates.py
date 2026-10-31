@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run, locally, the gate commands the CI workflows invoke — before the copy to the mirror.
+"""Run, locally, the gate commands the CI workflows invoke — before publishing.
 
 WHY THIS EXISTS
 ---------------
@@ -11,7 +11,7 @@ shell script that runs identically on any machine and had simply never been run.
 
 The gap was COVERAGE, not platform. A curated local battery ran 16 gates. The workflows invoke
 well over a hundred commands. Nothing locally ran that set, so anything outside the curated
-battery was invisible until the mirror ran it.
+battery was invisible until CI ran it.
 
 WHAT IT DOES
 ------------
@@ -33,12 +33,12 @@ many exist.
 
 Some failures are genuinely platform-specific and this tool cannot see them (a sample that aborts
 on Linux and succeeds on Windows). That residue is real and is named here so a clean run is not
-mistaken for a guarantee about the mirror.
+mistaken for a guarantee about CI.
 
 NOT A COMMIT GATE
 -----------------
 Nothing wires this to a hook. It is slow by construction — it runs real gates — and the standing
-instruction is that no gate may slow down a commit. Run it by hand before copying to the mirror.
+instruction is that no gate may slow down a commit. Run it by hand before publishing.
 
 EXIT CODES
   0  every gate that ran, passed
@@ -240,7 +240,7 @@ def check(root, list_only=False):
 
     if failed:
         print("", file=sys.stderr)
-        print("The following gate(s) FAILED here and will fail on the mirror:", file=sys.stderr)
+        print("The following gate(s) FAILED here and will fail in CI:", file=sys.stderr)
         for cmd, rc, out in failed:
             print("  exit {}  {}".format(rc, cmd), file=sys.stderr)
             for line in [ln for ln in out.splitlines() if ln.strip()][-6:]:
@@ -253,7 +253,7 @@ def check(root, list_only=False):
         return 2
 
     print("")
-    print("pre-mirror-gates: {} gate(s) pass locally. This does NOT cover the {} "
+    print("pre-release-gates: {} gate(s) pass locally. This does NOT cover the {} "
           "context-dependent command(s), nor anything that only reproduces on the CI runner's "
           "operating system.".format(len(passed), len(deferred)))
     return 0

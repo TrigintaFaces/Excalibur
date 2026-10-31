@@ -33,7 +33,7 @@
 # A line is closed by MAPPING the table, and closing this one needs the extractor to scope columns to the
 # statement naming the table rather than to the file -- or the destroyed-key writes moved to their own
 # request class, which the repository already does for other seams. Tracked in the issue tracker against
-# this file; no identifier is written here because eng/** is copied to the public mirror.
+# this file; no identifier is written here because eng/** is world-visible.
 compliance.ErasureDestroyedKeys
 compliance.erasure_destroyed_keys
 #
@@ -49,7 +49,7 @@ compliance.erasure_destroyed_keys
 # already cost something: the published key for the destroyed-keys table beside it went stale against
 # the shipped schema and no gate could see it, because the DDL we tell consumers to run is the only
 # schema artifact with nothing behind it. Tracked in the issue tracker against this file; no identifier
-# is written here because eng/** is copied to the public mirror.
+# is written here because eng/** is world-visible.
 compliance.ErasureDestructionIntents
 compliance.erasure_destruction_intents
 #
