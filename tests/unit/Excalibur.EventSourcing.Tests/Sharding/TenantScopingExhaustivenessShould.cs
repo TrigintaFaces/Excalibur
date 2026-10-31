@@ -91,6 +91,15 @@ public sealed class TenantScopingExhaustivenessShould
          // requirement anyone is meant to satisfy.
          typeof(ISnapshotStore), typeof(IDeadLetterQueue), typeof(IColdEventStore),
 
+         // The two transactional-projection facets are gated and not wrapped, for a structural reason
+         // rather than a stylistic one: neither is ever resolved as a DI service, so there is nothing for
+         // a decorator to be registered against. Each is reached through GetService on its owning store,
+         // and the shared relational destination beneath them carries the tenant term in the predicate of
+         // every statement it issues -- the transactional write additionally REFUSES a transaction whose
+         // tenant differs from the destination's. A wrapper would add a second filter over a store that
+         // already filters, without repairing the first.
+         typeof(ITransactionalProjectionEventStore), typeof(ITransactionalProjectionStore<object>),
+
          // The compliance store is gated and not wrapped, on the same reasoning as erasure and legal
          // hold: both shipped providers bind the ambient tenant term inside the store -- the Mongo one
          // composes it into the upsert key -- so a decorator would add a second filter over a store
@@ -364,6 +373,15 @@ public sealed class TenantScopingExhaustivenessShould
         else if (contract == typeof(IDeadLetterStore))
         {
             services.AddSingleton(A.Fake<IDeadLetterStore>());
+        }
+        else if (contract == typeof(ITransactionalProjectionEventStore)
+            || contract == typeof(ITransactionalProjectionStore<object>))
+        {
+            // Both transactional-projection facets are gated via the coordinator, not via a registration
+            // of the facet itself -- the IEventStoreErasure pattern. Neither facet is ever a DI service
+            // type: each is reached only through GetService on its owning store, so keying the gate on
+            // the facet would match nothing, ever, and the gate would be inert while looking wired.
+            services.AddSingleton(A.Fake<ITransactionalProjectionCoordinator>());
         }
         else
         {

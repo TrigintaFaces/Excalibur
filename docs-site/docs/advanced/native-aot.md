@@ -514,7 +514,6 @@ services.AddKafkaTransport("kafka", builder => { ... });
 | Constraint | Detail |
 |------------|--------|
 | Source generators target `netstandard2.0` | Limited API surface (Roslyn requirement) |
-| `IValidationResult` static abstract | Worked around with `object?` + `as` cast |
 | Consumer JSON DTOs | Must create own `JsonSerializerContext` for custom types |
 | Generated code always emits | Even with 0 discovered types (ensures compile safety) |
 | Kafka SchemaRegistry | Custom strategies require `Activator.CreateInstance` — AOT warning |

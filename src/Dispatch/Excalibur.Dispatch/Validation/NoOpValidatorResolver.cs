@@ -14,6 +14,13 @@ public sealed class NoOpValidatorResolver : IValidatorResolver
 	/// improved performance when validation is not needed in the application.
 	/// </summary>
 	/// <param name="message"> The message to validate (ignored in this implementation). </param>
+	/// <param name="requestServices">The caller-owned request-scoped provider (unused).</param>
+	/// <param name="cancellationToken">Cancellation of validation.</param>
 	/// <returns> Always returns null, indicating no validation was performed. </returns>
-	public IValidationResult? TryValidate(IDispatchMessage message) => null;
+	public ValueTask<IValidationResult?> TryValidateAsync(
+		IDispatchMessage message, IServiceProvider? requestServices = null, CancellationToken cancellationToken = default)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		return default;
+	}
 }

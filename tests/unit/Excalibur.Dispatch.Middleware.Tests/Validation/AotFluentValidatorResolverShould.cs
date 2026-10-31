@@ -58,18 +58,18 @@ public sealed class AotFluentValidatorResolverShould
 	#region TryValidate Tests
 
 	[Fact]
-	public void ThrowArgumentNullExceptionWhenMessageIsNull()
+	public async Task ThrowArgumentNullExceptionWhenMessageIsNull()
 	{
 		// Arrange
 		var provider = CreateServiceProvider();
 		var sut = new AotFluentValidatorResolver(provider);
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => sut.TryValidate(null!));
+		_ = await Should.ThrowAsync<ArgumentNullException>(async () => await sut.TryValidateAsync(null!));
 	}
 
 	[Fact]
-	public void ThrowInvalidOperationWhenNoDispatcherRegistered()
+	public async Task ThrowInvalidOperationWhenNoDispatcherRegistered()
 	{
 		// Arrange -- no IAotValidationDispatcher in DI
 		var provider = CreateServiceProvider();
@@ -77,12 +77,12 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new TestAotMessage("John", 25);
 
 		// Act & Assert
-		var ex = Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
+		var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await sut.TryValidateAsync(message));
 		ex.Message.ShouldContain("SourceGenerators");
 	}
 
 	[Fact]
-	public void ThrowInvalidOperationWhenNoDispatcherAndNoValidatorsRegistered()
+	public async Task ThrowInvalidOperationWhenNoDispatcherAndNoValidatorsRegistered()
 	{
 		// Arrange
 		var provider = CreateServiceProvider();
@@ -90,11 +90,11 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new AotMessageWithoutValidator("test");
 
 		// Act & Assert
-		_ = Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
+		_ = await Should.ThrowAsync<InvalidOperationException>(async () => await sut.TryValidateAsync(message));
 	}
 
 	[Fact]
-	public void DelegateToDispatcherWhenRegistered()
+	public async Task DelegateToDispatcherWhenRegistered()
 	{
 		// Arrange
 		var expected = SerializableValidationResult.Success();
@@ -107,7 +107,7 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new TestAotMessage("John", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Same(expected, result);
@@ -115,7 +115,7 @@ public sealed class AotFluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnNullFromDispatcherWhenNoValidatorsForMessageType()
+	public async Task ReturnNullFromDispatcherWhenNoValidatorsForMessageType()
 	{
 		// Arrange -- dispatcher returns null for unknown types
 		var dispatcher = new FakeDispatcher(null);
@@ -127,14 +127,14 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new AotMessageWithoutValidator("test");
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void CacheDispatcherLookupAcrossMultipleCalls()
+	public async Task InvokeRegisteredDispatcherOnEveryCall()
 	{
 		// Arrange
 		var dispatcher = new FakeDispatcher(SerializableValidationResult.Success());
@@ -146,10 +146,10 @@ public sealed class AotFluentValidatorResolverShould
 		var message = new TestAotMessage("John", 25);
 
 		// Act -- call twice
-		_ = sut.TryValidate(message);
-		_ = sut.TryValidate(message);
+		_ = await sut.TryValidateAsync(message);
+		_ = await sut.TryValidateAsync(message);
 
-		// Assert -- dispatcher was called both times but lookup only happens once
+		// Assert -- the registered dispatcher was called both times
 		dispatcher.CallCount.ShouldBe(2);
 	}
 
@@ -168,10 +168,10 @@ public sealed class AotFluentValidatorResolverShould
 
 		public int CallCount { get; private set; }
 
-		public IValidationResult? TryValidate(IDispatchMessage message, IServiceProvider provider)
+		public ValueTask<IValidationResult?> TryValidateAsync(IDispatchMessage message, IServiceProvider provider, CancellationToken cancellationToken = default)
 		{
 			CallCount++;
-			return _returnValue;
+			return new(_returnValue);
 		}
 	}
 

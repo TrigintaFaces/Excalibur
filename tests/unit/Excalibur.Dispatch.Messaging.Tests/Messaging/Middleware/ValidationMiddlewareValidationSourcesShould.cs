@@ -59,10 +59,7 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 		_logger = A.Fake<ILogger<ValidationMiddleware>>();
 		_validationService = A.Fake<IMessageValidationService>();
 
-		// A hand-written stub, not A.Fake<IValidatorResolver>(): IValidationResult declares a static
-		// abstract member (Failed), and FakeItEasy's generic Returns<T>(T) cannot use that interface as
-		// a type argument (CS8920 -- no most-specific implementation to dispatch the static member
-		// through). A plain settable property sidesteps the generic entirely.
+		// A configurable resolver isolates middleware validation-source behavior.
 		_resolver = new StubValidatorResolver();
 		_context = A.Fake<IMessageContext>();
 
@@ -431,16 +428,13 @@ public sealed class ValidationMiddlewareValidationSourcesShould
 	#region Test Fixtures
 
 	/// <summary>
-	/// A hand-written <see cref="IValidatorResolver"/> test double. Not a FakeItEasy fake: FakeItEasy's
-	/// generic <c>Returns&lt;T&gt;(T)</c> cannot use <see cref="IValidationResult"/> as a type argument
-	/// (it declares a static abstract member, and the interface itself has no most-specific
-	/// implementation to dispatch it through -- CS8920). A settable property has no such restriction.
+	/// A configurable <see cref="IValidatorResolver"/> test double.
 	/// </summary>
 	private sealed class StubValidatorResolver : IValidatorResolver
 	{
 		public IValidationResult? Result { get; set; }
 
-		public IValidationResult? TryValidate(IDispatchMessage message) => Result;
+		public ValueTask<IValidationResult?> TryValidateAsync(IDispatchMessage message, IServiceProvider? requestServices = null, CancellationToken cancellationToken = default) => new(Result);
 	}
 
 	private sealed class RequiredNameMessage : IDispatchMessage

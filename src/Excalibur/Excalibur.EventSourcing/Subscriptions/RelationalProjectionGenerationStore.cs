@@ -12,16 +12,13 @@ internal sealed class RelationalProjectionGenerationStore(
 	Func<CancellationToken, Task<DbConnection>> open,
 	Func<DbConnection, string, (string Name, object? Value)[], DbCommand> command,
 	Func<DbException, bool> isConflict,
-	string membersTable, string readersTable, bool snakeCase = false, bool oracle = false) : IProjectionGenerationStore
+	string membersTable, string readersTable, ProjectionGenerationDialect dialect) : IProjectionGenerationStore
 {
-	private string Column(string name) => snakeCase ? name switch
-	{
-		"SubscriptionName" => "subscription_name", "ProjectionKey" => "projection_key",
-		"DefinitionHash" => "definition_hash", "BindingId" => "binding_id", "ReaderName" => "reader_name",
-		"DestinationScope" => "destination_scope", "Destination" => "destination", "Position" => "position", _ => name,
-	} : name;
-	private string Parameter(string name) => (oracle ? ":" : "@") + name;
-	private string Equal(string column, string parameter) => column + (oracle ? " COLLATE BINARY" : string.Empty) + " = " + Parameter(parameter);
+	// Thin forwarders, so the statements below keep reading as SQL rather than as dialect lookups.
+	private string Column(string name) => dialect.Column(name);
+	private string Parameter(string name) => dialect.Parameter(name);
+	private string Equal(string column, string parameter) =>
+		dialect.Collate(column) + " = " + Parameter(parameter);
 
 	public async Task<ProjectionGeneration?> ReadGenerationAsync(string subscriptionName, string readerName, CancellationToken cancellationToken)
 	{

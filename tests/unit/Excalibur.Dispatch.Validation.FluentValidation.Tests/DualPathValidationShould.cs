@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Validation.FluentValidation.Tests;
 public sealed class DualPathValidationShould
 {
     [Fact]
-    public void ProduceSameSuccessResultFromBothPaths()
+    public async Task ProduceSameSuccessResultFromBothPaths()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -37,8 +37,8 @@ public sealed class DualPathValidationShould
         var message = new DualPathTestCommand { Name = "ValidName", Value = 10 };
 
         // Act
-        var jitResult = jitResolver.TryValidate(message);
-        var aotResult = aotResolver.TryValidate(message);
+        var jitResult = await jitResolver.TryValidateAsync(message);
+        var aotResult = await aotResolver.TryValidateAsync(message);
 
         // Assert — both should report success
         jitResult!.IsValid.ShouldBeTrue();
@@ -49,7 +49,7 @@ public sealed class DualPathValidationShould
     }
 
     [Fact]
-    public void ProduceSameFailureResultFromBothPaths()
+    public async Task ProduceSameFailureResultFromBothPaths()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -63,8 +63,8 @@ public sealed class DualPathValidationShould
         var message = new DualPathTestCommand { Name = "", Value = -1 };
 
         // Act
-        var jitResult = jitResolver.TryValidate(message);
-        var aotResult = aotResolver.TryValidate(message);
+        var jitResult = await jitResolver.TryValidateAsync(message);
+        var aotResult = await aotResolver.TryValidateAsync(message);
 
         // Assert — both should report failure with the same error count
         jitResult!.IsValid.ShouldBeFalse();
@@ -74,7 +74,7 @@ public sealed class DualPathValidationShould
     }
 
     [Fact]
-    public void ProduceSameNullResultForUnregisteredMessageType()
+    public async Task ProduceSameNullResultForUnregisteredMessageType()
     {
         // Arrange — no validators for DualPathUnknownCommand
         var services = new ServiceCollection();
@@ -87,8 +87,8 @@ public sealed class DualPathValidationShould
         var message = new DualPathUnknownCommand { Code = "abc" };
 
         // Act
-        var jitResult = jitResolver.TryValidate(message);
-        var aotResult = aotResolver.TryValidate(message);
+        var jitResult = await jitResolver.TryValidateAsync(message);
+        var aotResult = await aotResolver.TryValidateAsync(message);
 
         // Assert — both should return null (no validators)
         (jitResult is null).ShouldBeTrue();
@@ -96,7 +96,7 @@ public sealed class DualPathValidationShould
     }
 
     [Fact]
-    public void ProduceSameErrorPropertyNamesFromBothPaths()
+    public async Task ProduceSameErrorPropertyNamesFromBothPaths()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -110,8 +110,8 @@ public sealed class DualPathValidationShould
         var message = new DualPathTestCommand { Name = "", Value = -1 };
 
         // Act
-        var jitResult = jitResolver.TryValidate(message);
-        var aotResult = aotResolver.TryValidate(message);
+        var jitResult = await jitResolver.TryValidateAsync(message);
+        var aotResult = await aotResolver.TryValidateAsync(message);
 
         // Assert — both should include the same property names in errors
         var jitProps = jitResult!.Errors.Cast<ValidationError>().Select(e => e.PropertyName).OrderBy(p => p).ToArray();
@@ -121,7 +121,7 @@ public sealed class DualPathValidationShould
     }
 
     [Fact]
-    public void ReturnSerializableValidationResultFromBothPaths()
+    public async Task ReturnSerializableValidationResultFromBothPaths()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -135,8 +135,8 @@ public sealed class DualPathValidationShould
         var message = new DualPathTestCommand { Name = "", Value = 5 };
 
         // Act
-        var jitResult = jitResolver.TryValidate(message);
-        var aotResult = aotResolver.TryValidate(message);
+        var jitResult = await jitResolver.TryValidateAsync(message);
+        var aotResult = await aotResolver.TryValidateAsync(message);
 
         // Assert — both return SerializableValidationResult
         jitResult.ShouldBeOfType<SerializableValidationResult>();
@@ -172,13 +172,13 @@ internal sealed class DualPathTestCommandValidator : AbstractValidator<DualPathT
 /// </summary>
 internal sealed class TestAotValidationDispatcher : IAotValidationDispatcher
 {
-    public IValidationResult? TryValidate(IDispatchMessage message, IServiceProvider provider)
+    public ValueTask<IValidationResult?> TryValidateAsync(IDispatchMessage message, IServiceProvider provider, CancellationToken cancellationToken = default)
     {
-        return message switch
+        return new(message switch
         {
             DualPathTestCommand m => ValidateTyped(m, provider),
             _ => null
-        };
+        });
     }
 
     private static IValidationResult? ValidateTyped<TMessage>(TMessage message, IServiceProvider provider)

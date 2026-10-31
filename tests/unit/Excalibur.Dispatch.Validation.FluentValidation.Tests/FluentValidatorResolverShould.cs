@@ -16,18 +16,18 @@ namespace Excalibur.Dispatch.Validation.FluentValidation.Tests;
 public sealed class FluentValidatorResolverShould
 {
     [Fact]
-    public void ThrowWhenMessageIsNull()
+    public async Task ThrowWhenMessageIsNull()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
         var sut = new FluentValidatorResolver(provider);
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => sut.TryValidate(null!));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await sut.TryValidateAsync(null!));
     }
 
     [Fact]
-    public void ReturnNullWhenNoValidatorsRegistered()
+    public async Task ReturnNullWhenNoValidatorsRegistered()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
@@ -35,14 +35,14 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "test" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — avoid CS8920 by not calling Shouldly on IValidationResult? directly
         (result is null).ShouldBeTrue();
     }
 
     [Fact]
-    public void ReturnSuccessWhenValidatorPassesAllRules()
+    public async Task ReturnSuccessWhenValidatorPassesAllRules()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -52,7 +52,7 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "ValidName" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result!.IsValid.ShouldBeTrue();
@@ -60,7 +60,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnFailedResultWhenValidationFails()
+    public async Task ReturnFailedResultWhenValidationFails()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -70,7 +70,7 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result!.IsValid.ShouldBeFalse();
@@ -78,7 +78,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnAllValidationErrorsFromSingleValidator()
+    public async Task ReturnAllValidationErrorsFromSingleValidator()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -88,7 +88,7 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "", Value = -1 };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result!.IsValid.ShouldBeFalse();
@@ -96,7 +96,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void AggregateErrorsFromMultipleValidators()
+    public async Task AggregateErrorsFromMultipleValidators()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -108,7 +108,7 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "", Value = -1 };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result!.IsValid.ShouldBeFalse();
@@ -116,7 +116,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void CacheValidatorTypeAcrossMultipleCalls()
+    public async Task CacheValidatorTypeAcrossMultipleCalls()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -126,9 +126,9 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "Valid" };
 
         // Act - call multiple times to exercise cache
-        var result1 = sut.TryValidate(message);
-        var result2 = sut.TryValidate(message);
-        var result3 = sut.TryValidate(message);
+        var result1 = await sut.TryValidateAsync(message);
+        var result2 = await sut.TryValidateAsync(message);
+        var result3 = await sut.TryValidateAsync(message);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result1!.IsValid.ShouldBeTrue();
@@ -137,7 +137,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void HandleDifferentMessageTypesIndependently()
+    public async Task HandleDifferentMessageTypesIndependently()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -150,8 +150,8 @@ public sealed class FluentValidatorResolverShould
         var invalidOther = new FluentResolverAnotherTestMessage { Code = "" };
 
         // Act
-        var result1 = sut.TryValidate(validMessage);
-        var result2 = sut.TryValidate(invalidOther);
+        var result1 = await sut.TryValidateAsync(validMessage);
+        var result2 = await sut.TryValidateAsync(invalidOther);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result1!.IsValid.ShouldBeTrue();
@@ -160,7 +160,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnSerializableValidationResultType()
+    public async Task ReturnSerializableValidationResultType()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -170,14 +170,14 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert
         result.ShouldBeOfType<SerializableValidationResult>();
     }
 
     [Fact]
-    public void IncludePropertyNameInValidationErrors()
+    public async Task IncludePropertyNameInValidationErrors()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -187,7 +187,7 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — access properties directly to avoid CS8920 with IValidationResult
         result!.IsValid.ShouldBeFalse();
@@ -199,7 +199,7 @@ public sealed class FluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnSuccessResultTypeWhenAllValidatorsPass()
+    public async Task ReturnSuccessResultTypeWhenAllValidatorsPass()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -209,7 +209,7 @@ public sealed class FluentValidatorResolverShould
         var message = new FluentResolverTestMessage { Name = "ValidName" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert
         var svr = result.ShouldBeOfType<SerializableValidationResult>();

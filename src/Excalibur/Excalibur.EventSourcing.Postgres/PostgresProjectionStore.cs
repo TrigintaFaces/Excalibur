@@ -72,14 +72,22 @@ public sealed partial class PostgresProjectionStore<TProjection> : ITransactiona
 	/// <remarks>
 	/// This is the simple constructor for most users.
 	/// </remarks>
+	/// <param name="destinationKind">
+	/// Which apply path owns this destination. Defaults to
+	/// <see cref="ProjectionDestinationKind.Positioned"/>, the narrower claim. Pass
+	/// <see cref="ProjectionDestinationKind.Transactional"/> for a table provisioned by
+	/// <c>CreateTransactionalTableScript</c>; that store then declines the positioned capability.
+	/// </param>
 	public PostgresProjectionStore(
 		string connectionString,
 		ILogger<PostgresProjectionStore<TProjection>> logger,
 		ITenantContext tenantContext,
 		string? tableName = null,
 		JsonSerializerOptions? jsonOptions = null,
-		string schemaName = "public")
-		: this(CreateDataSource(connectionString), logger, tenantContext, tableName, jsonOptions, schemaName)
+		string schemaName = "public",
+		ProjectionDestinationKind destinationKind = ProjectionDestinationKind.Positioned)
+		: this(CreateDataSource(connectionString), logger, tenantContext, tableName, jsonOptions, schemaName,
+			destinationKind)
 	{
 	}
 
@@ -106,14 +114,22 @@ public sealed partial class PostgresProjectionStore<TProjection> : ITransactiona
 	/// <remarks>
 	/// This is the advanced constructor for scenarios requiring custom connection management.
 	/// </remarks>
+	/// <param name="destinationKind">
+	/// Which apply path owns this destination. Defaults to
+	/// <see cref="ProjectionDestinationKind.Positioned"/>, the narrower claim. Pass
+	/// <see cref="ProjectionDestinationKind.Transactional"/> for a table provisioned by
+	/// <c>CreateTransactionalTableScript</c>; that store then declines the positioned capability.
+	/// </param>
 	public PostgresProjectionStore(
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresProjectionStore<TProjection>> logger,
 		ITenantContext tenantContext,
 		string? tableName = null,
 		JsonSerializerOptions? jsonOptions = null,
-		string schemaName = "public")
+		string schemaName = "public",
+		ProjectionDestinationKind destinationKind = ProjectionDestinationKind.Positioned)
 	{
+		_destinationKind = destinationKind;
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		ArgumentNullException.ThrowIfNull(tenantContext);
@@ -684,8 +700,25 @@ public sealed partial class PostgresProjectionStore<TProjection> : ITransactiona
 			return new ConfiguredDestinationIdentity(_destinationIdentity);
 		}
 
+		// A DESTINATION BELONGS TO ONE APPLY PATH, so this instance declines the capability it does not
+		// own. See ProjectionDestinationKind for why the kind is declared rather than inferred.
+		if (serviceType == typeof(IPositionedProjectionStore<TProjection>)
+			&& _destinationKind == ProjectionDestinationKind.Transactional)
+		{
+			return null;
+		}
+
+		if (serviceType == typeof(ITransactionalProjectionStore<TProjection>)
+			&& _destinationKind == ProjectionDestinationKind.Positioned)
+		{
+			return null;
+		}
+
 		return serviceType.IsInstanceOfType(this) ? this : null;
 	}
+
+	/// <summary>Which apply path owns this destination. Decided at construction, never probed.</summary>
+	private readonly ProjectionDestinationKind _destinationKind;
 
 	private sealed class ConfiguredDestinationIdentity(string identity) : IProjectionDestinationIdentity
 	{

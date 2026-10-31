@@ -141,7 +141,11 @@ public sealed class SqliteTransactionalProjectionConformanceShould(SqliteEventSt
         await command.ExecuteNonQueryAsync();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSqliteProjectionStore<ConformanceProjection>(_fixture.ConnectionString, table);
+        // DECLARES THE DESTINATION IT PROVISIONED above with CreateTransactionalTableScript. Without
+        // this the store defaults to a positioned destination and declines the transactional capability,
+        // which is the refusal working rather than a defect.
+        services.AddSqliteProjectionStore<ConformanceProjection>(_fixture.ConnectionString, table,
+            destinationKind: ProjectionDestinationKind.Transactional);
         return Resolve<IProjectionStore<ConformanceProjection>>(services);
     }
 
@@ -160,8 +164,10 @@ public sealed class SqliteTransactionalProjectionConformanceShould(SqliteEventSt
         await command.ExecuteNonQueryAsync();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSqliteProjectionStore<ConformanceProjection>(_fixture.ConnectionString, first);
-        services.AddSqliteProjectionStore<ConformanceProjectionNextGeneration>(_fixture.ConnectionString, second);
+        services.AddSqliteProjectionStore<ConformanceProjection>(_fixture.ConnectionString, first,
+            destinationKind: ProjectionDestinationKind.Transactional);
+        services.AddSqliteProjectionStore<ConformanceProjectionNextGeneration>(_fixture.ConnectionString, second,
+            destinationKind: ProjectionDestinationKind.Transactional);
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         _providers.Add(provider);
         var scope = provider.CreateAsyncScope();

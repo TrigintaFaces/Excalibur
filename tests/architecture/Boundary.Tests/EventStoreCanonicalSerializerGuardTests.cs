@@ -77,9 +77,7 @@ public sealed class EventStoreCanonicalSerializerGuardTests
         // (e.g. EncryptingEventStoreDecorator) — which can also serialize event bodies — are covered, not
         // only the concrete leaf stores. A decorator that serializes only an envelope/metadata (not
         // IDomainEvent bodies) is allowlisted with a written reason below.
-        return Directory
-            .EnumerateFiles(srcRoot, "*EventStore*.cs", SearchOption.AllDirectories)
-            .Where(path => !IsGeneratedArtifactPath(path))
+        return EnumerateStoreSourceFiles(srcRoot, "*EventStore*.cs")
             .Select(path => (Path: path, Text: File.ReadAllText(path)))
             .ToList();
     }
@@ -131,9 +129,7 @@ public sealed class EventStoreCanonicalSerializerGuardTests
         {
             reason.ShouldNotBeNullOrWhiteSpace($"Allowlist entry '{fileName}' must carry a written reason.");
 
-            var matches = Directory
-                .EnumerateFiles(srcRoot, fileName, SearchOption.AllDirectories)
-                .Where(path => !IsGeneratedArtifactPath(path))
+            var matches = EnumerateStoreSourceFiles(srcRoot, fileName)
                 .ToList();
 
             matches.Count.ShouldBe(
@@ -218,8 +214,7 @@ public sealed class EventStoreCanonicalSerializerGuardTests
         Directory.Exists(srcRoot).ShouldBeTrue($"Expected source root at '{srcRoot}'.");
 
         return DeliveryStoreGlobs
-            .SelectMany(glob => Directory.EnumerateFiles(srcRoot, glob, SearchOption.AllDirectories))
-            .Where(path => !IsGeneratedArtifactPath(path))
+            .SelectMany(glob => EnumerateStoreSourceFiles(srcRoot, glob))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path => (Path: path, Text: File.ReadAllText(path)))
             .ToList();
@@ -264,9 +259,7 @@ public sealed class EventStoreCanonicalSerializerGuardTests
         {
             reason.ShouldNotBeNullOrWhiteSpace($"Allowlist entry '{fileName}' must carry a written reason.");
 
-            var matches = Directory
-                .EnumerateFiles(srcRoot, fileName, SearchOption.AllDirectories)
-                .Where(path => !IsGeneratedArtifactPath(path))
+            var matches = EnumerateStoreSourceFiles(srcRoot, fileName)
                 .ToList();
 
             matches.Count.ShouldBe(
@@ -346,8 +339,7 @@ public sealed class EventStoreCanonicalSerializerGuardTests
         Directory.Exists(srcRoot).ShouldBeTrue($"Expected source root at '{srcRoot}'.");
 
         return ProjectionStoreGlobs
-            .SelectMany(glob => Directory.EnumerateFiles(srcRoot, glob, SearchOption.AllDirectories))
-            .Where(path => !IsGeneratedArtifactPath(path))
+            .SelectMany(glob => EnumerateStoreSourceFiles(srcRoot, glob))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path => (Path: path, Text: File.ReadAllText(path)))
             .ToList();
@@ -393,9 +385,7 @@ public sealed class EventStoreCanonicalSerializerGuardTests
         {
             reason.ShouldNotBeNullOrWhiteSpace($"Allowlist entry '{fileName}' must carry a written reason.");
 
-            var matches = Directory
-                .EnumerateFiles(srcRoot, fileName, SearchOption.AllDirectories)
-                .Where(path => !IsGeneratedArtifactPath(path))
+            var matches = EnumerateStoreSourceFiles(srcRoot, fileName)
                 .ToList();
 
             matches.Count.ShouldBe(
@@ -436,10 +426,59 @@ public sealed class EventStoreCanonicalSerializerGuardTests
             .ShouldBeFalse("a projection store that does not serialize JSON must not be flagged");
     }
 
-    private static bool IsGeneratedArtifactPath(string path)
+    [Fact]
+    public void SourceEnumeration_CoversNestedSourcesAndExcludesGeneratedDirectories()
     {
-        var normalized = path.Replace('\\', '/');
-        return normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase)
-               || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase);
+        var root = Directory.CreateTempSubdirectory("canonical-store-guard-");
+        try
+        {
+            string[] sourceDirectories = ["Provider", "Provider/Nested", "ObjectStore", "Binary"];
+            string[] generatedDirectories = ["obj", "bin", "Provider/Obj", "Provider/BIN"];
+            foreach (var relative in sourceDirectories.Concat(generatedDirectories))
+            {
+                var directory = Directory.CreateDirectory(Path.Combine(root.FullName, relative));
+                File.WriteAllText(Path.Combine(directory.FullName, "ExampleOutboxStore.cs"), "source");
+                File.WriteAllText(Path.Combine(directory.FullName, "Unrelated.cs"), "source");
+            }
+
+            var actual = EnumerateStoreSourceFiles(root.FullName, "*OutboxStore*.cs")
+                .Select(path => Path.GetRelativePath(root.FullName, path).Replace('\\', '/'))
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            var expected = sourceDirectories.Select(path => path + "/ExampleOutboxStore.cs")
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            actual.ShouldBe(expected);
+            Should.Throw<DirectoryNotFoundException>(() =>
+                EnumerateStoreSourceFiles(Path.Combine(root.FullName, "Missing"), "*.cs").ToArray());
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    private static IEnumerable<string> EnumerateStoreSourceFiles(string root, string pattern)
+    {
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.TryPop(out var directory))
+        {
+            foreach (var file in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
+            {
+                yield return file;
+            }
+
+            foreach (var child in Directory.EnumerateDirectories(directory))
+            {
+                // Prune before descent: filtering returned files still opens transient build directories.
+                var name = Path.GetFileName(child);
+                if (!name.Equals("bin", StringComparison.OrdinalIgnoreCase)
+                    && !name.Equals("obj", StringComparison.OrdinalIgnoreCase))
+                {
+                    pending.Push(child);
+                }
+            }
+        }
     }
 }

@@ -44,6 +44,21 @@ public sealed class SqlServerProjectionStoreOptions
 	/// </remarks>
 	public string SchemaName { get; set; } = "dbo";
 
+	/// <summary>Gets or sets which apply path owns this destination.</summary>
+	/// <value>
+	/// <see langword="null"/> by default, meaning NOT STATED -- the kind is then derived from the
+	/// projection's registered mode, and falls back to
+	/// <see cref="ProjectionDestinationKind.Positioned"/> only when nothing is registered. Set it
+	/// explicitly to override the derivation; an explicit value always wins.
+	/// </value>
+	/// <remarks>
+	/// NULLABLE DELIBERATELY. A non-nullable value here could not distinguish "the consumer chose
+	/// Positioned" from "nobody said", so every producer was forced to assert something it had not been
+	/// told -- and the apply path was then declarable twice, here and on the projection's mode, with
+	/// nothing reconciling the two. The third state is what lets the mode be the single declaration.
+	/// </remarks>
+	public ProjectionDestinationKind? DestinationKind { get; set; }
+
 	/// <summary>
 	/// Gets or sets the JSON serializer options for projection data.
 	/// </summary>

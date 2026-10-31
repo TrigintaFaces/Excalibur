@@ -117,6 +117,28 @@ public sealed partial class SqlServerTransactionalAppendAtomicityShould
     public async Task RejectGlobalPositionedWritesToTransactionalTables()
     {
         var projection = await CreateTransactionalProjectionAsync();
+
+        // THE REFUSAL IS THE ABSENCE OF THE CAPABILITY, not an exception from the database.
+        //
+        // This arm used to assert Should.ThrowAsync<SqlException>, which codified a contract violation
+        // as the requirement: IPositionedProjectionStore states its refusals as outcome VALUES and
+        // declares no exception for this case, so a client written against the interface could only
+        // handle that failure by referencing a provider's client library. The guard was a CHECK
+        // constraint in shipped DDL -- a deployment artifact the store cannot read.
+        //
+        // A store built for a transactional destination now declines the positioned capability outright,
+        // so there is no positioned write to attempt and the illegitimate call is inexpressible through
+        // the capability surface rather than detected after the fact.
+        ((IServiceProvider)projection).GetService(typeof(IPositionedProjectionStore<TransactionalCount>))
+            .ShouldBeNull("a transactional destination must not advertise the positioned contract");
+
+        // LIVENESS: it still advertises the contract it DOES own, so the refusal above is not satisfied
+        // by a store that declines everything.
+        ((IServiceProvider)projection).GetService(typeof(ITransactionalProjectionStore<TransactionalCount>))
+            .ShouldNotBeNull("a transactional destination must still advertise the transactional contract");
+
+        // And the CHECK constraint remains as a backstop against a hand-applied migration or a provider
+        // defect: a direct write at a real position is still refused by the database.
         await Should.ThrowAsync<SqlException>(() => projection.UpsertAtPositionAsync("row", new TransactionalCount { Count = 9 }, null, 10, CancellationToken.None));
         (await projection.GetByIdAsync("row", CancellationToken.None)).ShouldBeNull();
     }
@@ -159,8 +181,12 @@ public sealed partial class SqlServerTransactionalAppendAtomicityShould
         command.CommandText = SqlServerProjectionSchema.CreateTransactionalTableScript(table);
 #pragma warning restore CA2100
         _ = await command.ExecuteNonQueryAsync();
+        // DECLARES THE DESTINATION IT JUST PROVISIONED. The script above creates a transactional table,
+        // so the store is built for one -- which is the whole point of the kind being a construction
+        // argument rather than something the store infers from a schema probe.
         return new SqlServerProjectionStore<TransactionalCount>(_connectionString!, NullLogger<SqlServerProjectionStore<TransactionalCount>>.Instance,
-            SingleTenantTestContext.Instance, table);
+            SingleTenantTestContext.Instance, table,
+            destinationKind: ProjectionDestinationKind.Transactional);
     }
 
     private sealed class TransactionalCount

@@ -31,8 +31,8 @@ public sealed class FluentValidationGeneratorIntegrationShould
 			{
 			    public interface IAotValidationDispatcher
 			    {
-			        Excalibur.Dispatch.Validation.IValidationResult? TryValidate(
-			            Excalibur.Dispatch.IDispatchMessage message, System.IServiceProvider provider);
+			        System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Validation.IValidationResult?> TryValidateAsync(
+			            Excalibur.Dispatch.IDispatchMessage message, System.IServiceProvider provider, System.Threading.CancellationToken cancellationToken = default);
 			    }
 			}
 			""");
@@ -292,7 +292,7 @@ public sealed class FluentValidationGeneratorIntegrationShould
 
 		var generatedCode = result.GeneratedTrees[0].GetText().ToString();
 		generatedCode.ShouldContain("private static");
-		generatedCode.ShouldContain("ValidateTyped<TMessage>");
+		generatedCode.ShouldContain("ValidateTypedAsync<TMessage>");
 		generatedCode.ShouldContain("GetServices<global::FluentValidation.IValidator<TMessage>>");
 		generatedCode.ShouldContain("SerializableValidationResult.Success()");
 		generatedCode.ShouldContain("SerializableValidationResult.Failed(errors)");
@@ -350,11 +350,9 @@ public sealed class FluentValidationGeneratorIntegrationShould
 	}
 
 	[Fact]
-	public void GenerateValidatorPresenceCacheField()
+	public void ResolveValidatorPresencePerProvider()
 	{
-		// Arrange - Sprint 742: FluentValidation generator caches validator presence (bool)
-		// in a ConcurrentDictionary to avoid repeated DI probing per message type.
-		// Validator instances are resolved fresh each call to respect DI scoping.
+		// Registrations belong to each provider, so their presence cannot be cached globally.
 		const string source = """
 			using Excalibur.Dispatch;
 			using FluentValidation;
@@ -372,8 +370,8 @@ public sealed class FluentValidationGeneratorIntegrationShould
 		var result = RunFluentValidationGenerator(source);
 
 		var generatedCode = result.GeneratedTrees[0].GetText().ToString();
-		generatedCode.ShouldContain("ConcurrentDictionary");
-		generatedCode.ShouldContain("_hasValidatorsCache");
+		generatedCode.ShouldNotContain("ConcurrentDictionary");
+		generatedCode.ShouldNotContain("_hasValidatorsCache");
 	}
 
 	private static int CountOccurrences(string text, string pattern)

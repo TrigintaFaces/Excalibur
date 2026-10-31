@@ -111,7 +111,7 @@ public sealed class FluentValidatorResolverShould
 	#region Happy Path Tests
 
 	[Fact]
-	public void ReturnNullWhenNoValidatorIsRegistered()
+	public async Task ReturnNullWhenNoValidatorIsRegistered()
 	{
 		// Arrange
 		var provider = CreateServiceProvider();
@@ -119,14 +119,14 @@ public sealed class FluentValidatorResolverShould
 		var message = new MessageWithoutValidator("test data");
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnSuccessResultWhenValidationPasses()
+	public async Task ReturnSuccessResultWhenValidationPasses()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -137,7 +137,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("John Doe", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -146,7 +146,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnSuccessResultWhenAllFieldsAreValid()
+	public async Task ReturnSuccessResultWhenAllFieldsAreValid()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -157,7 +157,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new MessageWithMultipleFields("John", "john@example.com", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -170,7 +170,7 @@ public sealed class FluentValidatorResolverShould
 	#region Validation Failure Tests
 
 	[Fact]
-	public void ReturnFailedResultWhenNameIsEmpty()
+	public async Task ReturnFailedResultWhenNameIsEmpty()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -181,7 +181,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -193,7 +193,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenNameIsTooLong()
+	public async Task ReturnFailedResultWhenNameIsTooLong()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -204,7 +204,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage(new string('a', 51), 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -215,7 +215,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenAgeIsTooLow()
+	public async Task ReturnFailedResultWhenAgeIsTooLow()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -226,7 +226,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("John", 10);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -238,7 +238,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenAgeIsTooHigh()
+	public async Task ReturnFailedResultWhenAgeIsTooHigh()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -249,7 +249,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("John", 150);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -260,7 +260,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnMultipleErrorsWhenMultipleFieldsFail()
+	public async Task ReturnMultipleErrorsWhenMultipleFieldsFail()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -271,7 +271,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new MessageWithMultipleFields("", "invalid-email", 0);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -280,7 +280,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenEmailIsInvalid()
+	public async Task ReturnFailedResultWhenEmailIsInvalid()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -291,7 +291,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new MessageWithMultipleFields("John", "not-an-email", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -307,7 +307,7 @@ public sealed class FluentValidatorResolverShould
 	#region Error Code Tests
 
 	[Fact]
-	public void IncludeErrorCodeInValidationErrors()
+	public async Task IncludeErrorCodeInValidationErrors()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -318,7 +318,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -333,7 +333,7 @@ public sealed class FluentValidatorResolverShould
 	#region Multiple Validators Tests
 
 	[Fact]
-	public void AggregateErrorsFromMultipleValidatorsForSameMessageType()
+	public async Task AggregateErrorsFromMultipleValidatorsForSameMessageType()
 	{
 		// Arrange - Register two different validators for the same message type
 		var provider = CreateServiceProvider(services =>
@@ -345,7 +345,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("", -5); // Fails both validators
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -355,7 +355,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnSuccessWhenMultipleValidatorsAllPass()
+	public async Task ReturnSuccessWhenMultipleValidatorsAllPass()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -367,7 +367,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("John", 25); // Passes both validators
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -382,7 +382,7 @@ public sealed class FluentValidatorResolverShould
 	[Theory]
 	[InlineData(18)]
 	[InlineData(120)]
-	public void ReturnSuccessWhenAgeIsAtBoundary(int age)
+	public async Task ReturnSuccessWhenAgeIsAtBoundary(int age)
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -393,7 +393,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("John", age);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -401,7 +401,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnSuccessWhenNameIsAtMaxLength()
+	public async Task ReturnSuccessWhenNameIsAtMaxLength()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -412,7 +412,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage(new string('a', 50), 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -424,7 +424,7 @@ public sealed class FluentValidatorResolverShould
 	#region Property Name Tests
 
 	[Fact]
-	public void IncludeCorrectPropertyNameInError()
+	public async Task IncludeCorrectPropertyNameInError()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -435,7 +435,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -445,7 +445,7 @@ public sealed class FluentValidatorResolverShould
 	}
 
 	[Fact]
-	public void IncludeCorrectPropertyNamesInMultipleErrors()
+	public async Task IncludeCorrectPropertyNamesInMultipleErrors()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -456,7 +456,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new MessageWithMultipleFields("", "", 0);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -474,14 +474,14 @@ public sealed class FluentValidatorResolverShould
 	#region Exception Tests
 
 	[Fact]
-	public void ThrowArgumentNullExceptionWhenMessageIsNull()
+	public async Task ThrowArgumentNullExceptionWhenMessageIsNull()
 	{
 		// Arrange
 		var provider = CreateServiceProvider();
 		var sut = new FluentValidatorResolver(provider);
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => sut.TryValidate(null!));
+		_ = await Should.ThrowAsync<ArgumentNullException>(async () => await sut.TryValidateAsync(null!));
 	}
 
 	#endregion Exception Tests
@@ -489,7 +489,7 @@ public sealed class FluentValidatorResolverShould
 	#region Result Type Tests
 
 	[Fact]
-	public void ReturnSerializableValidationResultTypeOnSuccess()
+	public async Task ReturnSerializableValidationResultTypeOnSuccess()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -500,14 +500,14 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("John", 25);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		_ = result.ShouldBeAssignableTo<SerializableValidationResult>();
 	}
 
 	[Fact]
-	public void ReturnSerializableValidationResultTypeOnFailure()
+	public async Task ReturnSerializableValidationResultTypeOnFailure()
 	{
 		// Arrange
 		var provider = CreateServiceProvider(services =>
@@ -518,7 +518,7 @@ public sealed class FluentValidatorResolverShould
 		var message = new TestMessage("", 10);
 
 		// Act
-		var result = sut.TryValidate(message);
+		var result = await sut.TryValidateAsync(message);
 
 		// Assert
 		_ = result.ShouldBeAssignableTo<SerializableValidationResult>();

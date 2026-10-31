@@ -32,6 +32,9 @@ public interface IProjectionRebuildService
 	/// <typeparam name="TProjection">The projection type to rebuild.</typeparam>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous rebuild operation.</returns>
+    /// <exception cref="NotSupportedException">
+    /// The projection uses TransactionalInline. Global-stream rebuilding cannot preserve its event-transaction ownership.
+    /// </exception>
 	/// <remarks>
 	/// Rebuilding writes the rebuilt read model through <c>IProjectionStore</c>, which serializes
 	/// <typeparamref name="TProjection"/> reflectively, and the rebuild path does not consult the

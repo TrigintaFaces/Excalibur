@@ -135,6 +135,7 @@ public sealed class SqlServerTransactionalProjectionConformanceShould(SqlServerE
             options.ConnectionString = _fixture.ConnectionString;
             options.TableName = table;
             options.SchemaName = _fixture.SchemaName;
+            options.DestinationKind = ProjectionDestinationKind.Transactional;
         });
         return Resolve<IProjectionStore<ConformanceProjection>>(services);
     }
@@ -158,6 +159,7 @@ public sealed class SqlServerTransactionalProjectionConformanceShould(SqlServerE
         {
             shared.ConnectionString = _fixture.ConnectionString;
             shared.SchemaName = _fixture.SchemaName;
+            shared.DestinationKind = ProjectionDestinationKind.Transactional;
         }, projections =>
         {
             projections.Add<ConformanceProjection>(options => options.TableName = first);

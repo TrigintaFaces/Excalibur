@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Npgsql;
+using Excalibur.EventSourcing.Projections;
 
 #pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
 
@@ -56,7 +57,12 @@ public static class PostgresProjectionStoreExtensions
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options.TableName,
 				jsonOptions: options.JsonSerializerOptions,
-				schemaName: options.SchemaName);
+				schemaName: options.SchemaName,
+				// STATED wins; otherwise derived from the projection's registered mode; otherwise the
+				// narrower claim.
+				destinationKind: options.DestinationKind
+					?? ProjectionDestinationKindResolver.Resolve(sp, typeof(TProjection))
+					?? ProjectionDestinationKind.Positioned);
 		});
 
 		return services;

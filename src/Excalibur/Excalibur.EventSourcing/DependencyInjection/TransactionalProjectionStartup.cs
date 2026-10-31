@@ -14,16 +14,34 @@ internal sealed class TransactionalProjectionStartup(IServiceProvider services) 
     {
         services.TryAddSingleton<ITransactionalProjectionCoordinator>(sp =>
         {
-            Configure(sp);
+            EventNotificationServiceCollectionExtensions.ConfigureProjections(sp);
             return new TransactionalProjectionCoordinator(sp.GetRequiredService<IProjectionRegistry>(), sp.GetRequiredService<IServiceScopeFactory>());
         });
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TransactionalProjectionStartup>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, TransactionalProjectionStartup>());
+
+        // Declare that the two transactional-projection facets honor the ambient tenant. Both are
+        // genuinely tenant-scoped: the shared relational destination puts TenantId in the predicate of
+        // every statement it issues, and the transactional write additionally REFUSES a transaction whose
+        // tenant differs from the destination's.
+        //
+        // EMITTED HERE, AND THE PLACEMENT IS THE POINT. A marker that could be registered independently of
+        // the wiring it attests is the advertised-but-unwired lie in a costume: a host would pass the
+        // row-discriminator capability requirement while holding stores that never received a tenant. This
+        // method is the transactional-inline opt-in itself, so the marker cannot be present without the
+        // wiring -- and Validate() below is a startup prerequisite that refuses to start when the
+        // configured event store or any registered destination does not actually implement the facets, so
+        // the attestation cannot outlive the capability either.
+        //
+        // Through the canonical internal seam, as the erasure facet is: one internal marker
+        // implementation, no provider clones to drift.
+        TenantScopedStoreServiceCollectionExtensions.AddTenantScopingCapability<ITransactionalProjectionEventStore>(services);
+        TenantScopedStoreServiceCollectionExtensions.AddTenantScopingCapability<ITransactionalProjectionStore<object>>(services);
     }
 
     public void Validate()
     {
-        Configure(services);
+        EventNotificationServiceCollectionExtensions.ConfigureProjections(services);
         var store = services.GetRequiredKeyedService<IEventStore>("default");
         if (store.GetService(typeof(ITransactionalProjectionEventStore)) is not ITransactionalProjectionEventStore)
         {
@@ -45,11 +63,4 @@ internal sealed class TransactionalProjectionStartup(IServiceProvider services) 
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private static void Configure(IServiceProvider services)
-    {
-        foreach (var configuration in services.GetServices<EventNotificationServiceCollectionExtensions.IConfigureProjection>())
-        {
-            configuration.Configure();
-        }
-    }
 }

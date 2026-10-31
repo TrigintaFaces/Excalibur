@@ -479,6 +479,49 @@ public static class MultiTenancyServiceCollectionExtensions
 			gatedAny = true;
 		}
 
+		// The two transaction-enlisted contracts, gated and NOT decorated. They write the rows IEventStore
+		// and IProjectionStore<T> write -- the event stream and the aggregate-local projection -- in one
+		// transaction rather than two, so they are tenant-owned for exactly the reason those two are. They
+		// inherit neither, which is why nothing reached them until the manifest's own completeness was
+		// bounded by the namespace.
+		//
+		// Both are CAPABILITIES OF THEIR OWNING STORE, never service types: the coordinator asks the event
+		// store for ITransactionalProjectionEventStore and each projection store for
+		// ITransactionalProjectionStore<T>, in both cases through GetService on the store it already holds.
+		// Scanning the container for either as a ServiceType would therefore match nothing, ever -- the same
+		// category error IEventStoreErasure above documents -- so this gates on the FEATURE's own service
+		// type instead: opting into transaction-inline projections registers
+		// ITransactionalProjectionCoordinator, which is what a host that can reach these facets actually
+		// has. A host that registered no transactional projection reaches neither facet and is not gated on
+		// them.
+		//
+		// Decorating is not available to either: the facet is the same object as the store the decorator
+		// wraps, and it is handed out by that object's own GetService, which a wrapper cannot intercept
+		// without also intercepting the capability refusals the surface depends on. The assertion that the
+		// object implementing the facet honours the ambient tenant is the enforcement that is available
+		// here, and it is the same object the owning contract's gate already asserts.
+		if (services.HasStoreRegistrationFor(typeof(ITransactionalProjectionCoordinator)))
+		{
+			// BOTH facets are reported in ONE message, and that is not cosmetic. They share a single
+			// trigger -- the coordinator -- so two sequential throws would report only the first: a host
+			// missing both markers would fix one, restart, and be rejected again for the other, learning
+			// its true configuration one round trip at a time. Aggregating the missing set is also what
+			// makes each facet's absence independently observable, so a guard that silently stopped
+			// checking one of them cannot hide behind the other's refusal.
+			var missing = new List<string>(2);
+			RequireTenantScopingCapability<ITransactionalProjectionEventStore>(
+				services, nameof(ITransactionalProjectionEventStore), missing);
+			RequireTenantScopingCapability<ITransactionalProjectionStore<object>>(
+				services, $"{nameof(ITransactionalProjectionStore<>)}", missing);
+
+			if (missing.Count > 0)
+			{
+				throw new InvalidOperationException(TenantScopingCapabilityMessage(string.Join(" and ", missing)));
+			}
+
+			gatedAny = true;
+		}
+
 		// Runtime exhaustiveness IS asserted below, and its oracle is deliberately NOT a list this file keeps.
 		//
 		// An earlier revision built a HashSet of "gated" contracts by calling gated.Add(typeof(T)) alongside each
@@ -517,21 +560,63 @@ public static class MultiTenancyServiceCollectionExtensions
 	/// </summary>
 	private static void RequireTenantScopingCapability<TContract>(IServiceCollection services, string contractName)
 	{
-		if (!services.Any(static d => d.ServiceType == typeof(ITenantScopingCapability<TContract>)))
+		if (!services.HasTenantScopingCapability<TContract>())
 		{
-			// The message states what the REJECTED registration lacks and what to do about it. It must not
-			// say the capability "is not yet supported": tenant-aware providers exist and ship, so a consumer
-			// whose provider IS capable would read that the framework cannot do what it can do, and go build
-			// a workaround for a limitation that does not exist. Describe the contract, not a roadmap.
-			throw new InvalidOperationException(
-				$"{contractName} is registered but its provider is not tenant-scoping-capable, which "
-				+ $"{nameof(TenantIsolationStrategy.RowDiscriminator)} requires. A provider presents it by "
-				+ "registering its store through the tenant-scoped store registration seam, which supplies the "
-				+ "ambient tenant to the store and emits the capability in the same act. Register this store "
-				+ "through a tenant-aware provider registration, or select a different tenant-isolation "
-				+ "strategy.");
+			throw new InvalidOperationException(TenantScopingCapabilityMessage(contractName));
 		}
 	}
+
+	/// <summary>
+	/// Records, rather than throws, when a contract lacks the tenant-scoping capability.
+	/// </summary>
+	/// <remarks>
+	/// For a trigger that gates SEVERAL facets at once. It still enforces -- the caller throws on a
+	/// non-empty set in the same block -- but deferring lets one refusal name every missing facet instead
+	/// of only the first, so a consumer learns its whole configuration in one startup rather than one
+	/// round trip per facet. It deliberately keeps the <c>RequireTenantScopingCapability</c> spelling: the
+	/// architecture guard that proves every manifested contract is gated derives the gated set from these
+	/// call sites, and a facet checked under some other name would be invisible to it and read as ungated.
+	/// </remarks>
+	/// <typeparam name="TContract">The gated contract.</typeparam>
+	/// <param name="services">The registrations to probe.</param>
+	/// <param name="contractName">The contract's display name for the refusal.</param>
+	/// <param name="missing">Collects the names of contracts lacking the capability.</param>
+	private static void RequireTenantScopingCapability<TContract>(
+		IServiceCollection services, string contractName, ICollection<string> missing)
+	{
+		if (!services.HasTenantScopingCapability<TContract>())
+		{
+			missing.Add(contractName);
+		}
+	}
+
+	/// <summary>Reports whether a provider presented the tenant-scoping capability for a contract.</summary>
+	/// <remarks>
+	/// Split out so a caller gating SEVERAL facets behind one trigger can collect the whole missing set
+	/// before refusing, instead of reporting the first and hiding the rest.
+	/// </remarks>
+	/// <typeparam name="TContract">The gated contract.</typeparam>
+	/// <param name="services">The registrations to probe.</param>
+	/// <returns><see langword="true"/> when the capability is present.</returns>
+	private static bool HasTenantScopingCapability<TContract>(this IServiceCollection services) =>
+		services.Any(static d => d.ServiceType == typeof(ITenantScopingCapability<TContract>));
+
+	/// <summary>Builds the refusal for one or more contracts lacking the tenant-scoping capability.</summary>
+	/// <remarks>
+	/// The message states what the REJECTED registration lacks and what to do about it. It must not say the
+	/// capability "is not yet supported": tenant-aware providers exist and ship, so a consumer whose
+	/// provider IS capable would read that the framework cannot do what it can do, and go build a
+	/// workaround for a limitation that does not exist. Describe the contract, not a roadmap.
+	/// </remarks>
+	/// <param name="contractNames">The contract, or contracts, that are registered without the capability.</param>
+	/// <returns>The refusal message.</returns>
+	private static string TenantScopingCapabilityMessage(string contractNames) =>
+		$"{contractNames} is registered but its provider is not tenant-scoping-capable, which "
+		+ $"{nameof(TenantIsolationStrategy.RowDiscriminator)} requires. A provider presents it by "
+		+ "registering its store through the tenant-scoped store registration seam, which supplies the "
+		+ "ambient tenant to the store and emits the capability in the same act. Register this store "
+		+ "through a tenant-aware provider registration, or select a different tenant-isolation "
+		+ "strategy.";
 
 	/// <summary>
 	/// Fails closed when a contract whose tenancy is carried on the row - the outbox - is registered by a

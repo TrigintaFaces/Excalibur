@@ -37,7 +37,7 @@ internal sealed class OracleSubscriptionCheckpointStore : ISubscriptionCheckpoin
 
 		_connectionFactory = connectionFactory;
 		_table = OracleTableName.Format(schema, table);
-		_generations = new(OpenAsync, Command, static error => error is OracleException { Number: 1 or 60 or 8177 or 2291 or 2292 }, _table, OracleTableName.Format(schema, table + "READERS"), oracle: true);
+		_generations = new(OpenAsync, Command, static error => error is OracleException { Number: 1 or 60 or 8177 or 2291 or 2292 }, _table, OracleTableName.Format(schema, table + "READERS"), ProjectionGenerationDialect.Oracle);
 	}
 
 

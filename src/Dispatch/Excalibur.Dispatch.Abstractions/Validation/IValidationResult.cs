@@ -13,7 +13,6 @@ namespace Excalibur.Dispatch.Validation;
 /// <list type="bullet">
 /// <item> Boolean validation status indicator </item>
 /// <item> Collection of detailed error information </item>
-/// <item> Factory methods for creating success and failure results </item>
 /// <item> Immutable result state for thread safety </item>
 /// </list>
 /// Implementations should provide meaningful error messages that help developers understand validation failures.
@@ -38,24 +37,4 @@ public interface IValidationResult
 	/// </remarks>
 	bool IsValid { get; }
 
-	/// <summary>
-	/// Creates a failed validation result with the specified errors.
-	/// </summary>
-	/// <param name="errors"> The validation errors that occurred. </param>
-	/// <returns> A validation result indicating failure with the provided errors. </returns>
-	/// <remarks>
-	/// Factory method for creating validation failure results. Implementations should ensure the returned result has IsValid set to false
-	/// and the Errors collection populated with the provided errors.
-	/// </remarks>
-	static abstract IValidationResult Failed(params object[] errors);
-
-	/// <summary>
-	/// Creates a successful validation result.
-	/// </summary>
-	/// <returns> A validation result indicating success with no errors. </returns>
-	/// <remarks>
-	/// Factory method for creating validation success results. Implementations should ensure the returned result has IsValid set to true
-	/// and an empty Errors collection.
-	/// </remarks>
-	static abstract IValidationResult Success();
 }

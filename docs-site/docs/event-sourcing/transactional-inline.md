@@ -122,6 +122,22 @@ and deletion callbacks are rejected. Missing or erased history prevents the save
 stream length; snapshots do not replace this projection replay. Transactional models do not advance
 a global projection checkpoint or support session-token reads.
 
+The projection's registered mode determines its destination capability, including when a store is
+resolved before host startup. SQL Server connection-string, connection-factory, and typed-`IDb`
+registrations use the same rule. An explicit `DestinationKind` overrides inference; an incompatible
+choice is rejected at startup.
+
+The `AddProjection(jsonTypeInfo, configure)` overload uses the supplied generated model metadata.
+It requires `AddAotEventSerializer` and a transactional store capability. It can coexist with generated
+Inline/Async projections without requiring positioned-write operations from the transactional store.
+Startup validates the final registration for each projection type.
+
+`IProjectionRecovery.ReapplyAsync<T>` and `IProjectionRebuildService.RebuildAsync<T>` reject
+transactional projections before reading history, resolving the destination, or changing checkpoints.
+These ordinary replay APIs do not join the event transaction and cannot safely replace its model,
+even when offline rebuilding is acknowledged. Use a separate destination generation when changing
+the model; ordinary replay is not a transactional backfill API.
+
 Do not write ordinary upserts into a transactional model table. Such a write makes the model
 unplaceable, and subsequent transactional saves refuse it. Retirement is terminal within a physical
 generation. Use a new table when changing modes or rebuilding a retired generation.

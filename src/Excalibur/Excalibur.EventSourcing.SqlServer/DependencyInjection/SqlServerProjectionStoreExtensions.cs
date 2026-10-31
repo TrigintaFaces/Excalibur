@@ -10,6 +10,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Excalibur.EventSourcing.Projections;
 
 #pragma warning disable IL2091 // DI registration methods create stores with DynamicallyAccessedMembers-annotated TProjection
 
@@ -65,7 +66,13 @@ public static class SqlServerProjectionStoreExtensions
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options.TableName,
 				jsonOptions: options.JsonSerializerOptions,
-				schemaName: options.SchemaName);
+				schemaName: options.SchemaName,
+				// STATED wins; otherwise derived from the projection's registered mode; otherwise the
+				// narrower claim. See ProjectionDestinationKindResolver for why the mode is the single
+				// declaration and this is a derivation rather than a second place to declare it.
+				destinationKind: options.DestinationKind
+					?? ProjectionDestinationKindResolver.Resolve(sp, typeof(TProjection))
+					?? ProjectionDestinationKind.Positioned);
 		});
 
 		return services;
@@ -114,7 +121,10 @@ public static class SqlServerProjectionStoreExtensions
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options?.TableName,
 				jsonOptions: options?.JsonSerializerOptions,
-				schemaName: options?.SchemaName ?? "dbo");
+				schemaName: options?.SchemaName ?? "dbo",
+                destinationKind: options?.DestinationKind
+                    ?? ProjectionDestinationKindResolver.Resolve(sp, typeof(TProjection))
+                    ?? ProjectionDestinationKind.Positioned);
 		});
 
 		return services;
@@ -165,7 +175,10 @@ public static class SqlServerProjectionStoreExtensions
 				tenantContext: sp.GetRequiredService<ITenantContext>(),
 				tableName: options?.TableName,
 				jsonOptions: options?.JsonSerializerOptions,
-				schemaName: options?.SchemaName ?? "dbo");
+				schemaName: options?.SchemaName ?? "dbo",
+                destinationKind: options?.DestinationKind
+                    ?? ProjectionDestinationKindResolver.Resolve(sp, typeof(TProjection))
+                    ?? ProjectionDestinationKind.Positioned);
 		});
 
 		return services;

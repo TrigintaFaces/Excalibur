@@ -16,6 +16,16 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Pattern", "Integration")]
 public sealed class DurableInlineProjectionShould
 {
+	/// <summary>How long a plumbing await may take to settle. NOT the subject of any assertion.</summary>
+	/// <remarks>
+	/// These waits exist only to let a task settle; every timing PROPERTY in this file is driven by a
+	/// FakeTimeProvider, so this bound cannot weaken an assertion -- raising it removes a wall-clock
+	/// dependency from plumbing rather than relaxing a check. It was 5 seconds, which is ~20x the
+	/// isolated run time and still missed twice under the 69-assembly superset shard, where the
+	/// failure reads as a product TimeoutException and says nothing about the behaviour under test.
+	/// </remarks>
+	private static readonly TimeSpan PlumbingWait = TimeSpan.FromSeconds(60);
+
     [Fact]
     public async Task AddAProjectionWithoutChangingTheAutomaticSubscriptionScope()
     {
@@ -294,7 +304,7 @@ public sealed class DurableInlineProjectionShould
 		await using var api = fixture.CreateProvider();
 		await using var jobs = fixture.CreateProvider();
 		var delayed = Notify(api, 4);
-		await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await entered.Task.WaitAsync(PlumbingWait);
 		try { await Notify(jobs, 4); }
 		finally { release.TrySetResult(); }
 		await delayed;
@@ -313,14 +323,14 @@ public sealed class DurableInlineProjectionShould
 		var fixture = new Pipeline(1) { BeforeWrite = async () => { entered.TrySetResult(); await release.Task; } };
 		await using var provider = fixture.CreateProvider(clock: clock);
 		var save = Notify(provider, 1);
-		await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await entered.Task.WaitAsync(PlumbingWait);
 		clock.Advance(TimeSpan.FromSeconds(30));
-		(await save.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(ProjectionFreshness.BoundExpired,
+		(await save.WaitAsync(PlumbingWait)).ShouldBe(ProjectionFreshness.BoundExpired,
 			"the budget expired, so the read model is behind -- the events are still committed");
 		var second = Notify(provider, 1);
 		fixture.Writes.ShouldBe(1, "a timed-out writer still owns the local page lease");
 		release.SetResult();
-		await second.WaitAsync(TimeSpan.FromSeconds(5));
+		await second.WaitAsync(PlumbingWait);
 		(await fixture.Store.GetByIdAsync("row", CancellationToken.None)).ShouldNotBeNull().Count.ShouldBe(1);
 	}
 
@@ -349,7 +359,7 @@ public sealed class DurableInlineProjectionShould
         {
             var completion = await provider.GetRequiredService<IEventNotificationBroker>().NotifyAsync(
                 [new TestOrderShipped()], new EventNotificationContext("row", "Order", 1, DateTimeOffset.UtcNow, GlobalPosition: 1))
-                .WaitAsync(TimeSpan.FromSeconds(5));
+                .WaitAsync(PlumbingWait);
             completion.Freshness.ShouldBe(ProjectionFreshness.Attested);
             fixture.ScopeResolutionCalls.ShouldBe(0);
             fixture.Writes.ShouldBe(0);

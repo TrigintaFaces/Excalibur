@@ -16,8 +16,8 @@ namespace Excalibur.EventSourcing.Oracle;
 
 /// <summary>Tenant-partitioned aggregate-local models stored in the Oracle event transaction.</summary>
 /// <typeparam name="TProjection">Read model type.</typeparam>
-/// <remarks>Provision its dedicated schema explicitly. This store does not expose global positioned writes.</remarks>
-public sealed class OracleProjectionStore<TProjection> : IProjectionStore<TProjection>, ITransactionalProjectionStore<TProjection>,
+/// <remarks>Provision its dedicated schema explicitly.</remarks>
+public sealed class OracleProjectionStore<TProjection> : IProjectionStore<TProjection>, ITransactionalProjectionStore<TProjection>, IPositionedProjectionStore<TProjection>,
     IProjectionTenantBoundary, IProjectionDestinationIdentity where TProjection : class
 {
     private readonly RelationalTransactionalProjectionStore<TProjection> _store;
@@ -25,6 +25,9 @@ public sealed class OracleProjectionStore<TProjection> : IProjectionStore<TProje
     private readonly ITenantContext _tenantContext;
     private readonly string _table;
     private readonly string _qualifiedTable;
+    /// <summary>Which apply path owns this destination. Decided at construction, never probed.</summary>
+    private readonly ProjectionDestinationKind _destinationKind;
+
 
     /// <summary>Creates a projection store for an explicitly provisioned destination.</summary>
     /// <param name="connectionString">The same database used by the event store.</param>
@@ -32,9 +35,17 @@ public sealed class OracleProjectionStore<TProjection> : IProjectionStore<TProje
     /// <param name="tableName">Base table name; projection version qualification is applied.</param>
     /// <param name="jsonOptions">Read-model serialization options.</param>
     /// <param name="schemaName">Explicit Oracle schema owning the projection table.</param>
+    /// <param name="destinationKind">
+    /// Which apply path owns this destination. Defaults to
+    /// <see cref="ProjectionDestinationKind.Positioned"/>, the narrower claim. Pass
+    /// <see cref="ProjectionDestinationKind.Transactional"/> for a destination written inside the event
+    /// store's append transaction; that store then declines the positioned capability.
+    /// </param>
     public OracleProjectionStore(string connectionString, ITenantContext tenantContext, string tableName,
-        JsonSerializerOptions? jsonOptions = null, string schemaName = "EXCALIBUR")
+        JsonSerializerOptions? jsonOptions = null, string schemaName = "EXCALIBUR",
+        ProjectionDestinationKind destinationKind = ProjectionDestinationKind.Positioned)
     {
+        _destinationKind = destinationKind;
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentNullException.ThrowIfNull(tenantContext);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
@@ -44,7 +55,15 @@ public sealed class OracleProjectionStore<TProjection> : IProjectionStore<TProje
         _qualifiedTable = OracleTableName.Format(schemaName, _table);
         SqlIdentifierValidator.ThrowIfInvalid(_table, nameof(tableName));
         _store = new(() => new OracleConnection(_connectionString), CreateCommand, ValidateTransaction,
-            _qualifiedTable, tenantContext, jsonOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions(), oracle: true);
+            _qualifiedTable, tenantContext, jsonOptions ?? ProjectionSerializationDefaults.CreateReadModelOptions(),
+            // ORA-00001 ONLY, and the narrowing is deliberate. OracleSubscriptionCheckpointStore's
+            // predicate also carries 60 and 8177, but that store owns its transaction. This one is also
+            // entered inside the transaction the EVENT STORE owns, where a deadlock or a serialisation
+            // failure leaves that transaction unusable -- so those must surface rather than be read as a
+            // lost insert race. The projection table declares no foreign keys, so 2291 and 2292 are
+            // unreachable here. A violation raised by any OTHER unique constraint is separated from this
+            // row's key by the store looking for the row, not by the constraint's name.
+            RelationalProjectionDialect.ForOracle(static error => error is OracleException { Number: 1 }));
     }
 
     ProjectionTenantBoundary IProjectionTenantBoundary.Boundary => ProjectionTenantBoundary.Partition(TenantScope.Scoped(_tenantContext.TenantId).TenantId);
@@ -75,6 +94,65 @@ public sealed class OracleProjectionStore<TProjection> : IProjectionStore<TProje
     /// <inheritdoc />
     public ValueTask WriteAsync(ProjectionTransaction transaction, string aggregateId, string aggregateType, string json, CancellationToken cancellationToken) =>
         _store.WriteAsync(transaction, aggregateId, aggregateType, json, cancellationToken);
+
+    /// <summary>Resolves a capability from this store or the shared relational store beneath it.</summary>
+    /// <remarks>
+    /// This type holds an inner projection store, so the store interface's default answer -- "answer for
+    /// myself" -- would hide every capability the inner store carries. Answering for this instance first
+    /// keeps the provider-specific capabilities (tenant boundary, destination identity) resolvable, and
+    /// delegating otherwise keeps the shared relational capabilities resolvable through it.
+    /// </remarks>
+    /// <param name="serviceType">The capability being requested.</param>
+    /// <returns>The capability, or <see langword="null"/> when neither store provides it.</returns>
+    public object? GetService(Type serviceType)
+    {
+        ArgumentNullException.ThrowIfNull(serviceType);
+
+        // A DESTINATION BELONGS TO ONE APPLY PATH, so this instance declines the capability it does not
+        // own. See ProjectionDestinationKind for why the kind is declared at construction rather than
+        // inferred: these two providers ship ONE table shape serving both roles, so there is nothing in
+        // the schema to read, and the previous guard was a CHECK constraint reporting through a provider
+        // exception the positioned contract does not declare.
+        if (serviceType == typeof(IPositionedProjectionStore<TProjection>)
+            && _destinationKind == ProjectionDestinationKind.Transactional)
+        {
+            return null;
+        }
+
+        if (serviceType == typeof(ITransactionalProjectionStore<TProjection>)
+            && _destinationKind == ProjectionDestinationKind.Positioned)
+        {
+            return null;
+        }
+
+        return serviceType.IsInstanceOfType(this) ? this : ((IServiceProvider)_store).GetService(serviceType);
+    }
+
+    /// <inheritdoc />
+    [RequiresUnreferencedCode("Projection serialization uses the configured JSON metadata.")]
+    [RequiresDynamicCode("Projection serialization uses the configured JSON metadata.")]
+    public Task<(TProjection? Projection, ProjectionPosition Position)> GetWithPositionAsync(string id, CancellationToken cancellationToken) =>
+        _store.GetWithPositionAsync(id, cancellationToken);
+    /// <inheritdoc />
+    [RequiresUnreferencedCode("Projection serialization uses the configured JSON metadata.")]
+    [RequiresDynamicCode("Projection serialization uses the configured JSON metadata.")]
+    public Task UpsertUnnumberedAsync(string id, TProjection projection, CancellationToken cancellationToken) =>
+        _store.UpsertUnnumberedAsync(id, projection, cancellationToken);
+    /// <inheritdoc />
+    [RequiresUnreferencedCode("Projection serialization uses the configured JSON metadata.")]
+    [RequiresDynamicCode("Projection serialization uses the configured JSON metadata.")]
+    public Task<ProjectionAdvanceResult> UpsertAtPositionAsync(string id, TProjection projection, long? expectedPosition, long newPosition, CancellationToken cancellationToken) =>
+        _store.UpsertAtPositionAsync(id, projection, expectedPosition, newPosition, cancellationToken);
+    /// <inheritdoc />
+    [RequiresUnreferencedCode("Projection serialization uses the configured JSON metadata.")]
+    [RequiresDynamicCode("Projection serialization uses the configured JSON metadata.")]
+    public Task<ProjectionRefoldResult> RefoldAtPositionAsync(string id, TProjection projection, long atPosition, CancellationToken cancellationToken) =>
+        _store.RefoldAtPositionAsync(id, projection, atPosition, cancellationToken);
+    /// <inheritdoc />
+    [RequiresUnreferencedCode("Projection serialization uses the configured JSON metadata.")]
+    [RequiresDynamicCode("Projection serialization uses the configured JSON metadata.")]
+    public Task<ProjectionRebuildResult> RebuildAtPositionAsync(string id, TProjection projection, long newPosition, CancellationToken cancellationToken) =>
+        _store.RebuildAtPositionAsync(id, projection, newPosition, cancellationToken);
 
     private void ValidateTransaction(ProjectionTransaction transaction)
     {

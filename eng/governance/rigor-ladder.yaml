@@ -129,8 +129,15 @@ seams:
     # spec/tla/cooperative-projection/. That model carries a CORRESPONDENCE WITHDRAWN block for its
     # manifest binder: it models a single scalar bound first-writer-wins, where a host with a different
     # workset is REFUSED, and production now admits such a host and refuses only its attestation. Its
-    # other arms (page gate, row CAS, prefix, checkpoint coverage, visibility) are unaffected. It is also
-    # not invoked by spec/tla/check-models.sh, so nothing reddens if it regresses.
+    # other arms (page gate, row CAS, prefix, checkpoint coverage, visibility) are unaffected.
+    #
+    # CORRECTED 2026-10-30: the preceding sentence used to read "It is also not invoked by
+    # spec/tla/check-models.sh, so nothing reddens if it regresses." That is FALSE at this revision --
+    # check-models.sh:384 invokes check-cooperative-projection.py and its PASS line counts the nine
+    # cooperative arms. What IS true, and is the live gap, is one level up: check-models.sh itself is
+    # invoked by no workflow and no hook, so EVERY model arm in this tree -- historical, lifetime and
+    # cooperative -- runs only when a person types the command. Read an arm's existence here as an
+    # artifact that CAN be checked, never as one that IS checked on any schedule.
     # SubscriptionRoster.tla preserves the no-witness counterexamples, including the stale-roster
     # window and the independent local-quantifier defect. Keep the expected failures so rejected
     # designs cannot silently turn green.

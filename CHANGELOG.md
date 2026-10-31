@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — asynchronous validation and service scopes
+
+- FluentValidation now awaits asynchronous rules and resolves validators from the explicit request
+  scope, ambient scope, or an owned asynchronous scope. Owned scopes are disposed after validation,
+  including cancellation and exceptions; borrowed request scopes remain caller-owned.
+- Generated validators resolve registrations once per invocation. An empty service provider no longer
+  suppresses validation in other providers.
+- Custom `IValidatorResolver` implementations must replace `TryValidate` with
+  `ValueTask<IValidationResult?> TryValidateAsync(IDispatchMessage, IServiceProvider?, CancellationToken)`.
+  Custom `IAotValidationDispatcher` implementations must likewise implement `TryValidateAsync` with
+  the supplied provider and cancellation token. `IValidationResult` no longer requires static factory
+  members; use `SerializableValidationResult.Success()` and `.Failed(...)` when constructing results.
+
 ### Added — relational TransactionalInline
 
 - Explicit `TransactionalInline(aggregateType)` projections fold aggregate-local history and commit
@@ -4140,7 +4153,7 @@ The 3.0.0 alpha series represents a complete ground-up redesign of the Excalibur
 - 8 `dotnet new` templates: dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox
 - 68 sample projects across 13 categories
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.19...HEAD
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.20...HEAD
 [10.0.0-alpha.19]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.18...v10.0.0-alpha.19
 [10.0.0-alpha.18]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.17...v10.0.0-alpha.18
 [10.0.0-alpha.17]: https://github.com/TrigintaFaces/Excalibur/compare/v10.0.0-alpha.16...v10.0.0-alpha.17

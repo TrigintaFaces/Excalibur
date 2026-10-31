@@ -5,6 +5,7 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Sqlite;
+using Excalibur.EventSourcing.Projections;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -18,15 +19,26 @@ public static class SqliteProjectionStoreExtensions
     /// <param name="tableName">Base projection table name.</param>
     /// <param name="jsonOptions">Configured read-model serialization.</param>
     /// <returns>The service collection.</returns>
+    /// <param name="destinationKind">
+    /// Which apply path owns this destination. Defaults to
+    /// <see cref="ProjectionDestinationKind.Positioned"/>. Pass
+    /// <see cref="ProjectionDestinationKind.Transactional"/> when the table was provisioned by
+    /// <c>CreateTransactionalTableScript</c> -- the store then declines the positioned capability, so a
+    /// positioned write cannot address a destination the event store's append transaction owns.
+    /// </param>
     public static IServiceCollection AddSqliteProjectionStore<TProjection>(this IServiceCollection services,
-        string connectionString, string tableName, JsonSerializerOptions? jsonOptions = null) where TProjection : class
+        string connectionString, string tableName, JsonSerializerOptions? jsonOptions = null,
+        ProjectionDestinationKind? destinationKind = null) where TProjection : class
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         services.AddDefaultTenantContext();
         services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, SqliteProjectionStore<TProjection>, IProjectionStore<object>>(provider =>
-            new SqliteProjectionStore<TProjection>(connectionString, provider.GetRequiredService<ITenantContext>(), tableName, jsonOptions));
+            new SqliteProjectionStore<TProjection>(connectionString, provider.GetRequiredService<ITenantContext>(), tableName, jsonOptions,
+                destinationKind
+                    ?? ProjectionDestinationKindResolver.Resolve(provider, typeof(TProjection))
+                    ?? ProjectionDestinationKind.Positioned));
         return services;
     }
 }

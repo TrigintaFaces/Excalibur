@@ -17,22 +17,21 @@ namespace Excalibur.Dispatch.Validation.FluentValidation;
 /// </para>
 /// <para>
 /// If no <see cref="IAotValidationDispatcher"/> is registered in the service provider,
-/// <see cref="TryValidate"/> throws <see cref="InvalidOperationException"/> directing
+/// <see cref="TryValidateAsync"/> throws <see cref="InvalidOperationException"/> directing
 /// the consumer to add the <c>Excalibur.Dispatch.SourceGenerators</c> analyzer package.
 /// </para>
 /// </remarks>
 /// <param name="provider">The service provider for dependency injection.</param>
 public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IValidatorResolver
 {
-	private readonly IServiceProvider _provider = provider ?? throw new ArgumentNullException(nameof(provider));
-	private readonly Lazy<IAotValidationDispatcher?> _dispatcher = new(
-		() => provider.GetService<IAotValidationDispatcher>(),
-		LazyThreadSafetyMode.PublicationOnly);
+	private readonly ValidatorServiceScope _scopes = new(provider);
 
 	/// <summary>
 	/// Validates a message using AOT-compatible, source-generated dispatch logic.
 	/// </summary>
 	/// <param name="message">The message to validate.</param>
+	/// <param name="requestServices">The caller-owned request-scoped provider.</param>
+	/// <param name="cancellationToken">Cancellation of validation.</param>
 	/// <returns>Validation result if validators exist, null otherwise.</returns>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown when no <see cref="IAotValidationDispatcher"/> is registered.
@@ -40,15 +39,18 @@ public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IVal
 	/// as an analyzer, or no FluentValidation validators for <c>IDispatchMessage</c> types
 	/// were discovered at compile time.
 	/// </exception>
-	public IValidationResult? TryValidate(IDispatchMessage message)
+	public async ValueTask<IValidationResult?> TryValidateAsync(
+		IDispatchMessage message, IServiceProvider? requestServices = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		cancellationToken.ThrowIfCancellationRequested();
+		await using var scope = _scopes.Acquire(requestServices);
 
-		var dispatcher = _dispatcher.Value
+		var dispatcher = scope.Provider.GetService<IAotValidationDispatcher>()
 			?? throw new InvalidOperationException(
 				"AOT validation requires the Excalibur.Dispatch.SourceGenerators package. " +
 				"Add it as an Analyzer reference.");
 
-		return dispatcher.TryValidate(message, _provider);
+		return await dispatcher.TryValidateAsync(message, scope.Provider, cancellationToken).ConfigureAwait(false);
 	}
 }

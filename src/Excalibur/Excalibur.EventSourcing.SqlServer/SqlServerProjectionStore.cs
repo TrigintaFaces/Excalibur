@@ -35,6 +35,15 @@ namespace Excalibur.EventSourcing.SqlServer;
 /// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+	"Design",
+	"CA1506:AvoidExcessiveClassCoupling",
+	Justification = "This class sat exactly at the coupling limit, and declaring the destination kind "
+		+ "tipped it over. The trade is named rather than hidden: the coupling metric is a smell, and the "
+		+ "invariant it is being traded against is that a positioned write cannot reach a transactional "
+		+ "destination -- previously guarded only by a CHECK constraint in shipped DDL, reported through a "
+		+ "provider exception the positioned contract does not declare. Making that call inexpressible "
+		+ "outranks a type count. The oversized coupling is tracked debt, not an endorsement.")]
 public sealed partial class SqlServerProjectionStore<TProjection> : ITransactionalProjectionStore<TProjection>, IProjectionStore<TProjection>, IProjectionGenerationReaderFactory<TProjection>, IAotProjectionGenerationReaderFactory<TProjection>,
 	IPageableProjectionStore<TProjection>,
 	IPositionedProjectionStore<TProjection>
@@ -70,6 +79,14 @@ public sealed partial class SqlServerProjectionStore<TProjection> : ITransaction
 	/// partition from here, so there is no state in which the partition is undecided. A single-tenant host
 	/// receives the framework default context and operates as the one canonical tenant.
 	/// </param>
+	/// <param name="destinationKind">
+	/// Which apply path owns this destination. Defaults to
+	/// <see cref="ProjectionDestinationKind.Positioned"/>, the narrower claim: a positioned store
+	/// declines the transaction-enlisted capability, so a destination that should have been
+	/// transactional fails at the seam that needs it rather than being written through the wrong
+	/// contract. Pass <see cref="ProjectionDestinationKind.Transactional"/> for a table provisioned by
+	/// <c>CreateTransactionalTableScript</c>; that store then declines the positioned capability.
+	/// </param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
 	/// </remarks>
@@ -79,8 +96,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : ITransaction
 		ITenantContext tenantContext,
 		string? tableName = null,
 		JsonSerializerOptions? jsonOptions = null,
-		string schemaName = "dbo")
-		: this(CreateConnectionFactory(connectionString), logger, tenantContext, tableName, jsonOptions, schemaName)
+		string schemaName = "dbo",
+		ProjectionDestinationKind destinationKind = ProjectionDestinationKind.Positioned)
+		: this(CreateConnectionFactory(connectionString), logger, tenantContext, tableName, jsonOptions, schemaName,
+			destinationKind)
 	{
 	}
 
@@ -102,6 +121,14 @@ public sealed partial class SqlServerProjectionStore<TProjection> : ITransaction
 	/// The schema holding the table. Defaults to <c>dbo</c>. Honoured by every statement this store
 	/// runs: a schema setting the data access does not use reads as supported and does nothing.
 	/// </param>
+	/// <param name="destinationKind">
+	/// Which apply path owns this destination. Defaults to
+	/// <see cref="ProjectionDestinationKind.Positioned"/>, the narrower claim: a positioned store
+	/// declines the transaction-enlisted capability, so a destination that should have been
+	/// transactional fails at the seam that needs it rather than being written through the wrong
+	/// contract. Pass <see cref="ProjectionDestinationKind.Transactional"/> for a table provisioned by
+	/// <c>CreateTransactionalTableScript</c>; that store then declines the positioned capability.
+	/// </param>
 	/// <remarks>
 	/// This is the advanced constructor for scenarios requiring custom connection management.
 	/// </remarks>
@@ -111,8 +138,10 @@ public sealed partial class SqlServerProjectionStore<TProjection> : ITransaction
 		ITenantContext tenantContext,
 		string? tableName = null,
 		JsonSerializerOptions? jsonOptions = null,
-		string schemaName = "dbo")
+		string schemaName = "dbo",
+		ProjectionDestinationKind destinationKind = ProjectionDestinationKind.Positioned)
 	{
+		_destinationKind = destinationKind;
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		ArgumentNullException.ThrowIfNull(tenantContext);
@@ -715,6 +744,9 @@ public sealed partial class SqlServerProjectionStore<TProjection> : ITransaction
 	/// </remarks>
 	private string RequireTenant() => TenantScope.Scoped(_tenantContext.TenantId).TenantId;
 
+	/// <summary>Which apply path owns this destination. Decided at construction, never probed.</summary>
+	private readonly ProjectionDestinationKind _destinationKind;
+
 	/// <inheritdoc cref="IServiceProvider.GetService" />
 	object? IServiceProvider.GetService(Type serviceType)
 	{
@@ -730,6 +762,27 @@ public sealed partial class SqlServerProjectionStore<TProjection> : ITransaction
 		if (serviceType == typeof(IProjectionDestinationIdentity))
 		{
 			return new ConfiguredDestinationIdentity(_destinationIdentity);
+		}
+
+		// A DESTINATION BELONGS TO ONE APPLY PATH, so this type declines the capability it does not own.
+		// The class implements both contracts because one implementation serves both shapes, but a given
+		// INSTANCE was built for one destination and the two contracts' preconditions are mutually
+		// exclusive -- a transactional row carries the unnumbered sentinel and a live source identity, a
+		// positioned row carries a real stream position. Handing out whichever contract a caller asked
+		// for, on nothing but a type test, is what let a positioned write reach a transactional table and
+		// be refused by a CHECK constraint through a provider exception the positioned contract does not
+		// declare. Declining here makes that call inexpressible rather than detected, and it holds for a
+		// hand-built store exactly as for a registered one, because it is the store's own answer.
+		if (serviceType == typeof(IPositionedProjectionStore<TProjection>)
+			&& _destinationKind == ProjectionDestinationKind.Transactional)
+		{
+			return null;
+		}
+
+		if (serviceType == typeof(ITransactionalProjectionStore<TProjection>)
+			&& _destinationKind == ProjectionDestinationKind.Positioned)
+		{
+			return null;
 		}
 
 		return serviceType.IsInstanceOfType(this) ? this : null;

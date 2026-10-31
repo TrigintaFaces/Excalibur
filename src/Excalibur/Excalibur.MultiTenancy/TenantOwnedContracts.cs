@@ -142,5 +142,22 @@ internal static class TenantOwnedContracts
 		// message BODY, which makes an unscoped read a disclosure of one tenant's payloads to another --
 		// the widest disclosure any store in this manifest can produce.
 		typeof(IDeadLetterStore),
+
+		// The two transaction-enlisted persistence contracts. They are SIBLINGS of IEventStore and
+		// IProjectionStore<T> rather than refinements of them -- they inherit neither, so neither the
+		// manifest nor the inheritance scan reached them -- yet they store the same rows: the event rows
+		// IEventStore appends and the aggregate-local projection rows IProjectionStore<T> writes, committed
+		// in one transaction instead of two. A contract that writes a manifested contract's rows is
+		// tenant-owned for the same reason that contract is, and the transaction is the only difference.
+		//
+		// Both are reached exclusively as a capability of their owning store -- the coordinator asks the
+		// event store for ITransactionalProjectionEventStore and the projection store for
+		// ITransactionalProjectionStore<T>, each through GetService -- so neither is ever a DI service type,
+		// exactly like IEventStoreErasure above. Their gate block therefore keys on the feature's own
+		// service type (ITransactionalProjectionCoordinator, which only a host that opted into
+		// transaction-inline projections registers), not on a scan for a service type that can never
+		// appear.
+		typeof(ITransactionalProjectionEventStore),
+		typeof(ITransactionalProjectionStore<object>),
 	];
 }

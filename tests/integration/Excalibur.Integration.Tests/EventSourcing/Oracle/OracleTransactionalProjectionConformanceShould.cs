@@ -149,7 +149,9 @@ public sealed class OracleTransactionalProjectionConformanceShould(OracleEventSt
         await command.ExecuteNonQueryAsync();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOracleProjectionStore<ConformanceProjection>(_fixture.ConnectionString, table, schemaName: _fixture.Schema);
+        // DECLARES THE DESTINATION IT PROVISIONED above with CreateTransactionalTableScript.
+        services.AddOracleProjectionStore<ConformanceProjection>(_fixture.ConnectionString, table, schemaName: _fixture.Schema,
+            destinationKind: ProjectionDestinationKind.Transactional);
         return Resolve<IProjectionStore<ConformanceProjection>>(services);
     }
 
@@ -169,8 +171,10 @@ public sealed class OracleTransactionalProjectionConformanceShould(OracleEventSt
         await command.ExecuteNonQueryAsync();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOracleProjectionStore<ConformanceProjection>(_fixture.ConnectionString, first, schemaName: _fixture.Schema);
-        services.AddOracleProjectionStore<ConformanceProjectionNextGeneration>(_fixture.ConnectionString, second, schemaName: _fixture.Schema);
+        services.AddOracleProjectionStore<ConformanceProjection>(_fixture.ConnectionString, first, schemaName: _fixture.Schema,
+            destinationKind: ProjectionDestinationKind.Transactional);
+        services.AddOracleProjectionStore<ConformanceProjectionNextGeneration>(_fixture.ConnectionString, second, schemaName: _fixture.Schema,
+            destinationKind: ProjectionDestinationKind.Transactional);
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         _providers.Add(provider);
         var scope = provider.CreateAsyncScope();

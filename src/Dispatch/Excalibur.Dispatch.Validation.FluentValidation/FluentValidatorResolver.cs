@@ -31,6 +31,7 @@ namespace Excalibur.Dispatch.Validation.FluentValidation;
 /// <param name="provider">The service provider used to resolve validators.</param>
 public sealed class FluentValidatorResolver(IServiceProvider provider) : IValidatorResolver
 {
+	private readonly ValidatorServiceScope _scopes = new(provider);
 	/// <summary>
 	/// Maximum number of entries allowed in the validator type cache.
 	/// When the cap is reached, new lookups compute the generic type without caching to prevent unbounded memory growth.
@@ -46,6 +47,8 @@ public sealed class FluentValidatorResolver(IServiceProvider provider) : IValida
 	/// Attempts to validate the given message using registered FluentValidation validators.
 	/// </summary>
 	/// <param name="message">The message to validate.</param>
+	/// <param name="requestServices">The caller-owned request-scoped provider.</param>
+	/// <param name="cancellationToken">Cancellation of validation.</param>
 	/// <returns>A validation result if validators exist; otherwise, null.</returns>
 	[UnconditionalSuppressMessage("AOT", "IL2060:Call to 'System.Type.MakeGenericType(params Type[])' can not be statically analyzed",
 		Justification = "FluentValidation requires runtime generic type creation. Message types are preserved via source generation.")]
@@ -53,9 +56,12 @@ public sealed class FluentValidatorResolver(IServiceProvider provider) : IValida
 		"AOT",
 		"IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality when AOT compiling.",
 		Justification = "FluentValidation requires dynamic code. Consider migrating to source-generated validators for full AOT support.")]
-	public IValidationResult? TryValidate(IDispatchMessage message)
+	public async ValueTask<IValidationResult?> TryValidateAsync(
+		IDispatchMessage message, IServiceProvider? requestServices = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		cancellationToken.ThrowIfCancellationRequested();
+		await using var scope = _scopes.Acquire(requestServices);
 
 		var messageType = message.GetType();
 
@@ -77,7 +83,7 @@ public sealed class FluentValidatorResolver(IServiceProvider provider) : IValida
 		}
 
 		// Get all validators for this message type using the service provider
-		var validators = provider.GetServices(validatorType).Cast<IValidator>().ToArray();
+		var validators = scope.Provider.GetServices(validatorType).Cast<IValidator>().ToArray();
 
 		if (validators.Length == 0)
 		{
@@ -85,12 +91,12 @@ public sealed class FluentValidatorResolver(IServiceProvider provider) : IValida
 		}
 
 		var failures = new List<ValidationFailure>();
-		var context = new ValidationContext<IDispatchMessage>(message);
 
 		foreach (var validator in validators)
 		{
-			// Use the non-generic IValidator.Validate method
-			var result = validator.Validate(context);
+			// Each validator owns its failure collection; reusing a context accumulates old failures.
+			var context = new ValidationContext<IDispatchMessage>(message);
+			var result = await validator.ValidateAsync(context, cancellationToken).ConfigureAwait(false);
 			if (!result.IsValid)
 			{
 				failures.AddRange(result.Errors);

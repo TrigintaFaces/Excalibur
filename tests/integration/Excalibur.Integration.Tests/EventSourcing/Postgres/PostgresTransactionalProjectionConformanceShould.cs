@@ -156,6 +156,8 @@ public sealed class PostgresTransactionalProjectionConformanceShould(PostgresEve
             options.ConnectionString = _fixture.ConnectionString;
             options.TableName = table;
             options.SchemaName = "public";
+            // DECLARES THE DESTINATION IT PROVISIONED with CreateTransactionalTableScript.
+            options.DestinationKind = ProjectionDestinationKind.Transactional;
         });
         return Resolve<IProjectionStore<ConformanceProjection>>(services);
     }
@@ -179,6 +181,8 @@ public sealed class PostgresTransactionalProjectionConformanceShould(PostgresEve
         {
             shared.ConnectionString = _fixture.ConnectionString;
             shared.SchemaName = "public";
+            // Both tables below are provisioned by CreateTransactionalTableScript.
+            shared.DestinationKind = ProjectionDestinationKind.Transactional;
         }, projections =>
         {
             projections.Add<ConformanceProjection>(options => options.TableName = first);

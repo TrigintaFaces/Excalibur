@@ -160,10 +160,8 @@ public static class EventNotificationServiceCollectionExtensions
 		builder.Services.TryAddEnumerable(
 			ServiceDescriptor.Singleton<IStartupPrerequisiteValidator, ProjectionStoreValidator>());
 
-        if (projectionBuilder.Mode != ProjectionMode.Ephemeral)
-        {
-            builder.Services.AddSingleton<IGeneratedProjectionValidator>(sp => new GeneratedProjectionValidator<TProjection>(sp, typeInfo));
-        }
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, GeneratedProjectionValidator>());
         return builder;
 	}
 
@@ -496,8 +494,17 @@ public static class EventNotificationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Internal interface for deferred projection registration at startup.
+	/// Initializes deferred registrations before startup validation or destination resolution.
 	/// </summary>
+    internal static void ConfigureProjections(IServiceProvider services)
+    {
+        foreach (var configuration in services.GetServices<IConfigureProjection>())
+        {
+            configuration.Configure();
+        }
+    }
+
+    /// <summary>Deferred, idempotent projection registration.</summary>
 	internal interface IConfigureProjection
 	{
 		void Configure();

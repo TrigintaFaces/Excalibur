@@ -327,13 +327,25 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
                 var operations = ProjectionStoreOperations<TProjection>.Generated(sp, typeInfo);
                 if (await operations.GetByIdAsync(id, token).ConfigureAwait(false) is null) { return; }
                 await sp.GetRequiredService<ProjectionRecoveryService>().ReapplyGeneratedAsync(id, aggregateType, operations, sp, token).ConfigureAwait(false);
-            }, (sp, model) => RequireTransactionalStore(sp).Serialize(model, typeInfo));
+            }, (sp, model) => RequireTransactionalStore(sp).Serialize(model, typeInfo),
+            _mode == ProjectionMode.TransactionalInline
+                ? sp =>
+                {
+                    GeneratedProjectionValidation.RequireSerializer(sp);
+                    _ = RequireTransactionalStore(sp);
+                }
+                : sp =>
+                {
+                    GeneratedProjectionValidation.RequireSerializer(sp);
+                    _ = ProjectionStoreOperations<TProjection>.Generated(sp, typeInfo);
+                });
     }
 
     private void BuildCore(IProjectionRegistry registry,
         Func<IServiceProvider, ProjectionStoreOperations<TProjection>> resolveStore,
         ProjectionRegistration.ClearForAggregateDelegate clear,
-        Func<IServiceProvider, TProjection, string> serialize)
+        Func<IServiceProvider, TProjection, string> serialize,
+        Action<IServiceProvider>? validateGeneratedStore = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         if (_mode == ProjectionMode.TransactionalInline &&
@@ -389,6 +401,7 @@ internal sealed class ProjectionBuilder<TProjection> : IProjectionBuilder<TProje
 			clearForAggregate)
         {
             HandlesEvent = type => _projection.GetHandler(type) is not null,
+            ValidateGeneratedStore = validateGeneratedStore,
             TransactionalAggregateType = _mode == ProjectionMode.TransactionalInline ? _transactionalAggregateType : null,
             TransactionalApply = _mode == ProjectionMode.TransactionalInline ? CreateTransactionalApply(serialize) : null,
             ValidateTransactionalStore = _mode == ProjectionMode.TransactionalInline

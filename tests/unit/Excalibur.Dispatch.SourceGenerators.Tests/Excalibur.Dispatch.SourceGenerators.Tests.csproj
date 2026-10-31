@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Source generator project — preserve ReferenceOutputAssembly setting -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Validation.FluentValidation\Excalibur.Dispatch.Validation.FluentValidation.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="true" OutputItemType="None" />
     <!-- Analyzers project -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.SourceGenerators.Analyzers\Excalibur.Dispatch.SourceGenerators.Analyzers.csproj" />

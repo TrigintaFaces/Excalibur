@@ -3792,10 +3792,10 @@ Excalibur.Dispatch.Validation.Context.ValidationMode.Strict = 0 -> Excalibur.Dis
 Excalibur.Dispatch.Validation.IValidate
 Excalibur.Dispatch.Validation.IValidate.Validate() -> Excalibur.Dispatch.Validation.ValidationResult!
 Excalibur.Dispatch.Validation.IValidatorResolver
-Excalibur.Dispatch.Validation.IValidatorResolver.TryValidate(Excalibur.Dispatch.IDispatchMessage! message) -> Excalibur.Dispatch.Validation.IValidationResult?
+Excalibur.Dispatch.Validation.IValidatorResolver.TryValidateAsync(Excalibur.Dispatch.IDispatchMessage! message, System.IServiceProvider? requestServices = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Validation.IValidationResult?>
 Excalibur.Dispatch.Validation.NoOpValidatorResolver
 Excalibur.Dispatch.Validation.NoOpValidatorResolver.NoOpValidatorResolver() -> void
-Excalibur.Dispatch.Validation.NoOpValidatorResolver.TryValidate(Excalibur.Dispatch.IDispatchMessage! message) -> Excalibur.Dispatch.Validation.IValidationResult?
+Excalibur.Dispatch.Validation.NoOpValidatorResolver.TryValidateAsync(Excalibur.Dispatch.IDispatchMessage! message, System.IServiceProvider? requestServices = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Validation.IValidationResult?>
 Excalibur.Dispatch.Versioning.UpcastingBuilder
 Excalibur.Dispatch.Versioning.UpcastingBuilder.EnableAutoUpcastOnReplay(bool enable = true) -> Excalibur.Dispatch.Versioning.UpcastingBuilder!
 Excalibur.Dispatch.Versioning.UpcastingBuilder.RegisterUpcaster<TOld, TNew>(Excalibur.Dispatch.IMessageUpcaster<TOld, TNew>! upcaster) -> Excalibur.Dispatch.Versioning.UpcastingBuilder!

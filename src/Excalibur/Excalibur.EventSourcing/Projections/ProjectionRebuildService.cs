@@ -183,8 +183,13 @@ internal sealed partial class ProjectionRebuildService : IProjectionRebuildServi
             await _rebuildCapacity.WaitAsync(cancellationToken).ConfigureAwait(false);
             capacityAcquired = true;
             cancellationToken.ThrowIfCancellationRequested();
+            EventNotificationServiceCollectionExtensions.ConfigureProjections(services);
             var registered = services.GetService<IProjectionRegistry>()?.GetRegistration(typeof(TProjection));
             var mode = registered?.Mode ?? ProjectionMode.Async;
+            if (mode == ProjectionMode.TransactionalInline)
+            {
+                throw new NotSupportedException("TransactionalInline projections cannot be rebuilt through the global-stream processor. Their models are written only inside the coordinated event transaction.");
+            }
             // Resolve the global stream query from the same source that owns this mode's checkpoint.
 			if (ResolveQuery(services, mode) is not { } globalQuery)
 			{

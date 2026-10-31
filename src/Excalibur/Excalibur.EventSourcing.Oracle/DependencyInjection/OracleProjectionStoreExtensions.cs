@@ -5,6 +5,7 @@ using System.Text.Json;
 using Excalibur.Dispatch;
 using Excalibur.EventSourcing;
 using Excalibur.EventSourcing.Oracle;
+using Excalibur.EventSourcing.Projections;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -19,15 +20,26 @@ public static class OracleProjectionStoreExtensions
     /// <param name="jsonOptions">Configured read-model serialization.</param>
     /// <param name="schemaName">Schema owning the destination table.</param>
     /// <returns>The service collection.</returns>
+    /// <param name="destinationKind">
+    /// Which apply path owns this destination. Defaults to
+    /// <see cref="ProjectionDestinationKind.Positioned"/>. Pass
+    /// <see cref="ProjectionDestinationKind.Transactional"/> when the table was provisioned by
+    /// <c>CreateTransactionalTableScript</c> -- the store then declines the positioned capability, so a
+    /// positioned write cannot address a destination the event store's append transaction owns.
+    /// </param>
     public static IServiceCollection AddOracleProjectionStore<TProjection>(this IServiceCollection services,
-        string connectionString, string tableName, JsonSerializerOptions? jsonOptions = null, string schemaName = "EXCALIBUR") where TProjection : class
+        string connectionString, string tableName, JsonSerializerOptions? jsonOptions = null, string schemaName = "EXCALIBUR",
+        ProjectionDestinationKind? destinationKind = null) where TProjection : class
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         services.AddDefaultTenantContext();
         services.AddTenantScopedProjectionStore<IProjectionStore<TProjection>, OracleProjectionStore<TProjection>, IProjectionStore<object>>(provider =>
-            new OracleProjectionStore<TProjection>(connectionString, provider.GetRequiredService<ITenantContext>(), tableName, jsonOptions, schemaName));
+            new OracleProjectionStore<TProjection>(connectionString, provider.GetRequiredService<ITenantContext>(), tableName, jsonOptions, schemaName,
+                destinationKind
+                    ?? ProjectionDestinationKindResolver.Resolve(provider, typeof(TProjection))
+                    ?? ProjectionDestinationKind.Positioned));
         return services;
     }
 }

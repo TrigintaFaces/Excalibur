@@ -169,53 +169,44 @@ public sealed class FluentValidationGenerator : IIncrementalGenerator
 		sb.AppendLine("    [global::System.CodeDom.Compiler.GeneratedCode(\"FluentValidationGenerator\", \"1.0\")]");
 		sb.AppendLine("    internal sealed class GeneratedFluentValidationDispatcher : global::Excalibur.Dispatch.Validation.FluentValidation.IAotValidationDispatcher");
 		sb.AppendLine("    {");
-		sb.AppendLine("        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool> _hasValidatorsCache = new();");
 		sb.AppendLine();
 		sb.AppendLine("        /// <inheritdoc />");
-		sb.AppendLine("        public global::Excalibur.Dispatch.Validation.IValidationResult? TryValidate(");
+		sb.AppendLine("        public global::System.Threading.Tasks.ValueTask<global::Excalibur.Dispatch.Validation.IValidationResult?> TryValidateAsync(");
 		sb.AppendLine("            global::Excalibur.Dispatch.IDispatchMessage message,");
-		sb.AppendLine("            global::System.IServiceProvider provider)");
+		sb.AppendLine("            global::System.IServiceProvider provider, global::System.Threading.CancellationToken cancellationToken = default)");
 		sb.AppendLine("        {");
+		sb.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(message);");
+		sb.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(provider);");
+		sb.AppendLine("            cancellationToken.ThrowIfCancellationRequested();");
 		sb.AppendLine("            return message switch");
 		sb.AppendLine("            {");
 
 		foreach (var kvp in messageTypes)
 		{
-			sb.AppendLine($"                {kvp.Key} m => ValidateTyped(m, provider),");
+			sb.AppendLine($"                {kvp.Key} m => ValidateTypedAsync(m, provider, cancellationToken),");
 		}
 
-		sb.AppendLine("                _ => null");
+		sb.AppendLine("                _ => default");
 		sb.AppendLine("            };");
 		sb.AppendLine("        }");
 		sb.AppendLine();
 
 		// ValidateTyped<T> helper -- AOT-safe because callers supply concrete T
-		sb.AppendLine("        private static global::Excalibur.Dispatch.Validation.IValidationResult? ValidateTyped<TMessage>(");
+		sb.AppendLine("        private static async global::System.Threading.Tasks.ValueTask<global::Excalibur.Dispatch.Validation.IValidationResult?> ValidateTypedAsync<TMessage>(");
 		sb.AppendLine("            TMessage message,");
-		sb.AppendLine("            global::System.IServiceProvider provider)");
+		sb.AppendLine("            global::System.IServiceProvider provider, global::System.Threading.CancellationToken cancellationToken = default)");
 		sb.AppendLine("            where TMessage : global::Excalibur.Dispatch.IDispatchMessage");
 		sb.AppendLine("        {");
-		sb.AppendLine("            var cacheKey = typeof(TMessage);");
-		sb.AppendLine("            // Cache only whether validators are registered (bool), not instances.");
-		sb.AppendLine("            // Validator instances must be resolved fresh from the provider each call");
-		sb.AppendLine("            // to respect DI scoping (validators may be Scoped or Transient).");
-		sb.AppendLine("            if (!_hasValidatorsCache.TryGetValue(cacheKey, out var hasValidators))");
-		sb.AppendLine("            {");
-		sb.AppendLine("                var probe = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
-		sb.AppendLine("                    .GetServices<global::FluentValidation.IValidator<TMessage>>(provider);");
-		sb.AppendLine("                hasValidators = global::System.Linq.Enumerable.Any(probe);");
-		sb.AppendLine("                _hasValidatorsCache.TryAdd(cacheKey, hasValidators);");
-		sb.AppendLine("            }");
-		sb.AppendLine();
-		sb.AppendLine("            if (!hasValidators) return null;");
+		sb.AppendLine("            cancellationToken.ThrowIfCancellationRequested();");
 		sb.AppendLine("            var array = global::System.Linq.Enumerable.ToArray(");
 		sb.AppendLine("                global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions");
 		sb.AppendLine("                    .GetServices<global::FluentValidation.IValidator<TMessage>>(provider));");
+		sb.AppendLine("            if (array.Length == 0) return null;");
 		sb.AppendLine();
 		sb.AppendLine("            var failures = new global::System.Collections.Generic.List<global::FluentValidation.Results.ValidationFailure>();");
 		sb.AppendLine("            foreach (var validator in array)");
 		sb.AppendLine("            {");
-		sb.AppendLine("                var result = validator.Validate(message);");
+		sb.AppendLine("                var result = await validator.ValidateAsync(message, cancellationToken).ConfigureAwait(false);");
 		sb.AppendLine("                if (!result.IsValid)");
 		sb.AppendLine("                {");
 		sb.AppendLine("                    failures.AddRange(result.Errors);");

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.1 OR AGPL-3.0-or-later OR SSPL-1.0
 
 using Excalibur.EventSourcing.SqlServer;
+using Excalibur.EventSourcing.DependencyInjection;
+using Excalibur.EventSourcing.Projections;
+using Excalibur.EventSourcing.Tests.Projections;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -19,9 +22,67 @@ namespace Excalibur.EventSourcing.Tests.SqlServer;
 [Trait("Category", "Unit")]
 [Trait("Component", "SqlServer")]
 [Trait("Database", "SqlServer")]
+[Trait("Pattern", "Registration")]
 public sealed class SqlServerProjectionStoreExtensionsShould : UnitTestBase
 {
 	private const string TestConnectionString = "Server=localhost;Database=TestDb;Integrated Security=true;";
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    public void DeriveTransactionalCapabilitiesBeforeStartupInEitherRegistrationOrder(int overload, bool storeFirst)
+    {
+        var services = new ServiceCollection().AddLogging();
+        var builder = A.Fake<IEventSourcingBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+        if (storeFirst) RegisterStore();
+        builder.AddProjection<TransactionalCountModel>(p => p.TransactionalInline("Order"));
+        if (!storeFirst) RegisterStore();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IProjectionStore<TransactionalCountModel>>();
+        store.GetService(typeof(ITransactionalProjectionStore<TransactionalCountModel>)).ShouldNotBeNull();
+        store.GetService(typeof(IPositionedProjectionStore<TransactionalCountModel>)).ShouldBeNull();
+
+        void RegisterStore()
+        {
+            switch (overload)
+            {
+                case 0:
+                    services.AddSqlServerProjectionStore<TransactionalCountModel>(o => o.ConnectionString = TestConnectionString);
+                    break;
+                case 1:
+                    services.AddSqlServerProjectionStore<TransactionalCountModel>(() => new SqlConnection(TestConnectionString));
+                    break;
+                case 2:
+                    services.AddSqlServerProjectionStore<TransactionalCountModel, IProjectionTestDb>();
+                    break;
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HonorAnExplicitDestinationKindWithoutAProjectionRegistration(bool typedDatabase)
+    {
+        var services = new ServiceCollection().AddLogging();
+        if (typedDatabase)
+            services.AddSqlServerProjectionStore<TransactionalCountModel, IProjectionTestDb>(o => o.DestinationKind = ProjectionDestinationKind.Transactional);
+        else
+            services.AddSqlServerProjectionStore<TransactionalCountModel>(() => new SqlConnection(TestConnectionString),
+                o => o.DestinationKind = ProjectionDestinationKind.Transactional);
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IProjectionStore<TransactionalCountModel>>();
+        store.GetService(typeof(ITransactionalProjectionStore<TransactionalCountModel>)).ShouldNotBeNull();
+        store.GetService(typeof(IPositionedProjectionStore<TransactionalCountModel>)).ShouldBeNull();
+    }
 
     [Fact]
     public void IsolateDestinationsAndValidateOnlyTheRegistrationOwningTheConnectionString()
@@ -104,6 +165,13 @@ public sealed class SqlServerProjectionStoreExtensionsShould : UnitTestBase
             shared.ConnectionString = TestConnectionString;
             shared.TableName = "Shared";
             shared.JsonSerializerOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+            // ASKS FOR THE TRANSACTIONAL CAPABILITY BELOW, so it says so here. This arm reaches
+            // through ITransactionalProjectionStore to get at Serialize -- the only surface that
+            // exposes the resolved JsonSerializerOptions without a database -- and a store that
+            // offers that capability owns a transactional destination. No projection is registered
+            // here, so there is no mode to derive the kind from and stating it is the only truth
+            // available. The subject of the test is unchanged: shared-vs-isolated option precedence.
+            shared.DestinationKind = ProjectionDestinationKind.Transactional;
         }, p => p.Add<TestProjection>(o =>
         {
             o.TableName = "Override";

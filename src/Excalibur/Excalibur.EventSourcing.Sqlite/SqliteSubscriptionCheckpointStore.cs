@@ -42,7 +42,7 @@ internal sealed class SqliteSubscriptionCheckpointStore : ISubscriptionCheckpoin
 
 		_connectionString = connectionString;
 		_table = table;
-		_generations = new(OpenAsync, Command, static error => error is SqliteException { SqliteErrorCode: 19 }, "[" + table + "]", "[" + table + "Readers]");
+		_generations = new(OpenAsync, Command, static error => error is SqliteException { SqliteErrorCode: 19 }, "[" + table + "]", "[" + table + "Readers]", ProjectionGenerationDialect.Sqlite);
 	}
 
 

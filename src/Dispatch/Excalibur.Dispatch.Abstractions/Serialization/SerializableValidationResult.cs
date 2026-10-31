@@ -10,8 +10,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// Serializable implementation of IValidationResult for AOT compatibility.
 /// </summary>
 /// <remarks>
-/// This class does not implement the static abstract members of IValidationResult as they cannot be properly serialized. Use the static
-/// factory methods instead.
+/// Use the concrete static factory methods to create success and failure results.
 /// </remarks>
 public sealed class SerializableValidationResult : IValidationResult
 {
@@ -40,18 +39,4 @@ public sealed class SerializableValidationResult : IValidationResult
 	public static SerializableValidationResult Success()
 		=> new() { IsValid = true };
 
-	/// <summary>
-	/// Explicit implementation of static interface member to satisfy the interface requirement.
-	/// </summary>
-	/// <param name="errors"> The validation errors. </param>
-	/// <returns> A failed validation result. </returns>
-	static IValidationResult IValidationResult.Failed(params object[] errors)
-		=> Failed(errors);
-
-	/// <summary>
-	/// Creates a successful validation result.
-	/// </summary>
-	/// <returns> A successful validation result. </returns>
-	static IValidationResult IValidationResult.Success()
-		=> Success();
 }

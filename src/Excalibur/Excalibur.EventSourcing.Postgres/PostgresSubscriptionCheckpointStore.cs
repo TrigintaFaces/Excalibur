@@ -37,7 +37,7 @@ internal sealed class PostgresSubscriptionCheckpointStore : ISubscriptionCheckpo
 
 		_connectionFactory = connectionFactory;
 		_table = PgTableName.Format(schema, table);
-		_generations = new(OpenAsync, Command, static error => error is PostgresException { SqlState: "23505" or "23503" or "40001" or "40P01" }, _table, PgTableName.Format(schema, table + "_readers"), snakeCase: true);
+		_generations = new(OpenAsync, Command, static error => error is PostgresException { SqlState: "23505" or "23503" or "40001" or "40P01" }, _table, PgTableName.Format(schema, table + "_readers"), ProjectionGenerationDialect.Postgres);
 	}
 
 

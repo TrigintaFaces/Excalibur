@@ -25,18 +25,18 @@ public sealed class AotFluentValidatorResolverShould
     }
 
     [Fact]
-    public void ThrowArgumentNullExceptionWhenMessageIsNull()
+    public async Task ThrowArgumentNullExceptionWhenMessageIsNull()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
         var sut = new AotFluentValidatorResolver(provider);
 
         // Act & Assert
-        Should.Throw<ArgumentNullException>(() => sut.TryValidate(null!));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await sut.TryValidateAsync(null!));
     }
 
     [Fact]
-    public void ThrowInvalidOperationExceptionWhenNoDispatcherRegistered()
+    public async Task ThrowInvalidOperationExceptionWhenNoDispatcherRegistered()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
@@ -45,11 +45,11 @@ public sealed class AotFluentValidatorResolverShould
 
         // Act & Assert
         // AOT resolver throws because no IAotValidationDispatcher is registered
-        Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
+        await Should.ThrowAsync<InvalidOperationException>(async () => await sut.TryValidateAsync(message));
     }
 
     [Fact]
-    public void IncludeHelpfulMessageInInvalidOperationException()
+    public async Task IncludeHelpfulMessageInInvalidOperationException()
     {
         // Arrange
         var provider = new ServiceCollection().BuildServiceProvider();
@@ -57,7 +57,7 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverTestMessage { Name = "test" };
 
         // Act
-        var ex = Should.Throw<InvalidOperationException>(() => sut.TryValidate(message));
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await sut.TryValidateAsync(message));
 
         // Assert
         ex.Message.ShouldContain("SourceGenerators");
@@ -77,7 +77,7 @@ public sealed class AotFluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnSuccessWhenDispatcherRegisteredAndValidationPasses()
+    public async Task ReturnSuccessWhenDispatcherRegisteredAndValidationPasses()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -88,7 +88,7 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverTestMessage { Name = "ValidName" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert
         result!.IsValid.ShouldBeTrue();
@@ -96,7 +96,7 @@ public sealed class AotFluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnFailedResultWhenDispatcherRegisteredAndValidationFails()
+    public async Task ReturnFailedResultWhenDispatcherRegisteredAndValidationFails()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -107,7 +107,7 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverTestMessage { Name = "" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert
         result!.IsValid.ShouldBeFalse();
@@ -115,7 +115,7 @@ public sealed class AotFluentValidatorResolverShould
     }
 
     [Fact]
-    public void ReturnNullWhenDispatcherRegisteredButNoValidatorsForMessageType()
+    public async Task ReturnNullWhenDispatcherRegisteredButNoValidatorsForMessageType()
     {
         // Arrange — dispatcher registered but no IValidator<AotResolverUnknownMessage>
         var services = new ServiceCollection();
@@ -125,14 +125,14 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverUnknownMessage();
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert — dispatcher returns null for unrecognized message types
         (result is null).ShouldBeTrue();
     }
 
     [Fact]
-    public void ReturnSerializableValidationResultType()
+    public async Task ReturnSerializableValidationResultType()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -143,7 +143,7 @@ public sealed class AotFluentValidatorResolverShould
         var message = new AotResolverTestMessage { Name = "" };
 
         // Act
-        var result = sut.TryValidate(message);
+        var result = await sut.TryValidateAsync(message);
 
         // Assert
         result.ShouldBeOfType<SerializableValidationResult>();
@@ -172,13 +172,13 @@ internal sealed class AotResolverTestMessageValidator : AbstractValidator<AotRes
 /// </summary>
 internal sealed class AotTestDispatcher : IAotValidationDispatcher
 {
-    public IValidationResult? TryValidate(IDispatchMessage message, IServiceProvider provider)
+    public ValueTask<IValidationResult?> TryValidateAsync(IDispatchMessage message, IServiceProvider provider, CancellationToken cancellationToken = default)
     {
-        return message switch
+        return new(message switch
         {
             AotResolverTestMessage m => ValidateTyped(m, provider),
             _ => null
-        };
+        });
     }
 
     private static IValidationResult? ValidateTyped<TMessage>(TMessage message, IServiceProvider provider)

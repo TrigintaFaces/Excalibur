@@ -192,6 +192,27 @@ internal static class AdvertisedStrategyRegistry
 					"Ephemeral", 1, CoverageKind.Implementor,
 					"Excalibur.EventSourcing.Projections.ProjectionBuilder", EsAsm,
 					"Ephemeral (on-demand replay, no persistence) is a real builder-selectable projection mode."),
+				new StrategyValueCoverage(
+					"TransactionalInline", 3, CoverageKind.FailLoudGuard,
+					"Excalibur.EventSourcing.DependencyInjection.TransactionalProjectionStartup", EsAsm,
+					"TransactionalInline has no per-value implementor TYPE because it is dispatched at runtime through "
+					+ "IProjectionRegistry.GetByMode(ProjectionMode.TransactionalInline) — the registration branch is in "
+					+ "EventNotificationServiceCollectionExtensions (AddProjection/AddProjections). Coverage is therefore the "
+					+ "fail-loud guard: TransactionalProjectionStartup is registered as BOTH an IStartupPrerequisiteValidator "
+					+ "and an IHostedService, and its Validate() throws InvalidOperationException when the configured event "
+					+ "store does not expose ITransactionalProjectionEventStore, then calls each registration's "
+					+ "ValidateTransactionalStore. The remaining unsupported paths are fail-loud too: ProjectionBuilder throws "
+					+ "NotSupportedException on an unsupported handler shape and InvalidOperationException when the store "
+					+ "cannot support transactional inline, ProjectionSessionReader throws NotSupportedException on a "
+					+ "session-token read, TransactionalProjectionCoordinator throws on missing/incomplete history, and "
+					+ "IProjectionBuilder's default TransactionalInline implementation throws NotSupportedException. Selecting "
+					+ "the mode without a supporting store fails at startup, never silently degrades. THIS ROW RESOLVES A "
+					+ "TYPE, which establishes that the guard exists and NOT that it still refuses: a guard whose refusal "
+					+ "was severed while every type stayed present would satisfy this row. The refusals themselves are "
+					+ "bound behaviorally by TransactionalInlineProjectionShould — RefuseAnEventStoreThatCannotSupport"
+					+ "TransactionalInline (the event-store facet), ValidateDestinationCapabilityWithoutStartingAHost (the "
+					+ "destination facet) and StartWhenTheEventStoreAndTheDestinationBothEnlist (the liveness half, without "
+					+ "which both refusals are satisfied by a validator that throws at everything)."),
 			]),
 
 		new AdvertisedStrategyEnum(

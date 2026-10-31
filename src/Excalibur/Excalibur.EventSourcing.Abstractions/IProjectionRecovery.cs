@@ -36,6 +36,9 @@ public interface IProjectionRecovery
 	/// <param name="aggregateType">The aggregate type name (required for event store stream lookup).</param>
 	/// <param name="cancellationToken">Cancellation token.</param>
 	/// <returns>A task representing the asynchronous recovery operation.</returns>
+    /// <exception cref="NotSupportedException">
+    /// The projection uses TransactionalInline. Ordinary replay cannot preserve its event-transaction ownership.
+    /// </exception>
 	Task ReapplyAsync<TProjection>(
 		string aggregateId,
 		string aggregateType,

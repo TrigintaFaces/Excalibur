@@ -62,7 +62,118 @@ public sealed class TransactionalInlineProjectionShould
             .AddKeyedSingleton("default", store)
             .AddSingleton(A.Fake<IProjectionStore<TransactionalCountModel>>()).BuildServiceProvider();
         Should.Throw<InvalidOperationException>(() => new TransactionalProjectionStartup(services).Validate())
-            .Message.ShouldContain("TransactionalInline");
+            // Names the DESTINATION sentence, not merely the mode. Both refusals in this validator carry
+            // the word TransactionalInline, so the looser assertion passed whichever one fired and could
+            // not tell a destination that cannot enlist from an event store that cannot support the mode.
+            .Message.ShouldContain("transaction-enlisted projection store");
+    }
+
+    /// <summary>
+    /// SAFETY, and the branch the advertised-strategy registry cites as this mode's whole coverage: an
+    /// event store that does not expose the transactional facet is refused at startup.
+    /// </summary>
+    /// <remarks>
+    /// The registry resolves a TYPE to establish that the fail-loud guard exists. A guard whose refusal
+    /// was severed while every type stayed present satisfies that check, so the refusal needs an arm of
+    /// its own, and this is it.
+    /// </remarks>
+    /// <summary>
+    /// A store registered WITHOUT stating its destination kind derives it from the projection's
+    /// registered mode, so the apply path is declared exactly once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// THE ARM THAT BINDS THE DERIVATION. The kind is declarable in two places -- the projection's mode
+    /// and the store's own construction -- and a consumer could state them inconsistently with nothing
+    /// in the system able to tell. The mode is now the single declaration; the store derives from it
+    /// when nothing was stated. Whatever default the store chose could never have fixed that; it only
+    /// decided which inconsistency was cheap to write.
+    /// </para>
+    /// <para>
+    /// This is what keeps the two surfaces no other arm covers correct: the shipped TransactionalInline
+    /// sample and the documented provider registrations both declare the mode and omit the kind. Before
+    /// the derivation they resolved a positioned destination and failed at startup.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DeriveTheDestinationKindFromTheRegisteredMode()
+    {
+        var registry = new InMemoryProjectionRegistry();
+        var builder = new ProjectionBuilder<TransactionalCountModel>(registry);
+        builder.TransactionalInline("Order");
+        builder.Build();
+
+        using var services = new ServiceCollection()
+            .AddSingleton<IProjectionRegistry>(registry)
+            .AddLogging()
+            .AddSqlServerProjectionStore<TransactionalCountModel>(options =>
+            {
+                options.ConnectionString = "Server=(local);Database=x;Integrated Security=true";
+                options.TableName = "Transactional_Derived";
+                // DELIBERATELY SILENT on DestinationKind -- that is the case under test.
+            })
+            .BuildServiceProvider();
+
+        using var scope = services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IProjectionStore<TransactionalCountModel>>();
+
+        // The mode said TransactionalInline, so the destination is transactional.
+        store.GetService(typeof(ITransactionalProjectionStore<TransactionalCountModel>))
+            .ShouldNotBeNull("the registered mode is TransactionalInline, so the kind must derive as Transactional");
+
+        // SAFETY: and it therefore declines the positioned contract, whose preconditions it cannot meet.
+        store.GetService(typeof(IPositionedProjectionStore<TransactionalCountModel>))
+            .ShouldBeNull("a transactional destination must not advertise the positioned contract");
+    }
+
+    [Fact]
+    public void RefuseAnEventStoreThatCannotSupportTransactionalInline()
+    {
+        var registry = new InMemoryProjectionRegistry();
+        var builder = new ProjectionBuilder<TransactionalCountModel>(registry);
+        builder.TransactionalInline("Order");
+        builder.Build();
+
+        // The facet is absent rather than the store: a provider that is otherwise a working IEventStore.
+        var store = A.Fake<IEventStore>();
+        A.CallTo(() => store.GetService(typeof(ITransactionalProjectionEventStore))).Returns(null);
+
+        using var services = new ServiceCollection().AddSingleton<IProjectionRegistry>(registry)
+            .AddKeyedSingleton("default", store)
+            .AddSingleton(A.Fake<IProjectionStore<TransactionalCountModel>>()).BuildServiceProvider();
+
+        Should.Throw<InvalidOperationException>(() => new TransactionalProjectionStartup(services).Validate())
+            .Message.ShouldContain("supporting relational event store");
+    }
+
+    /// <summary>
+    /// LIVENESS: a host whose event store and destination both carry the transactional facets starts.
+    /// </summary>
+    /// <remarks>
+    /// Without this arm the two refusals above are satisfied by a validator that throws at every
+    /// configuration, which would make the mode unusable while every safety assertion stayed green.
+    /// </remarks>
+    [Fact]
+    public void StartWhenTheEventStoreAndTheDestinationBothEnlist()
+    {
+        var registry = new InMemoryProjectionRegistry();
+        var builder = new ProjectionBuilder<TransactionalCountModel>(registry);
+        builder.TransactionalInline("Order");
+        builder.Build();
+
+        var store = A.Fake<IEventStore>();
+        A.CallTo(() => store.GetService(typeof(ITransactionalProjectionEventStore)))
+            .Returns(A.Fake<ITransactionalProjectionEventStore>());
+
+        var destination = A.Fake<IProjectionStore<TransactionalCountModel>>();
+        A.CallTo(() => destination.GetService(typeof(ITransactionalProjectionStore<TransactionalCountModel>)))
+            .Returns(A.Fake<ITransactionalProjectionStore<TransactionalCountModel>>());
+
+        using var services = new ServiceCollection().AddSingleton<IProjectionRegistry>(registry)
+            .AddKeyedSingleton("default", store)
+            .AddSingleton(destination).BuildServiceProvider();
+
+        Should.NotThrow(() => new TransactionalProjectionStartup(services).Validate());
     }
 
     [Fact]

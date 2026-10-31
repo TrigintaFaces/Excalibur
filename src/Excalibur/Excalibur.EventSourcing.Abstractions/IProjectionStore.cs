@@ -70,6 +70,34 @@ public interface IProjectionStore<TProjection> : IServiceProvider
 	{
 		ArgumentNullException.ThrowIfNull(serviceType);
 
+		// A TYPE TEST CANNOT ANSWER FOR A STORE THAT IMPLEMENTS BOTH APPLY PATHS, and refusing here is
+		// what stops the wrong answer being the language's default.
+		//
+		// ITransactionalProjectionStore and IPositionedProjectionStore have mutually exclusive
+		// preconditions: a transactional row carries the unnumbered sentinel and the writing source's
+		// identity, a positioned row carries a real stream position that a compare-and-set advances. A
+		// type implementing both honours exactly one of them PER INSTANCE, decided by which destination
+		// that instance addresses -- a fact only the implementation holds. `IsInstanceOfType` reports the
+		// declaration, not the instance, so for such a type it hands out whichever contract the caller
+		// asked for and one of those answers is always wrong.
+		//
+		// The four relational providers each override this and declare their destination kind. The hazard
+		// was that correctness had become the OVERRIDE while the violation stayed the DEFAULT: every
+		// future implementor, and every consumer's own store, inherited the broken behaviour for free
+		// with no compiler signal. Refusing the ambiguous query makes that inexpressible through the
+		// default -- a type that implements both MUST override and say which destination it owns.
+		//
+		// Scoped as tightly as the defect: only a type implementing BOTH is refused, and only for those
+		// two queries. A positioned-only store -- every document-store provider -- is unambiguous and
+		// keeps answering from the type test below. The checks are type tests on `this`, not reflection,
+		// so this stays trim- and AOT-safe.
+		if (this is ITransactionalProjectionStore<TProjection> && this is IPositionedProjectionStore<TProjection>
+			&& (serviceType == typeof(ITransactionalProjectionStore<TProjection>)
+				|| serviceType == typeof(IPositionedProjectionStore<TProjection>)))
+		{
+			return null;
+		}
+
 		return serviceType.IsInstanceOfType(this) ? this : null;
 	}
 

@@ -104,143 +104,143 @@ public sealed class DataAnnotationsValidatorResolverShould
 	#region Happy Path Tests
 
 	[Fact]
-	public void ReturnNullForValidMessageWithNoAttributes()
+	public async Task ReturnNullForValidMessageWithNoAttributes()
 	{
 		// Arrange
 		var message = new ValidMessage();
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenRequiredFieldIsProvided()
+	public async Task ReturnNullWhenRequiredFieldIsProvided()
 	{
 		// Arrange
 		var message = new MessageWithRequiredAttribute("John");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenStringLengthIsWithinRange()
+	public async Task ReturnNullWhenStringLengthIsWithinRange()
 	{
 		// Arrange
 		var message = new MessageWithStringLengthAttribute("John");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenRangeValueIsValid()
+	public async Task ReturnNullWhenRangeValueIsValid()
 	{
 		// Arrange
 		var message = new MessageWithRangeAttribute(50);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenRegexPatternMatches()
+	public async Task ReturnNullWhenRegexPatternMatches()
 	{
 		// Arrange
 		var message = new MessageWithRegularExpressionAttribute("test@example.com");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenAllAttributesPass()
+	public async Task ReturnNullWhenAllAttributesPass()
 	{
 		// Arrange
 		var message = new MessageWithMultipleAttributes("JohnDoe", 25);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenEmailAddressIsValid()
+	public async Task ReturnNullWhenEmailAddressIsValid()
 	{
 		// Arrange
 		var message = new MessageWithEmailAddressAttribute("user@domain.com");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenPhoneNumberIsValid()
+	public async Task ReturnNullWhenPhoneNumberIsValid()
 	{
 		// Arrange
 		var message = new MessageWithPhoneAttribute("555-555-5555");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenUrlIsValid()
+	public async Task ReturnNullWhenUrlIsValid()
 	{
 		// Arrange
 		var message = new MessageWithUrlAttribute("https://example.com");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenMinLengthIsSatisfied()
+	public async Task ReturnNullWhenMinLengthIsSatisfied()
 	{
 		// Arrange
 		var message = new MessageWithMinLengthAttribute("Johnny");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenMaxLengthIsSatisfied()
+	public async Task ReturnNullWhenMaxLengthIsSatisfied()
 	{
 		// Arrange
 		var message = new MessageWithMaxLengthAttribute("John");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
@@ -251,13 +251,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	#region Validation Failure Tests
 
 	[Fact]
-	public void ReturnFailedResultWhenRequiredFieldIsNull()
+	public async Task ReturnFailedResultWhenRequiredFieldIsNull()
 	{
 		// Arrange
 		var message = new MessageWithRequiredAttribute(null!);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -266,13 +266,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnCustomErrorMessageWhenRequiredFieldIsNull()
+	public async Task ReturnCustomErrorMessageWhenRequiredFieldIsNull()
 	{
 		// Arrange
 		var message = new MessageWithRequiredAttributeAndCustomMessage(null!);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -283,13 +283,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenStringLengthIsTooShort()
+	public async Task ReturnFailedResultWhenStringLengthIsTooShort()
 	{
 		// Arrange
 		var message = new MessageWithStringLengthAttribute("J");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -298,13 +298,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenStringLengthIsTooLong()
+	public async Task ReturnFailedResultWhenStringLengthIsTooLong()
 	{
 		// Arrange
 		var message = new MessageWithStringLengthAttribute("VeryLongNameThatExceedsLimit");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -313,13 +313,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenRangeValueIsTooLow()
+	public async Task ReturnFailedResultWhenRangeValueIsTooLow()
 	{
 		// Arrange
 		var message = new MessageWithRangeAttribute(0);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -328,13 +328,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenRangeValueIsTooHigh()
+	public async Task ReturnFailedResultWhenRangeValueIsTooHigh()
 	{
 		// Arrange
 		var message = new MessageWithRangeAttribute(101);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -343,13 +343,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenRegexPatternDoesNotMatch()
+	public async Task ReturnFailedResultWhenRegexPatternDoesNotMatch()
 	{
 		// Arrange
 		var message = new MessageWithRegularExpressionAttribute("invalid-email");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -360,13 +360,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenMultipleValidationsFailForUsername()
+	public async Task ReturnFailedResultWhenMultipleValidationsFailForUsername()
 	{
 		// Arrange - Username too short
 		var message = new MessageWithMultipleAttributes("AB", 25);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -377,13 +377,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenAgeIsOutOfRange()
+	public async Task ReturnFailedResultWhenAgeIsOutOfRange()
 	{
 		// Arrange - Age under minimum
 		var message = new MessageWithMultipleAttributes("ValidUser", 10);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -394,13 +394,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnMultipleErrorsWhenMultipleValidationsFail()
+	public async Task ReturnMultipleErrorsWhenMultipleValidationsFail()
 	{
 		// Arrange - Both username (null) and age (under minimum) invalid
 		var message = new MessageWithMultipleAttributes(null!, 10);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -409,13 +409,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenEmailAddressIsInvalid()
+	public async Task ReturnFailedResultWhenEmailAddressIsInvalid()
 	{
 		// Arrange
 		var message = new MessageWithEmailAddressAttribute("not-an-email");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -426,13 +426,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenPhoneNumberIsInvalid()
+	public async Task ReturnFailedResultWhenPhoneNumberIsInvalid()
 	{
 		// Arrange
 		var message = new MessageWithPhoneAttribute("not-a-phone");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -443,13 +443,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenUrlIsInvalid()
+	public async Task ReturnFailedResultWhenUrlIsInvalid()
 	{
 		// Arrange
 		var message = new MessageWithUrlAttribute("not-a-url");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -460,13 +460,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenMinLengthIsNotSatisfied()
+	public async Task ReturnFailedResultWhenMinLengthIsNotSatisfied()
 	{
 		// Arrange
 		var message = new MessageWithMinLengthAttribute("Joe");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -477,13 +477,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void ReturnFailedResultWhenMaxLengthIsExceeded()
+	public async Task ReturnFailedResultWhenMaxLengthIsExceeded()
 	{
 		// Arrange
 		var message = new MessageWithMaxLengthAttribute("VeryLongNameThatExceedsLimit");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -500,39 +500,39 @@ public sealed class DataAnnotationsValidatorResolverShould
 	[Theory]
 	[InlineData(1)]
 	[InlineData(100)]
-	public void ReturnNullWhenRangeValueIsAtBoundary(int amount)
+	public async Task ReturnNullWhenRangeValueIsAtBoundary(int amount)
 	{
 		// Arrange
 		var message = new MessageWithRangeAttribute(amount);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenStringLengthIsAtMinimum()
+	public async Task ReturnNullWhenStringLengthIsAtMinimum()
 	{
 		// Arrange - Exactly 2 characters (minimum)
 		var message = new MessageWithStringLengthAttribute("Jo");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
 	}
 
 	[Fact]
-	public void ReturnNullWhenStringLengthIsAtMaximum()
+	public async Task ReturnNullWhenStringLengthIsAtMaximum()
 	{
 		// Arrange - Exactly 10 characters (maximum)
 		var message = new MessageWithStringLengthAttribute("JohnMiller");
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.Null(result);
@@ -543,13 +543,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	#region Property Name Tests
 
 	[Fact]
-	public void IncludePropertyNameInValidationError()
+	public async Task IncludePropertyNameInValidationError()
 	{
 		// Arrange
 		var message = new MessageWithRequiredAttribute(null!);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -559,13 +559,13 @@ public sealed class DataAnnotationsValidatorResolverShould
 	}
 
 	[Fact]
-	public void IncludeCorrectPropertyNamesInMultipleErrors()
+	public async Task IncludeCorrectPropertyNamesInMultipleErrors()
 	{
 		// Arrange
 		var message = new MessageWithMultipleAttributes(null!, 10);
 
 		// Act
-		var result = _sut.TryValidate(message);
+		var result = await _sut.TryValidateAsync(message);
 
 		// Assert
 		Assert.NotNull(result);
@@ -583,10 +583,10 @@ public sealed class DataAnnotationsValidatorResolverShould
 	#region Exception Tests
 
 	[Fact]
-	public void ThrowArgumentNullExceptionWhenMessageIsNull()
+	public async Task ThrowArgumentNullExceptionWhenMessageIsNull()
 	{
 		// Arrange & Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => _sut.TryValidate(null!));
+		_ = await Should.ThrowAsync<ArgumentNullException>(async () => await _sut.TryValidateAsync(null!));
 	}
 
 	#endregion Exception Tests

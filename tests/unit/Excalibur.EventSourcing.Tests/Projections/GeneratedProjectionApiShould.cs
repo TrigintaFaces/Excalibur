@@ -15,6 +15,53 @@ namespace Excalibur.EventSourcing.Tests.Projections;
 [Trait("Pattern", "Conformance")]
 public sealed class GeneratedProjectionApiShould
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ValidateTransactionalAndPositionedModelsTogether(bool oracle)
+    {
+        var (services, _, _) = CreateServices();
+        var builder = A.Fake<IEventSourcingBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+        builder.AddProjection(GeneratedProjectionJson.Default.GeneratedReadModel, p => p.Async());
+        builder.AddProjection(TransactionalModelJson.Default.TransactionalCountModel, p => p.TransactionalInline("Order"));
+        if (oracle)
+            services.AddOracleProjectionStore<TransactionalCountModel>("Data Source=localhost;User Id=test;Password=test", "Counts");
+        else
+            services.AddSqliteProjectionStore<TransactionalCountModel>("Data Source=unused.db", "Counts");
+        services.Count(d => d.ImplementationType == typeof(GeneratedProjectionValidator)).ShouldBe(1);
+        await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        await new GeneratedProjectionValidator(provider).StartAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RejectMissingAotEventSerializationInATransactionalOnlyHost()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(A.Fake<IEventSerializer>());
+        var builder = A.Fake<IEventSourcingBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+        builder.AddProjection(TransactionalModelJson.Default.TransactionalCountModel, p => p.TransactionalInline("Order"));
+        services.AddSqliteProjectionStore<TransactionalCountModel>("Data Source=unused.db", "Counts");
+        services.Count(d => d.ImplementationType == typeof(GeneratedProjectionValidator)).ShouldBe(1);
+        await using var provider = services.BuildServiceProvider();
+        var error = await Should.ThrowAsync<InvalidOperationException>(() =>
+            new GeneratedProjectionValidator(provider).StartAsync(CancellationToken.None));
+        error.Message.ShouldContain("AddAotEventSerializer");
+    }
+
+    [Fact]
+    public async Task ValidateOnlyTheFinalRegistrationMetadata()
+    {
+        var (services, _, _) = CreateServices();
+        var builder = A.Fake<IEventSourcingBuilder>();
+        A.CallTo(() => builder.Services).Returns(services);
+        builder.AddProjection(new GeneratedProjectionJson().GeneratedReadModel, p => p.Async());
+        builder.AddProjection(GeneratedProjectionJson.Default.GeneratedReadModel, p => p.Async());
+        await using var provider = services.BuildServiceProvider();
+        await new GeneratedProjectionValidator(provider).StartAsync(CancellationToken.None);
+    }
+
     [Fact]
     public void RefuseAnInnerGeneratedCapabilityThroughTheTenantDecoratorOrDirectDi()
     {
@@ -109,7 +156,11 @@ public sealed class GeneratedProjectionApiShould
         A.CallTo(() => store.GetService(typeof(IAotProjectionStore<GeneratedReadModel>))).Returns(null);
         A.CallTo(() => store.GetService(typeof(IProjectionTenantBoundary))).Returns(ProjectionTenantBoundary.EstateWide);
         services.AddSingleton(A.Fake<IEventNotificationBroker>());
-        services.AddSingleton<IGeneratedProjectionValidator>(sp => new GeneratedProjectionValidator<GeneratedReadModel>(sp, GeneratedProjectionJson.Default.GeneratedReadModel));
+        var registry = new InMemoryProjectionRegistry();
+        var builder = new ProjectionBuilder<GeneratedReadModel>(services);
+        builder.Inline();
+        builder.BuildGenerated(registry, GeneratedProjectionJson.Default.GeneratedReadModel);
+        services.AddSingleton<IProjectionRegistry>(registry);
         await using var provider = services.BuildServiceProvider();
         await using var coordinator = new InlineProjectionCoordinator(provider, Options.Create(new EventNotificationOptions()), NullLogger<InlineProjectionCoordinator>.Instance);
         var error = await Should.ThrowAsync<InvalidOperationException>(() => coordinator.StartAsync(CancellationToken.None));

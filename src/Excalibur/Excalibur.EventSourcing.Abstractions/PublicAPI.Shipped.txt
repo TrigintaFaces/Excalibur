@@ -633,3 +633,6 @@ Excalibur.EventSourcing.ProjectionTransaction.TenantId.get -> string!
 Excalibur.EventSourcing.ProjectionTransaction.TenantId.init -> void
 Excalibur.EventSourcing.ProjectionTransaction.Transaction.get -> System.Data.IDbTransaction!
 Excalibur.EventSourcing.ProjectionTransaction.Transaction.init -> void
+Excalibur.EventSourcing.ProjectionDestinationKind
+Excalibur.EventSourcing.ProjectionDestinationKind.Positioned = 0 -> Excalibur.EventSourcing.ProjectionDestinationKind
+Excalibur.EventSourcing.ProjectionDestinationKind.Transactional = 1 -> Excalibur.EventSourcing.ProjectionDestinationKind

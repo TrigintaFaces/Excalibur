@@ -58,6 +58,10 @@ effects. Work grows with stream length. This mode does not support cross-aggrega
 DI handlers, or deletion callbacks. Reads use `IProjectionStore<OrderSummary>`; global session
 token reads are not supported for this aggregate-local mode.
 
+The store derives its destination capability from the registered projection mode, independently of
+registration order. Ordinary recovery and global-stream rebuild APIs reject this mode before touching
+the destination; they cannot replace a model owned by the event transaction.
+
 Use the registered repository for all writers. Direct `IEventStore.AppendAsync` calls bypass this
 coordination. Do not share the destination table with ordinary upserts or Inline/Async processors.
 Those modes retain their existing behavior and remain suitable when event and model stores are separate.

@@ -51,7 +51,7 @@ internal sealed class SqlServerSubscriptionCheckpointStore : ISubscriptionCheckp
 
 		_connectionFactory = connectionFactory;
 		_table = SqlTableName.Format(schema, table);
-		_generations = new(OpenAsync, Command, static error => error is SqlException { Number: 1205 or 2601 or 2627 or 547 }, _table, SqlTableName.Format(schema, table + "Readers"));
+		_generations = new(OpenAsync, Command, static error => error is SqlException { Number: 1205 or 2601 or 2627 or 547 }, _table, SqlTableName.Format(schema, table + "Readers"), ProjectionGenerationDialect.SqlServer);
 	}
 
 

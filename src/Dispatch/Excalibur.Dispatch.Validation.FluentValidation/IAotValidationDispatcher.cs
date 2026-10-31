@@ -22,9 +22,12 @@ public interface IAotValidationDispatcher
 	/// </summary>
 	/// <param name="message">The message to validate.</param>
 	/// <param name="provider">The service provider for resolving validators.</param>
+	/// <param name="cancellationToken">Cancellation forwarded to each validator.</param>
+	/// <remarks>The provider is borrowed. Implementations do not create or dispose scopes.</remarks>
 	/// <returns>
 	/// A <see cref="IValidationResult"/> if validators exist for the message type;
 	/// <see langword="null"/> if no validators are registered for this message type.
 	/// </returns>
-	IValidationResult? TryValidate(IDispatchMessage message, IServiceProvider provider);
+	ValueTask<IValidationResult?> TryValidateAsync(
+		IDispatchMessage message, IServiceProvider provider, CancellationToken cancellationToken = default);
 }

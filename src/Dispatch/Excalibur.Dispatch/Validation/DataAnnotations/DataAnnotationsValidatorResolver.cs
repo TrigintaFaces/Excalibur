@@ -20,9 +20,11 @@ internal sealed class DataAnnotationsValidatorResolver : IValidatorResolver
 			"Trimming",
 			"IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
 			Justification = "Data annotations validation relies on reflection over message types registered at startup.")]
-	public IValidationResult? TryValidate(IDispatchMessage message)
+	public ValueTask<IValidationResult?> TryValidateAsync(
+		IDispatchMessage message, IServiceProvider? requestServices = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(message);
+		cancellationToken.ThrowIfCancellationRequested();
 
 		var validationContext = new ValidationContext(message);
 		var results = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
@@ -35,7 +37,7 @@ internal sealed class DataAnnotationsValidatorResolver : IValidatorResolver
 
 		if (isValid)
 		{
-			return null; // No validation errors - pass through
+			return default; // No validation errors - pass through
 		}
 
 		var mappedErrors = new object[results.Count];
@@ -55,11 +57,11 @@ internal sealed class DataAnnotationsValidatorResolver : IValidatorResolver
 
 		if (mappedCount == mappedErrors.Length)
 		{
-			return SerializableValidationResult.Failed(mappedErrors);
+			return new(SerializableValidationResult.Failed(mappedErrors));
 		}
 
 		var trimmedErrors = new object[mappedCount];
 		Array.Copy(mappedErrors, trimmedErrors, mappedCount);
-		return SerializableValidationResult.Failed(trimmedErrors);
+		return new(SerializableValidationResult.Failed(trimmedErrors));
 	}
 }

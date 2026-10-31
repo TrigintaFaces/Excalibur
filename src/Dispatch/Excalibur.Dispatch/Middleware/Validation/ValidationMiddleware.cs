@@ -143,7 +143,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		try
 		{
 			// Perform validation
-			var validationResult = await ValidateMessageAsync(message, validationContext, cancellationToken)
+			var validationResult = await ValidateMessageAsync(message, validationContext, context.RequestServices, cancellationToken)
 				.ConfigureAwait(false);
 
 			if (!validationResult.IsValid)
@@ -286,6 +286,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	private async Task<MessageValidationResult> ValidateMessageAsync(
 		IDispatchMessage message,
 		MessageValidationContext validationContext,
+		IServiceProvider? requestServices,
 		CancellationToken cancellationToken)
 	{
 		var errors = new List<MessageValidationError>();
@@ -298,7 +299,7 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 		if (_options.UseCustomValidation)
 		{
 			// 1. The registered validator, if the resolver claims this message type.
-			var resolved = _validatorResolver.TryValidate(message);
+			var resolved = await _validatorResolver.TryValidateAsync(message, requestServices, cancellationToken).ConfigureAwait(false);
 			if (resolved is { IsValid: false })
 			{
 				AddOrSubstitute(errors, MapResolverErrors(resolved.Errors));

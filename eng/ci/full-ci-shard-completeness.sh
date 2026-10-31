@@ -69,6 +69,34 @@ is_known_shard() {
     *) return 1 ;;
   esac
 }
+
+# A solution filter some workflow RESTORES or BUILDS but never runs tests against. Such a filter is
+# not a shard the local runner must execute, and counting it as one is not a harmless over-count:
+# nobody curates a test filter for a shard nobody tests, so running it admits whatever happens to be
+# in it. Measured 2026-10-30: IntegrationTests is referenced only by committed-content-gates.yml, at
+# --restore and --build, and running its tests locally pulled in Cosmos emulator fixtures that the
+# PR path deliberately moved to nightly, plus the whole Excalibur integration assembly UNSPLIT --
+# the same assembly IntegrationTests-Excalibur exists to split six ways precisely because serially
+# it exceeds one session's test budget by design.
+#
+# This is DATA with a VERIFIED claim, not an exclusion list. is_build_only_stale() below re-derives
+# the claim from the workflows on every run, so the moment someone wires a test job for one of these
+# the gate REFUSES instead of silently continuing to skip it. An exclusion nobody re-checks is how
+# the omission this gate was written for happened in the first place.
+BUILD_ONLY_SHARDS="IntegrationTests"
+
+is_build_only() {
+  local n="$1" b
+  for b in $BUILD_ONLY_SHARDS; do [ "$n" = "$b" ] && return 0; done
+  return 1
+}
+
+# Returns 0 (stale) when a BUILD_ONLY shard is in fact referenced by something that runs tests.
+is_build_only_stale() {
+  local n="$1" src="$2"
+  grep -rhE "eng/ci/shards/${n}\.slnf" "$src" 2>/dev/null \
+    | grep -qE 'dotnet[[:space:]]+test|solution-filter:|test-filter|--filter'
+}
 is_aggregate() {
   local n="$1" a
   for a in $AGGREGATES; do [ "$n" = "$a" ] && return 0; done
@@ -85,10 +113,19 @@ derive_expected() {
   names="$(grep -rhoE 'eng/ci/shards/[A-Za-z0-9._-]+\.slnf' "$src" 2>/dev/null \
             | sed -e 's#.*/##' -e 's/\.slnf$//' | sort -u)"
   [ -n "$names" ] || { echo "REFUSE_REASON=no shard filters found in $src (parse produced nothing)"; return 2; }
+  local stale=""
   for n in $names; do
     if is_aggregate "$n"; then continue; fi
+    if is_build_only "$n"; then
+      if is_build_only_stale "$n" "$src"; then stale="$stale $n"; fi
+      continue
+    fi
     if is_known_shard "$n"; then printf '%s\n' "$n"; else unknown="$unknown $n"; fi
   done > "$TMP_EXPECTED"
+  if [ -n "$stale" ]; then
+    echo "REFUSE_REASON=shard(s) classified BUILD_ONLY in this script are now referenced by a test invocation:$stale — the classification is stale; remove them from BUILD_ONLY_SHARDS so they are expected to report"
+    return 2
+  fi
   if [ -n "$unknown" ]; then
     echo "REFUSE_REASON=unclassifiable shard filter(s) in the workflows:$unknown — classify them in this script rather than letting them be dropped"
     return 2
@@ -194,16 +231,50 @@ normalise_reported_assemblies() {
 # -- the first with the following line written into it, the second simply truncated. Those counts,
 # 11 and 84, matched the two assemblies' TRX result counts exactly. The gate said "silence, not a
 # pass" about assemblies that had reported, because it was reading a surface that can lose the name.
+#
+# SCOPED TO THE RUN UNDER TEST BY A TIME FLOOR, and the scoping is load-bearing.
+#
+# This used to glob every "$dir/${shard}"_*.trx, which cannot tell a file this run wrote from one a
+# PREVIOUS run left behind. CI never noticed: each runner starts with an empty results directory. A
+# local whole-tree run accumulates. Measured 2026-10-30 -- the directory held 2,492 TRX, 118 matching
+# one shard of which only 49 belonged to the run under test, and the union therefore reported "all 69
+# expected assemblies reported" for a run that had LOST 21 assemblies to premature MSBuild node exit
+# (0 Failed! lines, exit 1 from MSB4166). Archiving only the older files and re-running the identical
+# command returned exit 1 and named all 21. A gate whose only deployment is the local pre-alpha
+# rehearsal, and which cannot fail there, is the check-that-cannot-fail shape.
+#
+# WHY A TIME FLOOR AND NOT THE LOG'S OWN TRX NAMES. The log does name its TRX ("Results File: ..."),
+# and keying on that is tighter -- but it breaks the one case this union exists for. The clobbering
+# this function survives is interleaved stdout, which merges or truncates exactly those lines, so a
+# TRX that the log fails to name is the normal shape of the defect rather than an edge case. The
+# self-test's A11 arm plants precisely that: a TRX the clobbered log does not mention.
+#
+# A PRIOR run's TRX and THIS run's TRX are indistinguishable by content -- same shard, same assembly
+# name -- so freshness is the only available discriminator. The floor is, in order:
+#   1. $COMPLETENESS_RUN_START, when the caller states it (seconds since epoch). Preferred: a caller
+#      that reuses one log path per shard cannot rely on birth time, because truncating a file with
+#      `>` does NOT reset its creation timestamp.
+#   2. the log's own birth time, which is correct whenever the log is created fresh per run.
+#   3. unscoped, when the filesystem reports no birth time. Stated in the output rather than assumed,
+#      so an unscoped union is never silently mistaken for a scoped one.
 trx_reported_assemblies() {
-  local shard="$1" log="$2" dir f
+  local shard="$1" log="$2" dir f floor m
   dir="$(dirname "$log")"
+  floor="${COMPLETENESS_RUN_START:-}"
+  if [ -z "$floor" ]; then floor="$(stat -c %W "$log" 2>/dev/null || echo 0)"; fi
+  case "$floor" in ''|'?'|*[!0-9]*) floor=0 ;; esac
   for f in "$dir/${shard}"_*.trx; do
     [ -r "$f" ] || continue
+    if [ "$floor" -ne 0 ]; then
+      m="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+      case "$m" in ''|*[!0-9]*) m=0 ;; esac
+      [ "$m" -ge "$floor" ] || continue
+    fi
     # The TRX is written by whichever platform ran the shard, so storage may use either separator.
     # Backslashes are normalised with tr -- the doubled form is required: a single one makes tr warn
     # "unescaped backslash at end of string" and pass it through unchanged, which silently defeats the
     # basename and makes every TRX name unmatchable.
-    grep -oE 'storage="[^"]*"' "$f"       | sed 's/^storage="//; s/"$//'       | tr '\\' '/'       | sed 's#.*/##; s/[.]dll$//'
+    grep -oE 'storage="[^"]*"' "$f" | sed 's/^storage="//; s/"$//' | tr '\\' '/' | sed 's#.*/##; s/[.]dll$//'
   done | sort -u
 }
 
@@ -252,12 +323,17 @@ self_test() {
   if [ "$rc" -eq 0 ]; then arm_ok "S1 LIVENESS complete shard set -> exit 0"
   else arm_bad "S1 LIVENESS complete shard set -> exit $rc (expected 0)"; fi
 
-  # S2 SAFETY — drop IntegrationTests, the shard that was actually omitted in the incident this gate exists to prevent. MUST go red.
+  # S2 SAFETY -- drop an INTEGRATION shard. The incident this gate exists to prevent was an
+  # omitted integration shard reported as "all shard TESTS green", so the FAMILY is what matters
+  # even though the specific name has moved: IntegrationTests is now classified BUILD_ONLY (no
+  # workflow runs tests against it), so dropping it correctly no longer fails, and asserting that
+  # it does would be asserting the old classification rather than the current behaviour. Pointed
+  # at IntegrationTests-Excalibur, which IS expected to report.
   local minus_one
-  minus_one="$(printf '%s\n' $expected_all | grep -v '^IntegrationTests$')"
+  minus_one="$(printf '%s\n' $expected_all | grep -v '^IntegrationTests-Excalibur$')"
   rc=0; printf '%s\n' "$minus_one" | bash "$0" --results /dev/stdin >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 1 ]; then arm_ok "S2 SAFETY   IntegrationTests omitted -> exit 1 (the real-world omission is caught)"
-  else arm_bad "S2 SAFETY   IntegrationTests omitted -> exit $rc (expected 1)"; fi
+  if [ "$rc" -eq 1 ]; then arm_ok "S2 SAFETY   an integration shard omitted -> exit 1 (the real-world omission is caught)"
+  else arm_bad "S2 SAFETY   an integration shard omitted -> exit $rc (expected 1)"; fi
 
   # S2b SAFETY — dropping ANY shard must fail, not just the famous one.
   # `head -1` is WRONG here: the sorted oracle begins with IntegrationTests, so it would pick the

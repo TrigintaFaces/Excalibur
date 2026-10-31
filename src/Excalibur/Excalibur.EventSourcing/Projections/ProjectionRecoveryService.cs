@@ -77,33 +77,44 @@ internal sealed class ProjectionRecoveryService : IProjectionRecovery
 		CancellationToken cancellationToken)
 		where TProjection : class, new()
 	{
+        var registration = ValidateRecovery<TProjection>(aggregateId, aggregateType);
         await using var scope = _serviceProvider.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var store = ProjectionStoreOperations<TProjection>.Legacy(services.GetRequiredService<IProjectionStore<TProjection>>()).WithCapacity(services);
-        await ReapplyCoreAsync(aggregateId, aggregateType, store, services, cancellationToken).ConfigureAwait(false);
+        await ReapplyCoreAsync(aggregateId, aggregateType, registration, store, services, cancellationToken).ConfigureAwait(false);
     }
 
     internal Task ReapplyGeneratedAsync<TProjection>(string aggregateId, string aggregateType,
         ProjectionStoreOperations<TProjection> store, IServiceProvider handlerServices, CancellationToken cancellationToken) where TProjection : class, new()
     {
+        var registration = ValidateRecovery<TProjection>(aggregateId, aggregateType);
         if (_eventSerializer is not AotJsonEventSerializer)
         {
             throw new InvalidOperationException("Generated projection recovery requires AddAotEventSerializer with the application's generated event context.");
         }
-        return ReapplyCoreAsync(aggregateId, aggregateType, store, handlerServices, cancellationToken);
+        return ReapplyCoreAsync(aggregateId, aggregateType, registration, store, handlerServices, cancellationToken);
     }
 
-    private async Task ReapplyCoreAsync<TProjection>(string aggregateId, string aggregateType,
-        ProjectionStoreOperations<TProjection> store, IServiceProvider handlerServices, CancellationToken cancellationToken) where TProjection : class, new()
+    private ProjectionRegistration ValidateRecovery<TProjection>(string aggregateId, string aggregateType)
     {
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
 		ArgumentException.ThrowIfNullOrEmpty(aggregateType);
-
+        EventNotificationServiceCollectionExtensions.ConfigureProjections(_serviceProvider);
 		var registration = _registry.GetRegistration(typeof(TProjection))
 			?? throw new InvalidOperationException(
 				$"No projection registration found for type '{typeof(TProjection).Name}'. " +
 				"Ensure the projection is registered via AddProjection<T>().");
+        if (registration.Mode == ProjectionMode.TransactionalInline)
+        {
+            throw new NotSupportedException("TransactionalInline projections cannot be recovered through ordinary replay. Their models are written only inside the coordinated event transaction.");
+        }
+        return registration;
+    }
 
+    private async Task ReapplyCoreAsync<TProjection>(string aggregateId, string aggregateType,
+        ProjectionRegistration registration, ProjectionStoreOperations<TProjection> store,
+        IServiceProvider handlerServices, CancellationToken cancellationToken) where TProjection : class, new()
+    {
 		var projection = (MultiStreamProjection<TProjection>)registration.Projection;
 
 		// REFUSED, not silently wrong. Recovery replays ONE aggregate onto a FRESH state and writes it
