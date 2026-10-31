@@ -42,6 +42,16 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 {
 	private readonly ElasticsearchContainerFixture _fixture;
 
+	// WHY THIS EXISTS. The skip message used to be a fixed string, so every skipped run said
+	// "was not reachable" and nothing said WHY -- which left the only open question about this
+	// suite unanswerable from CI output, and it was carried across two separate renewals of its
+	// skip budget as "STILL NOT established". The cause was always recorded and never read: the
+	// fixture keeps the real Docker/Elasticsearch failure in InitializationError, and this class
+	// discarded it twice over -- once by never consulting DockerAvailable, and again by not
+	// including the reason in the message. This field carries it to the skip.
+	private string _skipReason =
+		"[infrastructure-unavailable] Elasticsearch availability was never determined, which is itself the defect: InitializeAsync did not run to a verdict.";
+
 	/// <summary>
 	/// Per-fact index. xUnit builds one instance per fact, so this is unique per fact and is what keeps
 	/// facts isolated from each other on the shared container.
@@ -59,6 +69,21 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 	/// <inheritdoc/>
 	public async ValueTask InitializeAsync()
 	{
+		// DockerAvailable FIRST. ConnectionString throws "Container not initialized" when the
+		// container never started, and that exception -- not the real cause -- is what the catch
+		// below used to report. Reading the fixture's own verdict first keeps the genuine Docker
+		// or Elasticsearch error intact.
+		if (!_fixture.DockerAvailable)
+		{
+			_dockerAvailable = false;
+			_skipReason =
+				"[infrastructure-unavailable] the Elasticsearch container did not start, so this fact did NOT execute. Fixture reported: "
+				+ (string.IsNullOrWhiteSpace(_fixture.InitializationError)
+					? "no reason recorded by the fixture."
+					: _fixture.InitializationError);
+			return;
+		}
+
 		try
 		{
 			var configuration = new ConfigurationBuilder()
@@ -90,11 +115,21 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 			// Wait for Elasticsearch to be ready
 			var healthCheck = await _client.IsHealthyAsync(CancellationToken.None).ConfigureAwait(false);
 			_dockerAvailable = healthCheck;
+			if (!healthCheck)
+			{
+				_skipReason =
+					"[infrastructure-unavailable] the Elasticsearch container STARTED but its health probe returned false, so this fact did NOT execute. The container is up and the client cannot use it -- a different defect from an absent container, and the distinction is the point of saying so here.";
+			}
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine($"Docker/Elasticsearch initialization failed: {ex.Message}");
 			_dockerAvailable = false;
+			_skipReason =
+				"[infrastructure-unavailable] Elasticsearch client setup threw, so this fact did NOT execute. "
+				+ ex.GetType().Name
+				+ ": "
+				+ ex.Message;
+			Console.WriteLine(_skipReason);
 		}
 	}
 
@@ -108,7 +143,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange
 		var testDoc = new TestDocument { Id = "test-1", Name = "Test Document", Value = 42 };
@@ -134,7 +169,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange - Index a test document first
 		var testDoc = new TestDocument { Id = "test-2", Name = "Search Test", Value = 100 };
@@ -176,7 +211,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange
 		var documents = Enumerable.Range(1, 5).Select(static i => new TestDocument
@@ -216,7 +251,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange - Create a request to a non-existent index to trigger retries
 		var searchRequest = new SearchRequest(Indices.Parse("non-existent-index"))
@@ -248,7 +283,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Act
 		var isHealthy = await _client!.IsHealthyAsync(CancellationToken.None).ConfigureAwait(false);
@@ -270,7 +305,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange - Index a document first so the index exists for aggregation queries
 		var testDoc = new TestDocument { Id = "agg-test", Name = "Aggregation Test", Value = 42 };
@@ -316,7 +351,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange - Get initial circuit breaker state
 		var initialState = _client!.IsCircuitBreakerOpen;
@@ -341,7 +376,7 @@ public sealed class MonitoredResilientElasticsearchClientShould : IAsyncLifetime
 		// whenever Docker was up: a reader triaging CI read "infra unavailable" and stopped looking.
 		// _dockerAvailable is the health-probe result computed in InitializeAsync; consulting it is
 		// what makes the skip honest — it now fires only when Elasticsearch is genuinely unreachable.
-		Assert.SkipUnless(_dockerAvailable, "[infrastructure-unavailable] Elasticsearch (Docker) was not reachable from InitializeAsync, so this fact did NOT execute. It is reported skipped, never passed.");
+		Assert.SkipUnless(_dockerAvailable, _skipReason);
 
 		// Arrange - Perform some operations to potentially populate metrics
 		var testDoc = new TestDocument { Id = "metrics-test", Name = "Metrics Test", Value = 456 };

@@ -4,6 +4,7 @@
 using Excalibur.EventSourcing;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 using Excalibur.Integration.Tests.Data.EventStore;
 using Excalibur.EventSourcing.Postgres;
 using Excalibur.Testing.Conformance;
@@ -65,15 +66,29 @@ public sealed class PostgresTransactionalProjectionConformanceShould(PostgresEve
         parameter.ParameterName = "@Blocker";
         parameter.Value = blockerId;
         query.Parameters.Add(parameter);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        while (!timeout.IsCancellationRequested)
+        // Polls the provider's own lock view through WaitHelpers rather than a hand-rolled
+        // sleep loop. The 20ms here is a POLL INTERVAL, never a synchronisation point: a
+        // fixed delay taken before asserting a background condition races the runner, and under
+        // thread-pool starvation it reports working code as broken. The outer token bounds the
+        // query itself; WaitUntilAsync owns the wait and reports exhaustion by returning false.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var waiterObserved = await WaitHelpers.WaitUntilAsync(
+            async () =>
+            {
+                append.IsCompleted.ShouldBeFalse("The contender must still be waiting for the owned history.");
+                return Convert.ToInt32(
+                    await query.ExecuteScalarAsync(timeout.Token),
+                    System.Globalization.CultureInfo.InvariantCulture) > 0;
+            },
+            TimeSpan.FromSeconds(15),
+            TimeSpan.FromMilliseconds(20));
+
+        if (!waiterObserved)
         {
-            append.IsCompleted.ShouldBeFalse("The contender must still be waiting for the owned history.");
-            if (Convert.ToInt32(await query.ExecuteScalarAsync(timeout.Token), System.Globalization.CultureInfo.InvariantCulture) > 0)
-            { return false; }
-            await Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System, timeout.Token);
+            throw new InvalidOperationException("No database lock waiter was observed before timeout.");
         }
-        throw new InvalidOperationException("No database lock waiter was observed before timeout.");
+
+        return false;
     }
 
     protected override async Task AssertHistoryLockRefusedAsync(string aggregateId, string aggregateType)
