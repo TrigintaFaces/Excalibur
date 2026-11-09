@@ -91,7 +91,7 @@ jobs:
 
       - name: Setup .NET
         id: sdk
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
       - name: Cache NuGet packages
@@ -438,7 +438,7 @@ jobs:
       # eng/ci/official-finalizer-contract.json. Any change to this job needs that contract updated
       # under independent review; comments are not part of the digest, the parsed job is.
       - name: Setup the pinned signing SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           # This job deliberately checks out no source, so global.json is not on disk here.
           # The version is the one the source job installed from global.json, so the pin is
